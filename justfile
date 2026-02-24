@@ -1,5 +1,8 @@
 # Gleam Project Tasks
 
+set dotenv-load := true
+set dotenv-path := "example/.env"
+
 # === ALIASES ===
 alias b := build
 alias t := test
@@ -45,6 +48,12 @@ format-check:
 # Type check without building
 check:
     gleam check
+
+# === EXAMPLE APP ===
+
+# Start the example OAuth app (requires GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET)
+serve:
+    cd example && gleam run
 
 # === DOCUMENTATION ===
 
