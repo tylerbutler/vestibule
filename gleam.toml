@@ -17,4 +17,4 @@ gleam_json = ">= 3.1.0 and < 4.0.0"
 glow_auth = ">= 1.0.1 and < 2.0.0"
 
 [dev-dependencies]
-gleeunit = ">= 1.0.0 and < 2.0.0"
+startest = ">= 0.8.0 and < 1.0.0"

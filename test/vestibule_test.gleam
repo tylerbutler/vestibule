@@ -1,17 +1,17 @@
-import gleeunit
-import gleeunit/should
+import startest
+import startest/expect
 import vestibule
 
 pub fn main() -> Nil {
-  gleeunit.main()
+  startest.run(startest.default_config())
 }
 
 pub fn hello_test() {
   vestibule.hello("World")
-  |> should.equal("Hello, World!")
+  |> expect.to_equal("Hello, World!")
 }
 
 pub fn hello_gleam_test() {
   vestibule.hello("Gleam")
-  |> should.equal("Hello, Gleam!")
+  |> expect.to_equal("Hello, Gleam!")
 }
