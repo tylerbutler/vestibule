@@ -3,7 +3,7 @@
 [![Package Version](https://img.shields.io/hexpm/v/vestibule)](https://hex.pm/packages/vestibule)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/vestibule/)
 
-A Gleam project.
+A higher-level auth library for Gleam.
 
 ## Installation
 
