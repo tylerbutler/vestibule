@@ -35,9 +35,7 @@ pub fn strategy() -> Strategy {
 
 /// Parse a GitHub token exchange response into Credentials.
 /// Exported for testing.
-pub fn parse_token_response(
-  body: String,
-) -> Result(Credentials, AuthError) {
+pub fn parse_token_response(body: String) -> Result(Credentials, AuthError) {
   // First check if it's an error response
   let error_decoder = {
     use error_code <- decode.field("error", decode.string)
@@ -67,9 +65,7 @@ fn parse_success_token(body: String) -> Result(Credentials, AuthError) {
   case json.parse(body, decoder) {
     Ok(creds) -> Ok(creds)
     _ ->
-      Error(error.CodeExchangeFailed(
-        reason: "Failed to parse token response",
-      ))
+      Error(error.CodeExchangeFailed(reason: "Failed to parse token response"))
   }
 }
 
@@ -120,9 +116,7 @@ pub fn parse_user_response(
   case json.parse(body, decoder) {
     Ok(result) -> Ok(result)
     _ ->
-      Error(error.UserInfoFailed(
-        reason: "Failed to parse GitHub user response",
-      ))
+      Error(error.UserInfoFailed(reason: "Failed to parse GitHub user response"))
   }
 }
 
@@ -160,7 +154,11 @@ fn do_authorize_url(
   let assert Ok(site) = uri.parse("https://github.com")
   let assert Ok(redirect) = uri.parse(config.redirect_uri)
   let client =
-    glow_auth.Client(id: config.client_id, secret: config.client_secret, site: site)
+    glow_auth.Client(
+      id: config.client_id,
+      secret: config.client_secret,
+      site: site,
+    )
   let url =
     authorize_uri.build(
       client,
@@ -181,7 +179,11 @@ fn do_exchange_code(
   let assert Ok(site) = uri.parse("https://github.com")
   let assert Ok(redirect) = uri.parse(config.redirect_uri)
   let client =
-    glow_auth.Client(id: config.client_id, secret: config.client_secret, site: site)
+    glow_auth.Client(
+      id: config.client_id,
+      secret: config.client_secret,
+      site: site,
+    )
   let req =
     token_request.authorization_code(
       client,
@@ -200,9 +202,7 @@ fn do_exchange_code(
   }
 }
 
-fn do_fetch_user(
-  creds: Credentials,
-) -> Result(#(String, UserInfo), AuthError) {
+fn do_fetch_user(creds: Credentials) -> Result(#(String, UserInfo), AuthError) {
   // Fetch user profile
   let assert Ok(user_req) = request.to("https://api.github.com/user")
   let user_req =

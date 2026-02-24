@@ -12,10 +12,7 @@ pub fn generate() -> String {
 
 /// Validate a received state parameter against the expected value.
 /// Uses constant-time comparison to prevent timing attacks.
-pub fn validate(
-  received: String,
-  expected: String,
-) -> Result(Nil, AuthError) {
+pub fn validate(received: String, expected: String) -> Result(Nil, AuthError) {
   let received_bits = <<received:utf8>>
   let expected_bits = <<expected:utf8>>
   case crypto.secure_compare(received_bits, expected_bits) {

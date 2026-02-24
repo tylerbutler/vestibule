@@ -9,13 +9,15 @@ pub fn parse_token_response_success_test() {
     "{\"access_token\":\"gho_abc123\",\"token_type\":\"bearer\",\"scope\":\"user:email\"}"
   github.parse_token_response(json)
   |> expect.to_be_ok()
-  |> expect.to_equal(Credentials(
-    token: "gho_abc123",
-    refresh_token: None,
-    token_type: "bearer",
-    expires_at: None,
-    scopes: ["user:email"],
-  ))
+  |> expect.to_equal(
+    Credentials(
+      token: "gho_abc123",
+      refresh_token: None,
+      token_type: "bearer",
+      expires_at: None,
+      scopes: ["user:email"],
+    ),
+  )
 }
 
 pub fn parse_token_response_with_multiple_scopes_test() {
@@ -44,14 +46,14 @@ pub fn parse_user_response_full_test() {
   info.name |> expect.to_equal(Some("The Octocat"))
   info.nickname |> expect.to_equal(Some("octocat"))
   info.image
-  |> expect.to_equal(Some(
-    "https://avatars.githubusercontent.com/u/12345",
-  ))
+  |> expect.to_equal(Some("https://avatars.githubusercontent.com/u/12345"))
   info.description |> expect.to_equal(Some("A cat that codes"))
   info.urls
-  |> expect.to_equal(dict.from_list([
-    #("html_url", "https://github.com/octocat"),
-  ]))
+  |> expect.to_equal(
+    dict.from_list([
+      #("html_url", "https://github.com/octocat"),
+    ]),
+  )
 }
 
 pub fn parse_user_response_minimal_test() {

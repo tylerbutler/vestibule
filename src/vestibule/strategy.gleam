@@ -13,8 +13,7 @@ pub type Strategy {
     default_scopes: List(String),
     /// Build the authorization URL to redirect the user to.
     /// Parameters: config, scopes, state.
-    authorize_url: fn(Config, List(String), String) ->
-      Result(String, AuthError),
+    authorize_url: fn(Config, List(String), String) -> Result(String, AuthError),
     /// Exchange an authorization code for credentials.
     exchange_code: fn(Config, String) -> Result(Credentials, AuthError),
     /// Fetch user info using the obtained credentials.
