@@ -7,8 +7,12 @@ import gleam/option.{type Option, None}
 import gleam/string
 import gleam/uri
 
+import gleam/http/request
+import gleam/httpc
+
 import glow_auth
 import glow_auth/authorize_uri
+import glow_auth/token_request
 import glow_auth/uri/uri_builder
 
 import vestibule/config.{type Config}
@@ -170,10 +174,29 @@ fn do_authorize_url(
 }
 
 fn do_exchange_code(
-  _config: Config,
-  _code: String,
+  config: Config,
+  code: String,
 ) -> Result(Credentials, AuthError) {
-  Error(error.ConfigError(reason: "Not implemented"))
+  let assert Ok(site) = uri.parse("https://github.com")
+  let assert Ok(redirect) = uri.parse(config.redirect_uri)
+  let client =
+    glow_auth.Client(id: config.client_id, secret: config.client_secret, site: site)
+  let req =
+    token_request.authorization_code(
+      client,
+      uri_builder.RelativePath("/login/oauth/access_token"),
+      code,
+      redirect,
+    )
+    |> request.set_header("accept", "application/json")
+
+  case httpc.send(req) {
+    Ok(response) -> parse_token_response(response.body)
+    Error(_) ->
+      Error(error.NetworkError(
+        reason: "Failed to connect to GitHub token endpoint",
+      ))
+  }
 }
 
 fn do_fetch_user(
