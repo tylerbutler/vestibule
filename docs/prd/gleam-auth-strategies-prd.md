@@ -10,7 +10,7 @@
 
 ### 1.1 Problem Statement
 
-The Gleam ecosystem lacks a unified authentication strategy framework. Developers wanting to add social login (Google, GitHub, Discord, etc.) must hand-roll OAuth flows on top of low-level primitives like `glow_auth`. Each implementation requires understanding provider-specific quirks (authorization URLs, token exchange, user info endpoints, scope formats, response shapes) and building the same request/callback plumbing from scratch.
+The Gleam ecosystem lacks a unified authentication strategy framework. Developers wanting to add social login (Google, GitHub, Microsoft, etc.) must hand-roll OAuth flows on top of low-level primitives like `glow_auth`. Each implementation requires understanding provider-specific quirks (authorization URLs, token exchange, user info endpoints, scope formats, response shapes) and building the same request/callback plumbing from scratch.
 
 The Elixir ecosystem solved this with Ueberauth — a two-phase strategy pattern that normalizes provider-specific authentication into a consistent result type. No equivalent exists for Gleam.
 
@@ -34,7 +34,7 @@ Build a strategy-based authentication library for Gleam that provides a consiste
 
 - Add GitHub login to a Wisp app in under 20 lines of configuration + handler code
 - Consistent `Auth` result type regardless of provider
-- At least 3 provider strategies at launch (GitHub, Google, Discord)
+- At least 3 provider strategies at launch (GitHub, Google, Microsoft)
 - Builds on `glow_auth` for OAuth2 plumbing rather than reimplementing
 - Works on Erlang target (primary); JS target for core types only
 
@@ -71,7 +71,7 @@ Build a strategy-based authentication library for Gleam that provides a consiste
 | **P0** | Strategy interface (record of functions) for OAuth2 providers |
 | **P0** | Normalized `Auth` result type (uid, provider, user info, credentials) |
 | **P0** | CSRF state parameter generation and validation |
-| **P0** | Built-in strategies: GitHub, Google, Discord |
+| **P0** | Built-in strategies: GitHub, Google, Microsoft |
 | **P1** | Wisp middleware for request/callback routing |
 | **P1** | Configurable scopes per provider |
 | **P1** | PKCE support for providers that require/recommend it |
@@ -319,15 +319,16 @@ pub fn get(
 | UID | Google `sub` claim |
 | Notes | PKCE recommended |
 
-#### FR-10: Discord Strategy
+#### FR-10: Microsoft Strategy
 
 | Field | Details |
 |-------|---------|
-| Authorize URL | `https://discord.com/api/oauth2/authorize` |
-| Token URL | `https://discord.com/api/oauth2/token` |
-| User Info URL | `https://discord.com/api/users/@me` |
-| Default Scopes | `["identify", "email"]` |
-| UID | Discord user ID |
+| Authorize URL | `https://login.microsoftonline.com/common/oauth2/v2.0/authorize` |
+| Token URL | `https://login.microsoftonline.com/common/oauth2/v2.0/token` |
+| User Info URL | `https://graph.microsoft.com/v1.0/me` |
+| Default Scopes | `["openid", "email", "profile", "User.Read"]` |
+| UID | Microsoft `id` (object ID) |
+| Notes | Uses `/common` tenant for multi-tenant; PKCE recommended |
 
 ---
 
@@ -403,12 +404,12 @@ Each provider strategy CAN be published as a separate hex package:
 your_auth_lib           # Core types + middleware
 your_auth_lib_github    # GitHub strategy
 your_auth_lib_google    # Google strategy
-your_auth_lib_discord   # Discord strategy
+your_auth_lib_microsoft # Microsoft strategy
 ```
 
 However, for initial launch, bundling the top 3 providers in the core package reduces friction. Separate packages make sense once community strategies emerge.
 
-**Recommended approach:** Ship core + GitHub/Google/Discord together initially. Extract to separate packages if/when the strategy count grows beyond ~5.
+**Recommended approach:** Ship core + GitHub/Google/Microsoft together initially. Extract to separate packages if/when the strategy count grows beyond ~5.
 
 ### 7.4 Type Safety
 
@@ -437,7 +438,7 @@ src/
 │   └── strategy/
 │       ├── github.gleam            # GitHub strategy
 │       ├── google.gleam            # Google strategy
-│       └── discord.gleam           # Discord strategy
+│       └── microsoft.gleam          # Microsoft strategy
 ```
 
 ---
@@ -491,7 +492,7 @@ Pevensie Auth is building toward a full-stack auth solution (users, sessions, pe
 ### Phase 2: More Providers + Polish
 
 - [ ] Google strategy (with PKCE)
-- [ ] Discord strategy
+- [ ] Microsoft strategy
 - [ ] Provider registry
 - [ ] Configurable scopes and extra params
 - [ ] Comprehensive error messages
