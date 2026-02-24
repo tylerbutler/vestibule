@@ -1,4 +1,5 @@
 import gleam/option.{None, Some}
+import gleam/string as gleam_string
 import startest/expect
 import vestibule/credentials.{Credentials}
 import vestibule/strategy/microsoft
@@ -38,4 +39,37 @@ pub fn parse_token_response_error_test() {
     microsoft.parse_token_response(body)
     |> expect.to_be_error()
   Nil
+}
+
+pub fn parse_user_response_full_test() {
+  let body =
+    "{\"id\":\"87d349ed-44d7-43e1-9a83-5f2406dee5bd\",\"displayName\":\"Adele Vance\",\"mail\":\"AdeleV@contoso.com\",\"userPrincipalName\":\"AdeleV@contoso.com\",\"jobTitle\":\"Retail Manager\"}"
+  let assert Ok(#(uid, info)) = microsoft.parse_user_response(body)
+  uid |> expect.to_equal("87d349ed-44d7-43e1-9a83-5f2406dee5bd")
+  info.name |> expect.to_equal(Some("Adele Vance"))
+  info.email |> expect.to_equal(Some("AdeleV@contoso.com"))
+  info.nickname |> expect.to_equal(Some("AdeleV@contoso.com"))
+  info.description |> expect.to_equal(Some("Retail Manager"))
+  // Gravatar URL from SHA-256 of lowercase email
+  let assert Some(image_url) = info.image
+  gleam_string.starts_with(image_url, "https://www.gravatar.com/avatar/")
+  |> expect.to_be_true()
+}
+
+pub fn parse_user_response_minimal_test() {
+  let body =
+    "{\"id\":\"abc-123\",\"userPrincipalName\":\"user@example.com\"}"
+  let assert Ok(#(uid, info)) = microsoft.parse_user_response(body)
+  uid |> expect.to_equal("abc-123")
+  info.name |> expect.to_equal(None)
+  info.email |> expect.to_equal(Some("user@example.com"))
+  info.nickname |> expect.to_equal(Some("user@example.com"))
+  info.description |> expect.to_equal(None)
+}
+
+pub fn parse_user_response_mail_preferred_over_upn_test() {
+  let body =
+    "{\"id\":\"abc\",\"mail\":\"real@example.com\",\"userPrincipalName\":\"upn@example.com\"}"
+  let assert Ok(#(_uid, info)) = microsoft.parse_user_response(body)
+  info.email |> expect.to_equal(Some("real@example.com"))
 }
