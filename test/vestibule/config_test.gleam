@@ -22,5 +22,6 @@ pub fn with_extra_params_adds_params_test() {
   let c =
     config.new("id", "secret", "http://localhost/callback")
     |> config.with_extra_params([#("allow_signup", "false")])
-  c.extra_params |> expect.to_equal(dict.from_list([#("allow_signup", "false")]))
+  c.extra_params
+  |> expect.to_equal(dict.from_list([#("allow_signup", "false")]))
 }
