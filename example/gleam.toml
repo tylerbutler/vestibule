@@ -1,0 +1,17 @@
+name = "vestibule_example"
+version = "0.0.0"
+description = "Example Wisp app demonstrating vestibule GitHub OAuth"
+gleam = ">= 1.7.0"
+
+[dependencies]
+vestibule = { path = ".." }
+wisp = ">= 2.2.0 and < 3.0.0"
+mist = ">= 4.0.0 and < 6.0.0"
+gleam_stdlib = ">= 0.48.0 and < 2.0.0"
+gleam_erlang = ">= 1.0.0 and < 2.0.0"
+gleam_http = ">= 4.0.0 and < 5.0.0"
+envoy = ">= 1.1.0 and < 2.0.0"
+gleam_crypto = ">= 1.5.0 and < 2.0.0"
+
+[dev-dependencies]
+startest = ">= 0.8.0 and < 1.0.0"

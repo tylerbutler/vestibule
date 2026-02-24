@@ -4,9 +4,15 @@
 
 **Goal:** Build a polished Wisp web app in `example/` that demonstrates the full GitHub OAuth flow using vestibule's current API.
 
-**Architecture:** Gleam project at `example/` with path dependency on vestibule. Wisp handles HTTP, carpenter provides ETS-backed session storage for CSRF state, envoy reads GitHub credentials from env vars. Simple inline HTML pages — no templates or CSS frameworks.
+**Architecture:** Gleam project at `example/` with path dependency on vestibule. Wisp handles HTTP, Erlang FFI provides ETS-backed session storage for CSRF state, envoy reads GitHub credentials from env vars. Simple inline HTML pages — no templates or CSS frameworks.
 
-**Tech Stack:** Gleam 1.14+, wisp 2.2.0, mist (via wisp), carpenter 0.3.1, envoy 1.1.0, vestibule (path dep)
+**Tech Stack:** Gleam 1.14+, wisp 2.2.0, mist (via wisp), Erlang FFI for ETS, envoy 1.1.0, vestibule (path dep)
+
+> **Implementation notes (deviations from original plan):**
+> - **carpenter replaced with Erlang FFI**: carpenter 0.3.1 and bravo 4.0.1 both require `gleam_erlang < 1.0.0`, incompatible with vestibule's `gleam_erlang 1.3.0`. Session storage uses `session_ffi.erl` (~30 lines) for direct ETS access.
+> - **rebar3 added to toolchain**: Required by the `telemetry` transitive dependency. Added via `mise use rebar@3.26.0`.
+> - **`wisp.html_response` takes `String`**: Plan's `pages.gleam` used `string_tree.from_string` but wisp 2.2.0 expects plain `String`. Fixed to use string concatenation directly.
+> - **`gleam_crypto` added as direct dep**: Needed for `crypto.strong_random_bytes` in session ID generation (was implicit via vestibule, made explicit).
 
 **Design doc:** `docs/plans/2026-02-24-e2e-example-design.md`
 

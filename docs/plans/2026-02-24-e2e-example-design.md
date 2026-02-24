@@ -13,17 +13,27 @@ example/
 │   ├── app.gleam       # main() — server startup, config from env
 │   ├── router.gleam    # route dispatch + auth handlers
 │   ├── session.gleam   # ETS-backed session store for CSRF state
+│   ├── session_ffi.erl # Erlang FFI for direct ETS access
 │   └── pages.gleam     # HTML responses (landing, success, error)
+├── test/
+│   ├── vestibule_example_test.gleam  # startest entry point
+│   └── session_test.gleam            # session store tests
 └── README.md           # Setup: env vars, GitHub OAuth app config
 ```
 
 ## Dependencies
 
 - `vestibule` (path: "..")
-- `wisp` >= 1.8.0
+- `wisp` >= 2.2.0
 - `mist` >= 4.0.0
-- `gleam_erlang` (for process.sleep_forever)
-- `envoy` (environment variables)
+- `gleam_erlang` >= 1.0.0 (for process.sleep_forever)
+- `gleam_crypto` >= 1.5.0 (for session ID generation)
+- `envoy` >= 1.1.0 (environment variables)
+
+> **Note:** The original plan included `carpenter` for ETS bindings, but carpenter 0.3.1
+> (and `bravo` 4.0.1) both require `gleam_erlang < 1.0.0`, which is incompatible with
+> vestibule's `gleam_erlang 1.3.0`. Session storage uses a small Erlang FFI wrapper
+> (`session_ffi.erl`) for direct ETS access instead.
 
 ## Routes
 
@@ -67,12 +77,13 @@ Simple inline HTML. No templates, no CSS framework — just readable markup.
 - `/auth/github/callback`: read query params via `wisp.get_query`, look up state, call `vestibule.handle_callback`, render success or error page
 
 ### session.gleam
-- `create_table()`: create named ETS table
-- `store_state(state)`: generate session ID, insert into ETS, return session ID
+- `create_table()`: create named ETS table (idempotent)
+- `store_state(state)`: generate session ID via `gleam/crypto`, insert into ETS, return session ID
 - `get_state(session_id)`: look up and delete state from ETS (one-time use)
-- Uses `gleam_erlang` for ETS operations, or raw Erlang FFI if needed
+- Uses Erlang FFI (`session_ffi.erl`) for ETS operations — table name passed as string, converted to atom in Erlang
 
 ### pages.gleam
 - `landing()`: returns HTML response for the landing page
 - `success(auth)`: returns HTML response showing Auth result fields
 - `error(err)`: returns HTML response showing the error
+- Note: `wisp.html_response` takes `String`, not `StringTree`
