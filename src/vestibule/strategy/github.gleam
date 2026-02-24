@@ -4,6 +4,7 @@ import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None}
+import gleam/result
 import gleam/string
 import gleam/uri
 
@@ -200,7 +201,42 @@ fn do_exchange_code(
 }
 
 fn do_fetch_user(
-  _credentials: Credentials,
+  creds: Credentials,
 ) -> Result(#(String, UserInfo), AuthError) {
-  Error(error.ConfigError(reason: "Not implemented"))
+  // Fetch user profile
+  let assert Ok(user_req) = request.to("https://api.github.com/user")
+  let user_req =
+    user_req
+    |> request.set_header("authorization", "Bearer " <> creds.token)
+    |> request.set_header("accept", "application/json")
+    |> request.set_header("user-agent", "vestibule-gleam")
+
+  let user_response = case httpc.send(user_req) {
+    Ok(resp) -> Ok(resp)
+    Error(_) ->
+      Error(error.NetworkError(reason: "Failed to fetch GitHub user info"))
+  }
+
+  use resp <- result.try(user_response)
+  use #(uid, info) <- result.try(parse_user_response(resp.body))
+
+  // Fetch verified primary email (best-effort — don't fail if this errors)
+  let assert Ok(email_req) = request.to("https://api.github.com/user/emails")
+  let email_req =
+    email_req
+    |> request.set_header("authorization", "Bearer " <> creds.token)
+    |> request.set_header("accept", "application/json")
+    |> request.set_header("user-agent", "vestibule-gleam")
+
+  let email = case httpc.send(email_req) {
+    Ok(response) -> parse_primary_email(response.body)
+    Error(_) -> None
+  }
+
+  let final_info = case email {
+    option.Some(_) -> user_info.UserInfo(..info, email: email)
+    None -> info
+  }
+
+  Ok(#(uid, final_info))
 }
