@@ -5,6 +5,11 @@ import gleam/json
 import gleam/list
 import gleam/option.{type Option, None}
 import gleam/string
+import gleam/uri
+
+import glow_auth
+import glow_auth/authorize_uri
+import glow_auth/uri/uri_builder
 
 import vestibule/config.{type Config}
 import vestibule/credentials.{type Credentials, Credentials}
@@ -142,13 +147,26 @@ pub fn parse_primary_email(body: String) -> Option(String) {
   }
 }
 
-// Placeholder implementations — will be filled in subsequent tasks
 fn do_authorize_url(
-  _config: Config,
-  _scopes: List(String),
-  _state: String,
+  config: Config,
+  scopes: List(String),
+  state: String,
 ) -> Result(String, AuthError) {
-  Error(error.ConfigError(reason: "Not implemented"))
+  let assert Ok(site) = uri.parse("https://github.com")
+  let assert Ok(redirect) = uri.parse(config.redirect_uri)
+  let client =
+    glow_auth.Client(id: config.client_id, secret: config.client_secret, site: site)
+  let url =
+    authorize_uri.build(
+      client,
+      uri_builder.RelativePath("/login/oauth/authorize"),
+      redirect,
+    )
+    |> authorize_uri.set_scope(string.join(scopes, " "))
+    |> authorize_uri.set_state(state)
+    |> authorize_uri.to_code_authorization_uri()
+    |> uri.to_string()
+  Ok(url)
 }
 
 fn do_exchange_code(
