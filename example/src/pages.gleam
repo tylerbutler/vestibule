@@ -1,25 +1,41 @@
+import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/string
 import wisp
 
 import vestibule/auth.{type Auth}
 import vestibule/error.{type AuthError}
 
-/// Landing page with GitHub sign-in link.
-pub fn landing() -> wisp.Response {
+/// Landing page with dynamic provider buttons.
+pub fn landing(providers: List(String)) -> wisp.Response {
+  let buttons =
+    providers
+    |> list.map(fn(provider) {
+      "<a href=\"/auth/"
+      <> provider
+      <> "\"\n     style=\"display: inline-block; padding: 12px 24px; background: #24292e; color: white; text-decoration: none; border-radius: 6px; font-size: 16px; margin: 8px;\">\n    Sign in with "
+      <> capitalize(provider)
+      <> "\n  </a>"
+    })
+    |> string.join("\n  ")
   wisp.html_response(
     "<html>
 <head><title>Vestibule Demo</title></head>
 <body style=\"font-family: system-ui, sans-serif; max-width: 600px; margin: 80px auto; text-align: center;\">
   <h1>Vestibule Demo</h1>
   <p>OAuth2 authentication library for Gleam</p>
-  <a href=\"/auth/github\"
-     style=\"display: inline-block; padding: 12px 24px; background: #24292e; color: white; text-decoration: none; border-radius: 6px; font-size: 16px;\">
-    Sign in with GitHub
-  </a>
+  " <> buttons <> "
 </body>
 </html>",
     200,
   )
+}
+
+fn capitalize(s: String) -> String {
+  case string.pop_grapheme(s) {
+    Ok(#(first, rest)) -> string.uppercase(first) <> rest
+    Error(Nil) -> s
+  }
 }
 
 /// Success page showing authenticated user info.
