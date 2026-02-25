@@ -80,15 +80,7 @@ pub fn handle_callback(
   )
 
   // Check for provider errors
-  use _ <- result.try(case dict.get(callback_params, "error") {
-    Ok(error_code) -> {
-      let description =
-        dict.get(callback_params, "error_description")
-        |> result.unwrap("")
-      Error(error.ProviderError(code: error_code, description: description))
-    }
-    Error(Nil) -> Ok(Nil)
-  })
+  use _ <- result.try(check_provider_error(callback_params))
 
   // Validate state
   use _ <- result.try(state.validate(received_state, expected_state))
@@ -131,13 +123,12 @@ pub fn refresh_token(
     <> "&client_secret="
     <> config.client_secret
 
-  let req_result =
+  use req <- result.try(
     request.to(strategy.token_url)
     |> result.replace_error(error.ConfigError(
       reason: "Invalid token URL: " <> strategy.token_url,
-    ))
-
-  use req <- result.try(req_result)
+    )),
+  )
 
   let req =
     req
@@ -210,6 +201,21 @@ fn parse_refresh_success(body: String) -> Result(Credentials, AuthError(e)) {
       Error(error.CodeExchangeFailed(
         reason: "Failed to parse token refresh response",
       ))
+  }
+}
+
+/// Check callback params for a provider error response.
+fn check_provider_error(
+  params: Dict(String, String),
+) -> Result(Nil, AuthError(e)) {
+  case dict.get(params, "error") {
+    Ok(error_code) -> {
+      let description =
+        dict.get(params, "error_description")
+        |> result.unwrap("")
+      Error(error.ProviderError(code: error_code, description: description))
+    }
+    Error(Nil) -> Ok(Nil)
   }
 }
 

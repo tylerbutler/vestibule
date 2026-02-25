@@ -1,4 +1,5 @@
 import gleam/dict
+import gleam/result
 import wisp.{type Request, type Response}
 
 import vestibule
@@ -76,42 +77,39 @@ fn do_callback(
   reg: Registry(e),
   provider: String,
 ) -> Result(Auth, Response) {
-  case registry.get(reg, provider) {
-    Error(Nil) -> Error(wisp.not_found())
-    Ok(#(strategy, config)) ->
-      case wisp.get_cookie(req, "vestibule_session", wisp.Signed) {
-        Error(Nil) ->
-          Error(
-            error_response(error.ConfigError(reason: "Missing session cookie")),
-          )
-        Ok(session_id) ->
-          case state_store.retrieve(session_id) {
-            Error(Nil) ->
-              Error(
-                error_response(error.ConfigError(
-                  reason: "Session expired or already used",
-                )),
-              )
-            Ok(#(expected_state, code_verifier)) -> {
-              let params =
-                wisp.get_query(req)
-                |> dict.from_list()
-              case
-                vestibule.handle_callback(
-                  strategy,
-                  config,
-                  params,
-                  expected_state,
-                  code_verifier,
-                )
-              {
-                Ok(auth) -> Ok(auth)
-                Error(err) -> Error(error_response(err))
-              }
-            }
-          }
-      }
-  }
+  use #(strategy, config) <- result.try(
+    registry.get(reg, provider)
+    |> result.map_error(fn(_) { wisp.not_found() }),
+  )
+
+  use session_id <- result.try(
+    wisp.get_cookie(req, "vestibule_session", wisp.Signed)
+    |> result.map_error(fn(_) {
+      error_response(error.ConfigError(reason: "Missing session cookie"))
+    }),
+  )
+
+  use #(expected_state, code_verifier) <- result.try(
+    state_store.retrieve(session_id)
+    |> result.map_error(fn(_) {
+      error_response(error.ConfigError(
+        reason: "Session expired or already used",
+      ))
+    }),
+  )
+
+  let params =
+    wisp.get_query(req)
+    |> dict.from_list()
+
+  vestibule.handle_callback(
+    strategy,
+    config,
+    params,
+    expected_state,
+    code_verifier,
+  )
+  |> result.map_error(error_response)
 }
 
 fn error_response(err: error.AuthError(e)) -> Response {

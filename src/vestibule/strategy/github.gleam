@@ -194,7 +194,7 @@ fn do_exchange_code(
       redirect,
     )
     |> request.set_header("accept", "application/json")
-  let req = append_code_verifier(req, code_verifier)
+  let req = strategy.append_code_verifier(req, code_verifier)
 
   case httpc.send(req) {
     Ok(response) -> parse_token_response(response.body)
@@ -216,13 +216,12 @@ fn do_fetch_user(
     |> request.set_header("accept", "application/json")
     |> request.set_header("user-agent", "vestibule-gleam")
 
-  let user_response = case httpc.send(user_req) {
-    Ok(resp) -> Ok(resp)
-    Error(_) ->
-      Error(error.NetworkError(reason: "Failed to fetch GitHub user info"))
-  }
-
-  use resp <- result.try(user_response)
+  use resp <- result.try(
+    httpc.send(user_req)
+    |> result.map_error(fn(_) {
+      error.NetworkError(reason: "Failed to fetch GitHub user info")
+    }),
+  )
   use #(uid, info) <- result.try(parse_user_response(resp.body))
 
   // Fetch verified primary email (best-effort — don't fail if this errors)
@@ -244,22 +243,4 @@ fn do_fetch_user(
   }
 
   Ok(#(uid, final_info))
-}
-
-/// Append code_verifier to the form-encoded request body when present.
-fn append_code_verifier(
-  req: request.Request(String),
-  code_verifier: Option(String),
-) -> request.Request(String) {
-  case code_verifier {
-    option.Some(verifier) -> {
-      let body = case req.body {
-        "" -> "code_verifier=" <> uri.percent_encode(verifier)
-        existing ->
-          existing <> "&code_verifier=" <> uri.percent_encode(verifier)
-      }
-      request.set_body(req, body)
-    }
-    None -> req
-  }
 }
