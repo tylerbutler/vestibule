@@ -79,9 +79,7 @@ pub fn main() {
       io.println("Error: No OAuth providers configured.")
       io.println("Set GITHUB_CLIENT_ID + GITHUB_CLIENT_SECRET,")
       io.println("MICROSOFT_CLIENT_ID + MICROSOFT_CLIENT_SECRET, and/or")
-      io.println(
-        "GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET in your .env file.",
-      )
+      io.println("GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET in your .env file.")
       panic as "No providers configured"
     }
     _ -> Nil
