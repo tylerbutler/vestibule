@@ -22,7 +22,7 @@ import vestibule/strategy.{type Strategy, Strategy}
 import vestibule/user_info.{type UserInfo}
 
 /// Create a Microsoft authentication strategy using /common tenant.
-pub fn strategy() -> Strategy {
+pub fn strategy() -> Strategy(e) {
   Strategy(
     provider: "microsoft",
     default_scopes: ["User.Read"],
@@ -33,7 +33,7 @@ pub fn strategy() -> Strategy {
 }
 
 /// Parse Microsoft token response JSON.
-pub fn parse_token_response(body: String) -> Result(Credentials, AuthError) {
+pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
   // Try error response first
   let error_decoder = {
     use error_code <- decode.field("error", decode.string)
@@ -47,7 +47,7 @@ pub fn parse_token_response(body: String) -> Result(Credentials, AuthError) {
   }
 }
 
-fn parse_success_token(body: String) -> Result(Credentials, AuthError) {
+fn parse_success_token(body: String) -> Result(Credentials, AuthError(e)) {
   let decoder = {
     use access_token <- decode.field("access_token", decode.string)
     use token_type <- decode.field("token_type", decode.string)
@@ -82,7 +82,7 @@ fn parse_success_token(body: String) -> Result(Credentials, AuthError) {
 /// Parse Microsoft Graph /me response JSON.
 pub fn parse_user_response(
   body: String,
-) -> Result(#(String, UserInfo), AuthError) {
+) -> Result(#(String, UserInfo), AuthError(e)) {
   let decoder = {
     use id <- decode.field("id", decode.string)
     use display_name <- decode.optional_field(
@@ -134,7 +134,7 @@ fn do_authorize_url(
   config: Config,
   scopes: List(String),
   state: String,
-) -> Result(String, AuthError) {
+) -> Result(String, AuthError(e)) {
   let assert Ok(site) =
     uri.parse("https://login.microsoftonline.com/common/oauth2/v2.0")
   let assert Ok(redirect) = uri.parse(config.redirect_uri)
@@ -160,7 +160,7 @@ fn do_authorize_url(
 fn do_exchange_code(
   config: Config,
   code: String,
-) -> Result(Credentials, AuthError) {
+) -> Result(Credentials, AuthError(e)) {
   let assert Ok(site) =
     uri.parse("https://login.microsoftonline.com/common/oauth2/v2.0")
   let assert Ok(redirect) = uri.parse(config.redirect_uri)
@@ -187,7 +187,9 @@ fn do_exchange_code(
   }
 }
 
-fn do_fetch_user(creds: Credentials) -> Result(#(String, UserInfo), AuthError) {
+fn do_fetch_user(
+  creds: Credentials,
+) -> Result(#(String, UserInfo), AuthError(e)) {
   let assert Ok(user_req) = request.to("https://graph.microsoft.com/v1.0/me")
   let user_req =
     user_req

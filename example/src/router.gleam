@@ -9,12 +9,12 @@ import vestibule/error
 import vestibule/registry.{type Registry}
 
 /// Application context passed to the router.
-pub type Context {
-  Context(registry: Registry)
+pub type Context(e) {
+  Context(registry: Registry(e))
 }
 
 /// Route incoming requests.
-pub fn handle_request(req: Request, ctx: Context) -> Response {
+pub fn handle_request(req: Request, ctx: Context(e)) -> Response {
   use <- wisp.log_request(req)
 
   case wisp.path_segments(req), req.method {
@@ -33,7 +33,7 @@ pub fn handle_request(req: Request, ctx: Context) -> Response {
   }
 }
 
-fn begin_auth(req: Request, ctx: Context, provider: String) -> Response {
+fn begin_auth(req: Request, ctx: Context(e), provider: String) -> Response {
   case registry.get(ctx.registry, provider) {
     Error(Nil) -> wisp.not_found()
     Ok(#(strategy, config)) ->
@@ -54,7 +54,7 @@ fn begin_auth(req: Request, ctx: Context, provider: String) -> Response {
   }
 }
 
-fn handle_callback(req: Request, ctx: Context, provider: String) -> Response {
+fn handle_callback(req: Request, ctx: Context(e), provider: String) -> Response {
   case registry.get(ctx.registry, provider) {
     Error(Nil) -> wisp.not_found()
     Ok(#(strategy, config)) -> {

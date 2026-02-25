@@ -5,7 +5,10 @@ import vestibule/user_info.{type UserInfo}
 
 /// A strategy is a record containing the functions needed
 /// to authenticate with a specific provider.
-pub type Strategy {
+///
+/// The type parameter `e` corresponds to the custom error type
+/// in `AuthError(e)`. Built-in strategies are polymorphic in `e`.
+pub type Strategy(e) {
   Strategy(
     /// Human-readable provider name (e.g., "github", "google").
     provider: String,
@@ -13,11 +16,12 @@ pub type Strategy {
     default_scopes: List(String),
     /// Build the authorization URL to redirect the user to.
     /// Parameters: config, scopes, state.
-    authorize_url: fn(Config, List(String), String) -> Result(String, AuthError),
+    authorize_url: fn(Config, List(String), String) ->
+      Result(String, AuthError(e)),
     /// Exchange an authorization code for credentials.
-    exchange_code: fn(Config, String) -> Result(Credentials, AuthError),
+    exchange_code: fn(Config, String) -> Result(Credentials, AuthError(e)),
     /// Fetch user info using the obtained credentials.
     /// Returns #(uid, user_info).
-    fetch_user: fn(Credentials) -> Result(#(String, UserInfo), AuthError),
+    fetch_user: fn(Credentials) -> Result(#(String, UserInfo), AuthError(e)),
   )
 }

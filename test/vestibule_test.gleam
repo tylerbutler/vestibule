@@ -15,7 +15,7 @@ pub fn main() -> Nil {
 }
 
 // A fake strategy for testing the orchestrator
-fn test_strategy() -> Strategy {
+fn test_strategy() -> Strategy(e) {
   Strategy(
     provider: "test",
     default_scopes: ["default_scope"],

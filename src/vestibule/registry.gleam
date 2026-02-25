@@ -3,21 +3,23 @@ import vestibule/config.{type Config}
 import vestibule/strategy.{type Strategy}
 
 /// A registry mapping provider names to Strategy + Config pairs.
-pub opaque type Registry {
-  Registry(providers: Dict(String, #(Strategy, Config)))
+///
+/// The type parameter `e` must match across all registered strategies.
+pub opaque type Registry(e) {
+  Registry(providers: Dict(String, #(Strategy(e), Config)))
 }
 
 /// Create an empty registry.
-pub fn new() -> Registry {
+pub fn new() -> Registry(e) {
   Registry(providers: dict.new())
 }
 
 /// Register a strategy with its config. Provider name is taken from the strategy.
 pub fn register(
-  registry: Registry,
-  strategy: Strategy,
+  registry: Registry(e),
+  strategy: Strategy(e),
   config: Config,
-) -> Registry {
+) -> Registry(e) {
   Registry(
     providers: dict.insert(registry.providers, strategy.provider, #(
       strategy,
@@ -28,13 +30,13 @@ pub fn register(
 
 /// Look up a provider by name.
 pub fn get(
-  registry: Registry,
+  registry: Registry(e),
   provider: String,
-) -> Result(#(Strategy, Config), Nil) {
+) -> Result(#(Strategy(e), Config), Nil) {
   dict.get(registry.providers, provider)
 }
 
 /// List all registered provider names.
-pub fn providers(registry: Registry) -> List(String) {
+pub fn providers(registry: Registry(e)) -> List(String) {
   dict.keys(registry.providers)
 }

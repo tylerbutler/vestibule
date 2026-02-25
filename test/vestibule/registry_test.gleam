@@ -5,7 +5,7 @@ import vestibule/error
 import vestibule/registry
 import vestibule/strategy.{type Strategy, Strategy}
 
-fn test_strategy(name: String) -> Strategy {
+fn test_strategy(name: String) -> Strategy(e) {
   Strategy(
     provider: name,
     default_scopes: [],

@@ -65,7 +65,7 @@ pub fn success(auth: Auth) -> wisp.Response {
 }
 
 /// Error page.
-pub fn error(err: AuthError) -> wisp.Response {
+pub fn error(err: AuthError(e)) -> wisp.Response {
   let message = case err {
     error.StateMismatch -> "State mismatch — possible CSRF attack"
     error.CodeExchangeFailed(reason:) -> "Code exchange failed: " <> reason
@@ -74,6 +74,7 @@ pub fn error(err: AuthError) -> wisp.Response {
       "Provider error [" <> code <> "]: " <> description
     error.NetworkError(reason:) -> "Network error: " <> reason
     error.ConfigError(reason:) -> "Configuration error: " <> reason
+    error.Custom(_) -> "Custom provider error"
   }
   wisp.html_response("<html>
 <head><title>Error — Vestibule Demo</title></head>
