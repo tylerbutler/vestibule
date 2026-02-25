@@ -3,7 +3,7 @@ import gleam/crypto
 import gleam/dict
 import gleam/dynamic/decode
 import gleam/json
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import gleam/string
 import gleam/uri
 
@@ -161,6 +161,7 @@ fn do_authorize_url(
 fn do_exchange_code(
   config: Config,
   code: String,
+  code_verifier: Option(String),
 ) -> Result(Credentials, AuthError(e)) {
   let assert Ok(site) =
     uri.parse("https://login.microsoftonline.com/common/oauth2/v2.0")
@@ -179,6 +180,7 @@ fn do_exchange_code(
       redirect,
     )
     |> request.set_header("accept", "application/json")
+  let req = append_code_verifier(req, code_verifier)
   case httpc.send(req) {
     Ok(response) -> parse_token_response(response.body)
     Error(_) ->
@@ -215,4 +217,22 @@ fn gravatar_url(email: String) -> String {
     |> bit_array.base16_encode
     |> string.lowercase
   "https://www.gravatar.com/avatar/" <> hash <> "?d=identicon"
+}
+
+/// Append code_verifier to the form-encoded request body when present.
+fn append_code_verifier(
+  req: request.Request(String),
+  code_verifier: Option(String),
+) -> request.Request(String) {
+  case code_verifier {
+    Some(verifier) -> {
+      let body = case req.body {
+        "" -> "code_verifier=" <> uri.percent_encode(verifier)
+        existing ->
+          existing <> "&code_verifier=" <> uri.percent_encode(verifier)
+      }
+      request.set_body(req, body)
+    }
+    None -> req
+  }
 }
