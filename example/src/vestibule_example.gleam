@@ -12,7 +12,8 @@ import session
 import vestibule/config
 import vestibule/registry
 import vestibule/strategy/github
-import vestibule/strategy/microsoft
+import vestibule_google
+import vestibule_microsoft
 
 pub fn main() {
   let port =
@@ -50,8 +51,23 @@ pub fn main() {
       io.println("  Registered provider: microsoft")
       registry.register(
         reg,
-        microsoft.strategy(),
+        vestibule_microsoft.strategy(),
         config.new(id, secret, callback_base <> "/auth/microsoft/callback"),
+      )
+    }
+    _, _ -> reg
+  }
+
+  let reg = case
+    envoy.get("GOOGLE_CLIENT_ID"),
+    envoy.get("GOOGLE_CLIENT_SECRET")
+  {
+    Ok(id), Ok(secret) -> {
+      io.println("  Registered provider: google")
+      registry.register(
+        reg,
+        vestibule_google.strategy(),
+        config.new(id, secret, callback_base <> "/auth/google/callback"),
       )
     }
     _, _ -> reg
@@ -61,10 +77,9 @@ pub fn main() {
   case registry.providers(reg) {
     [] -> {
       io.println("Error: No OAuth providers configured.")
-      io.println("Set GITHUB_CLIENT_ID + GITHUB_CLIENT_SECRET and/or")
-      io.println(
-        "MICROSOFT_CLIENT_ID + MICROSOFT_CLIENT_SECRET in your .env file.",
-      )
+      io.println("Set GITHUB_CLIENT_ID + GITHUB_CLIENT_SECRET,")
+      io.println("MICROSOFT_CLIENT_ID + MICROSOFT_CLIENT_SECRET, and/or")
+      io.println("GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET in your .env file.")
       panic as "No providers configured"
     }
     _ -> Nil
