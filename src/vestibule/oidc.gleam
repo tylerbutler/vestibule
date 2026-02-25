@@ -60,15 +60,12 @@ pub fn fetch_configuration(
   let discovery_url =
     strip_trailing_slash(issuer_url) <> "/.well-known/openid-configuration"
 
-  let req = case request.to(discovery_url) {
-    Ok(r) -> Ok(r)
-    Error(_) ->
-      Error(error.ConfigError(
-        reason: "Invalid discovery URL: " <> discovery_url,
-      ))
-  }
-
-  use r <- result.try(req)
+  use r <- result.try(
+    request.to(discovery_url)
+    |> result.map_error(fn(_) {
+      error.ConfigError(reason: "Invalid discovery URL: " <> discovery_url)
+    }),
+  )
   let r =
     r
     |> request.set_header("accept", "application/json")
@@ -354,15 +351,14 @@ fn build_exchange_code_fn(
     }
     let body = uri.query_to_string(params)
 
-    let req = case request.to(token_endpoint) {
-      Ok(r) -> Ok(r)
-      Error(_) ->
-        Error(error.ConfigError(
+    use r <- result.try(
+      request.to(token_endpoint)
+      |> result.map_error(fn(_) {
+        error.ConfigError(
           reason: "Invalid token endpoint URL: " <> token_endpoint,
-        ))
-    }
-
-    use r <- result.try(req)
+        )
+      }),
+    )
     let r =
       r
       |> request.set_method(http.Post)
@@ -384,15 +380,14 @@ fn build_fetch_user_fn(
   userinfo_endpoint: String,
 ) -> fn(Credentials) -> Result(#(String, user_info.UserInfo), AuthError(e)) {
   fn(creds: Credentials) -> Result(#(String, user_info.UserInfo), AuthError(e)) {
-    let req = case request.to(userinfo_endpoint) {
-      Ok(r) -> Ok(r)
-      Error(_) ->
-        Error(error.ConfigError(
+    use r <- result.try(
+      request.to(userinfo_endpoint)
+      |> result.map_error(fn(_) {
+        error.ConfigError(
           reason: "Invalid userinfo endpoint URL: " <> userinfo_endpoint,
-        ))
-    }
-
-    use r <- result.try(req)
+        )
+      }),
+    )
     let r =
       r
       |> request.set_header("authorization", "Bearer " <> creds.token)

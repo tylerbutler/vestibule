@@ -1,4 +1,6 @@
+import gleam/http/request
 import gleam/option.{type Option}
+import gleam/uri
 
 import vestibule/config.{type Config}
 import vestibule/credentials.{type Credentials}
@@ -30,4 +32,25 @@ pub type Strategy(e) {
     /// Returns #(uid, user_info).
     fetch_user: fn(Credentials) -> Result(#(String, UserInfo), AuthError(e)),
   )
+}
+
+/// Append a PKCE code_verifier to a form-encoded request body when present.
+///
+/// Strategy implementations should call this after building the token
+/// exchange request to include the PKCE verifier parameter.
+pub fn append_code_verifier(
+  req: request.Request(String),
+  code_verifier: Option(String),
+) -> request.Request(String) {
+  case code_verifier {
+    option.Some(verifier) -> {
+      let body = case req.body {
+        "" -> "code_verifier=" <> uri.percent_encode(verifier)
+        existing ->
+          existing <> "&code_verifier=" <> uri.percent_encode(verifier)
+      }
+      request.set_body(req, body)
+    }
+    option.None -> req
+  }
 }
