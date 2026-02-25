@@ -52,3 +52,34 @@ pub fn parse_token_response_error_test() {
     |> expect.to_be_error()
   Nil
 }
+
+pub fn parse_user_response_full_test() {
+  let body =
+    "{\"sub\":\"1234567890\",\"name\":\"Jane Doe\",\"given_name\":\"Jane\",\"family_name\":\"Doe\",\"picture\":\"https://lh3.googleusercontent.com/photo.jpg\",\"email\":\"jane@example.com\",\"email_verified\":true}"
+  let assert Ok(#(uid, info)) = vestibule_google.parse_user_response(body)
+  uid |> expect.to_equal("1234567890")
+  info.name |> expect.to_equal(Some("Jane Doe"))
+  info.email |> expect.to_equal(Some("jane@example.com"))
+  info.nickname |> expect.to_equal(Some("jane@example.com"))
+  info.image
+  |> expect.to_equal(Some("https://lh3.googleusercontent.com/photo.jpg"))
+  info.description |> expect.to_equal(None)
+}
+
+pub fn parse_user_response_unverified_email_test() {
+  let body =
+    "{\"sub\":\"999\",\"name\":\"Test\",\"email\":\"unverified@example.com\",\"email_verified\":false}"
+  let assert Ok(#(_uid, info)) = vestibule_google.parse_user_response(body)
+  info.email |> expect.to_equal(None)
+  info.nickname |> expect.to_equal(Some("unverified@example.com"))
+}
+
+pub fn parse_user_response_minimal_test() {
+  let body = "{\"sub\":\"abc-123\"}"
+  let assert Ok(#(uid, info)) = vestibule_google.parse_user_response(body)
+  uid |> expect.to_equal("abc-123")
+  info.name |> expect.to_equal(None)
+  info.email |> expect.to_equal(None)
+  info.nickname |> expect.to_equal(None)
+  info.image |> expect.to_equal(None)
+}
