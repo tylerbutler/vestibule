@@ -1,3 +1,5 @@
+import gleam/option.{type Option}
+
 import vestibule/config.{type Config}
 import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
@@ -21,7 +23,9 @@ pub type Strategy(e) {
     authorize_url: fn(Config, List(String), String) ->
       Result(String, AuthError(e)),
     /// Exchange an authorization code for credentials.
-    exchange_code: fn(Config, String) -> Result(Credentials, AuthError(e)),
+    /// The third parameter is an optional PKCE code verifier.
+    exchange_code: fn(Config, String, Option(String)) ->
+      Result(Credentials, AuthError(e)),
     /// Fetch user info using the obtained credentials.
     /// Returns #(uid, user_info).
     fetch_user: fn(Credentials) -> Result(#(String, UserInfo), AuthError(e)),

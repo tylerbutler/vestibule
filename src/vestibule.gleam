@@ -2,6 +2,7 @@
 ///
 /// Provides a consistent interface across OAuth2 identity providers
 /// using a two-phase flow: redirect to provider, then handle callback.
+/// All flows use PKCE (Proof Key for Code Exchange) for enhanced security.
 import gleam/dict.{type Dict}
 import gleam/dynamic/decode
 import gleam/http
@@ -11,40 +12,58 @@ import gleam/json
 import gleam/option.{None}
 import gleam/result
 import gleam/string
+import gleam/uri
 
 import vestibule/auth.{type Auth, Auth}
+import vestibule/authorization_request.{
+  type AuthorizationRequest, AuthorizationRequest,
+}
 import vestibule/config.{type Config}
 import vestibule/credentials.{type Credentials, Credentials}
 import vestibule/error.{type AuthError}
+import vestibule/pkce
 import vestibule/state
 import vestibule/strategy.{type Strategy}
 
 /// Phase 1: Generate the authorization URL to redirect the user to.
 ///
-/// Returns `#(url, state)` — the caller must store the state parameter
-/// in their session for validation during the callback phase.
+/// Returns an `AuthorizationRequest` containing the URL, CSRF state,
+/// and PKCE code verifier. The caller must store both the state and
+/// code_verifier in their session for use during the callback phase.
+///
+/// PKCE parameters (`code_challenge` and `code_challenge_method=S256`)
+/// are automatically appended to the authorization URL.
 pub fn authorize_url(
   strategy: Strategy(e),
   config: Config,
-) -> Result(#(String, String), AuthError(e)) {
+) -> Result(AuthorizationRequest, AuthError(e)) {
   let csrf_state = state.generate()
+  let code_verifier = pkce.generate_verifier()
+  let code_challenge = pkce.compute_challenge(code_verifier)
   let scopes = case config.scopes {
     [] -> strategy.default_scopes
     custom -> custom
   }
-  use url <- result.try(strategy.authorize_url(config, scopes, csrf_state))
-  Ok(#(url, csrf_state))
+  use base_url <- result.try(strategy.authorize_url(config, scopes, csrf_state))
+  let url = append_pkce_params(base_url, code_challenge)
+  Ok(AuthorizationRequest(
+    url: url,
+    state: csrf_state,
+    code_verifier: code_verifier,
+  ))
 }
 
 /// Phase 2: Handle the OAuth callback from the provider.
 ///
 /// Validates the state parameter, exchanges the authorization code
-/// for credentials, and fetches normalized user information.
+/// for credentials (including the PKCE code verifier), and fetches
+/// normalized user information.
 pub fn handle_callback(
   strategy: Strategy(e),
   config: Config,
   callback_params: Dict(String, String),
   expected_state: String,
+  code_verifier: String,
 ) -> Result(Auth, AuthError(e)) {
   // Extract required parameters
   use received_state <- result.try(
@@ -74,8 +93,12 @@ pub fn handle_callback(
   // Validate state
   use _ <- result.try(state.validate(received_state, expected_state))
 
-  // Exchange code for credentials
-  use credentials <- result.try(strategy.exchange_code(config, code))
+  // Exchange code for credentials, passing the PKCE verifier
+  use credentials <- result.try(strategy.exchange_code(
+    config,
+    code,
+    option.Some(code_verifier),
+  ))
 
   // Fetch user info
   use #(uid, info) <- result.try(strategy.fetch_user(credentials))
@@ -188,4 +211,17 @@ fn parse_refresh_success(body: String) -> Result(Credentials, AuthError(e)) {
         reason: "Failed to parse token refresh response",
       ))
   }
+}
+
+/// Append PKCE code_challenge and code_challenge_method to an authorization URL.
+fn append_pkce_params(url: String, code_challenge: String) -> String {
+  let separator = case string.contains(url, "?") {
+    True -> "&"
+    False -> "?"
+  }
+  url
+  <> separator
+  <> "code_challenge="
+  <> uri.percent_encode(code_challenge)
+  <> "&code_challenge_method=S256"
 }

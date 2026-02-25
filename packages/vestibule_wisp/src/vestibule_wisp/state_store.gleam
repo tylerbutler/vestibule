@@ -9,18 +9,18 @@ pub fn init() -> Nil {
   do_create_table(table_name)
 }
 
-/// Store a CSRF state value and return a session ID.
-pub fn store(state: String) -> String {
+/// Store a CSRF state value and PKCE code verifier, returning a session ID.
+pub fn store(state: String, code_verifier: String) -> String {
   let session_id =
     crypto.strong_random_bytes(16)
     |> bit_array.base64_url_encode(False)
-  do_insert(table_name, session_id, state)
+  do_insert(table_name, session_id, #(state, code_verifier))
   session_id
 }
 
-/// Retrieve and consume a CSRF state by session ID.
+/// Retrieve and consume a CSRF state and code verifier by session ID.
 /// Returns Error(Nil) if not found or already consumed (one-time use).
-pub fn retrieve(session_id: String) -> Result(String, Nil) {
+pub fn retrieve(session_id: String) -> Result(#(String, String), Nil) {
   case do_lookup(table_name, session_id) {
     Ok(value) -> {
       do_delete(table_name, session_id)
@@ -34,10 +34,10 @@ pub fn retrieve(session_id: String) -> Result(String, Nil) {
 fn do_create_table(name: String) -> Nil
 
 @external(erlang, "vestibule_wisp_state_store_ffi", "insert")
-fn do_insert(name: String, key: String, value: String) -> Nil
+fn do_insert(name: String, key: String, value: #(String, String)) -> Nil
 
 @external(erlang, "vestibule_wisp_state_store_ffi", "lookup")
-fn do_lookup(name: String, key: String) -> Result(String, Nil)
+fn do_lookup(name: String, key: String) -> Result(#(String, String), Nil)
 
 @external(erlang, "vestibule_wisp_state_store_ffi", "delete_key")
 fn do_delete(name: String, key: String) -> Nil
