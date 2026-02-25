@@ -19,6 +19,7 @@ fn test_strategy() -> Strategy(e) {
   Strategy(
     provider: "test",
     default_scopes: ["default_scope"],
+    token_url: "https://test.com/oauth/token",
     authorize_url: fn(_config, scopes, state) {
       Ok(
         "https://test.com/auth?scope="

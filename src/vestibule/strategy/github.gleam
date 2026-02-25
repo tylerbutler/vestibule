@@ -27,6 +27,7 @@ pub fn strategy() -> Strategy(e) {
   Strategy(
     provider: "github",
     default_scopes: ["user:email"],
+    token_url: "https://github.com/login/oauth/access_token",
     authorize_url: do_authorize_url,
     exchange_code: do_exchange_code,
     fetch_user: do_fetch_user,

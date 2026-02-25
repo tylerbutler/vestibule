@@ -24,6 +24,7 @@ pub fn strategy() -> Strategy(e) {
   Strategy(
     provider: "google",
     default_scopes: ["openid", "profile", "email"],
+    token_url: "https://oauth2.googleapis.com/token",
     authorize_url: do_authorize_url,
     exchange_code: do_exchange_code,
     fetch_user: do_fetch_user,
