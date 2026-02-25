@@ -8,12 +8,12 @@ import wisp
 import wisp/wisp_mist
 
 import router.{Context}
-import session
 import vestibule/config
 import vestibule/registry
 import vestibule/strategy/github
 import vestibule_google
 import vestibule_microsoft
+import vestibule_wisp/state_store
 
 pub fn main() {
   let port =
@@ -87,8 +87,8 @@ pub fn main() {
 
   let ctx = Context(registry: reg)
 
-  // Initialize session store
-  session.create_table()
+  // Initialize state store
+  state_store.init()
 
   // Configure Wisp logging
   wisp.configure_logger()

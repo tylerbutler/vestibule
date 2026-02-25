@@ -4,7 +4,6 @@ import gleam/string
 import wisp
 
 import vestibule/auth.{type Auth}
-import vestibule/error.{type AuthError}
 
 /// Landing page with dynamic provider buttons.
 pub fn landing(providers: List(String)) -> wisp.Response {
@@ -62,28 +61,6 @@ pub fn success(auth: Auth) -> wisp.Response {
   <a href=\"/\">Back to home</a>
 </body>
 </html>", 200)
-}
-
-/// Error page.
-pub fn error(err: AuthError(e)) -> wisp.Response {
-  let message = case err {
-    error.StateMismatch -> "State mismatch — possible CSRF attack"
-    error.CodeExchangeFailed(reason:) -> "Code exchange failed: " <> reason
-    error.UserInfoFailed(reason:) -> "User info fetch failed: " <> reason
-    error.ProviderError(code:, description:) ->
-      "Provider error [" <> code <> "]: " <> description
-    error.NetworkError(reason:) -> "Network error: " <> reason
-    error.ConfigError(reason:) -> "Configuration error: " <> reason
-    error.Custom(_) -> "Custom provider error"
-  }
-  wisp.html_response("<html>
-<head><title>Error — Vestibule Demo</title></head>
-<body style=\"font-family: system-ui, sans-serif; max-width: 600px; margin: 80px auto;\">
-  <h1>Authentication Failed</h1>
-  <p style=\"color: #c0392b;\">" <> message <> "</p>
-  <a href=\"/\">Try again</a>
-</body>
-</html>", 400)
 }
 
 fn option_or(opt: Option(String), default: String) -> String {

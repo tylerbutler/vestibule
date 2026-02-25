@@ -5,6 +5,7 @@ gleam = ">= 1.7.0"
 
 [dependencies]
 vestibule = { path = ".." }
+vestibule_wisp = { path = "../packages/vestibule_wisp" }
 vestibule_microsoft = { path = "../packages/vestibule_microsoft" }
 vestibule_google = { path = "../packages/vestibule_google" }
 wisp = ">= 2.2.0 and < 3.0.0"
@@ -13,7 +14,6 @@ gleam_stdlib = ">= 0.48.0 and < 2.0.0"
 gleam_erlang = ">= 1.0.0 and < 2.0.0"
 gleam_http = ">= 4.0.0 and < 5.0.0"
 envoy = ">= 1.1.0 and < 2.0.0"
-gleam_crypto = ">= 1.5.0 and < 2.0.0"
 
 [dev-dependencies]
 startest = ">= 0.8.0 and < 1.0.0"

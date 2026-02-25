@@ -1,4 +1,4 @@
--module(session_ffi).
+-module(vestibule_wisp_state_store_ffi).
 -export([create_table/1, insert/3, lookup/2, delete_key/2]).
 
 create_table(Name) ->
