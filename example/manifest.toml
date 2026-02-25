@@ -40,12 +40,12 @@ packages = [
   { name = "vestibule", version = "0.1.0", build_tools = ["gleam"], requirements = ["gleam_crypto", "gleam_http", "gleam_httpc", "gleam_json", "gleam_stdlib", "glow_auth"], source = "local", path = ".." },
   { name = "vestibule_google", version = "0.1.0", build_tools = ["gleam"], requirements = ["gleam_http", "gleam_httpc", "gleam_json", "gleam_stdlib", "glow_auth", "vestibule"], source = "local", path = "../packages/vestibule_google" },
   { name = "vestibule_microsoft", version = "0.1.0", build_tools = ["gleam"], requirements = ["gleam_crypto", "gleam_http", "gleam_httpc", "gleam_json", "gleam_stdlib", "glow_auth", "vestibule"], source = "local", path = "../packages/vestibule_microsoft" },
+  { name = "vestibule_wisp", version = "0.1.0", build_tools = ["gleam"], requirements = ["gleam_crypto", "gleam_http", "gleam_json", "gleam_stdlib", "vestibule", "wisp"], source = "local", path = "../packages/vestibule_wisp" },
   { name = "wisp", version = "2.2.0", build_tools = ["gleam"], requirements = ["directories", "exception", "filepath", "gleam_crypto", "gleam_erlang", "gleam_http", "gleam_json", "gleam_stdlib", "houdini", "logging", "marceau", "mist", "simplifile"], otp_app = "wisp", source = "hex", outer_checksum = "655163D4DE19E3DD4AC75813A991BFD5523CB4FF2FC5F9F58FD6FB39D5D1806D" },
 ]
 
 [requirements]
 envoy = { version = ">= 1.1.0 and < 2.0.0" }
-gleam_crypto = { version = ">= 1.5.0 and < 2.0.0" }
 gleam_erlang = { version = ">= 1.0.0 and < 2.0.0" }
 gleam_http = { version = ">= 4.0.0 and < 5.0.0" }
 gleam_stdlib = { version = ">= 0.48.0 and < 2.0.0" }
@@ -54,4 +54,5 @@ startest = { version = ">= 0.8.0 and < 1.0.0" }
 vestibule = { path = ".." }
 vestibule_google = { path = "../packages/vestibule_google" }
 vestibule_microsoft = { path = "../packages/vestibule_microsoft" }
+vestibule_wisp = { path = "../packages/vestibule_wisp" }
 wisp = { version = ">= 2.2.0 and < 3.0.0" }
