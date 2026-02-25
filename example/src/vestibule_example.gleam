@@ -85,10 +85,10 @@ pub fn main() {
     _ -> Nil
   }
 
-  let ctx = Context(registry: reg)
-
   // Initialize state store
-  state_store.init()
+  let store = state_store.init()
+
+  let ctx = Context(registry: reg, state_store: store)
 
   // Configure Wisp logging
   wisp.configure_logger()
