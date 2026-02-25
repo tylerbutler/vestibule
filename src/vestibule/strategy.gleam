@@ -14,6 +14,8 @@ pub type Strategy(e) {
     provider: String,
     /// Default scopes for this provider.
     default_scopes: List(String),
+    /// The provider's token endpoint URL, used for code exchange and token refresh.
+    token_url: String,
     /// Build the authorization URL to redirect the user to.
     /// Parameters: config, scopes, state.
     authorize_url: fn(Config, List(String), String) ->

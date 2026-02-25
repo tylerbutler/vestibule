@@ -26,6 +26,7 @@ pub fn strategy() -> Strategy(e) {
   Strategy(
     provider: "microsoft",
     default_scopes: ["User.Read"],
+    token_url: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
     authorize_url: do_authorize_url,
     exchange_code: do_exchange_code,
     fetch_user: do_fetch_user,
