@@ -5,10 +5,32 @@ import gleam/dynamic/decode
 import gleam/json
 import gleam/option.{None, Some}
 import gleam/string
+import gleam/uri
 
+import gleam/http/request
+import gleam/httpc
+
+import glow_auth
+import glow_auth/authorize_uri
+import glow_auth/token_request
+import glow_auth/uri/uri_builder
+
+import vestibule/config.{type Config}
 import vestibule/credentials.{type Credentials, Credentials}
 import vestibule/error.{type AuthError}
+import vestibule/strategy.{type Strategy, Strategy}
 import vestibule/user_info.{type UserInfo}
+
+/// Create a Microsoft authentication strategy using /common tenant.
+pub fn strategy() -> Strategy {
+  Strategy(
+    provider: "microsoft",
+    default_scopes: ["User.Read"],
+    authorize_url: do_authorize_url,
+    exchange_code: do_exchange_code,
+    fetch_user: do_fetch_user,
+  )
+}
 
 /// Parse Microsoft token response JSON.
 pub fn parse_token_response(body: String) -> Result(Credentials, AuthError) {
@@ -104,6 +126,80 @@ pub fn parse_user_response(
     _ ->
       Error(error.UserInfoFailed(
         reason: "Failed to parse Microsoft user response",
+      ))
+  }
+}
+
+fn do_authorize_url(
+  config: Config,
+  scopes: List(String),
+  state: String,
+) -> Result(String, AuthError) {
+  let assert Ok(site) =
+    uri.parse("https://login.microsoftonline.com/common/oauth2/v2.0")
+  let assert Ok(redirect) = uri.parse(config.redirect_uri)
+  let client =
+    glow_auth.Client(
+      id: config.client_id,
+      secret: config.client_secret,
+      site: site,
+    )
+  let url =
+    authorize_uri.build(
+      client,
+      uri_builder.RelativePath("/authorize"),
+      redirect,
+    )
+    |> authorize_uri.set_scope(string.join(scopes, " "))
+    |> authorize_uri.set_state(state)
+    |> authorize_uri.to_code_authorization_uri()
+    |> uri.to_string()
+  Ok(url)
+}
+
+fn do_exchange_code(
+  config: Config,
+  code: String,
+) -> Result(Credentials, AuthError) {
+  let assert Ok(site) =
+    uri.parse("https://login.microsoftonline.com/common/oauth2/v2.0")
+  let assert Ok(redirect) = uri.parse(config.redirect_uri)
+  let client =
+    glow_auth.Client(
+      id: config.client_id,
+      secret: config.client_secret,
+      site: site,
+    )
+  let req =
+    token_request.authorization_code(
+      client,
+      uri_builder.RelativePath("/token"),
+      code,
+      redirect,
+    )
+    |> request.set_header("accept", "application/json")
+  case httpc.send(req) {
+    Ok(response) -> parse_token_response(response.body)
+    Error(_) ->
+      Error(error.NetworkError(
+        reason: "Failed to connect to Microsoft token endpoint",
+      ))
+  }
+}
+
+fn do_fetch_user(
+  creds: Credentials,
+) -> Result(#(String, UserInfo), AuthError) {
+  let assert Ok(user_req) = request.to("https://graph.microsoft.com/v1.0/me")
+  let user_req =
+    user_req
+    |> request.set_header("authorization", "Bearer " <> creds.token)
+    |> request.set_header("accept", "application/json")
+  case httpc.send(user_req) {
+    Ok(response) -> parse_user_response(response.body)
+    Error(_) ->
+      Error(error.NetworkError(
+        reason: "Failed to connect to Microsoft Graph API",
       ))
   }
 }
