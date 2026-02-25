@@ -1,25 +1,38 @@
+import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/string
 import wisp
 
 import vestibule/auth.{type Auth}
 import vestibule/error.{type AuthError}
 
-/// Landing page with GitHub sign-in link.
-pub fn landing() -> wisp.Response {
-  wisp.html_response(
-    "<html>
+/// Landing page with dynamic provider buttons.
+pub fn landing(providers: List(String)) -> wisp.Response {
+  let buttons =
+    providers
+    |> list.map(fn(provider) {
+      "<a href=\"/auth/"
+      <> provider
+      <> "\"\n     style=\"display: inline-block; padding: 12px 24px; background: #24292e; color: white; text-decoration: none; border-radius: 6px; font-size: 16px; margin: 8px;\">\n    Sign in with "
+      <> capitalize(provider)
+      <> "\n  </a>"
+    })
+    |> string.join("\n  ")
+  wisp.html_response("<html>
 <head><title>Vestibule Demo</title></head>
 <body style=\"font-family: system-ui, sans-serif; max-width: 600px; margin: 80px auto; text-align: center;\">
   <h1>Vestibule Demo</h1>
   <p>OAuth2 authentication library for Gleam</p>
-  <a href=\"/auth/github\"
-     style=\"display: inline-block; padding: 12px 24px; background: #24292e; color: white; text-decoration: none; border-radius: 6px; font-size: 16px;\">
-    Sign in with GitHub
-  </a>
+  " <> buttons <> "
 </body>
-</html>",
-    200,
-  )
+</html>", 200)
+}
+
+fn capitalize(s: String) -> String {
+  case string.pop_grapheme(s) {
+    Ok(#(first, rest)) -> string.uppercase(first) <> rest
+    Error(Nil) -> s
+  }
 }
 
 /// Success page showing authenticated user info.
@@ -34,40 +47,25 @@ pub fn success(auth: Auth) -> wisp.Response {
       <> "\" width=\"80\" height=\"80\" style=\"border-radius: 50%;\" />"
     None -> ""
   }
-  wisp.html_response(
-    "<html>
+  wisp.html_response("<html>
 <head><title>Authenticated — Vestibule Demo</title></head>
 <body style=\"font-family: system-ui, sans-serif; max-width: 600px; margin: 80px auto;\">
   <h1>Authenticated!</h1>
-  "
-      <> image_html
-      <> "
+  " <> image_html <> "
   <table style=\"margin: 20px 0; border-collapse: collapse;\">
-    <tr><td style=\"padding: 8px; font-weight: bold;\">Provider</td><td style=\"padding: 8px;\">"
-      <> auth.provider
-      <> "</td></tr>
-    <tr><td style=\"padding: 8px; font-weight: bold;\">UID</td><td style=\"padding: 8px;\">"
-      <> auth.uid
-      <> "</td></tr>
-    <tr><td style=\"padding: 8px; font-weight: bold;\">Name</td><td style=\"padding: 8px;\">"
-      <> name
-      <> "</td></tr>
-    <tr><td style=\"padding: 8px; font-weight: bold;\">Email</td><td style=\"padding: 8px;\">"
-      <> email
-      <> "</td></tr>
-    <tr><td style=\"padding: 8px; font-weight: bold;\">Nickname</td><td style=\"padding: 8px;\">"
-      <> nickname
-      <> "</td></tr>
+    <tr><td style=\"padding: 8px; font-weight: bold;\">Provider</td><td style=\"padding: 8px;\">" <> auth.provider <> "</td></tr>
+    <tr><td style=\"padding: 8px; font-weight: bold;\">UID</td><td style=\"padding: 8px;\">" <> auth.uid <> "</td></tr>
+    <tr><td style=\"padding: 8px; font-weight: bold;\">Name</td><td style=\"padding: 8px;\">" <> name <> "</td></tr>
+    <tr><td style=\"padding: 8px; font-weight: bold;\">Email</td><td style=\"padding: 8px;\">" <> email <> "</td></tr>
+    <tr><td style=\"padding: 8px; font-weight: bold;\">Nickname</td><td style=\"padding: 8px;\">" <> nickname <> "</td></tr>
   </table>
   <a href=\"/\">Back to home</a>
 </body>
-</html>",
-    200,
-  )
+</html>", 200)
 }
 
 /// Error page.
-pub fn error(err: AuthError) -> wisp.Response {
+pub fn error(err: AuthError(e)) -> wisp.Response {
   let message = case err {
     error.StateMismatch -> "State mismatch — possible CSRF attack"
     error.CodeExchangeFailed(reason:) -> "Code exchange failed: " <> reason
@@ -76,20 +74,16 @@ pub fn error(err: AuthError) -> wisp.Response {
       "Provider error [" <> code <> "]: " <> description
     error.NetworkError(reason:) -> "Network error: " <> reason
     error.ConfigError(reason:) -> "Configuration error: " <> reason
+    error.Custom(_) -> "Custom provider error"
   }
-  wisp.html_response(
-    "<html>
+  wisp.html_response("<html>
 <head><title>Error — Vestibule Demo</title></head>
 <body style=\"font-family: system-ui, sans-serif; max-width: 600px; margin: 80px auto;\">
   <h1>Authentication Failed</h1>
-  <p style=\"color: #c0392b;\">"
-      <> message
-      <> "</p>
+  <p style=\"color: #c0392b;\">" <> message <> "</p>
   <a href=\"/\">Try again</a>
 </body>
-</html>",
-    400,
-  )
+</html>", 400)
 }
 
 fn option_or(opt: Option(String), default: String) -> String {

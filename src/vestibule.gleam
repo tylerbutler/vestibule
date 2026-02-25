@@ -16,9 +16,9 @@ import vestibule/strategy.{type Strategy}
 /// Returns `#(url, state)` — the caller must store the state parameter
 /// in their session for validation during the callback phase.
 pub fn authorize_url(
-  strategy: Strategy,
+  strategy: Strategy(e),
   config: Config,
-) -> Result(#(String, String), AuthError) {
+) -> Result(#(String, String), AuthError(e)) {
   let csrf_state = state.generate()
   let scopes = case config.scopes {
     [] -> strategy.default_scopes
@@ -33,11 +33,11 @@ pub fn authorize_url(
 /// Validates the state parameter, exchanges the authorization code
 /// for credentials, and fetches normalized user information.
 pub fn handle_callback(
-  strategy: Strategy,
+  strategy: Strategy(e),
   config: Config,
   callback_params: Dict(String, String),
   expected_state: String,
-) -> Result(Auth, AuthError) {
+) -> Result(Auth, AuthError(e)) {
   // Extract required parameters
   use received_state <- result.try(
     dict.get(callback_params, "state")

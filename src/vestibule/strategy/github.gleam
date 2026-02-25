@@ -23,7 +23,7 @@ import vestibule/strategy.{type Strategy, Strategy}
 import vestibule/user_info.{type UserInfo}
 
 /// Create a GitHub authentication strategy.
-pub fn strategy() -> Strategy {
+pub fn strategy() -> Strategy(e) {
   Strategy(
     provider: "github",
     default_scopes: ["user:email"],
@@ -35,7 +35,7 @@ pub fn strategy() -> Strategy {
 
 /// Parse a GitHub token exchange response into Credentials.
 /// Exported for testing.
-pub fn parse_token_response(body: String) -> Result(Credentials, AuthError) {
+pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
   // First check if it's an error response
   let error_decoder = {
     use error_code <- decode.field("error", decode.string)
@@ -49,7 +49,7 @@ pub fn parse_token_response(body: String) -> Result(Credentials, AuthError) {
   }
 }
 
-fn parse_success_token(body: String) -> Result(Credentials, AuthError) {
+fn parse_success_token(body: String) -> Result(Credentials, AuthError(e)) {
   let decoder = {
     use access_token <- decode.field("access_token", decode.string)
     use token_type <- decode.field("token_type", decode.string)
@@ -73,7 +73,7 @@ fn parse_success_token(body: String) -> Result(Credentials, AuthError) {
 /// Exported for testing.
 pub fn parse_user_response(
   body: String,
-) -> Result(#(String, UserInfo), AuthError) {
+) -> Result(#(String, UserInfo), AuthError(e)) {
   let decoder = {
     use id <- decode.field("id", decode.int)
     use login <- decode.field("login", decode.string)
@@ -150,7 +150,7 @@ fn do_authorize_url(
   config: Config,
   scopes: List(String),
   state: String,
-) -> Result(String, AuthError) {
+) -> Result(String, AuthError(e)) {
   let assert Ok(site) = uri.parse("https://github.com")
   let assert Ok(redirect) = uri.parse(config.redirect_uri)
   let client =
@@ -175,7 +175,7 @@ fn do_authorize_url(
 fn do_exchange_code(
   config: Config,
   code: String,
-) -> Result(Credentials, AuthError) {
+) -> Result(Credentials, AuthError(e)) {
   let assert Ok(site) = uri.parse("https://github.com")
   let assert Ok(redirect) = uri.parse(config.redirect_uri)
   let client =
@@ -202,7 +202,9 @@ fn do_exchange_code(
   }
 }
 
-fn do_fetch_user(creds: Credentials) -> Result(#(String, UserInfo), AuthError) {
+fn do_fetch_user(
+  creds: Credentials,
+) -> Result(#(String, UserInfo), AuthError(e)) {
   // Fetch user profile
   let assert Ok(user_req) = request.to("https://api.github.com/user")
   let user_req =
