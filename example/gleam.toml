@@ -5,6 +5,8 @@ gleam = ">= 1.7.0"
 
 [dependencies]
 vestibule = { path = ".." }
+vestibule_microsoft = { path = "../packages/vestibule_microsoft" }
+vestibule_google = { path = "../packages/vestibule_google" }
 wisp = ">= 2.2.0 and < 3.0.0"
 mist = ">= 4.0.0 and < 6.0.0"
 gleam_stdlib = ">= 0.48.0 and < 2.0.0"
