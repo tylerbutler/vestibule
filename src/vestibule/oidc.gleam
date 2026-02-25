@@ -26,7 +26,7 @@ import gleam/result
 import gleam/string
 import gleam/uri
 
-import vestibule/config.{type Config}
+import vestibule/config
 import vestibule/credentials.{type Credentials, Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/strategy.{type Strategy, Strategy}
@@ -148,6 +148,7 @@ pub fn strategy_from_config(
   Strategy(
     provider: provider_name,
     default_scopes: scopes,
+    token_url: oidc_config.token_endpoint,
     authorize_url: build_authorize_url_fn(oidc_config.authorization_endpoint),
     exchange_code: build_exchange_code_fn(oidc_config.token_endpoint),
     fetch_user: build_fetch_user_fn(oidc_config.userinfo_endpoint),
@@ -302,8 +303,8 @@ fn extract_hostname(url: String) -> String {
 
 fn build_authorize_url_fn(
   authorization_endpoint: String,
-) -> fn(Config, List(String), String) -> Result(String, AuthError(e)) {
-  fn(config: Config, scopes: List(String), state: String) -> Result(
+) -> fn(config.Config, List(String), String) -> Result(String, AuthError(e)) {
+  fn(cfg: config.Config, scopes: List(String), state: String) -> Result(
     String,
     AuthError(e),
   ) {
@@ -311,13 +312,13 @@ fn build_authorize_url_fn(
       Ok(base_uri) -> {
         let params = [
           #("response_type", "code"),
-          #("client_id", config.client_id),
-          #("redirect_uri", config.redirect_uri),
+          #("client_id", cfg.client_id),
+          #("redirect_uri", cfg.redirect_uri),
           #("scope", string.join(scopes, " ")),
           #("state", state),
         ]
         // Merge any extra params from config
-        let all_params = list.append(params, dict.to_list(config.extra_params))
+        let all_params = list.append(params, dict.to_list(cfg.extra_params))
         let query = uri.query_to_string(all_params)
         let full_uri = uri.Uri(..base_uri, query: Some(query))
         Ok(uri.to_string(full_uri))
@@ -333,16 +334,25 @@ fn build_authorize_url_fn(
 
 fn build_exchange_code_fn(
   token_endpoint: String,
-) -> fn(Config, String) -> Result(Credentials, AuthError(e)) {
-  fn(config: Config, code: String) -> Result(Credentials, AuthError(e)) {
-    let body =
-      uri.query_to_string([
-        #("grant_type", "authorization_code"),
-        #("code", code),
-        #("redirect_uri", config.redirect_uri),
-        #("client_id", config.client_id),
-        #("client_secret", config.client_secret),
-      ])
+) -> fn(config.Config, String, option.Option(String)) ->
+  Result(Credentials, AuthError(e)) {
+  fn(cfg: config.Config, code: String, code_verifier: option.Option(String)) -> Result(
+    Credentials,
+    AuthError(e),
+  ) {
+    let base_params = [
+      #("grant_type", "authorization_code"),
+      #("code", code),
+      #("redirect_uri", cfg.redirect_uri),
+      #("client_id", cfg.client_id),
+      #("client_secret", cfg.client_secret),
+    ]
+    let params = case code_verifier {
+      option.Some(verifier) ->
+        list.append(base_params, [#("code_verifier", verifier)])
+      option.None -> base_params
+    }
+    let body = uri.query_to_string(params)
 
     let req = case request.to(token_endpoint) {
       Ok(r) -> Ok(r)
