@@ -9,9 +9,9 @@ import vestibule_wisp/state_store
 
 /// Phase 1: Redirect user to the OAuth provider.
 ///
-/// Looks up the provider in the registry, generates an authorization URL,
-/// stores the CSRF state in the state store, sets a signed session cookie,
-/// and returns a redirect response.
+/// Looks up the provider in the registry, generates an authorization URL
+/// with PKCE parameters, stores the CSRF state and code verifier in the
+/// state store, sets a signed session cookie, and returns a redirect response.
 ///
 /// Returns 404 if the provider is not registered.
 pub fn request_phase(
@@ -23,9 +23,10 @@ pub fn request_phase(
     Error(Nil) -> wisp.not_found()
     Ok(#(strategy, config)) ->
       case vestibule.authorize_url(strategy, config) {
-        Ok(#(url, state)) -> {
-          let session_id = state_store.store(state)
-          wisp.redirect(url)
+        Ok(auth_request) -> {
+          let session_id =
+            state_store.store(auth_request.state, auth_request.code_verifier)
+          wisp.redirect(auth_request.url)
           |> wisp.set_cookie(
             req,
             "vestibule_session",
@@ -91,7 +92,7 @@ fn do_callback(
                   reason: "Session expired or already used",
                 )),
               )
-            Ok(expected_state) -> {
+            Ok(#(expected_state, code_verifier)) -> {
               let params =
                 wisp.get_query(req)
                 |> dict.from_list()
@@ -101,6 +102,7 @@ fn do_callback(
                   config,
                   params,
                   expected_state,
+                  code_verifier,
                 )
               {
                 Ok(auth) -> Ok(auth)

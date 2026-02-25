@@ -4,6 +4,7 @@ import gleam/string
 import startest
 import startest/expect
 import vestibule
+import vestibule/authorization_request.{AuthorizationRequest}
 import vestibule/config
 import vestibule/credentials.{Credentials}
 import vestibule/error
@@ -19,6 +20,7 @@ fn test_strategy() -> Strategy(e) {
   Strategy(
     provider: "test",
     default_scopes: ["default_scope"],
+    token_url: "https://test.com/oauth/token",
     authorize_url: fn(_config, scopes, state) {
       Ok(
         "https://test.com/auth?scope="
@@ -27,7 +29,7 @@ fn test_strategy() -> Strategy(e) {
         <> state,
       )
     },
-    exchange_code: fn(_config, code) {
+    exchange_code: fn(_config, code, _code_verifier) {
       case code {
         "valid_code" ->
           Ok(
@@ -58,15 +60,20 @@ fn test_strategy() -> Strategy(e) {
   )
 }
 
-pub fn authorize_url_returns_url_and_state_test() {
+pub fn authorize_url_returns_authorization_request_test() {
   let strat = test_strategy()
   let conf = config.new("id", "secret", "http://localhost/cb")
   let result = vestibule.authorize_url(strat, conf)
-  let assert Ok(#(url, state)) = result
+  let assert Ok(AuthorizationRequest(url:, state:, code_verifier:)) = result
   // URL should contain the state
   { string.contains(url, state) } |> expect.to_be_true()
   // State should be non-empty
   { string.length(state) >= 43 } |> expect.to_be_true()
+  // Code verifier should be non-empty
+  { string.length(code_verifier) >= 43 } |> expect.to_be_true()
+  // URL should contain PKCE params
+  { string.contains(url, "code_challenge=") } |> expect.to_be_true()
+  { string.contains(url, "code_challenge_method=S256") } |> expect.to_be_true()
 }
 
 pub fn authorize_url_uses_config_scopes_when_present_test() {
@@ -74,7 +81,8 @@ pub fn authorize_url_uses_config_scopes_when_present_test() {
   let conf =
     config.new("id", "secret", "http://localhost/cb")
     |> config.with_scopes(["custom_scope"])
-  let assert Ok(#(url, _state)) = vestibule.authorize_url(strat, conf)
+  let assert Ok(AuthorizationRequest(url:, ..)) =
+    vestibule.authorize_url(strat, conf)
   { string.contains(url, "custom_scope") } |> expect.to_be_true()
   { string.contains(url, "default_scope") } |> expect.to_be_false()
 }
@@ -82,7 +90,8 @@ pub fn authorize_url_uses_config_scopes_when_present_test() {
 pub fn authorize_url_uses_default_scopes_when_config_empty_test() {
   let strat = test_strategy()
   let conf = config.new("id", "secret", "http://localhost/cb")
-  let assert Ok(#(url, _state)) = vestibule.authorize_url(strat, conf)
+  let assert Ok(AuthorizationRequest(url:, ..)) =
+    vestibule.authorize_url(strat, conf)
   { string.contains(url, "default_scope") } |> expect.to_be_true()
 }
 
@@ -91,7 +100,8 @@ pub fn handle_callback_succeeds_with_valid_params_test() {
   let conf = config.new("id", "secret", "http://localhost/cb")
   let state = "test_state_value"
   let params = dict.from_list([#("code", "valid_code"), #("state", state)])
-  let result = vestibule.handle_callback(strat, conf, params, state)
+  let result =
+    vestibule.handle_callback(strat, conf, params, state, "test_verifier")
   let assert Ok(auth) = result
   auth.uid |> expect.to_equal("user123")
   auth.provider |> expect.to_equal("test")
@@ -103,7 +113,8 @@ pub fn handle_callback_fails_on_state_mismatch_test() {
   let strat = test_strategy()
   let conf = config.new("id", "secret", "http://localhost/cb")
   let params = dict.from_list([#("code", "valid_code"), #("state", "wrong")])
-  let result = vestibule.handle_callback(strat, conf, params, "expected")
+  let result =
+    vestibule.handle_callback(strat, conf, params, "expected", "test_verifier")
   let _ = result |> expect.to_be_error()
   Nil
 }
@@ -113,7 +124,8 @@ pub fn handle_callback_fails_on_missing_code_test() {
   let conf = config.new("id", "secret", "http://localhost/cb")
   let state = "test_state"
   let params = dict.from_list([#("state", state)])
-  let result = vestibule.handle_callback(strat, conf, params, state)
+  let result =
+    vestibule.handle_callback(strat, conf, params, state, "test_verifier")
   let _ = result |> expect.to_be_error()
   Nil
 }

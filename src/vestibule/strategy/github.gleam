@@ -27,6 +27,7 @@ pub fn strategy() -> Strategy(e) {
   Strategy(
     provider: "github",
     default_scopes: ["user:email"],
+    token_url: "https://github.com/login/oauth/access_token",
     authorize_url: do_authorize_url,
     exchange_code: do_exchange_code,
     fetch_user: do_fetch_user,
@@ -175,6 +176,7 @@ fn do_authorize_url(
 fn do_exchange_code(
   config: Config,
   code: String,
+  code_verifier: Option(String),
 ) -> Result(Credentials, AuthError(e)) {
   let assert Ok(site) = uri.parse("https://github.com")
   let assert Ok(redirect) = uri.parse(config.redirect_uri)
@@ -192,6 +194,7 @@ fn do_exchange_code(
       redirect,
     )
     |> request.set_header("accept", "application/json")
+  let req = append_code_verifier(req, code_verifier)
 
   case httpc.send(req) {
     Ok(response) -> parse_token_response(response.body)
@@ -241,4 +244,22 @@ fn do_fetch_user(
   }
 
   Ok(#(uid, final_info))
+}
+
+/// Append code_verifier to the form-encoded request body when present.
+fn append_code_verifier(
+  req: request.Request(String),
+  code_verifier: Option(String),
+) -> request.Request(String) {
+  case code_verifier {
+    option.Some(verifier) -> {
+      let body = case req.body {
+        "" -> "code_verifier=" <> uri.percent_encode(verifier)
+        existing ->
+          existing <> "&code_verifier=" <> uri.percent_encode(verifier)
+      }
+      request.set_body(req, body)
+    }
+    None -> req
+  }
 }
