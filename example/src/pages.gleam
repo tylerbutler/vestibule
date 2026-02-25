@@ -18,17 +18,14 @@ pub fn landing(providers: List(String)) -> wisp.Response {
       <> "\n  </a>"
     })
     |> string.join("\n  ")
-  wisp.html_response(
-    "<html>
+  wisp.html_response("<html>
 <head><title>Vestibule Demo</title></head>
 <body style=\"font-family: system-ui, sans-serif; max-width: 600px; margin: 80px auto; text-align: center;\">
   <h1>Vestibule Demo</h1>
   <p>OAuth2 authentication library for Gleam</p>
   " <> buttons <> "
 </body>
-</html>",
-    200,
-  )
+</html>", 200)
 }
 
 fn capitalize(s: String) -> String {
@@ -50,36 +47,21 @@ pub fn success(auth: Auth) -> wisp.Response {
       <> "\" width=\"80\" height=\"80\" style=\"border-radius: 50%;\" />"
     None -> ""
   }
-  wisp.html_response(
-    "<html>
+  wisp.html_response("<html>
 <head><title>Authenticated — Vestibule Demo</title></head>
 <body style=\"font-family: system-ui, sans-serif; max-width: 600px; margin: 80px auto;\">
   <h1>Authenticated!</h1>
-  "
-      <> image_html
-      <> "
+  " <> image_html <> "
   <table style=\"margin: 20px 0; border-collapse: collapse;\">
-    <tr><td style=\"padding: 8px; font-weight: bold;\">Provider</td><td style=\"padding: 8px;\">"
-      <> auth.provider
-      <> "</td></tr>
-    <tr><td style=\"padding: 8px; font-weight: bold;\">UID</td><td style=\"padding: 8px;\">"
-      <> auth.uid
-      <> "</td></tr>
-    <tr><td style=\"padding: 8px; font-weight: bold;\">Name</td><td style=\"padding: 8px;\">"
-      <> name
-      <> "</td></tr>
-    <tr><td style=\"padding: 8px; font-weight: bold;\">Email</td><td style=\"padding: 8px;\">"
-      <> email
-      <> "</td></tr>
-    <tr><td style=\"padding: 8px; font-weight: bold;\">Nickname</td><td style=\"padding: 8px;\">"
-      <> nickname
-      <> "</td></tr>
+    <tr><td style=\"padding: 8px; font-weight: bold;\">Provider</td><td style=\"padding: 8px;\">" <> auth.provider <> "</td></tr>
+    <tr><td style=\"padding: 8px; font-weight: bold;\">UID</td><td style=\"padding: 8px;\">" <> auth.uid <> "</td></tr>
+    <tr><td style=\"padding: 8px; font-weight: bold;\">Name</td><td style=\"padding: 8px;\">" <> name <> "</td></tr>
+    <tr><td style=\"padding: 8px; font-weight: bold;\">Email</td><td style=\"padding: 8px;\">" <> email <> "</td></tr>
+    <tr><td style=\"padding: 8px; font-weight: bold;\">Nickname</td><td style=\"padding: 8px;\">" <> nickname <> "</td></tr>
   </table>
   <a href=\"/\">Back to home</a>
 </body>
-</html>",
-    200,
-  )
+</html>", 200)
 }
 
 /// Error page.
@@ -93,19 +75,14 @@ pub fn error(err: AuthError) -> wisp.Response {
     error.NetworkError(reason:) -> "Network error: " <> reason
     error.ConfigError(reason:) -> "Configuration error: " <> reason
   }
-  wisp.html_response(
-    "<html>
+  wisp.html_response("<html>
 <head><title>Error — Vestibule Demo</title></head>
 <body style=\"font-family: system-ui, sans-serif; max-width: 600px; margin: 80px auto;\">
   <h1>Authentication Failed</h1>
-  <p style=\"color: #c0392b;\">"
-      <> message
-      <> "</p>
+  <p style=\"color: #c0392b;\">" <> message <> "</p>
   <a href=\"/\">Try again</a>
 </body>
-</html>",
-    400,
-  )
+</html>", 400)
 }
 
 fn option_or(opt: Option(String), default: String) -> String {

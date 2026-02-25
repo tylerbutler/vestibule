@@ -187,9 +187,7 @@ fn do_exchange_code(
   }
 }
 
-fn do_fetch_user(
-  creds: Credentials,
-) -> Result(#(String, UserInfo), AuthError) {
+fn do_fetch_user(creds: Credentials) -> Result(#(String, UserInfo), AuthError) {
   let assert Ok(user_req) = request.to("https://graph.microsoft.com/v1.0/me")
   let user_req =
     user_req

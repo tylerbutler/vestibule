@@ -21,9 +21,7 @@ pub fn main() {
     |> result.unwrap(8000)
   let secret_key_base =
     envoy.get("SECRET_KEY_BASE")
-    |> result.unwrap(
-      "development-secret-key-base-change-in-production-please",
-    )
+    |> result.unwrap("development-secret-key-base-change-in-production-please")
   let callback_base = "http://localhost:" <> int.to_string(port)
 
   // Build registry with available providers
@@ -63,9 +61,7 @@ pub fn main() {
   case registry.providers(reg) {
     [] -> {
       io.println("Error: No OAuth providers configured.")
-      io.println(
-        "Set GITHUB_CLIENT_ID + GITHUB_CLIENT_SECRET and/or",
-      )
+      io.println("Set GITHUB_CLIENT_ID + GITHUB_CLIENT_SECRET and/or")
       io.println(
         "MICROSOFT_CLIENT_ID + MICROSOFT_CLIENT_SECRET in your .env file.",
       )

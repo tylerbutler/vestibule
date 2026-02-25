@@ -19,11 +19,10 @@ pub fn register(
   config: Config,
 ) -> Registry {
   Registry(
-    providers: dict.insert(
-      registry.providers,
-      strategy.provider,
-      #(strategy, config),
-    ),
+    providers: dict.insert(registry.providers, strategy.provider, #(
+      strategy,
+      config,
+    )),
   )
 }
 
