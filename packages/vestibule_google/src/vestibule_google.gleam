@@ -2,6 +2,7 @@ import gleam/dict
 import gleam/dynamic/decode
 import gleam/json
 import gleam/option.{type Option, None, Some}
+import gleam/result
 import gleam/string
 import gleam/uri
 
@@ -175,7 +176,13 @@ fn do_exchange_code(
     |> request.set_header("accept", "application/json")
   let req = strategy.append_code_verifier(req, code_verifier)
   case httpc.send(req) {
-    Ok(response) -> parse_token_response(response.body)
+    Ok(response) -> {
+      use body <- result.try(error.check_http_status(
+        response.status,
+        response.body,
+      ))
+      parse_token_response(body)
+    }
     Error(_) ->
       Error(error.NetworkError(
         reason: "Failed to connect to Google token endpoint",
@@ -193,7 +200,13 @@ fn do_fetch_user(
     |> request.set_header("authorization", "Bearer " <> creds.token)
     |> request.set_header("accept", "application/json")
   case httpc.send(user_req) {
-    Ok(response) -> parse_user_response(response.body)
+    Ok(response) -> {
+      use body <- result.try(error.check_http_status(
+        response.status,
+        response.body,
+      ))
+      parse_user_response(body)
+    }
     Error(_) ->
       Error(error.NetworkError(
         reason: "Failed to connect to Google userinfo API",

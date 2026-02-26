@@ -48,8 +48,8 @@ import vestibule/error.{type AuthError}
 import vestibule/strategy.{type Strategy, Strategy}
 import vestibule/user_info
 import vestibule_apple/id_token_cache.{type IdTokenCache}
-import vestibule_apple/jwt
 import vestibule_apple/jwks.{type JwksCache}
+import vestibule_apple/jwt
 import ywt/claim
 import ywt/verify_key.{type VerifyKey}
 
@@ -309,7 +309,11 @@ fn do_exchange_code(
   let req = append_code_verifier(req, code_verifier)
   case httpc.send(req) {
     Ok(response) -> {
-      case parse_token_response(response.body) {
+      use body <- result.try(error.check_http_status(
+        response.status,
+        response.body,
+      ))
+      case parse_token_response(body) {
         Ok(#(creds, id_token)) -> {
           // Store the id_token + client_id in the cache so fetch_user can
           // verify and decode it

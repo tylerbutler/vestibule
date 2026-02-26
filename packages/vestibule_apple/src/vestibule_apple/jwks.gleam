@@ -59,7 +59,13 @@ fn fetch_keys() -> Result(List(VerifyKey), AuthError(e)) {
   let assert Ok(req) = request.to(apple_jwks_url)
   let req = req |> request.set_header("accept", "application/json")
   case httpc.send(req) {
-    Ok(response) -> parse_jwks(response.body)
+    Ok(response) -> {
+      use body <- result.try(error.check_http_status(
+        response.status,
+        response.body,
+      ))
+      parse_jwks(body)
+    }
     Error(_) ->
       Error(error.NetworkError(
         reason: "Failed to fetch Apple JWKS from " <> apple_jwks_url,

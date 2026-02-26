@@ -1,4 +1,5 @@
 import gleam/dict
+import gleam/int
 import gleam/result
 import wisp.{type Request, type Response}
 
@@ -128,6 +129,8 @@ fn error_response(err: error.AuthError(e)) -> Response {
     error.ProviderError(code:, description:) ->
       "Provider error [" <> code <> "]: " <> description
     error.NetworkError(reason:) -> "Network error: " <> reason
+    error.HttpError(status:, body: _) ->
+      "HTTP error (status " <> int.to_string(status) <> ")"
     error.ConfigError(reason:) -> "Configuration error: " <> reason
     error.Custom(_) -> "Custom provider error"
   }

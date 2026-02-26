@@ -197,7 +197,13 @@ fn do_exchange_code(
   let req = strategy.append_code_verifier(req, code_verifier)
 
   case httpc.send(req) {
-    Ok(response) -> parse_token_response(response.body)
+    Ok(response) -> {
+      use body <- result.try(error.check_http_status(
+        response.status,
+        response.body,
+      ))
+      parse_token_response(body)
+    }
     Error(_) ->
       Error(error.NetworkError(
         reason: "Failed to connect to GitHub token endpoint",
@@ -222,7 +228,8 @@ fn do_fetch_user(
       error.NetworkError(reason: "Failed to fetch GitHub user info")
     }),
   )
-  use #(uid, info) <- result.try(parse_user_response(resp.body))
+  use body <- result.try(error.check_http_status(resp.status, resp.body))
+  use #(uid, info) <- result.try(parse_user_response(body))
 
   // Fetch verified primary email (best-effort — don't fail if this errors)
   let assert Ok(email_req) = request.to("https://api.github.com/user/emails")
@@ -233,8 +240,9 @@ fn do_fetch_user(
     |> request.set_header("user-agent", "vestibule-gleam")
 
   let email = case httpc.send(email_req) {
-    Ok(response) -> parse_primary_email(response.body)
-    Error(_) -> None
+    Ok(response) if response.status >= 200 && response.status <= 299 ->
+      parse_primary_email(response.body)
+    _ -> None
   }
 
   let final_info = case email {

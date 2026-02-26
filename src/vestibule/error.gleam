@@ -14,6 +14,8 @@ pub type AuthError(e) {
   ProviderError(code: String, description: String)
   /// HTTP request failed.
   NetworkError(reason: String)
+  /// HTTP response had a non-2xx status code.
+  HttpError(status: Int, body: String)
   /// Invalid configuration.
   ConfigError(reason: String)
   /// Provider-specific custom error.
@@ -28,7 +30,22 @@ pub fn map_custom(error: AuthError(a), f: fn(a) -> b) -> AuthError(b) {
     UserInfoFailed(reason:) -> UserInfoFailed(reason:)
     ProviderError(code:, description:) -> ProviderError(code:, description:)
     NetworkError(reason:) -> NetworkError(reason:)
+    HttpError(status:, body:) -> HttpError(status:, body:)
     ConfigError(reason:) -> ConfigError(reason:)
     Custom(e) -> Custom(f(e))
+  }
+}
+
+/// Check that an HTTP response has a 2xx status code.
+///
+/// Returns Ok(body) if the status is in the 200-299 range,
+/// or Error(HttpError) with the status code and body otherwise.
+pub fn check_http_status(
+  status: Int,
+  body: String,
+) -> Result(String, AuthError(e)) {
+  case status >= 200 && status <= 299 {
+    True -> Ok(body)
+    False -> Error(HttpError(status: status, body: body))
   }
 }

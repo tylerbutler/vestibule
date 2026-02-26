@@ -82,7 +82,11 @@ pub fn fetch_configuration(
 
   case httpc.send(r) {
     Ok(response) -> {
-      use oidc_config <- result.try(parse_discovery_document(response.body))
+      use body <- result.try(error.check_http_status(
+        response.status,
+        response.body,
+      ))
+      use oidc_config <- result.try(parse_discovery_document(body))
       // Security: validate issuer matches per OIDC Discovery spec
       let normalized_issuer = strip_trailing_slash(issuer_url)
       let response_issuer = strip_trailing_slash(oidc_config.issuer)
@@ -422,7 +426,13 @@ fn build_exchange_code_fn(
       |> request.set_body(body)
 
     case httpc.send(r) {
-      Ok(response) -> parse_token_response(response.body)
+      Ok(response) -> {
+        use body <- result.try(error.check_http_status(
+          response.status,
+          response.body,
+        ))
+        parse_token_response(body)
+      }
       Error(_) ->
         Error(error.NetworkError(
           reason: "Failed to connect to OIDC token endpoint: " <> token_endpoint,
@@ -449,7 +459,13 @@ fn build_fetch_user_fn(
       |> request.set_header("accept", "application/json")
 
     case httpc.send(r) {
-      Ok(response) -> parse_userinfo_response(response.body)
+      Ok(response) -> {
+        use body <- result.try(error.check_http_status(
+          response.status,
+          response.body,
+        ))
+        parse_userinfo_response(body)
+      }
       Error(_) ->
         Error(error.NetworkError(
           reason: "Failed to connect to OIDC userinfo endpoint: "

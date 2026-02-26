@@ -140,7 +140,13 @@ pub fn refresh_token(
     |> request.set_body(body)
 
   case httpc.send(req) {
-    Ok(response) -> parse_refresh_response(response.body)
+    Ok(response) -> {
+      use body <- result.try(error.check_http_status(
+        response.status,
+        response.body,
+      ))
+      parse_refresh_response(body)
+    }
     Error(_) ->
       Error(error.NetworkError(
         reason: "Failed to connect to token endpoint: " <> strategy.token_url,
