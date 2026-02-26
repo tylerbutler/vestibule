@@ -12,7 +12,7 @@
 ///
 /// // Or fetch configuration separately for inspection:
 /// let assert Ok(config) = oidc.fetch_configuration("https://accounts.google.com")
-/// let strategy = oidc.strategy_from_config(config, "my-provider")
+/// let assert Ok(strategy) = oidc.strategy_from_config(config, "my-provider")
 /// ```
 import gleam/dict
 import gleam/dynamic/decode
@@ -30,6 +30,7 @@ import vestibule/config
 import vestibule/credentials.{type Credentials, Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/strategy.{type Strategy, Strategy}
+import vestibule/url
 import vestibule/user_info
 
 /// Configuration discovered from an OpenID Connect provider's
@@ -54,9 +55,18 @@ pub type OidcConfig {
 /// Constructs the well-known URL from the issuer, makes a GET request, parses
 /// the JSON response, and validates that the `issuer` field in the response
 /// matches the provided `issuer_url` (a security requirement per the OIDC spec).
+///
+/// Per the OIDC specification, the issuer URL must use HTTPS. HTTP is only
+/// allowed for localhost addresses during development.
 pub fn fetch_configuration(
   issuer_url: String,
 ) -> Result(OidcConfig, AuthError(e)) {
+  // Security: validate issuer URL uses HTTPS (OIDC spec requirement)
+  use _ <- result.try(
+    url.validate_https_url(issuer_url)
+    |> result.map_error(fn(reason) { error.ConfigError(reason: reason) }),
+  )
+
   let discovery_url =
     strip_trailing_slash(issuer_url) <> "/.well-known/openid-configuration"
 
@@ -72,18 +82,33 @@ pub fn fetch_configuration(
 
   case httpc.send(r) {
     Ok(response) -> {
-      use config <- result.try(parse_discovery_document(response.body))
+      use oidc_config <- result.try(parse_discovery_document(response.body))
       // Security: validate issuer matches per OIDC Discovery spec
       let normalized_issuer = strip_trailing_slash(issuer_url)
-      let response_issuer = strip_trailing_slash(config.issuer)
+      let response_issuer = strip_trailing_slash(oidc_config.issuer)
       case normalized_issuer == response_issuer {
-        True -> Ok(config)
+        True -> {
+          // Security: validate discovered endpoint URLs use HTTPS
+          use _ <- result.try(validate_endpoint_url(
+            oidc_config.authorization_endpoint,
+            "authorization_endpoint",
+          ))
+          use _ <- result.try(validate_endpoint_url(
+            oidc_config.token_endpoint,
+            "token_endpoint",
+          ))
+          use _ <- result.try(validate_endpoint_url(
+            oidc_config.userinfo_endpoint,
+            "userinfo_endpoint",
+          ))
+          Ok(oidc_config)
+        }
         False ->
           Error(error.ConfigError(
             reason: "Issuer mismatch: expected "
             <> issuer_url
             <> " but got "
-            <> config.issuer,
+            <> oidc_config.issuer,
           ))
       }
     }
@@ -123,7 +148,7 @@ pub fn parse_discovery_document(
     ))
   }
   case json.parse(body, decoder) {
-    Ok(config) -> Ok(config)
+    Ok(oidc_config) -> Ok(oidc_config)
     _ ->
       Error(error.ConfigError(reason: "Failed to parse OIDC discovery document"))
   }
@@ -137,19 +162,37 @@ pub fn parse_discovery_document(
 /// - Userinfo endpoint for user claims
 ///
 /// The `provider_name` is used as the strategy's provider identifier.
+///
+/// Validates that the endpoint URLs in the config use HTTPS (or HTTP
+/// with localhost for development). Returns `Error(ConfigError(...))`
+/// if any endpoint URL fails validation.
 pub fn strategy_from_config(
   oidc_config: OidcConfig,
   provider_name: String,
-) -> Strategy(e) {
+) -> Result(Strategy(e), AuthError(e)) {
+  // Security: validate endpoint URLs use HTTPS at strategy construction time
+  use _ <- result.try(validate_endpoint_url(
+    oidc_config.authorization_endpoint,
+    "authorize_url",
+  ))
+  use _ <- result.try(validate_endpoint_url(
+    oidc_config.token_endpoint,
+    "token_url",
+  ))
+  use _ <- result.try(validate_endpoint_url(
+    oidc_config.userinfo_endpoint,
+    "userinfo_url",
+  ))
+
   let scopes = filter_default_scopes(oidc_config.scopes_supported)
-  Strategy(
+  Ok(Strategy(
     provider: provider_name,
     default_scopes: scopes,
     token_url: oidc_config.token_endpoint,
     authorize_url: build_authorize_url_fn(oidc_config.authorization_endpoint),
     exchange_code: build_exchange_code_fn(oidc_config.token_endpoint),
     fetch_user: build_fetch_user_fn(oidc_config.userinfo_endpoint),
-  )
+  ))
 }
 
 /// Discover an OIDC provider and build a strategy in one step.
@@ -160,7 +203,7 @@ pub fn strategy_from_config(
 pub fn discover(issuer_url: String) -> Result(Strategy(e), AuthError(e)) {
   use oidc_config <- result.try(fetch_configuration(issuer_url))
   let provider_name = extract_hostname(issuer_url)
-  Ok(strategy_from_config(oidc_config, provider_name))
+  strategy_from_config(oidc_config, provider_name)
 }
 
 /// Filter scopes to only include the standard OIDC scopes that the provider supports.
@@ -234,7 +277,7 @@ pub fn parse_userinfo_response(
     ))
   }
   case json.parse(body, decoder) {
-    Ok(result) -> Ok(result)
+    Ok(r) -> Ok(r)
     _ ->
       Error(error.UserInfoFailed(
         reason: "Failed to parse OIDC userinfo response",
@@ -243,6 +286,18 @@ pub fn parse_userinfo_response(
 }
 
 // --- Internal helpers ---
+
+/// Validate that an endpoint URL uses HTTPS, returning a ConfigError on failure.
+fn validate_endpoint_url(
+  endpoint_url: String,
+  field_name: String,
+) -> Result(Nil, AuthError(e)) {
+  url.validate_https_url(endpoint_url)
+  |> result.map(fn(_) { Nil })
+  |> result.map_error(fn(reason) {
+    error.ConfigError(reason: "Invalid " <> field_name <> ": " <> reason)
+  })
+}
 
 fn parse_success_token(body: String) -> Result(Credentials, AuthError(e)) {
   let decoder = {
@@ -280,15 +335,15 @@ fn parse_success_token(body: String) -> Result(Credentials, AuthError(e)) {
   }
 }
 
-fn strip_trailing_slash(url: String) -> String {
-  case string.ends_with(url, "/") {
-    True -> string.drop_end(url, 1)
-    False -> url
+fn strip_trailing_slash(url_str: String) -> String {
+  case string.ends_with(url_str, "/") {
+    True -> string.drop_end(url_str, 1)
+    False -> url_str
   }
 }
 
-fn extract_hostname(url: String) -> String {
-  case uri.parse(url) {
+fn extract_hostname(url_str: String) -> String {
+  case uri.parse(url_str) {
     Ok(parsed) ->
       case parsed.host {
         Some(host) -> host

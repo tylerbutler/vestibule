@@ -199,7 +199,7 @@ pub fn pkce_different_verifiers_produce_different_challenges_test() {
 /// No code path should produce a URL without code_challenge.
 pub fn authorize_url_always_includes_pkce_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "https://localhost/cb")
+  let assert Ok(conf) = config.new("id", "secret", "https://localhost/cb")
   let assert Ok(AuthorizationRequest(url:, ..)) =
     vestibule.authorize_url(strat, conf)
   { string.contains(url, "code_challenge=") } |> expect.to_be_true()
@@ -209,7 +209,7 @@ pub fn authorize_url_always_includes_pkce_test() {
 /// Security: authorize_url state and verifier must differ on each call.
 pub fn authorize_url_produces_fresh_state_and_verifier_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "https://localhost/cb")
+  let assert Ok(conf) = config.new("id", "secret", "https://localhost/cb")
   let assert Ok(req1) = vestibule.authorize_url(strat, conf)
   let assert Ok(req2) = vestibule.authorize_url(strat, conf)
   { req1.state != req2.state } |> expect.to_be_true()
@@ -224,7 +224,7 @@ pub fn authorize_url_produces_fresh_state_and_verifier_test() {
 /// server-side operations (code exchange, user fetch).
 pub fn callback_rejects_state_mismatch_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "https://localhost/cb")
+  let assert Ok(conf) = config.new("id", "secret", "https://localhost/cb")
   let params =
     dict.from_list([#("code", "valid_code"), #("state", "attacker_state")])
   vestibule.handle_callback(strat, conf, params, "real_state", "verifier")
@@ -234,7 +234,7 @@ pub fn callback_rejects_state_mismatch_test() {
 /// Security: missing state parameter must be rejected.
 pub fn callback_rejects_missing_state_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "https://localhost/cb")
+  let assert Ok(conf) = config.new("id", "secret", "https://localhost/cb")
   let params = dict.from_list([#("code", "valid_code")])
   let result =
     vestibule.handle_callback(strat, conf, params, "expected", "verifier")
@@ -245,7 +245,7 @@ pub fn callback_rejects_missing_state_test() {
 /// Security: empty callback params must be rejected.
 pub fn callback_rejects_empty_params_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "https://localhost/cb")
+  let assert Ok(conf) = config.new("id", "secret", "https://localhost/cb")
   let result =
     vestibule.handle_callback(strat, conf, dict.new(), "expected", "verifier")
   let _ = result |> expect.to_be_error()
@@ -258,7 +258,7 @@ pub fn callback_rejects_empty_params_test() {
 /// "Missing code parameter" ConfigError.
 pub fn callback_detects_provider_error_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "https://localhost/cb")
+  let assert Ok(conf) = config.new("id", "secret", "https://localhost/cb")
   let state_val = "matching_state"
   let params =
     dict.from_list([
@@ -309,7 +309,7 @@ pub fn callback_validates_state_before_checking_provider_error_test() {
 /// Security: extra unexpected parameters should not cause crashes.
 pub fn callback_ignores_extra_params_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "https://localhost/cb")
+  let assert Ok(conf) = config.new("id", "secret", "https://localhost/cb")
   let state_val = "test_state"
   let params =
     dict.from_list([
@@ -481,6 +481,91 @@ pub fn oidc_returns_unverified_email_gap_test() {
   let assert Ok(#(_, info)) = result
   // Current behavior: email IS returned even when email_verified is false
   info.email |> expect.to_equal(Some("unverified@example.com"))
+}
+
+// ===========================================================================
+// HTTPS Enforcement Tests (Issues #16, #20)
+// ===========================================================================
+
+/// Security: config.new must reject HTTP redirect URIs for non-localhost.
+pub fn config_rejects_http_redirect_uri_test() {
+  let result = config.new("id", "secret", "http://evil.com/callback")
+  let _ = result |> expect.to_be_error()
+  Nil
+}
+
+/// Security: config.new must accept HTTPS redirect URIs.
+pub fn config_accepts_https_redirect_uri_test() {
+  let result = config.new("id", "secret", "https://example.com/callback")
+  let _ = result |> expect.to_be_ok()
+  Nil
+}
+
+/// Security: config.new must allow HTTP localhost for development.
+pub fn config_allows_http_localhost_test() {
+  let result = config.new("id", "secret", "http://localhost:8080/callback")
+  let _ = result |> expect.to_be_ok()
+  Nil
+}
+
+/// Security: OIDC strategy_from_config rejects HTTP endpoint URLs.
+pub fn oidc_strategy_from_config_rejects_http_endpoints_test() {
+  let oidc_config =
+    oidc.OidcConfig(
+      issuer: "https://example.com",
+      authorization_endpoint: "http://example.com/authorize",
+      token_endpoint: "https://example.com/token",
+      userinfo_endpoint: "https://example.com/userinfo",
+      scopes_supported: ["openid"],
+    )
+  let result = oidc.strategy_from_config(oidc_config, "test")
+  let _ = result |> expect.to_be_error()
+  Nil
+}
+
+/// Security: OIDC strategy_from_config accepts HTTPS endpoint URLs.
+pub fn oidc_strategy_from_config_accepts_https_endpoints_test() {
+  let oidc_config =
+    oidc.OidcConfig(
+      issuer: "https://example.com",
+      authorization_endpoint: "https://example.com/authorize",
+      token_endpoint: "https://example.com/token",
+      userinfo_endpoint: "https://example.com/userinfo",
+      scopes_supported: ["openid", "profile", "email"],
+    )
+  let result = oidc.strategy_from_config(oidc_config, "test")
+  let _ = result |> expect.to_be_ok()
+  Nil
+}
+
+/// Security: OIDC strategy_from_config rejects HTTP token endpoint.
+pub fn oidc_strategy_from_config_rejects_http_token_url_test() {
+  let oidc_config =
+    oidc.OidcConfig(
+      issuer: "https://example.com",
+      authorization_endpoint: "https://example.com/authorize",
+      token_endpoint: "http://example.com/token",
+      userinfo_endpoint: "https://example.com/userinfo",
+      scopes_supported: ["openid"],
+    )
+  let result = oidc.strategy_from_config(oidc_config, "test")
+  let _ = result |> expect.to_be_error()
+  Nil
+}
+
+/// Security: OIDC strategy_from_config rejects HTTP userinfo endpoint.
+pub fn oidc_strategy_from_config_rejects_http_userinfo_url_test() {
+  let oidc_config =
+    oidc.OidcConfig(
+      issuer: "https://example.com",
+      authorization_endpoint: "https://example.com/authorize",
+      token_endpoint: "https://example.com/token",
+      userinfo_endpoint: "http://example.com/userinfo",
+      scopes_supported: ["openid"],
+    )
+  let result = oidc.strategy_from_config(oidc_config, "test")
+  let _ = result |> expect.to_be_error()
+  Nil
 }
 
 // ===========================================================================

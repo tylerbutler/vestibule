@@ -19,7 +19,9 @@ fn test_strategy(name: String) -> Strategy(e) {
 }
 
 fn test_config() -> config.Config {
-  config.new("client_id", "client_secret", "https://example.com/callback")
+  let assert Ok(cfg) =
+    config.new("client_id", "client_secret", "https://example.com/callback")
+  cfg
 }
 
 pub fn new_registry_has_no_providers_test() {

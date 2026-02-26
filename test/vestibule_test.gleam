@@ -62,7 +62,7 @@ fn test_strategy() -> Strategy(e) {
 
 pub fn authorize_url_returns_authorization_request_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "http://localhost/cb")
+  let assert Ok(conf) = config.new("id", "secret", "http://localhost/cb")
   let result = vestibule.authorize_url(strat, conf)
   let assert Ok(AuthorizationRequest(url:, state:, code_verifier:)) = result
   // URL should contain the state
@@ -78,9 +78,8 @@ pub fn authorize_url_returns_authorization_request_test() {
 
 pub fn authorize_url_uses_config_scopes_when_present_test() {
   let strat = test_strategy()
-  let conf =
-    config.new("id", "secret", "http://localhost/cb")
-    |> config.with_scopes(["custom_scope"])
+  let assert Ok(conf) = config.new("id", "secret", "http://localhost/cb")
+  let conf = conf |> config.with_scopes(["custom_scope"])
   let assert Ok(AuthorizationRequest(url:, ..)) =
     vestibule.authorize_url(strat, conf)
   { string.contains(url, "custom_scope") } |> expect.to_be_true()
@@ -89,7 +88,7 @@ pub fn authorize_url_uses_config_scopes_when_present_test() {
 
 pub fn authorize_url_uses_default_scopes_when_config_empty_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "http://localhost/cb")
+  let assert Ok(conf) = config.new("id", "secret", "http://localhost/cb")
   let assert Ok(AuthorizationRequest(url:, ..)) =
     vestibule.authorize_url(strat, conf)
   { string.contains(url, "default_scope") } |> expect.to_be_true()
@@ -97,7 +96,7 @@ pub fn authorize_url_uses_default_scopes_when_config_empty_test() {
 
 pub fn handle_callback_succeeds_with_valid_params_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "http://localhost/cb")
+  let assert Ok(conf) = config.new("id", "secret", "http://localhost/cb")
   let state = "test_state_value"
   let params = dict.from_list([#("code", "valid_code"), #("state", state)])
   let result =
@@ -111,7 +110,7 @@ pub fn handle_callback_succeeds_with_valid_params_test() {
 
 pub fn handle_callback_fails_on_state_mismatch_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "http://localhost/cb")
+  let assert Ok(conf) = config.new("id", "secret", "http://localhost/cb")
   let params = dict.from_list([#("code", "valid_code"), #("state", "wrong")])
   let result =
     vestibule.handle_callback(strat, conf, params, "expected", "test_verifier")
@@ -121,7 +120,7 @@ pub fn handle_callback_fails_on_state_mismatch_test() {
 
 pub fn handle_callback_fails_on_missing_code_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "http://localhost/cb")
+  let assert Ok(conf) = config.new("id", "secret", "http://localhost/cb")
   let state = "test_state"
   let params = dict.from_list([#("state", state)])
   let result =

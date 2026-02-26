@@ -9,7 +9,7 @@ import vestibule/oidc.{OidcConfig}
 // --- OidcConfig construction ---
 
 pub fn oidc_config_construction_test() {
-  let config =
+  let oidc_config =
     OidcConfig(
       issuer: "https://accounts.example.com",
       authorization_endpoint: "https://accounts.example.com/authorize",
@@ -17,14 +17,15 @@ pub fn oidc_config_construction_test() {
       userinfo_endpoint: "https://accounts.example.com/userinfo",
       scopes_supported: ["openid", "profile", "email"],
     )
-  config.issuer |> expect.to_equal("https://accounts.example.com")
-  config.authorization_endpoint
+  oidc_config.issuer |> expect.to_equal("https://accounts.example.com")
+  oidc_config.authorization_endpoint
   |> expect.to_equal("https://accounts.example.com/authorize")
-  config.token_endpoint
+  oidc_config.token_endpoint
   |> expect.to_equal("https://accounts.example.com/token")
-  config.userinfo_endpoint
+  oidc_config.userinfo_endpoint
   |> expect.to_equal("https://accounts.example.com/userinfo")
-  config.scopes_supported |> expect.to_equal(["openid", "profile", "email"])
+  oidc_config.scopes_supported
+  |> expect.to_equal(["openid", "profile", "email"])
 }
 
 // --- parse_discovery_document ---
@@ -33,15 +34,15 @@ pub fn parse_discovery_document_full_test() {
   let json =
     "{\"issuer\":\"https://accounts.example.com\",\"authorization_endpoint\":\"https://accounts.example.com/authorize\",\"token_endpoint\":\"https://accounts.example.com/token\",\"userinfo_endpoint\":\"https://accounts.example.com/userinfo\",\"scopes_supported\":[\"openid\",\"profile\",\"email\",\"address\"]}"
   let result = oidc.parse_discovery_document(json)
-  let assert Ok(config) = result
-  config.issuer |> expect.to_equal("https://accounts.example.com")
-  config.authorization_endpoint
+  let assert Ok(oidc_config) = result
+  oidc_config.issuer |> expect.to_equal("https://accounts.example.com")
+  oidc_config.authorization_endpoint
   |> expect.to_equal("https://accounts.example.com/authorize")
-  config.token_endpoint
+  oidc_config.token_endpoint
   |> expect.to_equal("https://accounts.example.com/token")
-  config.userinfo_endpoint
+  oidc_config.userinfo_endpoint
   |> expect.to_equal("https://accounts.example.com/userinfo")
-  config.scopes_supported
+  oidc_config.scopes_supported
   |> expect.to_equal(["openid", "profile", "email", "address"])
 }
 
@@ -49,8 +50,8 @@ pub fn parse_discovery_document_without_scopes_test() {
   let json =
     "{\"issuer\":\"https://example.com\",\"authorization_endpoint\":\"https://example.com/auth\",\"token_endpoint\":\"https://example.com/token\",\"userinfo_endpoint\":\"https://example.com/userinfo\"}"
   let result = oidc.parse_discovery_document(json)
-  let assert Ok(config) = result
-  config.scopes_supported |> expect.to_equal([])
+  let assert Ok(oidc_config) = result
+  oidc_config.scopes_supported |> expect.to_equal([])
 }
 
 pub fn parse_discovery_document_invalid_json_test() {
@@ -198,7 +199,8 @@ pub fn strategy_from_config_sets_provider_name_test() {
       userinfo_endpoint: "https://accounts.example.com/userinfo",
       scopes_supported: ["openid", "profile", "email"],
     )
-  let strat = oidc.strategy_from_config(oidc_config, "my-oidc-provider")
+  let assert Ok(strat) =
+    oidc.strategy_from_config(oidc_config, "my-oidc-provider")
   strat.provider |> expect.to_equal("my-oidc-provider")
 }
 
@@ -211,7 +213,7 @@ pub fn strategy_from_config_sets_default_scopes_test() {
       userinfo_endpoint: "https://accounts.example.com/userinfo",
       scopes_supported: ["openid", "profile", "email", "address"],
     )
-  let strat = oidc.strategy_from_config(oidc_config, "example")
+  let assert Ok(strat) = oidc.strategy_from_config(oidc_config, "example")
   strat.default_scopes |> expect.to_equal(["openid", "profile", "email"])
 }
 
@@ -224,7 +226,7 @@ pub fn strategy_from_config_filters_scopes_test() {
       userinfo_endpoint: "https://accounts.example.com/userinfo",
       scopes_supported: ["openid", "custom"],
     )
-  let strat = oidc.strategy_from_config(oidc_config, "example")
+  let assert Ok(strat) = oidc.strategy_from_config(oidc_config, "example")
   strat.default_scopes |> expect.to_equal(["openid"])
 }
 
@@ -237,8 +239,8 @@ pub fn strategy_from_config_authorize_url_test() {
       userinfo_endpoint: "https://accounts.example.com/userinfo",
       scopes_supported: ["openid", "profile", "email"],
     )
-  let strat = oidc.strategy_from_config(oidc_config, "example")
-  let conf =
+  let assert Ok(strat) = oidc.strategy_from_config(oidc_config, "example")
+  let assert Ok(conf) =
     config.new("my-client-id", "my-secret", "http://localhost/callback")
   let result = strat.authorize_url(conf, ["openid", "profile"], "test-state")
   let assert Ok(url) = result
@@ -261,10 +263,9 @@ pub fn strategy_from_config_authorize_url_with_extra_params_test() {
       userinfo_endpoint: "https://accounts.example.com/userinfo",
       scopes_supported: ["openid"],
     )
-  let strat = oidc.strategy_from_config(oidc_config, "example")
-  let conf =
-    config.new("client-id", "secret", "http://localhost/cb")
-    |> config.with_extra_params([#("prompt", "consent")])
+  let assert Ok(strat) = oidc.strategy_from_config(oidc_config, "example")
+  let assert Ok(conf) = config.new("client-id", "secret", "http://localhost/cb")
+  let conf = conf |> config.with_extra_params([#("prompt", "consent")])
   let assert Ok(url) = strat.authorize_url(conf, ["openid"], "state-123")
   { string.contains(url, "prompt=consent") } |> expect.to_be_true()
 }
