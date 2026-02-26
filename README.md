@@ -1,91 +1,107 @@
 # vestibule
 
+Strategy-based OAuth2 authentication for Gleam.
+
+The name "vestibule" refers to an entrance hall — the transitional space between outside (unauthenticated) and inside (authenticated).
+
 [![Package Version](https://img.shields.io/hexpm/v/vestibule)](https://hex.pm/packages/vestibule)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/vestibule/)
 
-A higher-level auth library for Gleam.
+> [!IMPORTANT]
+> vestibule is not yet 1.0. This means:
+>
+> - the API is unstable
+> - features and APIs may be removed in minor releases
+> - quality should not be considered production-ready
+>
+> We welcome usage and feedback in
+> the meantime! We will do our best to minimize breaking changes regardless.
 
-## Installation
+## Quick Start
+
+Add vestibule and a provider strategy to your project:
 
 ```sh
-gleam add vestibule
+gleam add vestibule vestibule_google
 ```
 
-## Usage
+Add GitHub login to a Wisp app:
 
 ```gleam
 import vestibule
+import vestibule/config
+import vestibule/registry
+import vestibule/strategy/github
 
-pub fn main() {
-  vestibule.hello("World")
-  // -> "Hello, World!"
+// Set up a registry with your provider
+let reg =
+  registry.new()
+  |> registry.register(
+    github.strategy(),
+    config.new("client_id", "client_secret", "http://localhost:8000/auth/github/callback"),
+  )
+
+// Phase 1: Generate authorization URL and redirect user
+let assert Ok(auth_request) = vestibule.authorize_url(github.strategy(), config)
+// Store auth_request.state and auth_request.code_verifier in session
+// Redirect user to auth_request.url
+
+// Phase 2: Handle the callback
+let assert Ok(auth) =
+  vestibule.handle_callback(strategy, config, params, expected_state, code_verifier)
+// auth.uid, auth.info.email, auth.credentials.token
+```
+
+Or use the `vestibule_wisp` middleware for a higher-level API:
+
+```gleam
+import vestibule_wisp
+import vestibule_wisp/state_store
+
+// Initialize once at startup
+let store = state_store.init()
+
+// In your router
+case wisp.path_segments(req), req.method {
+  ["auth", provider], http.Get ->
+    vestibule_wisp.request_phase(req, registry, provider, store)
+  ["auth", provider, "callback"], http.Get ->
+    vestibule_wisp.callback_phase(req, registry, provider, store, fn(auth) {
+      // auth.uid, auth.info.name, auth.info.email
+      wisp.redirect("/dashboard")
+    })
 }
 ```
 
-## Development
+## Packages
 
-### Setup Options
+| Package | Description | Install |
+|---------|-------------|---------|
+| `vestibule` | Core types, two-phase OAuth2 flow, PKCE, token refresh | `gleam add vestibule` |
+| `vestibule_wisp` | Wisp middleware for request/callback routing | `gleam add vestibule_wisp` |
+| `vestibule_google` | Google OAuth strategy | `gleam add vestibule_google` |
+| `vestibule_microsoft` | Microsoft OAuth strategy | `gleam add vestibule_microsoft` |
+| `vestibule_apple` | Apple Sign In strategy | `gleam add vestibule_apple` |
 
-This template includes two CI options:
+GitHub is included in the core `vestibule` package.
 
-1. **Local setup action** (default): Self-contained, no external dependencies
-   - Uses `.github/actions/setup/action.yml`
+## How It Works
 
-2. **Shared actions**: Uses [tylerbutler/actions](https://github.com/tylerbutler/actions)
-   - Rename `ci-shared-actions.yml.template` to `ci.yml`
-   - Delete `.github/actions/` directory
+Vestibule uses a two-phase OAuth2 flow inspired by Elixir's Ueberauth:
 
-### Prerequisites
+1. **Request phase** — Generate an authorization URL with CSRF state and PKCE, redirect the user to the provider
+2. **Callback phase** — Validate state, exchange the authorization code for tokens, fetch user info, return a normalized `Auth` result
 
-- [Erlang](https://www.erlang.org/) 27+
-- [Gleam](https://gleam.run/) 1.7+
-- [just](https://github.com/casey/just) (task runner)
+Strategies are records of functions — no behaviours, macros, or magic. Each strategy tells vestibule how to talk to a specific provider.
 
-Install tools via [mise](https://mise.jdx.dev/) or [asdf](https://asdf-vm.com/):
+## Writing a Custom Strategy
 
-```sh
-mise install
-# or
-asdf install
-```
+See the [strategy authoring guide](docs/guides/writing-a-custom-strategy.md) for a complete walkthrough of building a provider strategy from scratch.
 
-### Commands
+## Target
 
-```sh
-just deps      # Download dependencies
-just build     # Build the project
-just test      # Run tests
-just format    # Format code
-just check     # Type check
-just docs      # Build documentation
-just ci        # Run all CI checks
-```
-
-### CI/CD
-
-This project uses GitHub Actions for CI and automated releases:
-
-- **CI**: Runs on every push/PR to main
-- **Release**: Uses [release-please](https://github.com/googleapis/release-please) for automated versioning
-- **Publish**: Automatically publishes to [Hex.pm](https://hex.pm) on release
-
-### GitHub Secrets Required
-
-| Secret | Description |
-|--------|-------------|
-| `RELEASE_TOKEN` | GitHub PAT with `contents:write` and `pull-requests:write` permissions |
-| `HEXPM_API_KEY` | API key from [hex.pm](https://hex.pm) for publishing |
-
-### Commit Convention
-
-This project uses [Conventional Commits](https://www.conventionalcommits.org/):
-
-- `feat:` - New features (minor version bump)
-- `fix:` - Bug fixes (patch version bump)
-- `docs:` - Documentation changes
-- `chore:` - Maintenance tasks
-- `BREAKING CHANGE:` in commit body - Major version bump
+Erlang (BEAM) runtime. Core types can cross-compile to JavaScript, but OAuth callbacks require a server.
 
 ## License
 
-MIT - see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE) for details.

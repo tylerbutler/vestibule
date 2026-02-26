@@ -1,6 +1,6 @@
 name = "vestibule"
 version = "0.1.0"
-description = "A Gleam project"
+description = "Strategy-based OAuth2 authentication for Gleam"
 licences = ["MIT"]
 repository = { type = "github", user = "tylerbutler", repo = "vestibule" }
 gleam = ">= 1.7.0"
