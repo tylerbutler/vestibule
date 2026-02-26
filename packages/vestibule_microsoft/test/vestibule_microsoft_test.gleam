@@ -70,9 +70,11 @@ pub fn parse_user_response_minimal_test() {
   let assert Ok(#(uid, info)) = vestibule_microsoft.parse_user_response(body)
   uid |> expect.to_equal("abc-123")
   info.name |> expect.to_equal(None)
-  info.email |> expect.to_equal(Some("user@example.com"))
+  // UPN must not be used as email — it is not a verified address
+  info.email |> expect.to_equal(None)
   info.nickname |> expect.to_equal(Some("user@example.com"))
   info.description |> expect.to_equal(None)
+  info.image |> expect.to_equal(None)
 }
 
 pub fn parse_user_response_mail_preferred_over_upn_test() {
@@ -80,4 +82,16 @@ pub fn parse_user_response_mail_preferred_over_upn_test() {
     "{\"id\":\"abc\",\"mail\":\"real@example.com\",\"userPrincipalName\":\"upn@example.com\"}"
   let assert Ok(#(_uid, info)) = vestibule_microsoft.parse_user_response(body)
   info.email |> expect.to_equal(Some("real@example.com"))
+}
+
+pub fn parse_user_response_guest_upn_not_used_as_email_test() {
+  // Guest account UPNs contain #EXT# and must never be treated as email
+  let body =
+    "{\"id\":\"guest-456\",\"userPrincipalName\":\"attacker_company.com#EXT#@tenant.onmicrosoft.com\"}"
+  let assert Ok(#(uid, info)) = vestibule_microsoft.parse_user_response(body)
+  uid |> expect.to_equal("guest-456")
+  info.email |> expect.to_equal(None)
+  info.nickname
+  |> expect.to_equal(Some("attacker_company.com#EXT#@tenant.onmicrosoft.com"))
+  info.image |> expect.to_equal(None)
 }
