@@ -1,43 +1,48 @@
+import bravo
+import bravo/uset.{type USet}
 import gleam/bit_array
 import gleam/crypto
 
-const table_name = "vestibule_wisp_sessions"
+/// The type alias for the state store table.
+pub type StateStore =
+  USet(String, #(String, String))
 
 /// Initialize the state store. Call once at application startup.
-/// Safe to call multiple times.
-pub fn init() -> Nil {
-  do_create_table(table_name)
+/// Returns the table handle needed by store/retrieve.
+pub fn init() -> StateStore {
+  let assert Ok(table) =
+    uset.new(name: "vestibule_wisp_sessions", access: bravo.Public)
+  table
+}
+
+/// Initialize a named state store. Useful for testing with isolated tables.
+pub fn init_named(name: String) -> StateStore {
+  let assert Ok(table) = uset.new(name: name, access: bravo.Public)
+  table
 }
 
 /// Store a CSRF state value and PKCE code verifier, returning a session ID.
-pub fn store(state: String, code_verifier: String) -> String {
+pub fn store(
+  table: StateStore,
+  state: String,
+  code_verifier: String,
+) -> String {
   let session_id =
     crypto.strong_random_bytes(16)
     |> bit_array.base64_url_encode(False)
-  do_insert(table_name, session_id, #(state, code_verifier))
+  let assert Ok(Nil) =
+    uset.insert(into: table, key: session_id, value: #(state, code_verifier))
   session_id
 }
 
 /// Retrieve and consume a CSRF state and code verifier by session ID.
 /// Returns Error(Nil) if not found or already consumed (one-time use).
-pub fn retrieve(session_id: String) -> Result(#(String, String), Nil) {
-  case do_lookup(table_name, session_id) {
-    Ok(value) -> {
-      do_delete(table_name, session_id)
-      Ok(value)
-    }
-    Error(Nil) -> Error(Nil)
+pub fn retrieve(
+  table: StateStore,
+  session_id: String,
+) -> Result(#(String, String), Nil) {
+  case uset.take(from: table, at: session_id) {
+    Ok(value) -> Ok(value)
+    Error(_) -> Error(Nil)
   }
 }
-
-@external(erlang, "vestibule_wisp_state_store_ffi", "create_table")
-fn do_create_table(name: String) -> Nil
-
-@external(erlang, "vestibule_wisp_state_store_ffi", "insert")
-fn do_insert(name: String, key: String, value: #(String, String)) -> Nil
-
-@external(erlang, "vestibule_wisp_state_store_ffi", "lookup")
-fn do_lookup(name: String, key: String) -> Result(#(String, String), Nil)
-
-@external(erlang, "vestibule_wisp_state_store_ffi", "delete_key")
-fn do_delete(name: String, key: String) -> Nil

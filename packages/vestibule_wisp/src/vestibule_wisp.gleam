@@ -6,7 +6,7 @@ import vestibule
 import vestibule/auth.{type Auth}
 import vestibule/error
 import vestibule/registry.{type Registry}
-import vestibule_wisp/state_store
+import vestibule_wisp/state_store.{type StateStore}
 
 /// Phase 1: Redirect user to the OAuth provider.
 ///
@@ -19,6 +19,7 @@ pub fn request_phase(
   req: Request,
   reg: Registry(e),
   provider: String,
+  state_store: StateStore,
 ) -> Response {
   case registry.get(reg, provider) {
     Error(Nil) -> wisp.not_found()
@@ -26,7 +27,11 @@ pub fn request_phase(
       case vestibule.authorize_url(strategy, config) {
         Ok(auth_request) -> {
           let session_id =
-            state_store.store(auth_request.state, auth_request.code_verifier)
+            state_store.store(
+              state_store,
+              auth_request.state,
+              auth_request.code_verifier,
+            )
           wisp.redirect(auth_request.url)
           |> wisp.set_cookie(
             req,
@@ -51,9 +56,10 @@ pub fn callback_phase(
   req: Request,
   reg: Registry(e),
   provider: String,
+  state_store: StateStore,
   on_success: fn(Auth) -> Response,
 ) -> Response {
-  case do_callback(req, reg, provider) {
+  case do_callback(req, reg, provider, state_store) {
     Ok(auth) -> on_success(auth)
     Error(response) -> response
   }
@@ -68,14 +74,16 @@ pub fn callback_phase_result(
   req: Request,
   reg: Registry(e),
   provider: String,
+  state_store: StateStore,
 ) -> Result(Auth, Response) {
-  do_callback(req, reg, provider)
+  do_callback(req, reg, provider, state_store)
 }
 
 fn do_callback(
   req: Request,
   reg: Registry(e),
   provider: String,
+  state_store: StateStore,
 ) -> Result(Auth, Response) {
   use #(strategy, config) <- result.try(
     registry.get(reg, provider)
@@ -90,7 +98,7 @@ fn do_callback(
   )
 
   use #(expected_state, code_verifier) <- result.try(
-    state_store.retrieve(session_id)
+    state_store.retrieve(state_store, session_id)
     |> result.map_error(fn(_) {
       error_response(error.ConfigError(
         reason: "Session expired or already used",

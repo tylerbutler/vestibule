@@ -15,5 +15,9 @@ gleam_erlang = ">= 1.0.0 and < 2.0.0"
 gleam_http = ">= 4.0.0 and < 5.0.0"
 envoy = ">= 1.1.0 and < 2.0.0"
 
+[dependencies.bravo]
+git = "https://github.com/tylerbutler/bravo"
+ref = "c9e8314b03919870260db8f0d03cfe12ac1f6c11"
+
 [dev-dependencies]
 startest = ">= 0.8.0 and < 1.0.0"
