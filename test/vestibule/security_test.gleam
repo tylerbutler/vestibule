@@ -77,14 +77,10 @@ fn test_strategy() -> Strategy(e) {
 ///
 /// This test documents the current (vulnerable) behavior. When a guard
 /// is added to reject empty strings, change this test to expect Error.
-pub fn state_validate_accepts_both_empty_vulnerability_test() {
-  // CURRENT BEHAVIOR: accepts empty-equals-empty (vulnerability L1)
-  let _ =
-    state.validate("", "")
-    |> expect.to_be_ok()
-  // TODO: When fixed, this should be:
-  // |> expect.to_equal(Error(error.StateMismatch))
-  Nil
+pub fn state_validate_rejects_both_empty_test() {
+  state.validate("", "")
+  |> expect.to_be_error()
+  |> expect.to_equal(error.StateMismatch)
 }
 
 /// Security: state with only whitespace is currently accepted.
@@ -343,7 +339,7 @@ pub fn refresh_body_url_encodes_special_characters_test() {
 
   // The encoded body must NOT contain raw & from values (only as separators)
   // and must NOT contain raw = from values (only as key=value delimiters)
-  { string.contains(body, "token%26with%3Dwith") } |> expect.to_be_false()
+  { string.contains(body, "token&with") } |> expect.to_be_false()
 
   // Verify each parameter appears with proper encoding
   { string.contains(body, "grant_type=refresh_token") } |> expect.to_be_true()

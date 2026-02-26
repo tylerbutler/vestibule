@@ -43,10 +43,15 @@ pub fn generate() -> String {
 /// single-use or expiration. After a successful validation, callers should
 /// delete the stored state to prevent replay attacks.
 pub fn validate(received: String, expected: String) -> Result(Nil, AuthError(e)) {
-  let received_bits = <<received:utf8>>
-  let expected_bits = <<expected:utf8>>
-  case crypto.secure_compare(received_bits, expected_bits) {
-    True -> Ok(Nil)
-    False -> Error(StateMismatch)
+  case received, expected {
+    "", _ | _, "" -> Error(StateMismatch)
+    _, _ -> {
+      let received_bits = <<received:utf8>>
+      let expected_bits = <<expected:utf8>>
+      case crypto.secure_compare(received_bits, expected_bits) {
+        True -> Ok(Nil)
+        False -> Error(StateMismatch)
+      }
+    }
   }
 }

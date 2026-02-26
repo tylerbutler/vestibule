@@ -320,20 +320,24 @@ fn do_exchange_code(
           // Generate a random cache key instead of using the access token.
           // This prevents anyone who obtains the access token from looking
           // up the cached ID token.
-          let cache_key = generate_cache_key()
           case id_token {
-            Some(token) ->
+            Some(token) -> {
+              let cache_key = generate_cache_key()
               id_token_cache.store(
                 apple.id_tokens,
                 cache_key,
                 token <> "\n" <> config.client_id,
               )
-            None -> Nil
+              // Return credentials with the random cache key in the token field
+              // so fetch_user can retrieve the cached ID token. Apple's access
+              // token is not needed after this point (no userinfo endpoint).
+              Ok(Credentials(..creds, token: cache_key))
+            }
+            None ->
+              Error(error.UserInfoFailed(
+                reason: "Apple did not return an id_token in the token response",
+              ))
           }
-          // Return credentials with the random cache key in the token field
-          // so fetch_user can retrieve the cached ID token. Apple's access
-          // token is not needed after this point (no userinfo endpoint).
-          Ok(Credentials(..creds, token: cache_key))
         }
         Error(err) -> Error(err)
       }

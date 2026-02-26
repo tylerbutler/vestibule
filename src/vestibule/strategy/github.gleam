@@ -40,7 +40,11 @@ pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
   // First check if it's an error response
   let error_decoder = {
     use error_code <- decode.field("error", decode.string)
-    use description <- decode.field("error_description", decode.string)
+    use description <- decode.optional_field(
+      "error_description",
+      "",
+      decode.string,
+    )
     decode.success(#(error_code, description))
   }
   case json.parse(body, error_decoder) {
