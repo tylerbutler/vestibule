@@ -33,6 +33,19 @@ import vestibule/strategy.{type Strategy}
 ///
 /// PKCE parameters (`code_challenge` and `code_challenge_method=S256`)
 /// are automatically appended to the authorization URL.
+///
+/// ## State management
+///
+/// The generated CSRF state is cryptographically random but has no built-in
+/// expiration or single-use enforcement. Callers should:
+///
+/// - Store the state with a TTL (e.g., 10 minutes) and reject expired values
+/// - Delete the state after successful validation to prevent replay attacks
+/// - Consider storing a `state_issued_at` timestamp alongside the state
+///   for expiration checks
+///
+/// The `vestibule_wisp` middleware handles this automatically via its
+/// state store, which enforces one-time use by deleting state on retrieval.
 pub fn authorize_url(
   strategy: Strategy(e),
   config: Config,
@@ -58,6 +71,25 @@ pub fn authorize_url(
 /// Validates the state parameter, exchanges the authorization code
 /// for credentials (including the PKCE code verifier), and fetches
 /// normalized user information.
+///
+/// ## State expiration and replay prevention
+///
+/// This function validates that the received state matches the expected
+/// state using constant-time comparison, but it does **not** enforce
+/// single-use or expiration. State values should be treated as single-use:
+///
+/// - **Callers are responsible for state expiration/TTL.** After calling
+///   `authorize_url`, store the state with a timestamp and reject values
+///   older than your chosen window (e.g., 10 minutes).
+/// - **Delete state after validation.** Once `handle_callback` succeeds,
+///   the stored state should be removed so it cannot be replayed from
+///   browser history, server logs, or other sources.
+/// - Consider storing a `state_issued_at` timestamp alongside the state
+///   value to enforce expiration before calling this function.
+///
+/// The `vestibule_wisp` package provides one-time-use enforcement
+/// automatically: its state store deletes state upon retrieval, ensuring
+/// each state value can only be used once.
 pub fn handle_callback(
   strategy: Strategy(e),
   config: Config,

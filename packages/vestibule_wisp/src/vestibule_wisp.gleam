@@ -53,6 +53,14 @@ pub fn request_phase(
 /// On success, calls `on_success` with the Auth result.
 /// On error, returns an HTML error page.
 /// Returns 404 if the provider is not registered.
+///
+/// ## Single-use state enforcement
+///
+/// This function provides automatic one-time-use CSRF state protection.
+/// The state store's `retrieve` call atomically deletes the state entry,
+/// ensuring each state value can only be used for a single callback.
+/// Replayed state values (from browser history, logs, etc.) will be
+/// rejected with a "Session expired or already used" error.
 pub fn callback_phase(
   req: Request,
   reg: Registry(e),
