@@ -279,7 +279,7 @@ pub fn callback_detects_provider_error_test() {
 /// Security: provider error without description still returns ProviderError.
 pub fn callback_detects_provider_error_without_description_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "https://localhost/cb")
+  let assert Ok(conf) = config.new("id", "secret", "https://localhost/cb")
   let state_val = "matching_state"
   let params =
     dict.from_list([#("state", state_val), #("error", "server_error")])
@@ -294,7 +294,7 @@ pub fn callback_detects_provider_error_without_description_test() {
 /// Even if a provider error is present, CSRF state must be validated first.
 pub fn callback_validates_state_before_checking_provider_error_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "https://localhost/cb")
+  let assert Ok(conf) = config.new("id", "secret", "https://localhost/cb")
   let params =
     dict.from_list([
       #("state", "attacker_state"),
