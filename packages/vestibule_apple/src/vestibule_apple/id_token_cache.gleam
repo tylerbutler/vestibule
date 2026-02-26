@@ -5,39 +5,45 @@
 /// but the Strategy type's fetch_user only receives Credentials. This cache
 /// bridges the gap by storing the id_token during exchange_code, keyed by
 /// the access_token, so fetch_user can retrieve and decode it.
-const table_name = "vestibule_apple_id_tokens"
+///
+/// Security: Uses bravo with Protected access (only the owning process can
+/// write) and atomic `uset.take` for one-time retrieval (no TOCTOU race).
+import bravo
+import bravo/uset.{type USet}
+
+/// The cache table type. Stores (access_token -> id_token) mappings.
+pub type IdTokenCache =
+  USet(String, String)
 
 /// Initialize the ID token cache. Call once at application startup.
-/// Safe to call multiple times.
-pub fn init() -> Nil {
-  do_create_table(table_name)
+/// Returns the cache handle needed by store/retrieve.
+pub fn init() -> IdTokenCache {
+  let assert Ok(table) =
+    uset.new(name: "vestibule_apple_id_tokens", access: bravo.Protected)
+  table
+}
+
+/// Initialize a named ID token cache. Useful for testing with isolated tables.
+pub fn init_named(name: String) -> IdTokenCache {
+  let assert Ok(table) = uset.new(name: name, access: bravo.Protected)
+  table
 }
 
 /// Store an ID token, keyed by access token.
-pub fn store(access_token: String, id_token: String) -> Nil {
-  do_insert(table_name, access_token, id_token)
+pub fn store(cache: IdTokenCache, access_token: String, id_token: String) -> Nil {
+  let _ = uset.insert(into: cache, key: access_token, value: id_token)
+  Nil
 }
 
 /// Retrieve and consume an ID token by access token.
-/// Returns Error(Nil) if not found or already consumed (one-time use).
-pub fn retrieve(access_token: String) -> Result(String, Nil) {
-  case do_lookup(table_name, access_token) {
-    Ok(value) -> {
-      do_delete(table_name, access_token)
-      Ok(value)
-    }
-    Error(Nil) -> Error(Nil)
+/// Returns Error(Nil) if not found or already consumed.
+/// Uses atomic take to prevent TOCTOU race conditions.
+pub fn retrieve(
+  cache: IdTokenCache,
+  access_token: String,
+) -> Result(String, Nil) {
+  case uset.take(from: cache, at: access_token) {
+    Ok(value) -> Ok(value)
+    Error(_) -> Error(Nil)
   }
 }
-
-@external(erlang, "vestibule_apple_id_token_cache_ffi", "create_table")
-fn do_create_table(name: String) -> Nil
-
-@external(erlang, "vestibule_apple_id_token_cache_ffi", "insert")
-fn do_insert(name: String, key: String, value: String) -> Nil
-
-@external(erlang, "vestibule_apple_id_token_cache_ffi", "lookup")
-fn do_lookup(name: String, key: String) -> Result(String, Nil)
-
-@external(erlang, "vestibule_apple_id_token_cache_ffi", "delete_key")
-fn do_delete(name: String, key: String) -> Nil

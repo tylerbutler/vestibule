@@ -25,3 +25,6 @@ Thumbs.db
 
 # Worktrees
 .worktrees/
+
+# Serena
+.serena

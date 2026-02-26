@@ -12,6 +12,13 @@ gleam_http = ">= 4.3.0 and < 5.0.0"
 gleam_httpc = ">= 5.0.0 and < 6.0.0"
 gleam_json = ">= 3.1.0 and < 4.0.0"
 glow_auth = ">= 1.0.1 and < 2.0.0"
+gleam_crypto = ">= 1.5.0 and < 2.0.0"
+ywt_core = ">= 1.2.0 and < 2.0.0"
+gleam_time = ">= 1.7.0 and < 2.0.0"
+
+[dependencies.bravo]
+git = "https://github.com/tylerbutler/bravo"
+ref = "c9e8314b03919870260db8f0d03cfe12ac1f6c11"
 
 [dev-dependencies]
 startest = ">= 0.8.0 and < 1.0.0"
