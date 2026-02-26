@@ -6,6 +6,7 @@
 import gleam/dict
 import gleam/option.{None, Some}
 import gleam/string
+import gleam/uri
 import startest/expect
 import vestibule
 import vestibule/authorization_request.{AuthorizationRequest}
@@ -253,7 +254,8 @@ pub fn callback_rejects_empty_params_test() {
 
 /// Security: provider error responses must be detected.
 /// When a provider returns error=access_denied (user denied consent),
-/// the library should propagate the error, not a generic message.
+/// the library should propagate the ProviderError, not a generic
+/// "Missing code parameter" ConfigError.
 pub fn callback_detects_provider_error_test() {
   let strat = test_strategy()
   let conf = config.new("id", "secret", "https://localhost/cb")
@@ -266,10 +268,42 @@ pub fn callback_detects_provider_error_test() {
     ])
   let result =
     vestibule.handle_callback(strat, conf, params, state_val, "verifier")
-  // Should be an error (currently ConfigError for missing code,
-  // ideally should be ProviderError -- see finding M4)
-  let _ = result |> expect.to_be_error()
-  Nil
+  result
+  |> expect.to_be_error()
+  |> expect.to_equal(error.ProviderError(
+    code: "access_denied",
+    description: "User denied access",
+  ))
+}
+
+/// Security: provider error without description still returns ProviderError.
+pub fn callback_detects_provider_error_without_description_test() {
+  let strat = test_strategy()
+  let conf = config.new("id", "secret", "https://localhost/cb")
+  let state_val = "matching_state"
+  let params =
+    dict.from_list([#("state", state_val), #("error", "server_error")])
+  let result =
+    vestibule.handle_callback(strat, conf, params, state_val, "verifier")
+  result
+  |> expect.to_be_error()
+  |> expect.to_equal(error.ProviderError(code: "server_error", description: ""))
+}
+
+/// Security: provider error check happens after state validation.
+/// Even if a provider error is present, CSRF state must be validated first.
+pub fn callback_validates_state_before_checking_provider_error_test() {
+  let strat = test_strategy()
+  let conf = config.new("id", "secret", "https://localhost/cb")
+  let params =
+    dict.from_list([
+      #("state", "attacker_state"),
+      #("error", "access_denied"),
+      #("error_description", "User denied access"),
+    ])
+  // State mismatch should be returned, not the provider error
+  vestibule.handle_callback(strat, conf, params, "real_state", "verifier")
+  |> expect.to_equal(Error(error.StateMismatch))
 }
 
 /// Security: extra unexpected parameters should not cause crashes.
@@ -293,6 +327,33 @@ pub fn callback_ignores_extra_params_test() {
 // ===========================================================================
 // Token Refresh Security Tests (Audit finding M1)
 // ===========================================================================
+
+/// Security: refresh token body must URL-encode parameters.
+/// Verifies that uri.query_to_string properly encodes special characters
+/// that could cause parameter injection in form-encoded POST bodies.
+pub fn refresh_body_url_encodes_special_characters_test() {
+  // Verify that uri.query_to_string encodes &, =, and + characters
+  let params = [
+    #("grant_type", "refresh_token"),
+    #("refresh_token", "token&with=special+chars"),
+    #("client_id", "id&inject=evil"),
+    #("client_secret", "secret=with&ampersand"),
+  ]
+  let body = uri.query_to_string(params)
+
+  // The encoded body must NOT contain raw & from values (only as separators)
+  // and must NOT contain raw = from values (only as key=value delimiters)
+  { string.contains(body, "token%26with%3Dwith") } |> expect.to_be_false()
+
+  // Verify each parameter appears with proper encoding
+  { string.contains(body, "grant_type=refresh_token") } |> expect.to_be_true()
+  { string.contains(body, "refresh_token=token%26with%3Dspecial%2Bchars") }
+  |> expect.to_be_true()
+  { string.contains(body, "client_id=id%26inject%3Devil") }
+  |> expect.to_be_true()
+  { string.contains(body, "client_secret=secret%3Dwith%26ampersand") }
+  |> expect.to_be_true()
+}
 
 /// Security: refresh response parser must handle malformed JSON gracefully.
 pub fn refresh_response_handles_html_error_page_test() {

@@ -65,25 +65,28 @@ pub fn handle_callback(
   expected_state: String,
   code_verifier: String,
 ) -> Result(Auth, AuthError(e)) {
-  // Extract required parameters
+  // Extract state parameter first (needed for CSRF validation)
   use received_state <- result.try(
     dict.get(callback_params, "state")
     |> result.replace_error(error.ConfigError(
       reason: "Missing state parameter in callback",
     )),
   )
+
+  // Validate state before any other processing (CSRF protection)
+  use _ <- result.try(state.validate(received_state, expected_state))
+
+  // Check for provider errors before extracting code, since providers
+  // omit the code parameter on error (e.g. error=access_denied)
+  use _ <- result.try(check_provider_error(callback_params))
+
+  // Extract code parameter (only present on successful authorization)
   use code <- result.try(
     dict.get(callback_params, "code")
     |> result.replace_error(error.ConfigError(
       reason: "Missing code parameter in callback",
     )),
   )
-
-  // Check for provider errors
-  use _ <- result.try(check_provider_error(callback_params))
-
-  // Validate state
-  use _ <- result.try(state.validate(received_state, expected_state))
 
   // Exchange code for credentials, passing the PKCE verifier
   use credentials <- result.try(strategy.exchange_code(
@@ -115,13 +118,12 @@ pub fn refresh_token(
   refresh_tok: String,
 ) -> Result(Credentials, AuthError(e)) {
   let body =
-    "grant_type=refresh_token"
-    <> "&refresh_token="
-    <> refresh_tok
-    <> "&client_id="
-    <> config.client_id
-    <> "&client_secret="
-    <> config.client_secret
+    uri.query_to_string([
+      #("grant_type", "refresh_token"),
+      #("refresh_token", refresh_tok),
+      #("client_id", config.client_id),
+      #("client_secret", config.client_secret),
+    ])
 
   use req <- result.try(
     request.to(strategy.token_url)
