@@ -1,6 +1,7 @@
 import gleam/dict
 import gleam/int
 import gleam/result
+import gleam/string
 import wisp.{type Request, type Response}
 
 import vestibule
@@ -142,12 +143,25 @@ fn error_response(err: error.AuthError(e)) -> Response {
     error.ConfigError(reason:) -> "Configuration error: " <> reason
     error.Custom(_) -> "Custom provider error"
   }
+  let safe_message = html_escape(message)
   wisp.html_response("<html>
 <head><title>Authentication Error</title></head>
 <body style=\"font-family: system-ui, sans-serif; max-width: 600px; margin: 80px auto;\">
   <h1>Authentication Failed</h1>
-  <p style=\"color: #c0392b;\">" <> message <> "</p>
+  <p style=\"color: #c0392b;\">" <> safe_message <> "</p>
   <a href=\"/\">Try again</a>
 </body>
 </html>", 400)
+}
+
+/// Escape HTML special characters to prevent XSS attacks.
+///
+/// Replaces `&`, `<`, `>`, `"`, and `'` with their HTML entity equivalents.
+pub fn html_escape(text: String) -> String {
+  text
+  |> string.replace("&", "&amp;")
+  |> string.replace("<", "&lt;")
+  |> string.replace(">", "&gt;")
+  |> string.replace("\"", "&quot;")
+  |> string.replace("'", "&#x27;")
 }
