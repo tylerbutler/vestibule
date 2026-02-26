@@ -5,10 +5,12 @@
 /// JWT parsing/claims with a custom FFI backend for crypto verification.
 import gleam/json as gleam_json
 import gleam/option.{None, Some}
+import gleam/string
 import gleam/time/duration
 import startest
 import startest/expect
 import vestibule_apple
+import vestibule_apple/id_token_cache
 import vestibule_apple/jwks
 import vestibule_apple/jwt
 import ywt/claim
@@ -248,4 +250,102 @@ pub fn apple_token_response_handles_empty_test() {
     vestibule_apple.parse_token_response("")
     |> expect.to_be_error()
   Nil
+}
+
+// ===========================================================================
+// Cache Key Security Tests (Issue #23 -- random cache key)
+// ===========================================================================
+
+/// Security: access token cannot be used to retrieve cached ID token.
+/// The cache stores under a random key, not the access token.
+pub fn cache_access_token_cannot_retrieve_id_token_test() {
+  let cache = id_token_cache.init_named("sec_cache_access_token")
+  let access_token = "apple_access_token_abc123"
+  let random_cache_key = "random_key_xyz789"
+  let id_token_data = "header.payload.signature\ncom.example.app"
+
+  // Store under random cache key (as the fixed code does)
+  id_token_cache.store(cache, random_cache_key, id_token_data)
+
+  // Attempting to retrieve with the access token should fail
+  id_token_cache.retrieve(cache, access_token)
+  |> expect.to_be_error()
+}
+
+/// Security: random cache key successfully retrieves cached ID token.
+pub fn cache_random_key_retrieves_id_token_test() {
+  let cache = id_token_cache.init_named("sec_cache_random_key")
+  let random_cache_key = "random_key_abc456"
+  let id_token_data = "header.payload.signature\ncom.example.app"
+
+  id_token_cache.store(cache, random_cache_key, id_token_data)
+
+  let assert Ok(cached) = id_token_cache.retrieve(cache, random_cache_key)
+  cached |> expect.to_equal(id_token_data)
+}
+
+/// Security: cached ID token can only be retrieved once (one-time use).
+pub fn cache_id_token_consumed_after_retrieval_test() {
+  let cache = id_token_cache.init_named("sec_cache_one_time")
+  let cache_key = "one_time_key_123"
+  let id_token_data = "header.payload.signature\ncom.example.app"
+
+  id_token_cache.store(cache, cache_key, id_token_data)
+
+  // First retrieval succeeds
+  let _ = id_token_cache.retrieve(cache, cache_key) |> expect.to_be_ok()
+
+  // Second retrieval fails (consumed)
+  id_token_cache.retrieve(cache, cache_key)
+  |> expect.to_be_error()
+}
+
+/// Security: parse_token_response preserves the original access token,
+/// which is different from the random cache key used internally.
+pub fn parse_token_response_returns_original_access_token_test() {
+  let body =
+    "{\"access_token\":\"original_apple_token\",\"token_type\":\"Bearer\",\"expires_in\":3600,\"id_token\":\"h.p.s\"}"
+  let assert Ok(#(creds, _id_token)) =
+    vestibule_apple.parse_token_response(body)
+
+  // parse_token_response returns the original access token
+  // (the random cache key substitution happens in exchange_code, not here)
+  creds.token |> expect.to_equal("original_apple_token")
+}
+
+/// Security: different cache entries use different keys, preventing
+/// cross-session ID token leakage.
+pub fn cache_different_keys_isolate_tokens_test() {
+  let cache = id_token_cache.init_named("sec_cache_isolation")
+  let key_a = "random_key_session_a"
+  let key_b = "random_key_session_b"
+  let token_a = "id_token_a\nclient_a"
+  let token_b = "id_token_b\nclient_b"
+
+  id_token_cache.store(cache, key_a, token_a)
+  id_token_cache.store(cache, key_b, token_b)
+
+  // Each key retrieves only its own token
+  let assert Ok(retrieved_a) = id_token_cache.retrieve(cache, key_a)
+  retrieved_a |> expect.to_equal(token_a)
+
+  let assert Ok(retrieved_b) = id_token_cache.retrieve(cache, key_b)
+  retrieved_b |> expect.to_equal(token_b)
+}
+
+/// Security: the cached value format includes client_id for verification.
+pub fn cache_stores_id_token_with_client_id_test() {
+  let cache = id_token_cache.init_named("sec_cache_format")
+  let cache_key = "format_test_key"
+  let id_token = "eyJhbGciOiJFUzI1NiJ9.payload.sig"
+  let client_id = "com.example.app"
+
+  // Store in the format used by exchange_code: "id_token\nclient_id"
+  id_token_cache.store(cache, cache_key, id_token <> "\n" <> client_id)
+
+  let assert Ok(cached) = id_token_cache.retrieve(cache, cache_key)
+  let assert Ok(#(retrieved_token, retrieved_client_id)) =
+    string.split_once(cached, "\n")
+  retrieved_token |> expect.to_equal(id_token)
+  retrieved_client_id |> expect.to_equal(client_id)
 }

@@ -25,6 +25,8 @@
 /// let apple = vestibule_apple.init()
 /// let strategy = vestibule_apple.strategy(apple)
 /// ```
+import gleam/bit_array
+import gleam/crypto
 import gleam/dict
 import gleam/dynamic/decode
 import gleam/json
@@ -315,18 +317,23 @@ fn do_exchange_code(
       ))
       case parse_token_response(body) {
         Ok(#(creds, id_token)) -> {
-          // Store the id_token + client_id in the cache so fetch_user can
-          // verify and decode it
+          // Generate a random cache key instead of using the access token.
+          // This prevents anyone who obtains the access token from looking
+          // up the cached ID token.
+          let cache_key = generate_cache_key()
           case id_token {
             Some(token) ->
               id_token_cache.store(
                 apple.id_tokens,
-                creds.token,
+                cache_key,
                 token <> "\n" <> config.client_id,
               )
             None -> Nil
           }
-          Ok(creds)
+          // Return credentials with the random cache key in the token field
+          // so fetch_user can retrieve the cached ID token. Apple's access
+          // token is not needed after this point (no userinfo endpoint).
+          Ok(Credentials(..creds, token: cache_key))
         }
         Error(err) -> Error(err)
       }
@@ -343,7 +350,8 @@ fn do_fetch_user(
   creds: Credentials,
 ) -> Result(#(String, user_info.UserInfo), AuthError(e)) {
   // Apple has no userinfo endpoint. User info comes from the id_token JWT
-  // stored during exchange_code.
+  // stored during exchange_code. The token field contains a random cache key
+  // (not the access token) for secure lookup.
   use cached <- result.try(
     id_token_cache.retrieve(apple.id_tokens, creds.token)
     |> result.replace_error(error.UserInfoFailed(
@@ -380,4 +388,11 @@ fn append_code_verifier(
     }
     None -> req
   }
+}
+
+/// Generate a cryptographically random cache key.
+/// Returns 32 bytes of random data, base64url-encoded without padding.
+fn generate_cache_key() -> String {
+  crypto.strong_random_bytes(32)
+  |> bit_array.base64_url_encode(False)
 }
