@@ -102,10 +102,7 @@ pub fn parse_user_response(
       None,
       decode.optional(decode.string),
     )
-    let email = case mail {
-      Some(_) -> mail
-      None -> Some(upn)
-    }
+    let email = mail
     let image = case email {
       Some(addr) -> Some(gravatar_url(addr))
       None -> None
