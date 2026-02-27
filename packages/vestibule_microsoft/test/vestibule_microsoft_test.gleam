@@ -89,8 +89,6 @@ pub fn parse_user_response_mail_preferred_over_upn_test() {
 pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
   let strat = vestibule_microsoft.strategy()
   let conf = config.new("client-id", "secret", "not a uri")
-  let _ =
-    strat.authorize_url(conf, ["User.Read"], "state")
-    |> expect.to_be_error()
-  Nil
+  strat.authorize_url(conf, ["User.Read"], "state")
+  |> expect.to_be_error()
 }

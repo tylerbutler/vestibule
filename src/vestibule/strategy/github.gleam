@@ -156,7 +156,7 @@ fn do_authorize_url(
   use site <- result.try(
     uri.parse("https://github.com")
     |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Invalid GitHub OAuth base URL")
+      error.ConfigError(reason: "Failed to parse GitHub OAuth base URL")
     }),
   )
   use redirect <- result.try(
@@ -192,7 +192,7 @@ fn do_exchange_code(
   use site <- result.try(
     uri.parse("https://github.com")
     |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Invalid GitHub OAuth base URL")
+      error.ConfigError(reason: "Failed to parse GitHub OAuth base URL")
     }),
   )
   use redirect <- result.try(
@@ -236,7 +236,7 @@ fn do_fetch_user(
   use user_req <- result.try(
     request.to("https://api.github.com/user")
     |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Invalid GitHub user URL")
+      error.ConfigError(reason: "Failed to parse GitHub user URL")
     }),
   )
   let user_req =

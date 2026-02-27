@@ -137,7 +137,7 @@ fn do_authorize_url(
   use site <- result.try(
     uri.parse("https://login.microsoftonline.com/common/oauth2/v2.0")
     |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Invalid Microsoft OAuth base URL")
+      error.ConfigError(reason: "Failed to parse Microsoft OAuth base URL")
     }),
   )
   use redirect <- result.try(
@@ -173,7 +173,7 @@ fn do_exchange_code(
   use site <- result.try(
     uri.parse("https://login.microsoftonline.com/common/oauth2/v2.0")
     |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Invalid Microsoft OAuth base URL")
+      error.ConfigError(reason: "Failed to parse Microsoft OAuth base URL")
     }),
   )
   use redirect <- result.try(
@@ -212,7 +212,7 @@ fn do_fetch_user(
   use user_req <- result.try(
     request.to("https://graph.microsoft.com/v1.0/me")
     |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Invalid Microsoft Graph user URL")
+      error.ConfigError(reason: "Failed to parse Microsoft Graph user URL")
     }),
   )
   let user_req =
