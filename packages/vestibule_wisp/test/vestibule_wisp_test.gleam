@@ -18,7 +18,8 @@ pub fn store_and_retrieve_state_and_verifier_test() {
 
 pub fn retrieve_deletes_after_use_test() {
   let table = state_store.init_named("test_delete_after_use")
-  let session_id = state_store.store(table, "one-time-state", "one-time-verifier")
+  let session_id =
+    state_store.store(table, "one-time-state", "one-time-verifier")
   let _ = state_store.retrieve(table, session_id)
   state_store.retrieve(table, session_id)
   |> expect.to_be_error()

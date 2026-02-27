@@ -22,11 +22,7 @@ pub fn init_named(name: String) -> StateStore {
 }
 
 /// Store a CSRF state value and PKCE code verifier, returning a session ID.
-pub fn store(
-  table: StateStore,
-  state: String,
-  code_verifier: String,
-) -> String {
+pub fn store(table: StateStore, state: String, code_verifier: String) -> String {
   let session_id =
     crypto.strong_random_bytes(16)
     |> bit_array.base64_url_encode(False)
