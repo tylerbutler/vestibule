@@ -83,6 +83,8 @@ pub fn parse_emails_no_verified_primary_test() {
 pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
   let strat = github.strategy()
   let conf = config.new("client-id", "secret", "not a uri")
-  strat.authorize_url(conf, ["user:email"], "state")
-  |> expect.to_be_error()
+  let _ =
+    strat.authorize_url(conf, ["user:email"], "state")
+    |> expect.to_be_error()
+  Nil
 }
