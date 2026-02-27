@@ -29,6 +29,7 @@ import gleam/uri
 import vestibule/config
 import vestibule/credentials.{type Credentials, Credentials}
 import vestibule/error.{type AuthError}
+import vestibule/internal/http as internal_http
 import vestibule/strategy.{type Strategy, Strategy}
 import vestibule/user_info
 
@@ -57,6 +58,9 @@ pub type OidcConfig {
 pub fn fetch_configuration(
   issuer_url: String,
 ) -> Result(OidcConfig, AuthError(e)) {
+  // Security: require HTTPS for the issuer URL
+  use _ <- result.try(internal_http.require_https(issuer_url))
+
   let discovery_url =
     strip_trailing_slash(issuer_url) <> "/.well-known/openid-configuration"
 
@@ -72,12 +76,23 @@ pub fn fetch_configuration(
 
   case httpc.send(r) {
     Ok(response) -> {
-      use config <- result.try(parse_discovery_document(response.body))
+      use body <- result.try(internal_http.check_response_status(response))
+      use config <- result.try(parse_discovery_document(body))
       // Security: validate issuer matches per OIDC Discovery spec
       let normalized_issuer = strip_trailing_slash(issuer_url)
       let response_issuer = strip_trailing_slash(config.issuer)
       case normalized_issuer == response_issuer {
-        True -> Ok(config)
+        True -> {
+          // Security: validate discovered endpoints use HTTPS
+          use _ <- result.try(internal_http.require_https(
+            config.authorization_endpoint,
+          ))
+          use _ <- result.try(internal_http.require_https(config.token_endpoint))
+          use _ <- result.try(internal_http.require_https(
+            config.userinfo_endpoint,
+          ))
+          Ok(config)
+        }
         False ->
           Error(error.ConfigError(
             reason: "Issuer mismatch: expected "
@@ -367,7 +382,10 @@ fn build_exchange_code_fn(
       |> request.set_body(body)
 
     case httpc.send(r) {
-      Ok(response) -> parse_token_response(response.body)
+      Ok(response) -> {
+        use body <- result.try(internal_http.check_response_status(response))
+        parse_token_response(body)
+      }
       Error(_) ->
         Error(error.NetworkError(
           reason: "Failed to connect to OIDC token endpoint: " <> token_endpoint,
@@ -394,7 +412,10 @@ fn build_fetch_user_fn(
       |> request.set_header("accept", "application/json")
 
     case httpc.send(r) {
-      Ok(response) -> parse_userinfo_response(response.body)
+      Ok(response) -> {
+        use body <- result.try(internal_http.check_response_status(response))
+        parse_userinfo_response(body)
+      }
       Error(_) ->
         Error(error.NetworkError(
           reason: "Failed to connect to OIDC userinfo endpoint: "
