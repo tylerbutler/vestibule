@@ -70,9 +70,12 @@ pub fn parse_user_response_minimal_test() {
   let assert Ok(#(uid, info)) = vestibule_microsoft.parse_user_response(body)
   uid |> expect.to_equal("abc-123")
   info.name |> expect.to_equal(None)
-  info.email |> expect.to_equal(Some("user@example.com"))
+  // UPN is not a verified email, so email should be None
+  info.email |> expect.to_equal(None)
   info.nickname |> expect.to_equal(Some("user@example.com"))
   info.description |> expect.to_equal(None)
+  // No gravatar when no verified email
+  info.image |> expect.to_equal(None)
 }
 
 pub fn parse_user_response_mail_preferred_over_upn_test() {
