@@ -1,6 +1,7 @@
 import gleam/dict
 import gleam/option.{None, Some}
 import startest/expect
+import vestibule/config
 import vestibule/credentials.{Credentials}
 import vestibule/strategy/github
 
@@ -77,4 +78,13 @@ pub fn parse_emails_no_verified_primary_test() {
     "[{\"email\":\"unverified@example.com\",\"primary\":true,\"verified\":false}]"
   github.parse_primary_email(json)
   |> expect.to_equal(None)
+}
+
+pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
+  let strat = github.strategy()
+  let conf = config.new("client-id", "secret", "not a uri")
+  let _ =
+    strat.authorize_url(conf, ["user:email"], "state")
+    |> expect.to_be_error()
+  Nil
 }
