@@ -48,8 +48,8 @@ import vestibule/error.{type AuthError}
 import vestibule/strategy.{type Strategy, Strategy}
 import vestibule/user_info
 import vestibule_apple/id_token_cache.{type IdTokenCache}
-import vestibule_apple/jwt
 import vestibule_apple/jwks.{type JwksCache}
+import vestibule_apple/jwt
 import ywt/claim
 import ywt/verify_key.{type VerifyKey}
 

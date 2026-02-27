@@ -9,8 +9,8 @@ import gleam/time/duration
 import startest
 import startest/expect
 import vestibule_apple
-import vestibule_apple/jwt
 import vestibule_apple/jwks
+import vestibule_apple/jwt
 import ywt/claim
 import ywt/verify_key
 
