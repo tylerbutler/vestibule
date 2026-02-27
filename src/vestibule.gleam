@@ -21,6 +21,7 @@ import vestibule/authorization_request.{
 import vestibule/config.{type Config}
 import vestibule/credentials.{type Credentials, Credentials}
 import vestibule/error.{type AuthError}
+import vestibule/internal/http as internal_http
 import vestibule/pkce
 import vestibule/state
 import vestibule/strategy.{type Strategy}
@@ -33,6 +34,11 @@ import vestibule/strategy.{type Strategy}
 ///
 /// PKCE parameters (`code_challenge` and `code_challenge_method=S256`)
 /// are automatically appended to the authorization URL.
+///
+/// **State expiration:** This library generates the state token but does
+/// not enforce expiration. If you need time-based expiration, store a
+/// timestamp alongside the state when saving it to your session and
+/// check it before calling `handle_callback`.
 pub fn authorize_url(
   strategy: Strategy(e),
   config: Config,
@@ -58,6 +64,14 @@ pub fn authorize_url(
 /// Validates the state parameter, exchanges the authorization code
 /// for credentials (including the PKCE code verifier), and fetches
 /// normalized user information.
+///
+/// **Caller responsibilities:** This function checks that the callback
+/// state matches `expected_state`, but does not enforce single-use or
+/// expiration. Callers should delete the stored state after a successful
+/// call to prevent replay attacks. The wisp middleware's `uset.take`
+/// provides one-time-use semantics automatically. For time-based
+/// expiration, check the timestamp you stored alongside the state
+/// before calling this function.
 pub fn handle_callback(
   strategy: Strategy(e),
   config: Config,
@@ -65,22 +79,24 @@ pub fn handle_callback(
   expected_state: String,
   code_verifier: String,
 ) -> Result(Auth, AuthError(e)) {
-  // Extract required parameters
+  // Extract state (needed for CSRF validation)
   use received_state <- result.try(
     dict.get(callback_params, "state")
     |> result.replace_error(error.ConfigError(
       reason: "Missing state parameter in callback",
     )),
   )
+
+  // Check for provider errors before requiring code
+  use _ <- result.try(check_provider_error(callback_params))
+
+  // Extract authorization code
   use code <- result.try(
     dict.get(callback_params, "code")
     |> result.replace_error(error.ConfigError(
       reason: "Missing code parameter in callback",
     )),
   )
-
-  // Check for provider errors
-  use _ <- result.try(check_provider_error(callback_params))
 
   // Validate state
   use _ <- result.try(state.validate(received_state, expected_state))
@@ -115,13 +131,12 @@ pub fn refresh_token(
   refresh_tok: String,
 ) -> Result(Credentials, AuthError(e)) {
   let body =
-    "grant_type=refresh_token"
-    <> "&refresh_token="
-    <> refresh_tok
-    <> "&client_id="
-    <> config.client_id
-    <> "&client_secret="
-    <> config.client_secret
+    uri.query_to_string([
+      #("grant_type", "refresh_token"),
+      #("refresh_token", refresh_tok),
+      #("client_id", config.client_id),
+      #("client_secret", config.client_secret),
+    ])
 
   use req <- result.try(
     request.to(strategy.token_url)
@@ -138,7 +153,10 @@ pub fn refresh_token(
     |> request.set_body(body)
 
   case httpc.send(req) {
-    Ok(response) -> parse_refresh_response(response.body)
+    Ok(response) -> {
+      use body <- result.try(internal_http.check_response_status(response))
+      parse_refresh_response(body)
+    }
     Error(_) ->
       Error(error.NetworkError(
         reason: "Failed to connect to token endpoint: " <> strategy.token_url,

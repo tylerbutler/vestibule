@@ -5,8 +5,7 @@ licences = ["MIT"]
 repository = { type = "github", user = "tylerbutler", repo = "vestibule" }
 gleam = ">= 1.7.0"
 
-# Uncomment to mark internal modules (not exported in public API):
-# internal_modules = ["vestibule/internal", "vestibule/internal/*"]
+internal_modules = ["vestibule/internal", "vestibule/internal/*"]
 
 [dependencies]
 gleam_stdlib = ">= 0.48.0 and < 2.0.0"

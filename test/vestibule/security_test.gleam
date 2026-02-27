@@ -253,7 +253,7 @@ pub fn callback_rejects_empty_params_test() {
 
 /// Security: provider error responses must be detected.
 /// When a provider returns error=access_denied (user denied consent),
-/// the library should propagate the error, not a generic message.
+/// the library should propagate the ProviderError, not a generic message.
 pub fn callback_detects_provider_error_test() {
   let strat = test_strategy()
   let conf = config.new("id", "secret", "https://localhost/cb")
@@ -264,12 +264,12 @@ pub fn callback_detects_provider_error_test() {
       #("error", "access_denied"),
       #("error_description", "User denied access"),
     ])
-  let result =
-    vestibule.handle_callback(strat, conf, params, state_val, "verifier")
-  // Should be an error (currently ConfigError for missing code,
-  // ideally should be ProviderError -- see finding M4)
-  let _ = result |> expect.to_be_error()
-  Nil
+  vestibule.handle_callback(strat, conf, params, state_val, "verifier")
+  |> expect.to_be_error()
+  |> expect.to_equal(error.ProviderError(
+    code: "access_denied",
+    description: "User denied access",
+  ))
 }
 
 /// Security: extra unexpected parameters should not cause crashes.
