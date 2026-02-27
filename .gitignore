@@ -1,7 +1,9 @@
 # Build artifacts
 *.beam
 *.ez
-build/
+/build
+examples/*/build/
+packages/*/build/
 erl_crash.dump
 
 # Coverage
