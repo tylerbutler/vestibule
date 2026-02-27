@@ -26,6 +26,9 @@ just format-check # Check formatting
 just check        # Type check
 just docs         # Build documentation
 just ci           # Run all CI checks (format, check, test, build)
+just pr           # Alias for ci (use before PR)
+just main         # Extended checks for main branch
+just change       # Create a new changelog entry
 just clean        # Remove build artifacts
 ```
 
@@ -75,18 +78,18 @@ case result {
 - `gleam_stdlib` - Standard library
 
 ### Development
-- `gleeunit` - Testing framework
+- `startest` - Testing framework
 
 ## Testing
 
-Tests use `gleeunit` framework:
+Tests use `startest` framework:
 
 ```gleam
-import gleeunit/should
+import startest/expect
 
 pub fn example_test() {
   some_function()
-  |> should.equal(expected_value)
+  |> expect.to_equal(expected_value)
 }
 ```
 
@@ -110,14 +113,39 @@ Local development can use `.mise.toml` for flexible versions.
 
 ### Workflows
 - **ci.yml**: Format check, type check, build, test
-- **release.yml**: Automated versioning via release-please
-- **publish.yml**: Publish to Hex.pm on release
+- **pr.yml**: PR title validation (commitlint) and changelog entry check
+- **release.yml**: Automated versioning via changie-release
+- **auto-tag.yml**: Auto-tag releases on PR merge
+- **publish.yml**: Publish to Hex.pm on tag push
 
 ### Release Flow
 1. Push commits with conventional commit messages
-2. release-please creates a PR with version bump
-3. Merge PR → GitHub creates release
-4. publish.yml triggers → publishes to Hex.pm
+2. Add changelog entries with `just change` (changie)
+3. changie-release creates a PR with version bump and changelog
+4. Merge PR → auto-tag creates a GitHub release
+5. publish.yml triggers → publishes to Hex.pm
+
+## Commit Messages
+
+Use [Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+feat(parser): add support for nested objects
+fix(validation): handle empty strings correctly
+docs: update installation instructions
+```
+
+Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`
+
+See `.commitlintrc.json` for configuration.
+
+## Changelog
+
+Managed with [changie](https://changie.dev/):
+- **`.changie.yaml`** (default): Uses kinds (Added, Changed, Fixed, etc.) to categorize entries
+- **`.changie.no-kinds.yaml`**: Simpler changelog without kind categorization
+- To switch: `mv .changie.no-kinds.yaml .changie.yaml`
+- To keep default: `rm .changie.no-kinds.yaml`
 
 ## Conventions
 
@@ -126,3 +154,7 @@ Local development can use `.mise.toml` for flexible versions.
 - Follow `gleam format` output
 - Keep public API minimal
 - Document public functions with `///` comments
+
+## Additional Documentation
+
+- **DEV.md**: Detailed development workflows and guidelines

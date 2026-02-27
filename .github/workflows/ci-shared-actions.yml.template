@@ -1,3 +1,7 @@
+# CI workflow using shared actions from tylerbutler/actions
+# Rename to ci.yml to use this instead of the local setup action
+# Delete .github/actions/setup/ directory if using this
+
 name: CI
 
 on:
@@ -12,10 +16,10 @@ jobs:
     runs-on: ubuntu-latest
     name: Test
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Setup environment
-        uses: ./.github/actions/setup
+        uses: tylerbutler/actions/setup-gleam@v1
 
       - name: Check formatting
         run: just format-check
@@ -33,10 +37,10 @@ jobs:
     runs-on: ubuntu-latest
     name: Docs
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Setup environment
-        uses: ./.github/actions/setup
+        uses: tylerbutler/actions/setup-gleam@v1
 
       - name: Build documentation
         run: just docs
