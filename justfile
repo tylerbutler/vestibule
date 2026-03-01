@@ -32,17 +32,21 @@ build-strict:
 
 # === TESTING ===
 
-# Run all tests (root + sub-packages)
+# Run tests for root package
 test:
     gleam test
-    @for pkg in packages/vestibule_*/; do \
-        echo "=== Testing $pkg ==="; \
-        cd "$pkg" && gleam test && cd ../..; \
+
+# Run tests for all sub-packages
+test-packages:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for pkg in packages/vestibule_*/; do
+        echo "=== Testing $pkg ==="
+        (cd "$pkg" && gleam test)
     done
 
-# Run tests for root package only
-test-root:
-    gleam test
+# Run all tests (root + sub-packages)
+test-all: test test-packages
 
 # Run tests for a specific sub-package
 test-pkg pkg:

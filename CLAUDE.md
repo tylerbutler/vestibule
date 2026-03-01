@@ -20,8 +20,9 @@ gleam run                # Run (if executable)
 ```bash
 just deps              # Download dependencies
 just build             # Build project
-just test              # Run all tests (root + sub-packages)
-just test-root         # Run tests for root package only
+just test              # Run tests for root package
+just test-packages     # Run tests for all sub-packages
+just test-all          # Run all tests (root + sub-packages)
 just test-pkg <pkg>    # Run tests for a specific sub-package
 just format            # Format code
 just format-check      # Check formatting
@@ -117,6 +118,7 @@ gleam test
 
 Managed via `.tool-versions` (source of truth for CI):
 - Erlang 27.2.1
+- Rebar3 3.24.0 (required by vestibule_wisp's transitive deps)
 - Gleam 1.14.0
 - just 1.38.0
 
