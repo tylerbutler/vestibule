@@ -17,12 +17,17 @@ jobs:
         with:
           token: ${{ secrets.RELEASE_PAT }}
 
-      - uses: tylerbutler/actions/changie-release@c697a813534c6364a835de8e2ed2c4e0c3638bbe # ratchet:tylerbutler/actions/changie-release@main
+      - uses: tylerbutler/actions/changie-release@4a9f30cbf656e1fba6e02379e05efcf4aa3f6fc2 # ratchet:tylerbutler/actions/changie-release@main
         id: release
         with:
           token: ${{ secrets.RELEASE_PAT }}
+          projects: vestibule,vestibule_apple,vestibule_google,vestibule_microsoft,vestibule_wisp
           version-files: |
-            gleam.toml:version
+            vestibule:gleam.toml:version
+            vestibule_apple:packages/vestibule_apple/gleam.toml:version
+            vestibule_google:packages/vestibule_google/gleam.toml:version
+            vestibule_microsoft:packages/vestibule_microsoft/gleam.toml:version
+            vestibule_wisp:packages/vestibule_wisp/gleam.toml:version
 
       - name: Summary
         if: steps.release.outputs.skipped != 'true'
@@ -30,10 +35,12 @@ jobs:
           VERSION: ${{ steps.release.outputs.version }}
           PR_URL: ${{ steps.release.outputs.pr-url }}
           PR_OP: ${{ steps.release.outputs.pr-operation }}
+          BATCHED: ${{ steps.release.outputs.batched-projects }}
         run: |
           echo "### Release PR Created" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Version:** $VERSION" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Versions:** $VERSION" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Batched projects:** $BATCHED" >> "$GITHUB_STEP_SUMMARY"
           echo "- **PR:** $PR_URL" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Operation:** $PR_OP" >> "$GITHUB_STEP_SUMMARY"
 

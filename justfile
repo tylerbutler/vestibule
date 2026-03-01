@@ -32,9 +32,21 @@ build-strict:
 
 # === TESTING ===
 
-# Run all tests
+# Run all tests (root + sub-packages)
 test:
     gleam test
+    @for pkg in packages/vestibule_*/; do \
+        echo "=== Testing $pkg ==="; \
+        cd "$pkg" && gleam test && cd ../..; \
+    done
+
+# Run tests for root package only
+test-root:
+    gleam test
+
+# Run tests for a specific sub-package
+test-pkg pkg:
+    cd packages/{{pkg}} && gleam test
 
 # === CODE QUALITY ===
 
@@ -64,13 +76,17 @@ docs:
 
 # === CHANGELOG ===
 
-# Create a new changelog entry
+# Create a new changelog entry (interactive project selection)
 change:
     changie new
 
-# Preview unreleased changelog
-changelog-preview:
-    changie batch auto --dry-run
+# Create a changelog entry for a specific package
+change-pkg pkg:
+    changie new --project {{pkg}}
+
+# Preview unreleased changelog for a project
+changelog-preview pkg:
+    changie batch auto --project {{pkg}} --dry-run
 
 # Generate CHANGELOG.md
 changelog:

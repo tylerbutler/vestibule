@@ -6,6 +6,26 @@ versionHeaderPath: ""
 versionFooterPath: ""
 versionExt: md
 envPrefix: CHANGIE
+
+projectsVersionSeparator: "-"
+
+projects:
+    - label: vestibule
+      key: vestibule
+      changelog: CHANGELOG.md
+    - label: vestibule_apple
+      key: vestibule_apple
+      changelog: packages/vestibule_apple/CHANGELOG.md
+    - label: vestibule_google
+      key: vestibule_google
+      changelog: packages/vestibule_google/CHANGELOG.md
+    - label: vestibule_microsoft
+      key: vestibule_microsoft
+      changelog: packages/vestibule_microsoft/CHANGELOG.md
+    - label: vestibule_wisp
+      key: vestibule_wisp
+      changelog: packages/vestibule_wisp/CHANGELOG.md
+
 versionFormat: '## {{.Version}} - {{.Time.Format "2006-01-02"}}'
 kindFormat: '#### {{.Kind}}'
 changeFormat: |-

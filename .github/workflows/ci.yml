@@ -29,6 +29,15 @@ jobs:
       - name: Run tests
         run: just test
 
+      - name: Test sub-packages
+        run: |
+          for pkg in packages/vestibule_*/; do
+            echo "=== Testing $pkg ==="
+            cd "$pkg"
+            gleam test
+            cd "$GITHUB_WORKSPACE"
+          done
+
   docs:
     runs-on: ubuntu-latest
     name: Docs
