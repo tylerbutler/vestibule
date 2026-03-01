@@ -17,8 +17,8 @@ ywt_core = ">= 1.2.0 and < 2.0.0"
 gleam_time = ">= 1.7.0 and < 2.0.0"
 
 [dependencies.bravo]
-git = "https://github.com/tylerbutler/bravo"
-ref = "c9e8314b03919870260db8f0d03cfe12ac1f6c11"
+git = "https://github.com/Michael-Mark-Edu/bravo"
+ref = "0f49223187fe57f646642ad0be12468c400401a2"
 
 [dev-dependencies]
 startest = ">= 0.8.0 and < 1.0.0"
