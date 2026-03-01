@@ -5,7 +5,7 @@ packages = [
   { name = "argv", version = "1.0.2", build_tools = ["gleam"], requirements = [], otp_app = "argv", source = "hex", outer_checksum = "BA1FF0929525DEBA1CE67256E5ADF77A7CDDFE729E3E3F57A5BDCAA031DED09D" },
   { name = "bigben", version = "2.1.0", build_tools = ["gleam"], requirements = ["gleam_stdlib", "gleam_time", "interior"], otp_app = "bigben", source = "hex", outer_checksum = "4B0D9F2514C06AE577F284532270A6F89007781620E4B12A843388BA549C17D2" },
   { name = "bigi", version = "4.1.1", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "bigi", source = "hex", outer_checksum = "44FEDF1DF5C1F426A80B67C32B976D0828D66524E11BDC2DD22B78D37C883BA7" },
-  { name = "bravo", version = "0.0.0", build_tools = ["gleam"], requirements = ["gleam_erlang", "gleam_stdlib"], source = "git", repo = "https://github.com/tylerbutler/bravo", commit = "c9e8314b03919870260db8f0d03cfe12ac1f6c11" },
+  { name = "bravo", version = "0.0.0", build_tools = ["gleam"], requirements = ["gleam_erlang", "gleam_stdlib"], source = "git", repo = "https://github.com/Michael-Mark-Edu/bravo", commit = "0f49223187fe57f646642ad0be12468c400401a2" },
   { name = "exception", version = "2.1.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "exception", source = "hex", outer_checksum = "329D269D5C2A314F7364BD2711372B6F2C58FA6F39981572E5CA68624D291F8C" },
   { name = "filepath", version = "1.1.2", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "filepath", source = "hex", outer_checksum = "B06A9AF0BF10E51401D64B98E4B627F1D2E48C154967DA7AF4D0914780A6D40A" },
   { name = "gleam_community_ansi", version = "1.4.4", build_tools = ["gleam"], requirements = ["gleam_community_colour", "gleam_regexp", "gleam_stdlib"], otp_app = "gleam_community_ansi", source = "hex", outer_checksum = "1B3AEA6074AB34D5F0674744F36DDC7290303A03295507E2DEC61EDD6F5777FE" },
@@ -32,7 +32,7 @@ packages = [
 ]
 
 [requirements]
-bravo = { git = "https://github.com/tylerbutler/bravo", ref = "c9e8314b03919870260db8f0d03cfe12ac1f6c11" }
+bravo = { git = "https://github.com/Michael-Mark-Edu/bravo", ref = "0f49223187fe57f646642ad0be12468c400401a2" }
 gleam_crypto = { version = ">= 1.5.0 and < 2.0.0" }
 gleam_http = { version = ">= 4.3.0 and < 5.0.0" }
 gleam_httpc = { version = ">= 5.0.0 and < 6.0.0" }
