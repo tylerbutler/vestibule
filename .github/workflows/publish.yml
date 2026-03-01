@@ -2,7 +2,12 @@ name: Publish
 
 on:
   push:
-    tags: ['v*']
+    tags:
+      - 'vestibule-v*'
+      - 'vestibule_apple-v*'
+      - 'vestibule_google-v*'
+      - 'vestibule_microsoft-v*'
+      - 'vestibule_wisp-v*'
 
 jobs:
   test:
@@ -17,7 +22,47 @@ jobs:
       - name: Setup environment
         uses: ./.github/actions/setup
 
+      - name: Determine package from tag
+        id: pkg
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          # Extract package name: everything before the last -vX.Y.Z
+          PKG="${TAG%-v*}"
+          echo "package=$PKG" >> "$GITHUB_OUTPUT"
+
+          case "$PKG" in
+            vestibule)
+              echo "dir=." >> "$GITHUB_OUTPUT"
+              echo "is-root=true" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "dir=packages/$PKG" >> "$GITHUB_OUTPUT"
+              echo "is-root=false" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+          echo "Publishing package: $PKG"
+
+      - name: Rewrite path dependencies to Hex versions
+        if: steps.pkg.outputs.is-root == 'false'
+        working-directory: ${{ steps.pkg.outputs.dir }}
+        run: |
+          # Read vestibule's current version from root gleam.toml
+          VEST_VER=$(grep '^version' ../../gleam.toml | sed 's/version = "\(.*\)"/\1/')
+          MAJOR=$(echo "$VEST_VER" | cut -d. -f1)
+          NEXT_MAJOR=$((MAJOR + 1))
+
+          # Replace path dependency with Hex version range
+          sed -i 's|vestibule = { path = "\.\./\.\." }|vestibule = ">= '"$VEST_VER"' and < '"$NEXT_MAJOR"'.0.0"|' gleam.toml
+
+          echo "Rewrote vestibule dependency: >= $VEST_VER and < $NEXT_MAJOR.0.0"
+          echo ""
+          echo "Updated gleam.toml:"
+          cat gleam.toml
+
       - name: Publish to Hex.pm
+        working-directory: ${{ steps.pkg.outputs.dir }}
         run: gleam publish --yes
         env:
           HEXPM_API_KEY: ${{ secrets.HEXPM_API_KEY }}

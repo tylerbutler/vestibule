@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   auto-tag:
-    uses: tylerbutler/actions/.github/workflows/auto-tag.yml@c697a813534c6364a835de8e2ed2c4e0c3638bbe # ratchet:tylerbutler/actions/.github/workflows/auto-tag.yml@main
+    uses: tylerbutler/actions/.github/workflows/auto-tag.yml@4a9f30cbf656e1fba6e02379e05efcf4aa3f6fc2 # ratchet:tylerbutler/actions/.github/workflows/auto-tag.yml@main
     with:
+      projects: vestibule,vestibule_apple,vestibule_google,vestibule_microsoft,vestibule_wisp
       create-release: true

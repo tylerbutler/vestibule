@@ -18,27 +18,41 @@ gleam run                # Run (if executable)
 ## Just Commands
 
 ```bash
-just deps         # Download dependencies
-just build        # Build project
-just test         # Run tests
-just format       # Format code
-just format-check # Check formatting
-just check        # Type check
-just docs         # Build documentation
-just ci           # Run all CI checks (format, check, test, build)
-just pr           # Alias for ci (use before PR)
-just main         # Extended checks for main branch
-just change       # Create a new changelog entry
-just clean        # Remove build artifacts
+just deps              # Download dependencies
+just build             # Build project
+just test              # Run tests for root package
+just test-packages     # Run tests for all sub-packages
+just test-all          # Run all tests (root + sub-packages)
+just test-pkg <pkg>    # Run tests for a specific sub-package
+just format            # Format code
+just format-check      # Check formatting
+just check             # Type check
+just docs              # Build documentation
+just ci                # Run all CI checks (format, check, test, build)
+just pr                # Alias for ci (use before PR)
+just main              # Extended checks for main branch
+just change            # Create a new changelog entry (interactive project selection)
+just change-pkg <pkg>  # Create changelog entry for a specific package
+just changelog-preview <pkg>  # Preview unreleased changelog for a package
+just clean             # Remove build artifacts
 ```
 
 ## Project Structure
 
 ```
 src/
-├── vestibule.gleam         # Main public API
-└── vestibule/              # Submodules (if needed)
-    └── internal/           # Private implementation (mark in gleam.toml)
+├── vestibule.gleam                   # Main public API
+└── vestibule/                        # Submodules
+    ├── auth.gleam                    # Authentication result types
+    ├── config.gleam                  # OAuth provider config
+    ├── strategy.gleam                # Strategy interface
+    └── internal/                     # Private implementation
+packages/
+├── vestibule_apple/                  # Apple Sign In strategy
+├── vestibule_google/                 # Google OAuth strategy
+├── vestibule_microsoft/              # Microsoft OAuth strategy
+└── vestibule_wisp/                   # Wisp middleware
+example/                              # Example OAuth app
 test/
 └── vestibule_test.gleam
 ```
@@ -104,6 +118,7 @@ gleam test
 
 Managed via `.tool-versions` (source of truth for CI):
 - Erlang 27.2.1
+- Rebar3 3.24.0 (required by vestibule_wisp's transitive deps)
 - Gleam 1.14.0
 - just 1.38.0
 
@@ -112,18 +127,24 @@ Local development can use `.mise.toml` for flexible versions.
 ## CI/CD
 
 ### Workflows
-- **ci.yml**: Format check, type check, build, test
+- **ci.yml**: Format check, type check, build, test (root + all sub-packages)
 - **pr.yml**: PR title validation (commitlint) and changelog entry check
-- **release.yml**: Automated versioning via changie-release
-- **auto-tag.yml**: Auto-tag releases on PR merge
-- **publish.yml**: Publish to Hex.pm on tag push
+- **release.yml**: Multi-project changie-release — batches all packages with changes into a single release PR
+- **auto-tag.yml**: Creates per-package tags (e.g., `vestibule-v0.2.0`, `vestibule_apple-v0.1.1`) when release PR merges
+- **publish.yml**: Publishes individual packages to Hex.pm on tag push; rewrites path deps to Hex version ranges for sub-packages
 
 ### Release Flow
 1. Push commits with conventional commit messages
-2. Add changelog entries with `just change` (changie)
-3. changie-release creates a PR with version bump and changelog
-4. Merge PR → auto-tag creates a GitHub release
-5. publish.yml triggers → publishes to Hex.pm
+2. Add changelog entries with `just change` (changie prompts for project selection)
+3. changie-release batches all projects with changes, creates a single release PR
+4. Release PR bumps each package's `gleam.toml` version and updates per-package `CHANGELOG.md`
+5. Merge PR → auto-tag creates per-package tags and GitHub Releases
+6. Each tag triggers publish.yml → publishes that specific package to Hex.pm
+
+### Publishing Details
+- Sub-packages use `vestibule = { path = "../.." }` during development
+- The publish workflow rewrites this to `vestibule = ">= X.Y.Z and < (X+1).0.0"` before publishing
+- If releasing vestibule core + sub-packages together, vestibule is tagged/published first
 
 ## Commit Messages
 
@@ -141,11 +162,12 @@ See `.commitlintrc.json` for configuration.
 
 ## Changelog
 
-Managed with [changie](https://changie.dev/):
-- **`.changie.yaml`** (default): Uses kinds (Added, Changed, Fixed, etc.) to categorize entries
-- **`.changie.no-kinds.yaml`**: Simpler changelog without kind categorization
-- To switch: `mv .changie.no-kinds.yaml .changie.yaml`
-- To keep default: `rm .changie.no-kinds.yaml`
+Managed with [changie](https://changie.dev/) using the **projects** feature for multi-package support:
+- **`.changie.yaml`**: Configures 5 projects (vestibule + 4 provider packages) with `projectsVersionSeparator: "-"`
+- Each package has its own `CHANGELOG.md` (root for vestibule, `packages/<pkg>/CHANGELOG.md` for sub-packages)
+- Fragments go in `.changes/unreleased/`, prefixed by project name
+- Per-project version files stored in `.changes/<project>/v*.md`
+- Use `just change` for interactive project selection, or `just change-pkg <name>` for direct
 
 ## Conventions
 

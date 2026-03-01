@@ -210,10 +210,45 @@ test: add edge case tests for unicode handling
 
 ## Release Process
 
+This is a multi-package repository. Each package (`vestibule`, `vestibule_apple`,
+`vestibule_google`, `vestibule_microsoft`, `vestibule_wisp`) is independently
+versioned and published to Hex.pm.
+
+### Adding Changelog Entries
+
+```bash
+# Interactive — prompts for project selection and kind
+just change
+
+# Direct — specify the package
+just change-pkg vestibule
+just change-pkg vestibule_apple
+
+# Preview what would be released for a package
+just changelog-preview vestibule
+```
+
+### Release Flow
+
 1. Make changes following the commit message convention
-2. Push to a feature branch and create a PR
-3. After merge, changie-release creates a release PR
-4. Merge the release PR to publish a new version
+2. Add a changie changelog entry for each affected package (`just change`)
+3. Push to a feature branch and create a PR
+4. After merge to main, the **Changie Release** workflow batches all projects
+   with unreleased changes and creates a single release PR
+5. The release PR bumps versions in each package's `gleam.toml` and updates
+   per-package `CHANGELOG.md` files
+6. Merge the release PR → **Auto-tag** creates per-package tags
+   (e.g., `vestibule-v0.2.0`, `vestibule_apple-v0.1.1`)
+7. Each tag triggers the **Publish** workflow, which publishes that package
+   to Hex.pm
+
+### Publishing Order
+
+Sub-packages depend on `vestibule` via path references during development.
+When publishing to Hex.pm, the publish workflow rewrites path dependencies
+to Hex version ranges automatically. If releasing `vestibule` core alongside
+a sub-package, ensure `vestibule` is published to Hex.pm first (the tags are
+created in the order listed in the workflow).
 
 ## Troubleshooting
 

@@ -29,6 +29,9 @@ jobs:
       - name: Run tests
         run: just test
 
+      - name: Test sub-packages
+        run: just test-packages
+
   docs:
     runs-on: ubuntu-latest
     name: Docs
