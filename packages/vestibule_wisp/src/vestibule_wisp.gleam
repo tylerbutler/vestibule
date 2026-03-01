@@ -1,6 +1,9 @@
+import gleam/bit_array
 import gleam/dict
+import gleam/http
 import gleam/result
 import gleam/string
+import gleam/uri
 import wisp.{type Request, type Response}
 
 import vestibule
@@ -50,6 +53,11 @@ pub fn request_phase(
 /// Phase 2: Handle the OAuth callback and return the Auth result
 /// to the provided callback function.
 ///
+/// Supports both GET callbacks (query parameters) and POST callbacks
+/// (form-encoded body), as required by providers like Apple that use
+/// `response_mode=form_post`. For POST requests, form body parameters
+/// take precedence over query parameters.
+///
 /// On success, calls `on_success` with the Auth result.
 /// On error, returns an HTML error page.
 /// Returns 404 if the provider is not registered.
@@ -68,6 +76,9 @@ pub fn callback_phase(
 
 /// Phase 2 (Result variant): Handle the OAuth callback and return
 /// either the Auth result or an error Response.
+///
+/// Supports both GET callbacks (query parameters) and POST callbacks
+/// (form-encoded body). See `callback_phase` for details.
 ///
 /// Use this instead of `callback_phase` when you want to handle
 /// errors yourself rather than using the default error pages.
@@ -107,9 +118,7 @@ fn do_callback(
     }),
   )
 
-  let params =
-    wisp.get_query(req)
-    |> dict.from_list()
+  use params <- result.try(get_callback_params(req))
 
   vestibule.handle_callback(
     strategy,
@@ -119,6 +128,43 @@ fn do_callback(
     code_verifier,
   )
   |> result.map_error(error_response)
+}
+
+/// Extract callback parameters from either query string (GET) or
+/// form-encoded body (POST). For POST requests, body parameters
+/// are merged over query parameters so they take precedence.
+fn get_callback_params(
+  req: Request,
+) -> Result(dict.Dict(String, String), Response) {
+  let query_params = wisp.get_query(req)
+  case req.method {
+    http.Post -> {
+      case wisp.read_body_bits(req) {
+        Ok(body_bits) -> {
+          case bit_array.to_string(body_bits) {
+            Ok(body_string) -> {
+              case uri.parse_query(body_string) {
+                Ok(body_params) -> {
+                  // Merge: body params take precedence over query params
+                  Ok(dict.merge(
+                    dict.from_list(query_params),
+                    dict.from_list(body_params),
+                  ))
+                }
+                Error(_) -> {
+                  // Body isn't valid form data, fall back to query params
+                  Ok(dict.from_list(query_params))
+                }
+              }
+            }
+            Error(_) -> Ok(dict.from_list(query_params))
+          }
+        }
+        Error(_) -> Ok(dict.from_list(query_params))
+      }
+    }
+    _ -> Ok(dict.from_list(query_params))
+  }
 }
 
 fn error_response(err: error.AuthError(e)) -> Response {

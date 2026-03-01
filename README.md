@@ -65,7 +65,10 @@ let store = state_store.init()
 case wisp.path_segments(req), req.method {
   ["auth", provider], http.Get ->
     vestibule_wisp.request_phase(req, registry, provider, store)
-  ["auth", provider, "callback"], http.Get ->
+  // Accept both GET and POST — Apple uses response_mode=form_post
+  ["auth", provider, "callback"], http.Get
+  | ["auth", provider, "callback"], http.Post
+  ->
     vestibule_wisp.callback_phase(req, registry, provider, store, fn(auth) {
       // auth.uid, auth.info.name, auth.info.email
       wisp.redirect("/dashboard")
