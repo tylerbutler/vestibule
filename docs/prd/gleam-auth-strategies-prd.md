@@ -459,11 +459,13 @@ src/
 
 ## 10. Relationship to Pevensie
 
-Pevensie Auth is building toward a full-stack auth solution (users, sessions, permissions) with OAuth2 on their roadmap. This library is **complementary, not competing**:
+Pevensie Auth (v1.2.0, as of Feb 2026) provides email/password authentication with sessions, signed cookies, and driver-based storage (Postgres). OAuth2 is listed as "planned" in their docs but has **no implementation** — no provider support, no identities table, no account linking. Their `AppMetadata` type (intended for future OAuth tokens) is currently unused.
+
+This library is **complementary, not competing**:
 
 | Concern | This Library | Pevensie Auth |
 |---------|-------------|---------------|
-| OAuth flow orchestration | ✅ | Planned |
+| OAuth flow orchestration | ✅ | Planned (not started) |
 | Normalized user info | ✅ | — |
 | Provider strategies | ✅ | — |
 | User storage | — | ✅ |
@@ -471,44 +473,45 @@ Pevensie Auth is building toward a full-stack auth solution (users, sessions, pe
 | Email/password auth | — | ✅ |
 | Account management | — | ✅ |
 
-**Ideal integration:** This library produces an `Auth` result → Pevensie (or your own code) creates/finds a user and establishes a session. The libraries compose rather than overlap.
+**Current integration:** This library produces an `Auth` result → the caller creates/finds a user (via Pevensie or custom code) and establishes a session. The integration is straightforward but manual — call `create_user_with_email` with the OAuth email, store tokens in `user_metadata`, create a session. A dedicated integration guide is **deferred** until Pevensie ships first-class OAuth support (identities table, provider linking, etc.).
 
 ---
 
 ## 11. Implementation Phases
 
-### Phase 1: Core + GitHub (MVP)
+### Phase 1: Core + GitHub (MVP) ✅
 
-- [ ] Core types: Auth, UserInfo, Credentials, AuthError, Config
-- [ ] Strategy type definition
-- [ ] State parameter generation and validation
-- [ ] authorize_url and handle_callback functions
-- [ ] GitHub strategy (with email fetching)
-- [ ] Basic Wisp middleware helper
-- [ ] Integration with glow_auth
+- [x] Core types: Auth, UserInfo, Credentials, AuthError, Config
+- [x] Strategy type definition
+- [x] State parameter generation and validation
+- [x] authorize_url and handle_callback functions
+- [x] GitHub strategy (with email fetching)
+- [x] Basic Wisp middleware helper
+- [x] Integration with glow_auth
 
 **Deliverable:** Working GitHub login in a Wisp app
 
-### Phase 2: More Providers + Polish
+### Phase 2: More Providers + Polish ✅
 
-- [ ] Google strategy (with PKCE)
-- [ ] Microsoft strategy
-- [ ] Provider registry
-- [ ] Configurable scopes and extra params
-- [ ] Comprehensive error messages
-- [ ] Example Wisp application
+- [x] Google strategy (with PKCE)
+- [x] Microsoft strategy
+- [x] Provider registry
+- [x] Configurable scopes and extra params
+- [x] Comprehensive error messages
+- [x] Example Wisp application
 
 **Deliverable:** Production-usable with 3 providers
 
-### Phase 3: Ecosystem Growth
+### Phase 3: Ecosystem Growth ✅ (mostly complete)
 
-- [ ] OIDC discovery support
-- [ ] PKCE for all providers
-- [ ] Token refresh utilities
-- [ ] Strategy authoring guide (for community contributions)
-- [ ] Separate strategy packages (if warranted)
-- [ ] Apple Sign In strategy
-- [ ] Microsoft/Azure AD strategy
+- [x] OIDC discovery support
+- [x] PKCE for all providers
+- [x] Token refresh utilities
+- [x] Strategy authoring guide (for community contributions)
+- [x] Separate strategy packages (if warranted)
+- [x] Apple Sign In strategy
+- [x] Microsoft/Azure AD strategy
+- [ ] Non-OAuth strategies (email/password, magic link) — Deferred to future release
 
 **Deliverable:** Mature library with ecosystem for community strategies
 
@@ -556,7 +559,7 @@ Pevensie Auth is building toward a full-stack auth solution (users, sessions, pe
 
 - "Adding GitHub login to your Wisp app"
 - "Writing a custom strategy"
-- "Using with Pevensie Auth"
+- ~~"Using with Pevensie Auth"~~ — Deferred until Pevensie ships OAuth2 support
 
 ---
 
