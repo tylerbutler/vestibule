@@ -1,5 +1,6 @@
 import gleam/http/request
 import gleam/option.{type Option}
+import gleam/string
 import gleam/uri
 
 import vestibule/config.{type Config}
@@ -32,6 +33,27 @@ pub type Strategy(e) {
     /// Returns #(uid, user_info).
     fetch_user: fn(Credentials) -> Result(#(String, UserInfo), AuthError(e)),
   )
+}
+
+/// Build the Authorization header value from credentials.
+///
+/// Uses the `token_type` from the credentials (e.g., "Bearer", "bearer").
+/// Strategy implementations should use this instead of hardcoding `"Bearer "`.
+///
+/// Returns `Error` if the token type is not "bearer" (case-insensitive),
+/// as vestibule only supports Bearer token authentication.
+pub fn authorization_header(
+  credentials: Credentials,
+) -> Result(String, AuthError(e)) {
+  case string.lowercase(credentials.token_type) {
+    "bearer" -> Ok("Bearer " <> credentials.token)
+    other ->
+      Error(error.ConfigError(
+        reason: "Unsupported token type: "
+        <> other
+        <> ". Only Bearer tokens are supported.",
+      ))
+  }
 }
 
 /// Append a PKCE code_verifier to a form-encoded request body when present.
