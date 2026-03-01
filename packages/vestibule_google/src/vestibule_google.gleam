@@ -2,6 +2,7 @@ import gleam/dict
 import gleam/dynamic/decode
 import gleam/json
 import gleam/option.{type Option, None, Some}
+import gleam/result
 import gleam/string
 import gleam/uri
 
@@ -186,11 +187,16 @@ fn do_exchange_code(
 fn do_fetch_user(
   creds: Credentials,
 ) -> Result(#(String, user_info.UserInfo), AuthError(e)) {
-  let assert Ok(user_req) =
+  use auth_header <- result.try(strategy.authorization_header(creds))
+  use user_req <- result.try(
     request.to("https://www.googleapis.com/oauth2/v3/userinfo")
+    |> result.map_error(fn(_) {
+      error.ConfigError(reason: "Failed to parse Google userinfo URL")
+    }),
+  )
   let user_req =
     user_req
-    |> request.set_header("authorization", "Bearer " <> creds.token)
+    |> request.set_header("authorization", auth_header)
     |> request.set_header("accept", "application/json")
   case httpc.send(user_req) {
     Ok(response) -> parse_user_response(response.body)

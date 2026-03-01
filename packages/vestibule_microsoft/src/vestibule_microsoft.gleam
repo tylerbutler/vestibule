@@ -1,5 +1,3 @@
-import gleam/bit_array
-import gleam/crypto
 import gleam/dict
 import gleam/dynamic/decode
 import gleam/json
@@ -104,17 +102,13 @@ pub fn parse_user_response(
       decode.optional(decode.string),
     )
     let email = mail
-    let image = case email {
-      Some(addr) -> Some(gravatar_url(addr))
-      None -> None
-    }
     decode.success(#(
       id,
       user_info.UserInfo(
         name: display_name,
         email: email,
         nickname: Some(upn),
-        image: image,
+        image: None,
         description: job_title,
         urls: dict.new(),
       ),
@@ -209,6 +203,7 @@ fn do_exchange_code(
 fn do_fetch_user(
   creds: Credentials,
 ) -> Result(#(String, UserInfo), AuthError(e)) {
+  use auth_header <- result.try(strategy.authorization_header(creds))
   use user_req <- result.try(
     request.to("https://graph.microsoft.com/v1.0/me")
     |> result.map_error(fn(_) {
@@ -217,7 +212,7 @@ fn do_fetch_user(
   )
   let user_req =
     user_req
-    |> request.set_header("authorization", "Bearer " <> creds.token)
+    |> request.set_header("authorization", auth_header)
     |> request.set_header("accept", "application/json")
   case httpc.send(user_req) {
     Ok(response) -> parse_user_response(response.body)
@@ -226,16 +221,4 @@ fn do_fetch_user(
         reason: "Failed to connect to Microsoft Graph API",
       ))
   }
-}
-
-fn gravatar_url(email: String) -> String {
-  let hash =
-    email
-    |> string.lowercase
-    |> string.trim
-    |> fn(e) { <<e:utf8>> }
-    |> crypto.hash(crypto.Sha256, _)
-    |> bit_array.base16_encode
-    |> string.lowercase
-  "https://www.gravatar.com/avatar/" <> hash <> "?d=identicon"
 }

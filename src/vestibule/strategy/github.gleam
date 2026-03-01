@@ -232,6 +232,9 @@ fn do_exchange_code(
 fn do_fetch_user(
   creds: Credentials,
 ) -> Result(#(String, UserInfo), AuthError(e)) {
+  // Validate token type
+  use auth_header <- result.try(strategy.authorization_header(creds))
+
   // Fetch user profile
   use user_req <- result.try(
     request.to("https://api.github.com/user")
@@ -241,7 +244,7 @@ fn do_fetch_user(
   )
   let user_req =
     user_req
-    |> request.set_header("authorization", "Bearer " <> creds.token)
+    |> request.set_header("authorization", auth_header)
     |> request.set_header("accept", "application/json")
     |> request.set_header("user-agent", "vestibule-gleam")
 
@@ -259,7 +262,7 @@ fn do_fetch_user(
     Ok(email_req) -> {
       let email_req =
         email_req
-        |> request.set_header("authorization", "Bearer " <> creds.token)
+        |> request.set_header("authorization", auth_header)
         |> request.set_header("accept", "application/json")
         |> request.set_header("user-agent", "vestibule-gleam")
       case httpc.send(email_req) {

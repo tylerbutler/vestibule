@@ -23,16 +23,17 @@ pub fn handle_request(req: Request, ctx: Context(e)) -> Response {
     ["auth", provider], http.Get ->
       vestibule_wisp.request_phase(req, ctx.registry, provider, ctx.state_store)
 
-    // Phase 2: Handle callback
-    ["auth", provider, "callback"], http.Get ->
+    // Phase 2: Handle callback (GET for most providers, POST for Apple form_post)
+    ["auth", provider, "callback"], http.Get
+    | ["auth", provider, "callback"], http.Post
+    ->
       vestibule_wisp.callback_phase(
         req,
         ctx.registry,
         provider,
         ctx.state_store,
-        fn(auth) {
-        pages.success(auth)
-      })
+        fn(auth) { pages.success(auth) },
+      )
 
     // Everything else
     _, _ -> wisp.not_found()

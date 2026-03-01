@@ -1,5 +1,4 @@
 import gleam/option.{None, Some}
-import gleam/string as gleam_string
 import startest
 import startest/expect
 import vestibule/config
@@ -60,10 +59,8 @@ pub fn parse_user_response_full_test() {
   info.email |> expect.to_equal(Some("AdeleV@contoso.com"))
   info.nickname |> expect.to_equal(Some("AdeleV@contoso.com"))
   info.description |> expect.to_equal(Some("Retail Manager"))
-  // Gravatar URL from SHA-256 of lowercase email
-  let assert Some(image_url) = info.image
-  gleam_string.starts_with(image_url, "https://www.gravatar.com/avatar/")
-  |> expect.to_be_true()
+  // Microsoft Graph doesn't provide a direct image URL
+  info.image |> expect.to_equal(None)
 }
 
 pub fn parse_user_response_minimal_test() {

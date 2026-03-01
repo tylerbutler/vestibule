@@ -398,6 +398,7 @@ fn build_fetch_user_fn(
   userinfo_endpoint: String,
 ) -> fn(Credentials) -> Result(#(String, user_info.UserInfo), AuthError(e)) {
   fn(creds: Credentials) -> Result(#(String, user_info.UserInfo), AuthError(e)) {
+    use auth_header <- result.try(strategy.authorization_header(creds))
     use r <- result.try(
       request.to(userinfo_endpoint)
       |> result.map_error(fn(_) {
@@ -408,7 +409,7 @@ fn build_fetch_user_fn(
     )
     let r =
       r
-      |> request.set_header("authorization", "Bearer " <> creds.token)
+      |> request.set_header("authorization", auth_header)
       |> request.set_header("accept", "application/json")
 
     case httpc.send(r) {

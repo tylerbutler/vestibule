@@ -11,13 +11,13 @@ pub type StateStore =
 /// Returns the table handle needed by store/retrieve.
 pub fn init() -> StateStore {
   let assert Ok(table) =
-    uset.new(name: "vestibule_wisp_sessions", access: bravo.Public)
+    uset.new(name: "vestibule_wisp_sessions", access: bravo.Protected)
   table
 }
 
 /// Initialize a named state store. Useful for testing with isolated tables.
 pub fn init_named(name: String) -> StateStore {
-  let assert Ok(table) = uset.new(name: name, access: bravo.Public)
+  let assert Ok(table) = uset.new(name: name, access: bravo.Protected)
   table
 }
 
