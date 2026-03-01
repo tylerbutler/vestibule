@@ -153,8 +153,18 @@ fn do_authorize_url(
   scopes: List(String),
   state: String,
 ) -> Result(String, AuthError(e)) {
-  let assert Ok(site) = uri.parse("https://github.com")
-  let assert Ok(redirect) = uri.parse(config.redirect_uri)
+  use site <- result.try(
+    uri.parse("https://github.com")
+    |> result.map_error(fn(_) {
+      error.ConfigError(reason: "Failed to parse GitHub OAuth base URL")
+    }),
+  )
+  use redirect <- result.try(
+    uri.parse(config.redirect_uri)
+    |> result.map_error(fn(_) {
+      error.ConfigError(reason: "Invalid redirect URI: " <> config.redirect_uri)
+    }),
+  )
   let client =
     glow_auth.Client(
       id: config.client_id,
@@ -179,8 +189,18 @@ fn do_exchange_code(
   code: String,
   code_verifier: Option(String),
 ) -> Result(Credentials, AuthError(e)) {
-  let assert Ok(site) = uri.parse("https://github.com")
-  let assert Ok(redirect) = uri.parse(config.redirect_uri)
+  use site <- result.try(
+    uri.parse("https://github.com")
+    |> result.map_error(fn(_) {
+      error.ConfigError(reason: "Failed to parse GitHub OAuth base URL")
+    }),
+  )
+  use redirect <- result.try(
+    uri.parse(config.redirect_uri)
+    |> result.map_error(fn(_) {
+      error.ConfigError(reason: "Invalid redirect URI: " <> config.redirect_uri)
+    }),
+  )
   let client =
     glow_auth.Client(
       id: config.client_id,
@@ -213,7 +233,12 @@ fn do_fetch_user(
   creds: Credentials,
 ) -> Result(#(String, UserInfo), AuthError(e)) {
   // Fetch user profile
-  let assert Ok(user_req) = request.to("https://api.github.com/user")
+  use user_req <- result.try(
+    request.to("https://api.github.com/user")
+    |> result.map_error(fn(_) {
+      error.ConfigError(reason: "Failed to parse GitHub user URL")
+    }),
+  )
   let user_req =
     user_req
     |> request.set_header("authorization", "Bearer " <> creds.token)
@@ -230,15 +255,18 @@ fn do_fetch_user(
   use #(uid, info) <- result.try(parse_user_response(user_body))
 
   // Fetch verified primary email (best-effort — don't fail if this errors)
-  let assert Ok(email_req) = request.to("https://api.github.com/user/emails")
-  let email_req =
-    email_req
-    |> request.set_header("authorization", "Bearer " <> creds.token)
-    |> request.set_header("accept", "application/json")
-    |> request.set_header("user-agent", "vestibule-gleam")
-
-  let email = case httpc.send(email_req) {
-    Ok(response) -> parse_primary_email(response.body)
+  let email = case request.to("https://api.github.com/user/emails") {
+    Ok(email_req) -> {
+      let email_req =
+        email_req
+        |> request.set_header("authorization", "Bearer " <> creds.token)
+        |> request.set_header("accept", "application/json")
+        |> request.set_header("user-agent", "vestibule-gleam")
+      case httpc.send(email_req) {
+        Ok(response) -> parse_primary_email(response.body)
+        Error(_) -> None
+      }
+    }
     Error(_) -> None
   }
 

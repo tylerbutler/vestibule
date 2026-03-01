@@ -2,6 +2,7 @@ import gleam/option.{None, Some}
 import gleam/string as gleam_string
 import startest
 import startest/expect
+import vestibule/config
 import vestibule/credentials.{Credentials}
 import vestibule_microsoft
 
@@ -83,4 +84,13 @@ pub fn parse_user_response_mail_preferred_over_upn_test() {
     "{\"id\":\"abc\",\"mail\":\"real@example.com\",\"userPrincipalName\":\"upn@example.com\"}"
   let assert Ok(#(_uid, info)) = vestibule_microsoft.parse_user_response(body)
   info.email |> expect.to_equal(Some("real@example.com"))
+}
+
+pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
+  let strat = vestibule_microsoft.strategy()
+  let conf = config.new("client-id", "secret", "not a uri")
+  let _ =
+    strat.authorize_url(conf, ["User.Read"], "state")
+    |> expect.to_be_error()
+  Nil
 }

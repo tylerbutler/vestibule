@@ -4,6 +4,7 @@ import gleam/dict
 import gleam/dynamic/decode
 import gleam/json
 import gleam/option.{type Option, None, Some}
+import gleam/result
 import gleam/string
 import gleam/uri
 
@@ -133,9 +134,18 @@ fn do_authorize_url(
   scopes: List(String),
   state: String,
 ) -> Result(String, AuthError(e)) {
-  let assert Ok(site) =
+  use site <- result.try(
     uri.parse("https://login.microsoftonline.com/common/oauth2/v2.0")
-  let assert Ok(redirect) = uri.parse(config.redirect_uri)
+    |> result.map_error(fn(_) {
+      error.ConfigError(reason: "Failed to parse Microsoft OAuth base URL")
+    }),
+  )
+  use redirect <- result.try(
+    uri.parse(config.redirect_uri)
+    |> result.map_error(fn(_) {
+      error.ConfigError(reason: "Invalid redirect URI: " <> config.redirect_uri)
+    }),
+  )
   let client =
     glow_auth.Client(
       id: config.client_id,
@@ -160,9 +170,18 @@ fn do_exchange_code(
   code: String,
   code_verifier: Option(String),
 ) -> Result(Credentials, AuthError(e)) {
-  let assert Ok(site) =
+  use site <- result.try(
     uri.parse("https://login.microsoftonline.com/common/oauth2/v2.0")
-  let assert Ok(redirect) = uri.parse(config.redirect_uri)
+    |> result.map_error(fn(_) {
+      error.ConfigError(reason: "Failed to parse Microsoft OAuth base URL")
+    }),
+  )
+  use redirect <- result.try(
+    uri.parse(config.redirect_uri)
+    |> result.map_error(fn(_) {
+      error.ConfigError(reason: "Invalid redirect URI: " <> config.redirect_uri)
+    }),
+  )
   let client =
     glow_auth.Client(
       id: config.client_id,
@@ -190,7 +209,12 @@ fn do_exchange_code(
 fn do_fetch_user(
   creds: Credentials,
 ) -> Result(#(String, UserInfo), AuthError(e)) {
-  let assert Ok(user_req) = request.to("https://graph.microsoft.com/v1.0/me")
+  use user_req <- result.try(
+    request.to("https://graph.microsoft.com/v1.0/me")
+    |> result.map_error(fn(_) {
+      error.ConfigError(reason: "Failed to parse Microsoft Graph user URL")
+    }),
+  )
   let user_req =
     user_req
     |> request.set_header("authorization", "Bearer " <> creds.token)
