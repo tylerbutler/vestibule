@@ -118,6 +118,7 @@ HTML error page, use `vestibule_wisp.callback_phase_result`.
 | `vestibule_google` | Google OAuth strategy | `gleam add vestibule_google` |
 | `vestibule_microsoft` | Microsoft OAuth strategy | `gleam add vestibule_microsoft` |
 | `vestibule_apple` | Apple Sign In strategy | `gleam add vestibule_apple` |
+| `vestibule_indieauth` | IndieAuth strategy (decentralized identity) | `gleam add vestibule_indieauth` |
 
 GitHub is included in the core `vestibule` package.
 
