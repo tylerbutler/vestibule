@@ -38,3 +38,19 @@ pub fn with_extra_params(
 ) -> Config {
   Config(..config, extra_params: dict.from_list(params))
 }
+
+pub fn client_id(config: Config) -> String {
+  config.client_id
+}
+
+pub fn client_secret(config: Config) -> String {
+  config.client_secret
+}
+
+pub fn redirect_uri(config: Config) -> String {
+  config.redirect_uri
+}
+
+pub fn extra_params(config: Config) -> Dict(String, String) {
+  config.extra_params
+}

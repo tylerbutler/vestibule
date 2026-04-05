@@ -217,7 +217,8 @@ fn parse_refresh_success(body: String) -> Result(Credentials, AuthError(e)) {
     Ok(creds) -> Ok(creds)
     Error(err) ->
       Error(error.CodeExchangeFailed(
-        reason: "Failed to parse token refresh response: " <> string.inspect(err),
+        reason: "Failed to parse token refresh response: "
+        <> string.inspect(err),
       ))
   }
 }
