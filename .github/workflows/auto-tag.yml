@@ -9,8 +9,22 @@ permissions:
   contents: write
 
 jobs:
+  workspace:
+    runs-on: ubuntu-latest
+    outputs:
+      projects: ${{ steps.ws.outputs.projects }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
+      - name: Read workspace
+        id: ws
+        uses: tylerbutler/actions/read-gleam-workspace@9ead54248b2155caa3cf06eede183cf1bb08a809 # ratchet:tylerbutler/actions/read-gleam-workspace@main
+
   auto-tag:
-    uses: tylerbutler/actions/.github/workflows/auto-tag.yml@4a9f30cbf656e1fba6e02379e05efcf4aa3f6fc2 # ratchet:tylerbutler/actions/.github/workflows/auto-tag.yml@main
+    needs: workspace
+    uses: tylerbutler/actions/.github/workflows/auto-tag.yml@9ead54248b2155caa3cf06eede183cf1bb08a809 # ratchet:tylerbutler/actions/.github/workflows/auto-tag.yml@main
     with:
-      projects: vestibule,vestibule_apple,vestibule_google,vestibule_microsoft,vestibule_wisp
+      projects: ${{ needs.workspace.outputs.projects }}
       create-release: true
+    secrets:
+      app-id: ${{ secrets.RELEASE_APP_ID }}
+      app-private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
