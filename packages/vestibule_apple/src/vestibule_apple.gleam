@@ -27,6 +27,7 @@
 /// ```
 import gleam/dict
 import gleam/dynamic/decode
+import gleam/int
 import gleam/json
 import gleam/option.{type Option, None, Some}
 import gleam/result
@@ -308,7 +309,7 @@ fn do_exchange_code(
     |> request.set_header("accept", "application/json")
   let req = append_code_verifier(req, code_verifier)
   case httpc.send(req) {
-    Ok(response) -> {
+    Ok(response) if response.status >= 200 && response.status < 300 -> {
       case parse_token_response(response.body) {
         Ok(#(creds, id_token)) -> {
           // Store the id_token + client_id in the cache so fetch_user can
@@ -327,6 +328,13 @@ fn do_exchange_code(
         Error(err) -> Error(err)
       }
     }
+    Ok(response) ->
+      Error(error.NetworkError(
+        reason: "HTTP "
+        <> int.to_string(response.status)
+        <> ": "
+        <> response.body,
+      ))
     Error(_) ->
       Error(error.NetworkError(
         reason: "Failed to connect to Apple token endpoint",

@@ -66,8 +66,8 @@ fn parse_success_token(body: String) -> Result(Credentials, AuthError(e)) {
   }
   case json.parse(body, decoder) {
     Ok(creds) -> Ok(creds)
-    _ ->
-      Error(error.CodeExchangeFailed(reason: "Failed to parse token response"))
+    Error(err) ->
+      Error(error.CodeExchangeFailed(reason: "Failed to parse token response: " <> string.inspect(err)))
   }
 }
 
@@ -117,8 +117,8 @@ pub fn parse_user_response(
   }
   case json.parse(body, decoder) {
     Ok(result) -> Ok(result)
-    _ ->
-      Error(error.UserInfoFailed(reason: "Failed to parse GitHub user response"))
+    Error(err) ->
+      Error(error.UserInfoFailed(reason: "Failed to parse GitHub user response: " <> string.inspect(err)))
   }
 }
 
@@ -266,7 +266,8 @@ fn do_fetch_user(
         |> request.set_header("accept", "application/json")
         |> request.set_header("user-agent", "vestibule-gleam")
       case httpc.send(email_req) {
-        Ok(response) -> parse_primary_email(response.body)
+        Ok(response) if response.status >= 200 && response.status < 300 -> parse_primary_email(response.body)
+        Ok(_) -> None
         Error(_) -> None
       }
     }

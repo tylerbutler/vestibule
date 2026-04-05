@@ -1,6 +1,7 @@
 import gleam/dict
 import gleam/dynamic/decode
 import gleam/json
+import gleam/int
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
@@ -72,9 +73,9 @@ fn parse_success_token(body: String) -> Result(Credentials, AuthError(e)) {
   }
   case json.parse(body, decoder) {
     Ok(creds) -> Ok(creds)
-    _ ->
+    Error(err) ->
       Error(error.CodeExchangeFailed(
-        reason: "Failed to parse Microsoft token response",
+        reason: "Failed to parse Microsoft token response: " <> string.inspect(err),
       ))
   }
 }
@@ -116,9 +117,9 @@ pub fn parse_user_response(
   }
   case json.parse(body, decoder) {
     Ok(result) -> Ok(result)
-    _ ->
+    Error(err) ->
       Error(error.UserInfoFailed(
-        reason: "Failed to parse Microsoft user response",
+        reason: "Failed to parse Microsoft user response: " <> string.inspect(err),
       ))
   }
 }
@@ -192,7 +193,8 @@ fn do_exchange_code(
     |> request.set_header("accept", "application/json")
   let req = strategy.append_code_verifier(req, code_verifier)
   case httpc.send(req) {
-    Ok(response) -> parse_token_response(response.body)
+    Ok(response) if response.status >= 200 && response.status < 300 -> parse_token_response(response.body)
+    Ok(response) -> Error(error.NetworkError(reason: "HTTP " <> int.to_string(response.status) <> ": " <> response.body))
     Error(_) ->
       Error(error.NetworkError(
         reason: "Failed to connect to Microsoft token endpoint",
@@ -215,7 +217,9 @@ fn do_fetch_user(
     |> request.set_header("authorization", auth_header)
     |> request.set_header("accept", "application/json")
   case httpc.send(user_req) {
-    Ok(response) -> parse_user_response(response.body)
+    Ok(response) if response.status >= 200 && response.status < 300 -> parse_user_response(response.body)
+    Ok(response) -> Error(error.NetworkError(reason: "HTTP " <> int.to_string(response.status) <> ": " <> response.body))
+
     Error(_) ->
       Error(error.NetworkError(
         reason: "Failed to connect to Microsoft Graph API",

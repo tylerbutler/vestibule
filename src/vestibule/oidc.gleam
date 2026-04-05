@@ -139,8 +139,8 @@ pub fn parse_discovery_document(
   }
   case json.parse(body, decoder) {
     Ok(config) -> Ok(config)
-    _ ->
-      Error(error.ConfigError(reason: "Failed to parse OIDC discovery document"))
+    Error(err) ->
+      Error(error.ConfigError(reason: "Failed to parse OIDC discovery document: " <> string.inspect(err)))
   }
 }
 
@@ -250,9 +250,9 @@ pub fn parse_userinfo_response(
   }
   case json.parse(body, decoder) {
     Ok(result) -> Ok(result)
-    _ ->
+    Error(err) ->
       Error(error.UserInfoFailed(
-        reason: "Failed to parse OIDC userinfo response",
+        reason: "Failed to parse OIDC userinfo response: " <> string.inspect(err),
       ))
   }
 }
@@ -288,9 +288,9 @@ fn parse_success_token(body: String) -> Result(Credentials, AuthError(e)) {
   }
   case json.parse(body, decoder) {
     Ok(creds) -> Ok(creds)
-    _ ->
+    Error(err) ->
       Error(error.CodeExchangeFailed(
-        reason: "Failed to parse OIDC token response",
+        reason: "Failed to parse OIDC token response: " <> string.inspect(err),
       ))
   }
 }
