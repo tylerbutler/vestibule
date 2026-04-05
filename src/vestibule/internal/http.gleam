@@ -60,16 +60,19 @@ pub fn parse_redirect_uri(redirect_uri: String) -> Result(uri.Uri, AuthError(e))
       error.ConfigError(reason: "Invalid redirect URI: " <> redirect_uri)
     }),
   )
-  use _ <- result.try(
-    require_https(redirect_uri)
-    |> result.map_error(fn(_) {
-      error.ConfigError(
-        reason: "Redirect URI must use HTTPS (except localhost): "
-        <> redirect_uri,
-      )
-    }),
-  )
-  Ok(parsed)
+  let https_error =
+    Error(error.ConfigError(
+      reason: "Redirect URI must use HTTPS (except localhost): " <> redirect_uri,
+    ))
+  case parsed.scheme {
+    option.Some("https") -> Ok(parsed)
+    option.Some("http") ->
+      case parsed.host {
+        option.Some("localhost") | option.Some("127.0.0.1") -> Ok(parsed)
+        _ -> https_error
+      }
+    _ -> https_error
+  }
 }
 
 /// Append additional query params to a URL.

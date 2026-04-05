@@ -41,16 +41,16 @@ import vestibule/strategy.{type Strategy}
 /// check it before calling `handle_callback`.
 pub fn authorize_url(
   strategy: Strategy(e),
-  config: Config,
+  cfg: Config,
 ) -> Result(AuthorizationRequest, AuthError(e)) {
   let csrf_state = state.generate()
   let code_verifier = pkce.generate_verifier()
   let code_challenge = pkce.compute_challenge(code_verifier)
-  let scopes = case config.scopes {
+  let scopes = case config.scopes(cfg) {
     [] -> strategy.default_scopes
     custom -> custom
   }
-  use base_url <- result.try(strategy.authorize_url(config, scopes, csrf_state))
+  use base_url <- result.try(strategy.authorize_url(cfg, scopes, csrf_state))
   let url = append_pkce_params(base_url, code_challenge)
   Ok(AuthorizationRequest(
     url: url,
@@ -74,7 +74,7 @@ pub fn authorize_url(
 /// before calling this function.
 pub fn handle_callback(
   strategy: Strategy(e),
-  config: Config,
+  cfg: Config,
   callback_params: Dict(String, String),
   expected_state: String,
   code_verifier: String,
@@ -103,7 +103,7 @@ pub fn handle_callback(
 
   // Exchange code for credentials, passing the PKCE verifier
   use credentials <- result.try(strategy.exchange_code(
-    config,
+    cfg,
     code,
     option.Some(code_verifier),
   ))
@@ -127,15 +127,15 @@ pub fn handle_callback(
 /// `refresh_token` grant type. Returns new credentials on success.
 pub fn refresh_token(
   strategy: Strategy(e),
-  config: Config,
+  cfg: Config,
   refresh_tok: String,
 ) -> Result(Credentials, AuthError(e)) {
   let body =
     uri.query_to_string([
       #("grant_type", "refresh_token"),
       #("refresh_token", refresh_tok),
-      #("client_id", config.client_id),
-      #("client_secret", config.client_secret),
+      #("client_id", config.client_id(cfg)),
+      #("client_secret", config.client_secret(cfg)),
     ])
 
   use req <- result.try(

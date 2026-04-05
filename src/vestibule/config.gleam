@@ -1,7 +1,7 @@
 import gleam/dict.{type Dict}
 
 /// Provider configuration.
-pub type Config {
+pub opaque type Config {
   Config(
     client_id: String,
     client_secret: String,
@@ -52,6 +52,11 @@ pub fn client_secret(config: Config) -> String {
 /// Return the redirect URI registered with the provider.
 pub fn redirect_uri(config: Config) -> String {
   config.redirect_uri
+}
+
+/// Return the configured scopes (empty list means use strategy defaults).
+pub fn scopes(config: Config) -> List(String) {
+  config.scopes
 }
 
 /// Return extra authorization query params that should be appended as-is.

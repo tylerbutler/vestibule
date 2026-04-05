@@ -28,10 +28,5 @@ pub fn validate(received: String, expected: String) -> Result(Nil, AuthError(e))
 }
 
 fn is_blank(value: String) -> Bool {
-  value
-  |> string.replace(" ", "")
-  |> string.replace("\t", "")
-  |> string.replace("\n", "")
-  |> string.replace("\r", "")
-  == ""
+  string.trim(value) == ""
 }

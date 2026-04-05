@@ -254,18 +254,18 @@ fn string_bool_decoder() -> decode.Decoder(Bool) {
 }
 
 fn do_authorize_url(
-  config: Config,
+  cfg: Config,
   scopes: List(String),
   state: String,
 ) -> Result(String, AuthError(e)) {
   let assert Ok(site) = uri.parse("https://appleid.apple.com")
   use redirect <- result.try(internal_http.parse_redirect_uri(
-    config.redirect_uri,
+    config.redirect_uri(cfg),
   ))
   let client =
     glow_auth.Client(
-      id: config.client_id,
-      secret: config.client_secret,
+      id: config.client_id(cfg),
+      secret: config.client_secret(cfg),
       site: site,
     )
   let url =
@@ -282,24 +282,24 @@ fn do_authorize_url(
   let url = url <> "&response_mode=form_post"
   // Append any extra params from config
   let url =
-    internal_http.append_query_params(url, dict.to_list(config.extra_params))
+    internal_http.append_query_params(url, dict.to_list(config.extra_params(cfg)))
   Ok(url)
 }
 
 fn do_exchange_code(
   apple: AppleCache,
-  config: Config,
+  cfg: Config,
   code: String,
   code_verifier: Option(String),
 ) -> Result(Credentials, AuthError(e)) {
   let assert Ok(site) = uri.parse("https://appleid.apple.com")
   use redirect <- result.try(internal_http.parse_redirect_uri(
-    config.redirect_uri,
+    config.redirect_uri(cfg),
   ))
   let client =
     glow_auth.Client(
-      id: config.client_id,
-      secret: config.client_secret,
+      id: config.client_id(cfg),
+      secret: config.client_secret(cfg),
       site: site,
     )
   let req =
@@ -322,7 +322,7 @@ fn do_exchange_code(
               id_token_cache.store(
                 apple.id_tokens,
                 creds.token,
-                token <> "\n" <> config.client_id,
+                token <> "\n" <> config.client_id(cfg),
               )
             None -> Nil
           }

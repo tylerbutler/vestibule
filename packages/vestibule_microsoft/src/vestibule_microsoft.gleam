@@ -132,7 +132,7 @@ pub fn parse_user_response(
 }
 
 fn do_authorize_url(
-  config: Config,
+  cfg: Config,
   scopes: List(String),
   state: String,
 ) -> Result(String, AuthError(e)) {
@@ -143,12 +143,12 @@ fn do_authorize_url(
     }),
   )
   use redirect <- result.try(internal_http.parse_redirect_uri(
-    config.redirect_uri,
+    config.redirect_uri(cfg),
   ))
   let client =
     glow_auth.Client(
-      id: config.client_id,
-      secret: config.client_secret,
+      id: config.client_id(cfg),
+      secret: config.client_secret(cfg),
       site: site,
     )
   let url =
@@ -161,12 +161,12 @@ fn do_authorize_url(
     |> authorize_uri.set_state(state)
     |> authorize_uri.to_code_authorization_uri()
     |> uri.to_string()
-    |> internal_http.append_query_params(dict.to_list(config.extra_params))
+    |> internal_http.append_query_params(dict.to_list(config.extra_params(cfg)))
   Ok(url)
 }
 
 fn do_exchange_code(
-  config: Config,
+  cfg: Config,
   code: String,
   code_verifier: Option(String),
 ) -> Result(Credentials, AuthError(e)) {
@@ -177,12 +177,12 @@ fn do_exchange_code(
     }),
   )
   use redirect <- result.try(internal_http.parse_redirect_uri(
-    config.redirect_uri,
+    config.redirect_uri(cfg),
   ))
   let client =
     glow_auth.Client(
-      id: config.client_id,
-      secret: config.client_secret,
+      id: config.client_id(cfg),
+      secret: config.client_secret(cfg),
       site: site,
     )
   let req =
