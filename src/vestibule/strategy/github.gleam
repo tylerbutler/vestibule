@@ -41,7 +41,11 @@ pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
   // First check if it's an error response
   let error_decoder = {
     use error_code <- decode.field("error", decode.string)
-    use description <- decode.field("error_description", decode.string)
+    use description <- decode.optional_field(
+      "error_description",
+      "",
+      decode.string,
+    )
     decode.success(#(error_code, description))
   }
   case json.parse(body, error_decoder) {
@@ -163,12 +167,9 @@ fn do_authorize_url(
       error.ConfigError(reason: "Failed to parse GitHub OAuth base URL")
     }),
   )
-  use redirect <- result.try(
-    uri.parse(config.redirect_uri)
-    |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Invalid redirect URI: " <> config.redirect_uri)
-    }),
-  )
+  use redirect <- result.try(internal_http.parse_redirect_uri(
+    config.redirect_uri,
+  ))
   let client =
     glow_auth.Client(
       id: config.client_id,
@@ -185,6 +186,7 @@ fn do_authorize_url(
     |> authorize_uri.set_state(state)
     |> authorize_uri.to_code_authorization_uri()
     |> uri.to_string()
+    |> internal_http.append_query_params(dict.to_list(config.extra_params))
   Ok(url)
 }
 
@@ -199,12 +201,9 @@ fn do_exchange_code(
       error.ConfigError(reason: "Failed to parse GitHub OAuth base URL")
     }),
   )
-  use redirect <- result.try(
-    uri.parse(config.redirect_uri)
-    |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Invalid redirect URI: " <> config.redirect_uri)
-    }),
-  )
+  use redirect <- result.try(internal_http.parse_redirect_uri(
+    config.redirect_uri,
+  ))
   let client =
     glow_auth.Client(
       id: config.client_id,

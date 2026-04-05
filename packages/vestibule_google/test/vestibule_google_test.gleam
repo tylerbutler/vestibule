@@ -1,7 +1,10 @@
 import gleam/option.{None, Some}
+import gleam/string
 import startest
 import startest/expect
+import vestibule/config
 import vestibule/credentials.{Credentials}
+import vestibule/error
 import vestibule_google
 
 pub fn main() -> Nil {
@@ -53,6 +56,18 @@ pub fn parse_token_response_error_test() {
   Nil
 }
 
+pub fn parse_token_response_error_without_description_test() {
+  let body = "{\"error\":\"invalid_grant\"}"
+  let _ =
+    vestibule_google.parse_token_response(body)
+    |> expect.to_be_error()
+    |> expect.to_equal(error.ProviderError(
+      code: "invalid_grant",
+      description: "",
+    ))
+  Nil
+}
+
 pub fn parse_user_response_full_test() {
   let body =
     "{\"sub\":\"1234567890\",\"name\":\"Jane Doe\",\"given_name\":\"Jane\",\"family_name\":\"Doe\",\"picture\":\"https://lh3.googleusercontent.com/photo.jpg\",\"email\":\"jane@example.com\",\"email_verified\":true}"
@@ -82,4 +97,22 @@ pub fn parse_user_response_minimal_test() {
   info.email |> expect.to_equal(None)
   info.nickname |> expect.to_equal(None)
   info.image |> expect.to_equal(None)
+}
+
+pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
+  let strat = vestibule_google.strategy()
+  let conf = config.new("client-id", "secret", "not a uri")
+  let _ =
+    strat.authorize_url(conf, ["openid"], "state")
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn authorize_url_includes_extra_params_test() {
+  let strat = vestibule_google.strategy()
+  let conf =
+    config.new("client-id", "secret", "http://localhost/callback")
+    |> config.with_extra_params([#("prompt", "consent")])
+  let assert Ok(url) = strat.authorize_url(conf, ["openid"], "state")
+  { string.contains(url, "prompt=consent") } |> expect.to_be_true()
 }

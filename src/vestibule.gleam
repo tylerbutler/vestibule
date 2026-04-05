@@ -87,6 +87,9 @@ pub fn handle_callback(
     )),
   )
 
+  // Validate state before surfacing any provider response details.
+  use _ <- result.try(state.validate(received_state, expected_state))
+
   // Check for provider errors before requiring code
   use _ <- result.try(check_provider_error(callback_params))
 
@@ -97,9 +100,6 @@ pub fn handle_callback(
       reason: "Missing code parameter in callback",
     )),
   )
-
-  // Validate state
-  use _ <- result.try(state.validate(received_state, expected_state))
 
   // Exchange code for credentials, passing the PKCE verifier
   use credentials <- result.try(strategy.exchange_code(
@@ -172,7 +172,11 @@ pub fn parse_refresh_response(body: String) -> Result(Credentials, AuthError(e))
   // Check for error response first
   let error_decoder = {
     use error_code <- decode.field("error", decode.string)
-    use description <- decode.field("error_description", decode.string)
+    use description <- decode.optional_field(
+      "error_description",
+      "",
+      decode.string,
+    )
     decode.success(#(error_code, description))
   }
   case json.parse(body, error_decoder) {

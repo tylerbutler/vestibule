@@ -39,18 +39,22 @@ pub fn with_extra_params(
   Config(..config, extra_params: dict.from_list(params))
 }
 
+/// Return the configured OAuth client ID.
 pub fn client_id(config: Config) -> String {
   config.client_id
 }
 
+/// Return the configured OAuth client secret.
 pub fn client_secret(config: Config) -> String {
   config.client_secret
 }
 
+/// Return the redirect URI registered with the provider.
 pub fn redirect_uri(config: Config) -> String {
   config.redirect_uri
 }
 
+/// Return extra authorization query params that should be appended as-is.
 pub fn extra_params(config: Config) -> Dict(String, String) {
   config.extra_params
 }

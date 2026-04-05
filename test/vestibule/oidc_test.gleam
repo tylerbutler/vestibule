@@ -4,6 +4,7 @@ import gleam/string
 import startest/expect
 import vestibule/config
 import vestibule/credentials.{Credentials}
+import vestibule/error
 import vestibule/oidc.{OidcConfig}
 
 // --- OidcConfig construction ---
@@ -113,6 +114,13 @@ pub fn parse_token_response_error_test() {
   Nil
 }
 
+pub fn parse_token_response_error_without_description_test() {
+  let json = "{\"error\":\"invalid_grant\"}"
+  oidc.parse_token_response(json)
+  |> expect.to_be_error()
+  |> expect.to_equal(error.ProviderError(code: "invalid_grant", description: ""))
+}
+
 pub fn parse_token_response_invalid_json_test() {
   let _ =
     oidc.parse_token_response("not json")
@@ -124,7 +132,7 @@ pub fn parse_token_response_invalid_json_test() {
 
 pub fn parse_userinfo_response_full_test() {
   let json =
-    "{\"sub\":\"user-id-123\",\"name\":\"Jane Doe\",\"email\":\"jane@example.com\",\"preferred_username\":\"janedoe\",\"picture\":\"https://example.com/jane.jpg\"}"
+    "{\"sub\":\"user-id-123\",\"name\":\"Jane Doe\",\"email\":\"jane@example.com\",\"email_verified\":true,\"preferred_username\":\"janedoe\",\"picture\":\"https://example.com/jane.jpg\"}"
   let result = oidc.parse_userinfo_response(json)
   let assert Ok(#(uid, info)) = result
   uid |> expect.to_equal("user-id-123")
@@ -160,6 +168,14 @@ pub fn parse_userinfo_response_missing_sub_test() {
     oidc.parse_userinfo_response(json)
     |> expect.to_be_error()
   Nil
+}
+
+pub fn parse_userinfo_response_unverified_email_test() {
+  let json =
+    "{\"sub\":\"user-id-123\",\"email\":\"jane@example.com\",\"email_verified\":false}"
+  let result = oidc.parse_userinfo_response(json)
+  let assert Ok(#(_, info)) = result
+  info.email |> expect.to_equal(None)
 }
 
 // --- filter_default_scopes ---
@@ -267,4 +283,21 @@ pub fn strategy_from_config_authorize_url_with_extra_params_test() {
     |> config.with_extra_params([#("prompt", "consent")])
   let assert Ok(url) = strat.authorize_url(conf, ["openid"], "state-123")
   { string.contains(url, "prompt=consent") } |> expect.to_be_true()
+}
+
+pub fn strategy_from_config_invalid_redirect_uri_returns_error_test() {
+  let oidc_config =
+    OidcConfig(
+      issuer: "https://accounts.example.com",
+      authorization_endpoint: "https://accounts.example.com/authorize",
+      token_endpoint: "https://accounts.example.com/token",
+      userinfo_endpoint: "https://accounts.example.com/userinfo",
+      scopes_supported: ["openid"],
+    )
+  let strat = oidc.strategy_from_config(oidc_config, "example")
+  let conf = config.new("client-id", "secret", "not a uri")
+  let _ =
+    strat.authorize_url(conf, ["openid"], "state-123")
+    |> expect.to_be_error()
+  Nil
 }

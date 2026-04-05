@@ -68,7 +68,7 @@ check:
 
 # === EXAMPLE APP ===
 
-# Start the example OAuth app (requires GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET)
+# Start the example OAuth app (requires at least one configured provider)
 serve:
     cd example && gleam run
 
@@ -104,8 +104,8 @@ clean:
 
 # === CI ===
 
-# Run all CI checks (format, check, test, build)
-ci: format-check check test build-strict
+# Run all CI checks (format, check, root + package tests, build)
+ci: format-check check test-all build-strict
 
 # Alias for PR checks
 alias pr := ci

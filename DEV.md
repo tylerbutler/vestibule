@@ -32,7 +32,7 @@ cd vestibule
 # Install dependencies
 just deps
 
-# Verify everything works
+# Run the same checks expected before a PR
 just ci
 ```
 
@@ -74,7 +74,14 @@ just main
 │   └── vestibule/                    # Submodules
 │       ├── auth.gleam                # Authentication result types
 │       ├── config.gleam              # OAuth provider config
+│       ├── credentials.gleam         # Token/expiry data
+│       ├── error.gleam               # Shared error variants
+│       ├── oidc.gleam                # OIDC discovery + generic strategy
+│       ├── pkce.gleam                # PKCE utilities
+│       ├── registry.gleam            # Multi-provider registry
+│       ├── state.gleam               # CSRF state generation/validation
 │       ├── strategy.gleam            # Strategy interface
+│       ├── user_info.gleam           # Normalized user profile
 │       └── strategy/                 # Built-in strategies
 │           └── github.gleam          # GitHub OAuth strategy
 ├── test/
@@ -83,7 +90,7 @@ just main
 │   ├── vestibule_apple/              # Apple Sign In strategy
 │   ├── vestibule_google/             # Google OAuth strategy
 │   ├── vestibule_microsoft/          # Microsoft OAuth strategy
-│   └── vestibule_wisp/              # Wisp middleware
+│   └── vestibule_wisp/               # Wisp middleware
 ├── example/                          # Example OAuth app
 ├── .github/
 │   ├── actions/setup/                # Reusable CI setup
@@ -152,11 +159,11 @@ pub fn parse(input: String) -> Result(Value, ParseError)
 ### Running Tests
 
 ```bash
-# Run all tests
+# Run root-package tests
 just test
 
-# Run with verbose output
-gleam test -- --verbose
+# Run root + package tests
+just test-all
 ```
 
 ### Writing Tests

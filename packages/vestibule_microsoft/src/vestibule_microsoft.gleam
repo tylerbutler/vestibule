@@ -1,7 +1,7 @@
 import gleam/dict
 import gleam/dynamic/decode
-import gleam/json
 import gleam/int
+import gleam/json
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
@@ -18,6 +18,7 @@ import glow_auth/uri/uri_builder
 import vestibule/config.{type Config}
 import vestibule/credentials.{type Credentials, Credentials}
 import vestibule/error.{type AuthError}
+import vestibule/internal/http as internal_http
 import vestibule/strategy.{type Strategy, Strategy}
 import vestibule/user_info.{type UserInfo}
 
@@ -38,7 +39,11 @@ pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
   // Try error response first
   let error_decoder = {
     use error_code <- decode.field("error", decode.string)
-    use description <- decode.field("error_description", decode.string)
+    use description <- decode.optional_field(
+      "error_description",
+      "",
+      decode.string,
+    )
     decode.success(#(error_code, description))
   }
   case json.parse(body, error_decoder) {
@@ -75,7 +80,8 @@ fn parse_success_token(body: String) -> Result(Credentials, AuthError(e)) {
     Ok(creds) -> Ok(creds)
     Error(err) ->
       Error(error.CodeExchangeFailed(
-        reason: "Failed to parse Microsoft token response: " <> string.inspect(err),
+        reason: "Failed to parse Microsoft token response: "
+        <> string.inspect(err),
       ))
   }
 }
@@ -119,7 +125,8 @@ pub fn parse_user_response(
     Ok(result) -> Ok(result)
     Error(err) ->
       Error(error.UserInfoFailed(
-        reason: "Failed to parse Microsoft user response: " <> string.inspect(err),
+        reason: "Failed to parse Microsoft user response: "
+        <> string.inspect(err),
       ))
   }
 }
@@ -135,12 +142,9 @@ fn do_authorize_url(
       error.ConfigError(reason: "Failed to parse Microsoft OAuth base URL")
     }),
   )
-  use redirect <- result.try(
-    uri.parse(config.redirect_uri)
-    |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Invalid redirect URI: " <> config.redirect_uri)
-    }),
-  )
+  use redirect <- result.try(internal_http.parse_redirect_uri(
+    config.redirect_uri,
+  ))
   let client =
     glow_auth.Client(
       id: config.client_id,
@@ -157,6 +161,7 @@ fn do_authorize_url(
     |> authorize_uri.set_state(state)
     |> authorize_uri.to_code_authorization_uri()
     |> uri.to_string()
+    |> internal_http.append_query_params(dict.to_list(config.extra_params))
   Ok(url)
 }
 
@@ -171,12 +176,9 @@ fn do_exchange_code(
       error.ConfigError(reason: "Failed to parse Microsoft OAuth base URL")
     }),
   )
-  use redirect <- result.try(
-    uri.parse(config.redirect_uri)
-    |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Invalid redirect URI: " <> config.redirect_uri)
-    }),
-  )
+  use redirect <- result.try(internal_http.parse_redirect_uri(
+    config.redirect_uri,
+  ))
   let client =
     glow_auth.Client(
       id: config.client_id,
@@ -193,8 +195,15 @@ fn do_exchange_code(
     |> request.set_header("accept", "application/json")
   let req = strategy.append_code_verifier(req, code_verifier)
   case httpc.send(req) {
-    Ok(response) if response.status >= 200 && response.status < 300 -> parse_token_response(response.body)
-    Ok(response) -> Error(error.NetworkError(reason: "HTTP " <> int.to_string(response.status) <> ": " <> response.body))
+    Ok(response) if response.status >= 200 && response.status < 300 ->
+      parse_token_response(response.body)
+    Ok(response) ->
+      Error(error.NetworkError(
+        reason: "HTTP "
+        <> int.to_string(response.status)
+        <> ": "
+        <> response.body,
+      ))
     Error(_) ->
       Error(error.NetworkError(
         reason: "Failed to connect to Microsoft token endpoint",
@@ -217,8 +226,15 @@ fn do_fetch_user(
     |> request.set_header("authorization", auth_header)
     |> request.set_header("accept", "application/json")
   case httpc.send(user_req) {
-    Ok(response) if response.status >= 200 && response.status < 300 -> parse_user_response(response.body)
-    Ok(response) -> Error(error.NetworkError(reason: "HTTP " <> int.to_string(response.status) <> ": " <> response.body))
+    Ok(response) if response.status >= 200 && response.status < 300 ->
+      parse_user_response(response.body)
+    Ok(response) ->
+      Error(error.NetworkError(
+        reason: "HTTP "
+        <> int.to_string(response.status)
+        <> ": "
+        <> response.body,
+      ))
 
     Error(_) ->
       Error(error.NetworkError(

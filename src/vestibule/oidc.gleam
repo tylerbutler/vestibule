@@ -200,7 +200,11 @@ pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
   // Check for error response first
   let error_decoder = {
     use error_code <- decode.field("error", decode.string)
-    use description <- decode.field("error_description", decode.string)
+    use description <- decode.optional_field(
+      "error_description",
+      "",
+      decode.string,
+    )
     decode.success(#(error_code, description))
   }
   case json.parse(body, error_decoder) {
@@ -233,6 +237,11 @@ pub fn parse_userinfo_response(
       None,
       decode.optional(decode.string),
     )
+    use email_verified <- decode.optional_field(
+      "email_verified",
+      None,
+      decode.optional(decode.bool),
+    )
     use preferred_username <- decode.optional_field(
       "preferred_username",
       None,
@@ -243,11 +252,15 @@ pub fn parse_userinfo_response(
       None,
       decode.optional(decode.string),
     )
+    let verified_email = case email, email_verified {
+      Some(addr), Some(True) -> Some(addr)
+      _, _ -> None
+    }
     decode.success(#(
       sub,
       user_info.UserInfo(
         name: name,
-        email: email,
+        email: verified_email,
         nickname: preferred_username,
         image: picture,
         description: None,
@@ -328,12 +341,15 @@ fn build_authorize_url_fn(
     String,
     AuthError(e),
   ) {
+    use redirect <- result.try(
+      internal_http.parse_redirect_uri(config.redirect_uri(cfg)),
+    )
     case uri.parse(authorization_endpoint) {
       Ok(base_uri) -> {
         let params = [
           #("response_type", "code"),
           #("client_id", config.client_id(cfg)),
-          #("redirect_uri", config.redirect_uri(cfg)),
+          #("redirect_uri", uri.to_string(redirect)),
           #("scope", string.join(scopes, " ")),
           #("state", state),
         ]
@@ -361,10 +377,13 @@ fn build_exchange_code_fn(
     Credentials,
     AuthError(e),
   ) {
+    use redirect <- result.try(
+      internal_http.parse_redirect_uri(config.redirect_uri(cfg)),
+    )
     let base_params = [
       #("grant_type", "authorization_code"),
       #("code", code),
-      #("redirect_uri", config.redirect_uri(cfg)),
+      #("redirect_uri", uri.to_string(redirect)),
       #("client_id", config.client_id(cfg)),
       #("client_secret", config.client_secret(cfg)),
     ]

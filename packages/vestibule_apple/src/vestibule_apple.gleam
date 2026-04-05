@@ -46,6 +46,7 @@ import glow_auth/uri/uri_builder
 import vestibule/config.{type Config}
 import vestibule/credentials.{type Credentials, Credentials}
 import vestibule/error.{type AuthError}
+import vestibule/internal/http as internal_http
 import vestibule/strategy.{type Strategy, Strategy}
 import vestibule/user_info
 import vestibule_apple/id_token_cache.{type IdTokenCache}
@@ -258,7 +259,9 @@ fn do_authorize_url(
   state: String,
 ) -> Result(String, AuthError(e)) {
   let assert Ok(site) = uri.parse("https://appleid.apple.com")
-  let assert Ok(redirect) = uri.parse(config.redirect_uri)
+  use redirect <- result.try(internal_http.parse_redirect_uri(
+    config.redirect_uri,
+  ))
   let client =
     glow_auth.Client(
       id: config.client_id,
@@ -279,9 +282,7 @@ fn do_authorize_url(
   let url = url <> "&response_mode=form_post"
   // Append any extra params from config
   let url =
-    dict.fold(config.extra_params, url, fn(acc, key, value) {
-      acc <> "&" <> uri.percent_encode(key) <> "=" <> uri.percent_encode(value)
-    })
+    internal_http.append_query_params(url, dict.to_list(config.extra_params))
   Ok(url)
 }
 
@@ -292,7 +293,9 @@ fn do_exchange_code(
   code_verifier: Option(String),
 ) -> Result(Credentials, AuthError(e)) {
   let assert Ok(site) = uri.parse("https://appleid.apple.com")
-  let assert Ok(redirect) = uri.parse(config.redirect_uri)
+  use redirect <- result.try(internal_http.parse_redirect_uri(
+    config.redirect_uri,
+  ))
   let client =
     glow_auth.Client(
       id: config.client_id,

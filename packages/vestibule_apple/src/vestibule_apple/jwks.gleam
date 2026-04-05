@@ -9,8 +9,8 @@ import gleam/http/request
 import gleam/httpc
 import gleam/int
 import gleam/json
-import gleam/string
 import gleam/result
+import gleam/string
 
 import vestibule/error.{type AuthError}
 import ywt/verify_key.{type VerifyKey}
@@ -62,8 +62,13 @@ fn fetch_keys() -> Result(List(VerifyKey), AuthError(e)) {
   let req = req |> request.set_header("accept", "application/json")
   case httpc.send(req) {
     Ok(response) if response.status >= 200 && response.status < 300 -> parse_jwks(response.body)
-    Ok(response) -> Error(error.NetworkError(reason: "HTTP " <> int.to_string(response.status) <> ": " <> response.body))
-
+    Ok(response) ->
+      Error(error.NetworkError(
+        reason: "HTTP "
+        <> int.to_string(response.status)
+        <> ": "
+        <> response.body,
+      ))
     Error(_) ->
       Error(error.NetworkError(
         reason: "Failed to fetch Apple JWKS from " <> apple_jwks_url,

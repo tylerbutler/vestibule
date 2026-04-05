@@ -1,6 +1,7 @@
 import gleam/option.{None, Some}
 import startest
 import startest/expect
+import vestibule/config
 import vestibule/credentials.{Credentials}
 import vestibule_apple
 import vestibule_apple/id_token_cache
@@ -83,6 +84,15 @@ pub fn parse_token_response_error_without_description_test() {
   let body = "{\"error\":\"invalid_client\"}"
   let _ =
     vestibule_apple.parse_token_response(body)
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
+  let strat = vestibule_apple.strategy(test_apple_cache("invalid_redirect"))
+  let conf = config.new("client-id", "secret", "not a uri")
+  let _ =
+    strat.authorize_url(conf, ["name", "email"], "state")
     |> expect.to_be_error()
   Nil
 }
