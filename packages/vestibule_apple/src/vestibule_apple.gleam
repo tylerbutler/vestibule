@@ -27,6 +27,7 @@
 /// ```
 import gleam/dict
 import gleam/dynamic/decode
+import gleam/int
 import gleam/json
 import gleam/option.{type Option, None, Some}
 import gleam/result
@@ -45,6 +46,7 @@ import glow_auth/uri/uri_builder
 import vestibule/config.{type Config}
 import vestibule/credentials.{type Credentials, Credentials}
 import vestibule/error.{type AuthError}
+import vestibule/internal/http as internal_http
 import vestibule/strategy.{type Strategy, Strategy}
 import vestibule/user_info
 import vestibule_apple/id_token_cache.{type IdTokenCache}
@@ -252,16 +254,18 @@ fn string_bool_decoder() -> decode.Decoder(Bool) {
 }
 
 fn do_authorize_url(
-  config: Config,
+  cfg: Config,
   scopes: List(String),
   state: String,
 ) -> Result(String, AuthError(e)) {
   let assert Ok(site) = uri.parse("https://appleid.apple.com")
-  let assert Ok(redirect) = uri.parse(config.redirect_uri)
+  use redirect <- result.try(internal_http.parse_redirect_uri(
+    config.redirect_uri(cfg),
+  ))
   let client =
     glow_auth.Client(
-      id: config.client_id,
-      secret: config.client_secret,
+      id: config.client_id(cfg),
+      secret: config.client_secret(cfg),
       site: site,
     )
   let url =
@@ -278,24 +282,24 @@ fn do_authorize_url(
   let url = url <> "&response_mode=form_post"
   // Append any extra params from config
   let url =
-    dict.fold(config.extra_params, url, fn(acc, key, value) {
-      acc <> "&" <> uri.percent_encode(key) <> "=" <> uri.percent_encode(value)
-    })
+    internal_http.append_query_params(url, dict.to_list(config.extra_params(cfg)))
   Ok(url)
 }
 
 fn do_exchange_code(
   apple: AppleCache,
-  config: Config,
+  cfg: Config,
   code: String,
   code_verifier: Option(String),
 ) -> Result(Credentials, AuthError(e)) {
   let assert Ok(site) = uri.parse("https://appleid.apple.com")
-  let assert Ok(redirect) = uri.parse(config.redirect_uri)
+  use redirect <- result.try(internal_http.parse_redirect_uri(
+    config.redirect_uri(cfg),
+  ))
   let client =
     glow_auth.Client(
-      id: config.client_id,
-      secret: config.client_secret,
+      id: config.client_id(cfg),
+      secret: config.client_secret(cfg),
       site: site,
     )
   let req =
@@ -308,7 +312,7 @@ fn do_exchange_code(
     |> request.set_header("accept", "application/json")
   let req = append_code_verifier(req, code_verifier)
   case httpc.send(req) {
-    Ok(response) -> {
+    Ok(response) if response.status >= 200 && response.status < 300 -> {
       case parse_token_response(response.body) {
         Ok(#(creds, id_token)) -> {
           // Store the id_token + client_id in the cache so fetch_user can
@@ -318,7 +322,7 @@ fn do_exchange_code(
               id_token_cache.store(
                 apple.id_tokens,
                 creds.token,
-                token <> "\n" <> config.client_id,
+                token <> "\n" <> config.client_id(cfg),
               )
             None -> Nil
           }
@@ -327,6 +331,13 @@ fn do_exchange_code(
         Error(err) -> Error(err)
       }
     }
+    Ok(response) ->
+      Error(error.NetworkError(
+        reason: "HTTP "
+        <> int.to_string(response.status)
+        <> ": "
+        <> response.body,
+      ))
     Error(_) ->
       Error(error.NetworkError(
         reason: "Failed to connect to Apple token endpoint",

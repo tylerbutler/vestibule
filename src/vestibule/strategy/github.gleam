@@ -41,7 +41,11 @@ pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
   // First check if it's an error response
   let error_decoder = {
     use error_code <- decode.field("error", decode.string)
-    use description <- decode.field("error_description", decode.string)
+    use description <- decode.optional_field(
+      "error_description",
+      "",
+      decode.string,
+    )
     decode.success(#(error_code, description))
   }
   case json.parse(body, error_decoder) {
@@ -66,8 +70,10 @@ fn parse_success_token(body: String) -> Result(Credentials, AuthError(e)) {
   }
   case json.parse(body, decoder) {
     Ok(creds) -> Ok(creds)
-    _ ->
-      Error(error.CodeExchangeFailed(reason: "Failed to parse token response"))
+    Error(err) ->
+      Error(error.CodeExchangeFailed(
+        reason: "Failed to parse token response: " <> string.inspect(err),
+      ))
   }
 }
 
@@ -117,8 +123,10 @@ pub fn parse_user_response(
   }
   case json.parse(body, decoder) {
     Ok(result) -> Ok(result)
-    _ ->
-      Error(error.UserInfoFailed(reason: "Failed to parse GitHub user response"))
+    Error(err) ->
+      Error(error.UserInfoFailed(
+        reason: "Failed to parse GitHub user response: " <> string.inspect(err),
+      ))
   }
 }
 
@@ -149,7 +157,7 @@ pub fn parse_primary_email(body: String) -> Option(String) {
 }
 
 fn do_authorize_url(
-  config: Config,
+  cfg: Config,
   scopes: List(String),
   state: String,
 ) -> Result(String, AuthError(e)) {
@@ -160,15 +168,12 @@ fn do_authorize_url(
     }),
   )
   use redirect <- result.try(
-    uri.parse(config.redirect_uri)
-    |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Invalid redirect URI: " <> config.redirect_uri)
-    }),
+    internal_http.parse_redirect_uri(config.redirect_uri(cfg)),
   )
   let client =
     glow_auth.Client(
-      id: config.client_id,
-      secret: config.client_secret,
+      id: config.client_id(cfg),
+      secret: config.client_secret(cfg),
       site: site,
     )
   let url =
@@ -181,11 +186,12 @@ fn do_authorize_url(
     |> authorize_uri.set_state(state)
     |> authorize_uri.to_code_authorization_uri()
     |> uri.to_string()
+    |> internal_http.append_query_params(dict.to_list(config.extra_params(cfg)))
   Ok(url)
 }
 
 fn do_exchange_code(
-  config: Config,
+  cfg: Config,
   code: String,
   code_verifier: Option(String),
 ) -> Result(Credentials, AuthError(e)) {
@@ -196,15 +202,12 @@ fn do_exchange_code(
     }),
   )
   use redirect <- result.try(
-    uri.parse(config.redirect_uri)
-    |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Invalid redirect URI: " <> config.redirect_uri)
-    }),
+    internal_http.parse_redirect_uri(config.redirect_uri(cfg)),
   )
   let client =
     glow_auth.Client(
-      id: config.client_id,
-      secret: config.client_secret,
+      id: config.client_id(cfg),
+      secret: config.client_secret(cfg),
       site: site,
     )
   let req =
@@ -266,7 +269,9 @@ fn do_fetch_user(
         |> request.set_header("accept", "application/json")
         |> request.set_header("user-agent", "vestibule-gleam")
       case httpc.send(email_req) {
-        Ok(response) -> parse_primary_email(response.body)
+        Ok(response) if response.status >= 200 && response.status < 300 ->
+          parse_primary_email(response.body)
+        Ok(_) -> None
         Error(_) -> None
       }
     }

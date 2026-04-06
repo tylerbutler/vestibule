@@ -1,0 +1,4 @@
+project: vestibule
+kind: Security
+body: State validation now rejects empty and whitespace-only state tokens, closing a potential CSRF bypass.
+time: 2026-04-04T21:29:15.976539024-07:00

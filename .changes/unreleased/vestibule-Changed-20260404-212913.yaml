@@ -1,0 +1,4 @@
+project: vestibule
+kind: Changed
+body: '`Config` is now an opaque type. Direct field access (e.g. `config.client_id`) must be replaced by the new accessor functions: `config.client_id/1`, `config.client_secret/1`, `config.redirect_uri/1`, `config.scopes/1`, and `config.extra_params/1`.'
+time: 2026-04-04T21:29:13.871773886-07:00

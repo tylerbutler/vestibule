@@ -41,16 +41,16 @@ import vestibule/strategy.{type Strategy}
 /// check it before calling `handle_callback`.
 pub fn authorize_url(
   strategy: Strategy(e),
-  config: Config,
+  cfg: Config,
 ) -> Result(AuthorizationRequest, AuthError(e)) {
   let csrf_state = state.generate()
   let code_verifier = pkce.generate_verifier()
   let code_challenge = pkce.compute_challenge(code_verifier)
-  let scopes = case config.scopes {
+  let scopes = case config.scopes(cfg) {
     [] -> strategy.default_scopes
     custom -> custom
   }
-  use base_url <- result.try(strategy.authorize_url(config, scopes, csrf_state))
+  use base_url <- result.try(strategy.authorize_url(cfg, scopes, csrf_state))
   let url = append_pkce_params(base_url, code_challenge)
   Ok(AuthorizationRequest(
     url: url,
@@ -74,7 +74,7 @@ pub fn authorize_url(
 /// before calling this function.
 pub fn handle_callback(
   strategy: Strategy(e),
-  config: Config,
+  cfg: Config,
   callback_params: Dict(String, String),
   expected_state: String,
   code_verifier: String,
@@ -87,6 +87,9 @@ pub fn handle_callback(
     )),
   )
 
+  // Validate state before surfacing any provider response details.
+  use _ <- result.try(state.validate(received_state, expected_state))
+
   // Check for provider errors before requiring code
   use _ <- result.try(check_provider_error(callback_params))
 
@@ -98,12 +101,9 @@ pub fn handle_callback(
     )),
   )
 
-  // Validate state
-  use _ <- result.try(state.validate(received_state, expected_state))
-
   // Exchange code for credentials, passing the PKCE verifier
   use credentials <- result.try(strategy.exchange_code(
-    config,
+    cfg,
     code,
     option.Some(code_verifier),
   ))
@@ -127,15 +127,15 @@ pub fn handle_callback(
 /// `refresh_token` grant type. Returns new credentials on success.
 pub fn refresh_token(
   strategy: Strategy(e),
-  config: Config,
+  cfg: Config,
   refresh_tok: String,
 ) -> Result(Credentials, AuthError(e)) {
   let body =
     uri.query_to_string([
       #("grant_type", "refresh_token"),
       #("refresh_token", refresh_tok),
-      #("client_id", config.client_id),
-      #("client_secret", config.client_secret),
+      #("client_id", config.client_id(cfg)),
+      #("client_secret", config.client_secret(cfg)),
     ])
 
   use req <- result.try(
@@ -172,7 +172,11 @@ pub fn parse_refresh_response(body: String) -> Result(Credentials, AuthError(e))
   // Check for error response first
   let error_decoder = {
     use error_code <- decode.field("error", decode.string)
-    use description <- decode.field("error_description", decode.string)
+    use description <- decode.optional_field(
+      "error_description",
+      "",
+      decode.string,
+    )
     decode.success(#(error_code, description))
   }
   case json.parse(body, error_decoder) {
@@ -215,9 +219,10 @@ fn parse_refresh_success(body: String) -> Result(Credentials, AuthError(e)) {
   }
   case json.parse(body, decoder) {
     Ok(creds) -> Ok(creds)
-    _ ->
+    Error(err) ->
       Error(error.CodeExchangeFailed(
-        reason: "Failed to parse token refresh response",
+        reason: "Failed to parse token refresh response: "
+        <> string.inspect(err),
       ))
   }
 }

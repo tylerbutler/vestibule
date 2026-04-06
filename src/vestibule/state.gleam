@@ -1,5 +1,6 @@
 import gleam/bit_array
 import gleam/crypto
+import gleam/string
 
 import vestibule/error.{type AuthError, StateMismatch}
 
@@ -13,10 +14,19 @@ pub fn generate() -> String {
 /// Validate a received state parameter against the expected value.
 /// Uses constant-time comparison to prevent timing attacks.
 pub fn validate(received: String, expected: String) -> Result(Nil, AuthError(e)) {
-  let received_bits = <<received:utf8>>
-  let expected_bits = <<expected:utf8>>
-  case crypto.secure_compare(received_bits, expected_bits) {
-    True -> Ok(Nil)
-    False -> Error(StateMismatch)
+  case is_blank(received) || is_blank(expected) {
+    True -> Error(StateMismatch)
+    False -> {
+      let received_bits = <<received:utf8>>
+      let expected_bits = <<expected:utf8>>
+      case crypto.secure_compare(received_bits, expected_bits) {
+        True -> Ok(Nil)
+        False -> Error(StateMismatch)
+      }
+    }
   }
+}
+
+fn is_blank(value: String) -> Bool {
+  string.trim(value) == ""
 }

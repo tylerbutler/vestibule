@@ -1,0 +1,4 @@
+project: vestibule
+kind: Security
+body: Redirect URIs are now validated to use HTTPS. HTTP is permitted only for `localhost` and `127.0.0.1` (local development). An invalid or non-HTTPS redirect URI now returns `Error(ConfigError)` instead of panicking.
+time: 2026-04-04T21:29:21.420403772-07:00

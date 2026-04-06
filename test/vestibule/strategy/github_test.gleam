@@ -1,5 +1,6 @@
 import gleam/dict
 import gleam/option.{None, Some}
+import gleam/string
 import startest/expect
 import vestibule/config
 import vestibule/credentials.{Credentials}
@@ -87,4 +88,13 @@ pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
     strat.authorize_url(conf, ["user:email"], "state")
     |> expect.to_be_error()
   Nil
+}
+
+pub fn authorize_url_includes_extra_params_test() {
+  let strat = github.strategy()
+  let conf =
+    config.new("client-id", "secret", "http://localhost/callback")
+    |> config.with_extra_params([#("allow_signup", "false")])
+  let assert Ok(url) = strat.authorize_url(conf, ["user:email"], "state")
+  { string.contains(url, "allow_signup=false") } |> expect.to_be_true()
 }
