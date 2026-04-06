@@ -13,38 +13,18 @@ projects:
     - label: vestibule
       key: vestibule
       changelog: CHANGELOG.md
-      replacements:
-          - path: gleam.toml
-            find: 'version = ".*"'
-            replace: 'version = "{{.VersionNoPrefix}}"'
     - label: vestibule_apple
       key: vestibule_apple
       changelog: packages/vestibule_apple/CHANGELOG.md
-      replacements:
-          - path: packages/vestibule_apple/gleam.toml
-            find: 'version = ".*"'
-            replace: 'version = "{{.VersionNoPrefix}}"'
     - label: vestibule_google
       key: vestibule_google
       changelog: packages/vestibule_google/CHANGELOG.md
-      replacements:
-          - path: packages/vestibule_google/gleam.toml
-            find: 'version = ".*"'
-            replace: 'version = "{{.VersionNoPrefix}}"'
     - label: vestibule_microsoft
       key: vestibule_microsoft
       changelog: packages/vestibule_microsoft/CHANGELOG.md
-      replacements:
-          - path: packages/vestibule_microsoft/gleam.toml
-            find: 'version = ".*"'
-            replace: 'version = "{{.VersionNoPrefix}}"'
     - label: vestibule_wisp
       key: vestibule_wisp
       changelog: packages/vestibule_wisp/CHANGELOG.md
-      replacements:
-          - path: packages/vestibule_wisp/gleam.toml
-            find: 'version = ".*"'
-            replace: 'version = "{{.VersionNoPrefix}}"'
 
 versionFormat: '## {{.Version}} - {{.Time.Format "2006-01-02"}}'
 kindFormat: '#### {{.Kind}}'
