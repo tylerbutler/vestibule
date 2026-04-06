@@ -22,12 +22,12 @@ jobs:
 
       - name: Read workspace
         id: ws
-        uses: tylerbutler/actions/read-gleam-workspace@9ead54248b2155caa3cf06eede183cf1bb08a809 # ratchet:tylerbutler/actions/read-gleam-workspace@main
+        uses: tylerbutler/actions/read-gleam-workspace@1b043450f1919503d6c23e3ada9fc7aaa4e2a99b # ratchet:tylerbutler/actions/read-gleam-workspace@main
 
       - name: Setup environment
         uses: ./.github/actions/setup
 
-      - uses: tylerbutler/actions/changie-release@9ead54248b2155caa3cf06eede183cf1bb08a809 # ratchet:tylerbutler/actions/changie-release@main
+      - uses: tylerbutler/actions/changie-release@1b043450f1919503d6c23e3ada9fc7aaa4e2a99b # ratchet:tylerbutler/actions/changie-release@main
         id: release
         with:
           token: ${{ steps.app-token.outputs.token }}

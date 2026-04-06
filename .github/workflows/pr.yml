@@ -37,9 +37,9 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: tylerbutler/actions/read-gleam-workspace@9ead54248b2155caa3cf06eede183cf1bb08a809 # ratchet:tylerbutler/actions/read-gleam-workspace@main
+      - uses: tylerbutler/actions/read-gleam-workspace@1b043450f1919503d6c23e3ada9fc7aaa4e2a99b # ratchet:tylerbutler/actions/read-gleam-workspace@main
         id: workspace
-      - uses: tylerbutler/actions/changie-check@9ead54248b2155caa3cf06eede183cf1bb08a809 # ratchet:tylerbutler/actions/changie-check@main
+      - uses: tylerbutler/actions/changie-check@1b043450f1919503d6c23e3ada9fc7aaa4e2a99b # ratchet:tylerbutler/actions/changie-check@main
         id: changelog
         with:
           base-sha: ${{ github.event.pull_request.base.sha }}

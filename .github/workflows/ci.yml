@@ -8,35 +8,19 @@ on:
   workflow_call:
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    name: Test
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
-
-      - name: Setup environment
-        uses: ./.github/actions/setup
-
-      - name: Check formatting
-        run: just format-check-all
-
-      - name: Type check
-        run: just check-all
-
-      - name: Build (warnings as errors)
-        run: just build-strict-all
-
-      - name: Run tests
-        run: just test-all
+  checks:
+    name: Checks
+    uses: tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@1b043450f1919503d6c23e3ada9fc7aaa4e2a99b # ratchet:tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@main
+    with:
+      cache: true
 
   docs:
-    runs-on: ubuntu-latest
     name: Docs
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
-
-      - name: Setup environment
-        uses: ./.github/actions/setup
-
-      - name: Build documentation
-        run: just docs-all
+    uses: tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@1b043450f1919503d6c23e3ada9fc7aaa4e2a99b # ratchet:tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@main
+    with:
+      cache: true
+      format-check: false
+      check: false
+      build-strict: false
+      test: false
+      docs: true
