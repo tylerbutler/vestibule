@@ -30,6 +30,19 @@ build:
 build-strict:
     gleam build --warnings-as-errors
 
+# Build sub-packages with warnings as errors
+build-strict-packages:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for pkg in packages/vestibule_*/; do
+        [ -f "$pkg/gleam.toml" ] || continue
+        echo "=== Building $pkg (strict) ==="
+        (cd "$pkg" && gleam build --warnings-as-errors)
+    done
+
+# Build all packages with warnings as errors
+build-strict-all: build-strict build-strict-packages
+
 # === TESTING ===
 
 # Run tests for root package
@@ -41,6 +54,7 @@ test-packages:
     #!/usr/bin/env bash
     set -euo pipefail
     for pkg in packages/vestibule_*/; do
+        [ -f "$pkg/gleam.toml" ] || continue
         echo "=== Testing $pkg ==="
         (cd "$pkg" && gleam test)
     done
@@ -58,13 +72,52 @@ test-pkg pkg:
 format:
     gleam format src test
 
+# Format sub-package source code
+format-packages:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for pkg in packages/vestibule_*/; do
+        [ -f "$pkg/gleam.toml" ] || continue
+        echo "=== Formatting $pkg ==="
+        (cd "$pkg" && gleam format src test)
+    done
+
+# Format all packages
+format-all: format format-packages
+
 # Check formatting without changes
 format-check:
     gleam format --check src test
 
+# Check formatting for sub-packages
+format-check-packages:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for pkg in packages/vestibule_*/; do
+        [ -f "$pkg/gleam.toml" ] || continue
+        echo "=== Checking format: $pkg ==="
+        (cd "$pkg" && gleam format --check src test)
+    done
+
+# Check formatting for all packages
+format-check-all: format-check format-check-packages
+
 # Type check without building
 check:
     gleam check
+
+# Type check sub-packages
+check-packages:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for pkg in packages/vestibule_*/; do
+        [ -f "$pkg/gleam.toml" ] || continue
+        echo "=== Checking $pkg ==="
+        (cd "$pkg" && gleam check)
+    done
+
+# Type check all packages
+check-all: check check-packages
 
 # === EXAMPLE APP ===
 
@@ -77,6 +130,19 @@ serve:
 # Build documentation
 docs:
     gleam docs build
+
+# Build documentation for sub-packages
+docs-packages:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for pkg in packages/vestibule_*/; do
+        [ -f "$pkg/gleam.toml" ] || continue
+        echo "=== Building docs: $pkg ==="
+        (cd "$pkg" && gleam docs build)
+    done
+
+# Build documentation for all packages
+docs-all: docs docs-packages
 
 # === CHANGELOG ===
 
@@ -107,11 +173,14 @@ clean:
 # Run all CI checks (format, check, root + package tests, build)
 ci: format-check check test-all build-strict
 
+# Run all CI checks across all packages
+ci-all: format-check-all check-all test-all build-strict-all
+
 # Alias for PR checks
 alias pr := ci
 
 # Run extended checks for main branch
-main: ci docs
+main: ci-all docs-all
 
 # =============================================================================
 # MULTI-TARGET SUPPORT (Uncomment if targeting JavaScript)
