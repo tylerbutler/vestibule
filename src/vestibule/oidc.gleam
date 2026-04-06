@@ -55,6 +55,10 @@ pub type OidcConfig {
 /// Constructs the well-known URL from the issuer, makes a GET request, parses
 /// the JSON response, and validates that the `issuer` field in the response
 /// matches the provided `issuer_url` (a security requirement per the OIDC spec).
+///
+/// **Security warning:** If `issuer_url` is provided dynamically by end-users
+/// (e.g., for custom SSO in a multi-tenant application), you must sanitize
+/// the URL before passing it here to prevent Server-Side Request Forgery (SSRF).
 pub fn fetch_configuration(
   issuer_url: String,
 ) -> Result(OidcConfig, AuthError(e)) {
@@ -140,7 +144,10 @@ pub fn parse_discovery_document(
   case json.parse(body, decoder) {
     Ok(config) -> Ok(config)
     Error(err) ->
-      Error(error.ConfigError(reason: "Failed to parse OIDC discovery document: " <> string.inspect(err)))
+      Error(error.ConfigError(
+        reason: "Failed to parse OIDC discovery document: "
+        <> string.inspect(err),
+      ))
   }
 }
 
@@ -193,7 +200,11 @@ pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
   // Check for error response first
   let error_decoder = {
     use error_code <- decode.field("error", decode.string)
-    use description <- decode.field("error_description", decode.string)
+    use description <- decode.optional_field(
+      "error_description",
+      "",
+      decode.string,
+    )
     decode.success(#(error_code, description))
   }
   case json.parse(body, error_decoder) {
@@ -226,6 +237,11 @@ pub fn parse_userinfo_response(
       None,
       decode.optional(decode.string),
     )
+    use email_verified <- decode.optional_field(
+      "email_verified",
+      None,
+      decode.optional(decode.bool),
+    )
     use preferred_username <- decode.optional_field(
       "preferred_username",
       None,
@@ -236,11 +252,15 @@ pub fn parse_userinfo_response(
       None,
       decode.optional(decode.string),
     )
+    let verified_email = case email, email_verified {
+      Some(addr), Some(True) -> Some(addr)
+      _, _ -> None
+    }
     decode.success(#(
       sub,
       user_info.UserInfo(
         name: name,
-        email: email,
+        email: verified_email,
         nickname: preferred_username,
         image: picture,
         description: None,
@@ -252,7 +272,8 @@ pub fn parse_userinfo_response(
     Ok(result) -> Ok(result)
     Error(err) ->
       Error(error.UserInfoFailed(
-        reason: "Failed to parse OIDC userinfo response: " <> string.inspect(err),
+        reason: "Failed to parse OIDC userinfo response: "
+        <> string.inspect(err),
       ))
   }
 }
@@ -320,17 +341,21 @@ fn build_authorize_url_fn(
     String,
     AuthError(e),
   ) {
+    use redirect <- result.try(
+      internal_http.parse_redirect_uri(config.redirect_uri(cfg)),
+    )
     case uri.parse(authorization_endpoint) {
       Ok(base_uri) -> {
         let params = [
           #("response_type", "code"),
-          #("client_id", cfg.client_id),
-          #("redirect_uri", cfg.redirect_uri),
+          #("client_id", config.client_id(cfg)),
+          #("redirect_uri", uri.to_string(redirect)),
           #("scope", string.join(scopes, " ")),
           #("state", state),
         ]
         // Merge any extra params from config
-        let all_params = list.append(params, dict.to_list(cfg.extra_params))
+        let all_params =
+          list.append(params, dict.to_list(config.extra_params(cfg)))
         let query = uri.query_to_string(all_params)
         let full_uri = uri.Uri(..base_uri, query: Some(query))
         Ok(uri.to_string(full_uri))
@@ -352,12 +377,15 @@ fn build_exchange_code_fn(
     Credentials,
     AuthError(e),
   ) {
+    use redirect <- result.try(
+      internal_http.parse_redirect_uri(config.redirect_uri(cfg)),
+    )
     let base_params = [
       #("grant_type", "authorization_code"),
       #("code", code),
-      #("redirect_uri", cfg.redirect_uri),
-      #("client_id", cfg.client_id),
-      #("client_secret", cfg.client_secret),
+      #("redirect_uri", uri.to_string(redirect)),
+      #("client_id", config.client_id(cfg)),
+      #("client_secret", config.client_secret(cfg)),
     ]
     let params = case code_verifier {
       option.Some(verifier) ->

@@ -70,32 +70,16 @@ fn test_strategy() -> Strategy(e) {
 // CSRF State Security Tests (Audit finding L1, M5)
 // ===========================================================================
 
-/// Security: VULNERABILITY (L1) -- empty state on both sides is ACCEPTED.
-/// crypto.secure_compare("", "") returns True, which could bypass CSRF
-/// protection if an application accidentally stores an empty state.
-///
-/// This test documents the current (vulnerable) behavior. When a guard
-/// is added to reject empty strings, change this test to expect Error.
-pub fn state_validate_accepts_both_empty_vulnerability_test() {
-  // CURRENT BEHAVIOR: accepts empty-equals-empty (vulnerability L1)
-  let _ =
-    state.validate("", "")
-    |> expect.to_be_ok()
-  // TODO: When fixed, this should be:
-  // |> expect.to_equal(Error(error.StateMismatch))
-  Nil
+/// Security: empty state values must always be rejected.
+pub fn state_validate_rejects_both_empty_test() {
+  state.validate("", "")
+  |> expect.to_equal(Error(error.StateMismatch))
 }
 
-/// Security: state with only whitespace is currently accepted.
-/// Documents the behavior -- whitespace-only strings are not rejected.
-pub fn state_validate_accepts_whitespace_only_test() {
-  // CURRENT BEHAVIOR: whitespace matches whitespace
-  let _ =
-    state.validate("   ", "   ")
-    |> expect.to_be_ok()
-  // TODO: When fixed, this should be:
-  // |> expect.to_equal(Error(error.StateMismatch))
-  Nil
+/// Security: whitespace-only state values must be rejected.
+pub fn state_validate_rejects_whitespace_only_test() {
+  state.validate("   ", "   ")
+  |> expect.to_equal(Error(error.StateMismatch))
 }
 
 /// Security: generated states must have sufficient entropy.
@@ -272,6 +256,20 @@ pub fn callback_detects_provider_error_test() {
   ))
 }
 
+/// Security: state validation must happen before provider errors are surfaced.
+pub fn callback_rejects_provider_error_when_state_mismatch_test() {
+  let strat = test_strategy()
+  let conf = config.new("id", "secret", "https://localhost/cb")
+  let params =
+    dict.from_list([
+      #("state", "attacker_state"),
+      #("error", "access_denied"),
+      #("error_description", "User denied access"),
+    ])
+  vestibule.handle_callback(strat, conf, params, "expected_state", "verifier")
+  |> expect.to_equal(Error(error.StateMismatch))
+}
+
 /// Security: extra unexpected parameters should not cause crashes.
 pub fn callback_ignores_extra_params_test() {
   let strat = test_strategy()
@@ -311,11 +309,9 @@ pub fn refresh_response_handles_empty_body_test() {
 /// Finding L5 -- some providers omit error_description.
 pub fn refresh_response_handles_error_without_description_test() {
   let body = "{\"error\":\"invalid_grant\"}"
-  // Currently this falls through to success parsing and fails there.
-  // The test documents the behavior -- ideally this should return
-  // ProviderError with an empty description.
-  let _ = vestibule.parse_refresh_response(body) |> expect.to_be_error()
-  Nil
+  vestibule.parse_refresh_response(body)
+  |> expect.to_be_error()
+  |> expect.to_equal(error.ProviderError(code: "invalid_grant", description: ""))
 }
 
 /// Security: refresh response with extremely long token should not crash.
@@ -407,19 +403,13 @@ pub fn oidc_userinfo_handles_xss_in_name_test() {
 // Provider-Specific Security Tests
 // ===========================================================================
 
-// --- OIDC: email_verified gap ---
-
-/// Security: OIDC userinfo parser does NOT check email_verified.
-/// This documents a gap -- unverified emails are returned as-is.
-/// Google and Apple strategies handle this correctly in their own parsers,
-/// but the generic OIDC strategy does not.
-pub fn oidc_returns_unverified_email_gap_test() {
+/// Security: OIDC userinfo should not trust unverified emails.
+pub fn oidc_rejects_unverified_email_test() {
   let json =
     "{\"sub\":\"user-1\",\"email\":\"unverified@example.com\",\"email_verified\":false}"
   let result = oidc.parse_userinfo_response(json)
   let assert Ok(#(_, info)) = result
-  // Current behavior: email IS returned even when email_verified is false
-  info.email |> expect.to_equal(Some("unverified@example.com"))
+  info.email |> expect.to_equal(None)
 }
 
 // ===========================================================================

@@ -1,7 +1,7 @@
 import gleam/dict
 import gleam/dynamic/decode
-import gleam/json
 import gleam/int
+import gleam/json
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
@@ -18,6 +18,7 @@ import glow_auth/uri/uri_builder
 import vestibule/config.{type Config}
 import vestibule/credentials.{type Credentials, Credentials}
 import vestibule/error.{type AuthError}
+import vestibule/internal/http as internal_http
 import vestibule/strategy.{type Strategy, Strategy}
 import vestibule/user_info
 
@@ -37,7 +38,11 @@ pub fn strategy() -> Strategy(e) {
 pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
   let error_decoder = {
     use error_code <- decode.field("error", decode.string)
-    use description <- decode.field("error_description", decode.string)
+    use description <- decode.optional_field(
+      "error_description",
+      "",
+      decode.string,
+    )
     decode.success(#(error_code, description))
   }
   case json.parse(body, error_decoder) {
@@ -124,21 +129,25 @@ pub fn parse_user_response(
   case json.parse(body, decoder) {
     Ok(result) -> Ok(result)
     Error(err) ->
-      Error(error.UserInfoFailed(reason: "Failed to parse Google user response: " <> string.inspect(err)))
+      Error(error.UserInfoFailed(
+        reason: "Failed to parse Google user response: " <> string.inspect(err),
+      ))
   }
 }
 
 fn do_authorize_url(
-  config: Config,
+  cfg: Config,
   scopes: List(String),
   state: String,
 ) -> Result(String, AuthError(e)) {
   let assert Ok(site) = uri.parse("https://accounts.google.com")
-  let assert Ok(redirect) = uri.parse(config.redirect_uri)
+  use redirect <- result.try(internal_http.parse_redirect_uri(
+    config.redirect_uri(cfg),
+  ))
   let client =
     glow_auth.Client(
-      id: config.client_id,
-      secret: config.client_secret,
+      id: config.client_id(cfg),
+      secret: config.client_secret(cfg),
       site: site,
     )
   let url =
@@ -151,20 +160,23 @@ fn do_authorize_url(
     |> authorize_uri.set_state(state)
     |> authorize_uri.to_code_authorization_uri()
     |> uri.to_string()
+    |> internal_http.append_query_params(dict.to_list(config.extra_params(cfg)))
   Ok(url)
 }
 
 fn do_exchange_code(
-  config: Config,
+  cfg: Config,
   code: String,
   code_verifier: Option(String),
 ) -> Result(Credentials, AuthError(e)) {
   let assert Ok(site) = uri.parse("https://oauth2.googleapis.com")
-  let assert Ok(redirect) = uri.parse(config.redirect_uri)
+  use redirect <- result.try(internal_http.parse_redirect_uri(
+    config.redirect_uri(cfg),
+  ))
   let client =
     glow_auth.Client(
-      id: config.client_id,
-      secret: config.client_secret,
+      id: config.client_id(cfg),
+      secret: config.client_secret(cfg),
       site: site,
     )
   let req =
@@ -177,8 +189,15 @@ fn do_exchange_code(
     |> request.set_header("accept", "application/json")
   let req = strategy.append_code_verifier(req, code_verifier)
   case httpc.send(req) {
-    Ok(response) if response.status >= 200 && response.status < 300 -> parse_token_response(response.body)
-    Ok(response) -> Error(error.NetworkError(reason: "HTTP " <> int.to_string(response.status) <> ": " <> response.body))
+    Ok(response) if response.status >= 200 && response.status < 300 ->
+      parse_token_response(response.body)
+    Ok(response) ->
+      Error(error.NetworkError(
+        reason: "HTTP "
+        <> int.to_string(response.status)
+        <> ": "
+        <> response.body,
+      ))
     Error(_) ->
       Error(error.NetworkError(
         reason: "Failed to connect to Google token endpoint",
@@ -201,8 +220,15 @@ fn do_fetch_user(
     |> request.set_header("authorization", auth_header)
     |> request.set_header("accept", "application/json")
   case httpc.send(user_req) {
-    Ok(response) if response.status >= 200 && response.status < 300 -> parse_user_response(response.body)
-    Ok(response) -> Error(error.NetworkError(reason: "HTTP " <> int.to_string(response.status) <> ": " <> response.body))
+    Ok(response) if response.status >= 200 && response.status < 300 ->
+      parse_user_response(response.body)
+    Ok(response) ->
+      Error(error.NetworkError(
+        reason: "HTTP "
+        <> int.to_string(response.status)
+        <> ": "
+        <> response.body,
+      ))
     Error(_) ->
       Error(error.NetworkError(
         reason: "Failed to connect to Google userinfo API",

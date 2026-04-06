@@ -1,5 +1,10 @@
 # Vestibule Security Audit Report
 
+> [!NOTE]
+> This is a historical audit for vestibule `0.1.0` as reviewed on 2026-02-25.
+> Several findings have been fixed since then. Use this document as audit
+> history, not as a statement of current behavior on `main`.
+
 **Date:** 2026-02-25
 **Scope:** Full security audit of vestibule OAuth2 library (core, all providers, dependencies)
 **Version:** 0.1.0 (pre-release)

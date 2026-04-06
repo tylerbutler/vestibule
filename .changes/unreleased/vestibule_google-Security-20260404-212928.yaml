@@ -1,0 +1,4 @@
+project: vestibule_google
+kind: Security
+body: Invalid or non-HTTPS redirect URIs now return `Error(ConfigError)` instead of panicking.
+time: 2026-04-04T21:29:28.566656827-07:00
