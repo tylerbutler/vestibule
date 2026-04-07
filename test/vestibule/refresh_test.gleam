@@ -78,7 +78,7 @@ pub fn parse_refresh_response_malformed_json_test() {
   vestibule.parse_refresh_response(body)
   |> expect.to_be_error()
   |> expect.to_equal(error.CodeExchangeFailed(
-    reason: "Failed to parse token refresh response",
+    reason: "Failed to parse token refresh response: UnexpectedByte(\"0x6F\")",
   ))
 }
 

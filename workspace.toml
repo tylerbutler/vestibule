@@ -1,0 +1,8 @@
+[workspace]
+members = [".", "packages/vestibule_*"]
+exclude = [
+  "packages/vestibule_apple",
+  "packages/vestibule_google",
+  "packages/vestibule_microsoft",
+  "packages/vestibule_wisp",
+]

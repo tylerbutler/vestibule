@@ -1,5 +1,6 @@
 import gleam/dict
 import gleam/dynamic/decode
+import gleam/int
 import gleam/json
 import gleam/option.{type Option, None, Some}
 import gleam/result
@@ -64,9 +65,10 @@ fn parse_success_token(body: String) -> Result(Credentials, AuthError(e)) {
   }
   case json.parse(body, decoder) {
     Ok(creds) -> Ok(creds)
-    _ ->
+    Error(err) ->
       Error(error.CodeExchangeFailed(
-        reason: "Failed to parse Microsoft token response",
+        reason: "Failed to parse Microsoft token response: "
+        <> string.inspect(err),
       ))
   }
 }
@@ -108,15 +110,16 @@ pub fn parse_user_response(
   }
   case json.parse(body, decoder) {
     Ok(result) -> Ok(result)
-    _ ->
+    Error(err) ->
       Error(error.UserInfoFailed(
-        reason: "Failed to parse Microsoft user response",
+        reason: "Failed to parse Microsoft user response: "
+        <> string.inspect(err),
       ))
   }
 }
 
 fn do_authorize_url(
-  config: Config,
+  cfg: Config,
   scopes: List(String),
   state: String,
 ) -> Result(String, AuthError(e)) {
@@ -127,15 +130,12 @@ fn do_authorize_url(
     }),
   )
   use redirect <- result.try(
-    uri.parse(config.redirect_uri)
-    |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Invalid redirect URI: " <> config.redirect_uri)
-    }),
+    internal_http.parse_redirect_uri(config.redirect_uri(cfg)),
   )
   let client =
     glow_auth.Client(
-      id: config.client_id,
-      secret: config.client_secret,
+      id: config.client_id(cfg),
+      secret: config.client_secret(cfg),
       site: site,
     )
   let url =
@@ -148,11 +148,12 @@ fn do_authorize_url(
     |> authorize_uri.set_state(state)
     |> authorize_uri.to_code_authorization_uri()
     |> uri.to_string()
+    |> internal_http.append_query_params(dict.to_list(config.extra_params(cfg)))
   Ok(url)
 }
 
 fn do_exchange_code(
-  config: Config,
+  cfg: Config,
   code: String,
   code_verifier: Option(String),
 ) -> Result(Credentials, AuthError(e)) {
@@ -163,15 +164,12 @@ fn do_exchange_code(
     }),
   )
   use redirect <- result.try(
-    uri.parse(config.redirect_uri)
-    |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Invalid redirect URI: " <> config.redirect_uri)
-    }),
+    internal_http.parse_redirect_uri(config.redirect_uri(cfg)),
   )
   let client =
     glow_auth.Client(
-      id: config.client_id,
-      secret: config.client_secret,
+      id: config.client_id(cfg),
+      secret: config.client_secret(cfg),
       site: site,
     )
   let req =
@@ -184,7 +182,15 @@ fn do_exchange_code(
     |> request.set_header("accept", "application/json")
   let req = strategy.append_code_verifier(req, code_verifier)
   case httpc.send(req) {
-    Ok(response) -> parse_token_response(response.body)
+    Ok(response) if response.status >= 200 && response.status < 300 ->
+      parse_token_response(response.body)
+    Ok(response) ->
+      Error(error.NetworkError(
+        reason: "HTTP "
+        <> int.to_string(response.status)
+        <> ": "
+        <> response.body,
+      ))
     Error(_) ->
       Error(error.NetworkError(
         reason: "Failed to connect to Microsoft token endpoint",

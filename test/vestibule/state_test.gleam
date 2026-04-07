@@ -29,3 +29,8 @@ pub fn validate_rejects_empty_state_test() {
   state.validate("", "some-state")
   |> expect.to_equal(Error(error.StateMismatch))
 }
+
+pub fn validate_rejects_whitespace_only_state_test() {
+  state.validate("   ", "   ")
+  |> expect.to_equal(Error(error.StateMismatch))
+}
