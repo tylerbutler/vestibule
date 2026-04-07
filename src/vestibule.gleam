@@ -169,21 +169,8 @@ pub fn refresh_token(
 /// Handles both success responses and error responses from the provider.
 /// Exported for testing.
 pub fn parse_refresh_response(body: String) -> Result(Credentials, AuthError(e)) {
-  // Check for error response first
-  let error_decoder = {
-    use error_code <- decode.field("error", decode.string)
-    use description <- decode.optional_field(
-      "error_description",
-      "",
-      decode.string,
-    )
-    decode.success(#(error_code, description))
-  }
-  case json.parse(body, error_decoder) {
-    Ok(#(code, description)) ->
-      Error(error.ProviderError(code: code, description: description))
-    _ -> parse_refresh_success(body)
-  }
+  use body <- result.try(internal_http.check_token_error(body))
+  parse_refresh_success(body)
 }
 
 fn parse_refresh_success(body: String) -> Result(Credentials, AuthError(e)) {
