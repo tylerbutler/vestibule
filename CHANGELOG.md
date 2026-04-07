@@ -1,0 +1,26 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## v0.0.1 - 2026-04-07
+
+
+#### Changed
+
+##### `Config` is now an opaque type. Direct field access (e.g. `config.client_id`) must be replaced by the new accessor functions: `config.client_id/1`, `config.client_secret/1`, `config.redirect_uri/1`, `config.scopes/1`, and `config.extra_params/1`.
+
+
+#### Security
+
+##### State validation now rejects empty and whitespace-only state tokens, closing a potential CSRF bypass.
+
+##### State is now validated before provider error details are surfaced in `handle_callback`, preventing information leakage on CSRF attempts.
+
+##### Redirect URIs are now validated to use HTTPS. HTTP is permitted only for `localhost` and `127.0.0.1` (local development). An invalid or non-HTTPS redirect URI now returns `Error(ConfigError)` instead of panicking.
+
+##### OIDC userinfo responses no longer return unverified email addresses. When `email_verified` is `false` or absent, the `email` field in `UserInfo` is set to `None`.
+
+
