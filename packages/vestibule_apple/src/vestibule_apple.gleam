@@ -306,7 +306,7 @@ fn do_exchange_code(
       redirect,
     )
     |> request.set_header("accept", "application/json")
-  let req = append_code_verifier(req, code_verifier)
+  let req = strategy.append_code_verifier(req, code_verifier)
   case httpc.send(req) {
     Ok(response) -> {
       case parse_token_response(response.body) {
@@ -357,23 +357,5 @@ fn do_fetch_user(
     Error(_) ->
       // Fallback: cached value has no client_id separator (shouldn't happen)
       Error(error.UserInfoFailed(reason: "Cached Apple ID token is malformed"))
-  }
-}
-
-/// Append code_verifier to the form-encoded request body when present.
-fn append_code_verifier(
-  req: request.Request(String),
-  code_verifier: Option(String),
-) -> request.Request(String) {
-  case code_verifier {
-    Some(verifier) -> {
-      let body = case req.body {
-        "" -> "code_verifier=" <> uri.percent_encode(verifier)
-        existing ->
-          existing <> "&code_verifier=" <> uri.percent_encode(verifier)
-      }
-      request.set_body(req, body)
-    }
-    None -> req
   }
 }

@@ -38,17 +38,8 @@ pub fn strategy() -> Strategy(e) {
 /// Parse a GitHub token exchange response into Credentials.
 /// Exported for testing.
 pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
-  // First check if it's an error response
-  let error_decoder = {
-    use error_code <- decode.field("error", decode.string)
-    use description <- decode.field("error_description", decode.string)
-    decode.success(#(error_code, description))
-  }
-  case json.parse(body, error_decoder) {
-    Ok(#(code, description)) ->
-      Error(error.ProviderError(code: code, description: description))
-    _ -> parse_success_token(body)
-  }
+  use body <- result.try(internal_http.check_token_error(body))
+  parse_success_token(body)
 }
 
 fn parse_success_token(body: String) -> Result(Credentials, AuthError(e)) {

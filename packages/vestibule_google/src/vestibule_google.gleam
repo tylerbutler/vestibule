@@ -17,6 +17,7 @@ import glow_auth/uri/uri_builder
 import vestibule/config.{type Config}
 import vestibule/credentials.{type Credentials, Credentials}
 import vestibule/error.{type AuthError}
+import vestibule/internal/http as internal_http
 import vestibule/strategy.{type Strategy, Strategy}
 import vestibule/user_info
 
@@ -34,16 +35,8 @@ pub fn strategy() -> Strategy(e) {
 
 /// Parse Google token response JSON.
 pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
-  let error_decoder = {
-    use error_code <- decode.field("error", decode.string)
-    use description <- decode.field("error_description", decode.string)
-    decode.success(#(error_code, description))
-  }
-  case json.parse(body, error_decoder) {
-    Ok(#(code, description)) ->
-      Error(error.ProviderError(code: code, description: description))
-    _ -> parse_success_token(body)
-  }
+  use body <- result.try(internal_http.check_token_error(body))
+  parse_success_token(body)
 }
 
 fn parse_success_token(body: String) -> Result(Credentials, AuthError(e)) {
@@ -188,21 +181,10 @@ fn do_fetch_user(
   creds: Credentials,
 ) -> Result(#(String, user_info.UserInfo), AuthError(e)) {
   use auth_header <- result.try(strategy.authorization_header(creds))
-  use user_req <- result.try(
-    request.to("https://www.googleapis.com/oauth2/v3/userinfo")
-    |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Failed to parse Google userinfo URL")
-    }),
+  internal_http.fetch_json_with_auth(
+    "https://www.googleapis.com/oauth2/v3/userinfo",
+    auth_header,
+    parse_user_response,
+    "Google userinfo",
   )
-  let user_req =
-    user_req
-    |> request.set_header("authorization", auth_header)
-    |> request.set_header("accept", "application/json")
-  case httpc.send(user_req) {
-    Ok(response) -> parse_user_response(response.body)
-    Error(_) ->
-      Error(error.NetworkError(
-        reason: "Failed to connect to Google userinfo API",
-      ))
-  }
 }
