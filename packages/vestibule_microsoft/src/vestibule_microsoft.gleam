@@ -36,21 +36,8 @@ pub fn strategy() -> Strategy(e) {
 
 /// Parse Microsoft token response JSON.
 pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
-  // Try error response first
-  let error_decoder = {
-    use error_code <- decode.field("error", decode.string)
-    use description <- decode.optional_field(
-      "error_description",
-      "",
-      decode.string,
-    )
-    decode.success(#(error_code, description))
-  }
-  case json.parse(body, error_decoder) {
-    Ok(#(code, description)) ->
-      Error(error.ProviderError(code: code, description: description))
-    _ -> parse_success_token(body)
-  }
+  use body <- result.try(internal_http.check_token_error(body))
+  parse_success_token(body)
 }
 
 fn parse_success_token(body: String) -> Result(Credentials, AuthError(e)) {
@@ -142,9 +129,9 @@ fn do_authorize_url(
       error.ConfigError(reason: "Failed to parse Microsoft OAuth base URL")
     }),
   )
-  use redirect <- result.try(internal_http.parse_redirect_uri(
-    config.redirect_uri(cfg),
-  ))
+  use redirect <- result.try(
+    internal_http.parse_redirect_uri(config.redirect_uri(cfg)),
+  )
   let client =
     glow_auth.Client(
       id: config.client_id(cfg),
@@ -176,9 +163,9 @@ fn do_exchange_code(
       error.ConfigError(reason: "Failed to parse Microsoft OAuth base URL")
     }),
   )
-  use redirect <- result.try(internal_http.parse_redirect_uri(
-    config.redirect_uri(cfg),
-  ))
+  use redirect <- result.try(
+    internal_http.parse_redirect_uri(config.redirect_uri(cfg)),
+  )
   let client =
     glow_auth.Client(
       id: config.client_id(cfg),
@@ -215,30 +202,10 @@ fn do_fetch_user(
   creds: Credentials,
 ) -> Result(#(String, UserInfo), AuthError(e)) {
   use auth_header <- result.try(strategy.authorization_header(creds))
-  use user_req <- result.try(
-    request.to("https://graph.microsoft.com/v1.0/me")
-    |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Failed to parse Microsoft Graph user URL")
-    }),
+  internal_http.fetch_json_with_auth(
+    "https://graph.microsoft.com/v1.0/me",
+    auth_header,
+    parse_user_response,
+    "Microsoft Graph",
   )
-  let user_req =
-    user_req
-    |> request.set_header("authorization", auth_header)
-    |> request.set_header("accept", "application/json")
-  case httpc.send(user_req) {
-    Ok(response) if response.status >= 200 && response.status < 300 ->
-      parse_user_response(response.body)
-    Ok(response) ->
-      Error(error.NetworkError(
-        reason: "HTTP "
-        <> int.to_string(response.status)
-        <> ": "
-        <> response.body,
-      ))
-
-    Error(_) ->
-      Error(error.NetworkError(
-        reason: "Failed to connect to Microsoft Graph API",
-      ))
-  }
 }

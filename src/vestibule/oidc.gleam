@@ -197,21 +197,8 @@ pub fn filter_default_scopes(scopes_supported: List(String)) -> List(String) {
 ///
 /// Exported for testing. Handles both success and error responses.
 pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
-  // Check for error response first
-  let error_decoder = {
-    use error_code <- decode.field("error", decode.string)
-    use description <- decode.optional_field(
-      "error_description",
-      "",
-      decode.string,
-    )
-    decode.success(#(error_code, description))
-  }
-  case json.parse(body, error_decoder) {
-    Ok(#(code, description)) ->
-      Error(error.ProviderError(code: code, description: description))
-    _ -> parse_success_token(body)
-  }
+  use body <- result.try(internal_http.check_token_error(body))
+  parse_success_token(body)
 }
 
 /// Parse a standard OIDC userinfo response into a uid and UserInfo.
@@ -427,29 +414,11 @@ fn build_fetch_user_fn(
 ) -> fn(Credentials) -> Result(#(String, user_info.UserInfo), AuthError(e)) {
   fn(creds: Credentials) -> Result(#(String, user_info.UserInfo), AuthError(e)) {
     use auth_header <- result.try(strategy.authorization_header(creds))
-    use r <- result.try(
-      request.to(userinfo_endpoint)
-      |> result.map_error(fn(_) {
-        error.ConfigError(
-          reason: "Invalid userinfo endpoint URL: " <> userinfo_endpoint,
-        )
-      }),
+    internal_http.fetch_json_with_auth(
+      userinfo_endpoint,
+      auth_header,
+      parse_userinfo_response,
+      "OIDC userinfo",
     )
-    let r =
-      r
-      |> request.set_header("authorization", auth_header)
-      |> request.set_header("accept", "application/json")
-
-    case httpc.send(r) {
-      Ok(response) -> {
-        use body <- result.try(internal_http.check_response_status(response))
-        parse_userinfo_response(body)
-      }
-      Error(_) ->
-        Error(error.NetworkError(
-          reason: "Failed to connect to OIDC userinfo endpoint: "
-          <> userinfo_endpoint,
-        ))
-    }
   }
 }
