@@ -64,9 +64,7 @@ fn validate_profile_uri(
   })
   use _ <- result.try(case parsed.fragment {
     Some(_) ->
-      Error(error.ConfigError(
-        reason: "Profile URL must not contain a fragment",
-      ))
+      Error(error.ConfigError(reason: "Profile URL must not contain a fragment"))
     None -> Ok(Nil)
   })
   use _ <- result.try(case parsed.userinfo {

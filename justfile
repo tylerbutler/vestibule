@@ -68,39 +68,27 @@ test-pkg pkg:
 
 # === CODE QUALITY ===
 
-# Format source code
+# Format source code (root + all sub-packages)
 format:
-    gleam format src test
-
-# Format sub-package source code
-format-packages:
     #!/usr/bin/env bash
     set -euo pipefail
+    gleam format src test
     for pkg in packages/vestibule_*/; do
         [ -f "$pkg/gleam.toml" ] || continue
         echo "=== Formatting $pkg ==="
         (cd "$pkg" && gleam format src test)
     done
 
-# Format all packages
-format-all: format format-packages
-
-# Check formatting without changes
+# Check formatting (root + all sub-packages)
 format-check:
-    gleam format --check src test
-
-# Check formatting for sub-packages
-format-check-packages:
     #!/usr/bin/env bash
     set -euo pipefail
+    gleam format --check src test
     for pkg in packages/vestibule_*/; do
         [ -f "$pkg/gleam.toml" ] || continue
         echo "=== Checking format: $pkg ==="
         (cd "$pkg" && gleam format --check src test)
     done
-
-# Check formatting for all packages
-format-check-all: format-check format-check-packages
 
 # Type check without building
 check:
@@ -174,7 +162,7 @@ clean:
 ci: format-check check test-all build-strict
 
 # Run all CI checks across all packages
-ci-all: format-check-all check-all test-all build-strict-all
+ci-all: format-check check-all test-all build-strict-all
 
 # Alias for PR checks
 alias pr := ci

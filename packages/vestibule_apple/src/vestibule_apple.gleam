@@ -259,9 +259,9 @@ fn do_authorize_url(
   state: String,
 ) -> Result(String, AuthError(e)) {
   let assert Ok(site) = uri.parse("https://appleid.apple.com")
-  use redirect <- result.try(internal_http.parse_redirect_uri(
-    config.redirect_uri(cfg),
-  ))
+  use redirect <- result.try(
+    internal_http.parse_redirect_uri(config.redirect_uri(cfg)),
+  )
   let client =
     glow_auth.Client(
       id: config.client_id(cfg),
@@ -282,7 +282,10 @@ fn do_authorize_url(
   let url = url <> "&response_mode=form_post"
   // Append any extra params from config
   let url =
-    internal_http.append_query_params(url, dict.to_list(config.extra_params(cfg)))
+    internal_http.append_query_params(
+      url,
+      dict.to_list(config.extra_params(cfg)),
+    )
   Ok(url)
 }
 
@@ -293,9 +296,9 @@ fn do_exchange_code(
   code_verifier: Option(String),
 ) -> Result(Credentials, AuthError(e)) {
   let assert Ok(site) = uri.parse("https://appleid.apple.com")
-  use redirect <- result.try(internal_http.parse_redirect_uri(
-    config.redirect_uri(cfg),
-  ))
+  use redirect <- result.try(
+    internal_http.parse_redirect_uri(config.redirect_uri(cfg)),
+  )
   let client =
     glow_auth.Client(
       id: config.client_id(cfg),
