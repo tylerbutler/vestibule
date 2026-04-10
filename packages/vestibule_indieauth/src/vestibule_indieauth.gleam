@@ -26,6 +26,7 @@ import gleam/dict
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
+import gleam/uri
 
 import vestibule/config.{type Config}
 import vestibule/credentials.{type Credentials}
@@ -107,7 +108,7 @@ fn do_authorize_url(
   ]
   let query =
     params
-    |> url.encode_query_params()
+    |> uri.query_to_string()
   let separator = case string.contains(endpoints.authorization_endpoint, "?") {
     True -> "&"
     False -> "?"

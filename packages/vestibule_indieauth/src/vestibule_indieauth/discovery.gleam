@@ -5,7 +5,6 @@
 /// 2. Look for `rel="indieauth-metadata"` — if found, fetch metadata JSON
 /// 3. Fall back to `rel="authorization_endpoint"` and `rel="token_endpoint"`
 /// 4. Check HTTP `Link` headers first, then HTML `<link>` tags
-import gleam/dict
 import gleam/dynamic/decode
 import gleam/http/request
 import gleam/httpc
@@ -87,17 +86,9 @@ fn find_metadata_url(
   body: String,
   base_url: String,
 ) -> Option(String) {
-  // Check HTTP Link headers first
-  case find_link_header_rel(headers, "indieauth-metadata") {
-    Some(url) -> Some(resolve_url(url, base_url))
-    None -> {
-      // Check HTML <link> tags
-      case find_html_link_rel(body, "indieauth-metadata") {
-        Some(url) -> Some(resolve_url(url, base_url))
-        None -> None
-      }
-    }
-  }
+  find_link_header_rel(headers, "indieauth-metadata")
+  |> option.lazy_or(fn() { find_html_link_rel(body, "indieauth-metadata") })
+  |> option.map(resolve_url(_, base_url))
 }
 
 /// Fetch and parse IndieAuth server metadata JSON.
@@ -286,9 +277,7 @@ pub fn find_html_link_rel(html: String, rel: String) -> Option(String) {
 
 /// Extract the href from a list of element attributes.
 fn find_href(attrs: List(#(String, String))) -> Option(String) {
-  attrs
-  |> dict.from_list()
-  |> dict.get("href")
+  list.key_find(attrs, "href")
   |> option.from_result()
 }
 
@@ -297,9 +286,7 @@ fn resolve_url(url: String, base_url: String) -> String {
   case uri.parse(url) {
     Ok(parsed) ->
       case parsed.scheme {
-        // Already absolute
         Some(_) -> url
-        // Relative — resolve against base
         None ->
           case uri.parse(base_url) {
             Ok(base) -> {
