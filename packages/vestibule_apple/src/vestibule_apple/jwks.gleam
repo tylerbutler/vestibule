@@ -61,7 +61,8 @@ fn fetch_keys() -> Result(List(VerifyKey), AuthError(e)) {
   let assert Ok(req) = request.to(apple_jwks_url)
   let req = req |> request.set_header("accept", "application/json")
   case httpc.send(req) {
-    Ok(response) if response.status >= 200 && response.status < 300 -> parse_jwks(response.body)
+    Ok(response) if response.status >= 200 && response.status < 300 ->
+      parse_jwks(response.body)
     Ok(response) ->
       Error(error.NetworkError(
         reason: "HTTP "
@@ -81,6 +82,8 @@ pub fn parse_jwks(body: String) -> Result(List(VerifyKey), AuthError(e)) {
   case json.parse(body, verify_key.set_decoder()) {
     Ok(keys) -> Ok(keys)
     Error(err) ->
-      Error(error.ConfigError(reason: "Failed to parse Apple JWKS response: " <> string.inspect(err)))
+      Error(error.ConfigError(
+        reason: "Failed to parse Apple JWKS response: " <> string.inspect(err),
+      ))
   }
 }

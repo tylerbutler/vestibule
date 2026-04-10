@@ -50,6 +50,7 @@ src/
 packages/
 ├── vestibule_apple/                  # Apple Sign In strategy
 ├── vestibule_google/                 # Google OAuth strategy
+├── vestibule_indieauth/             # IndieAuth strategy (decentralized identity)
 ├── vestibule_microsoft/              # Microsoft OAuth strategy
 └── vestibule_wisp/                   # Wisp middleware
 example/                              # Example OAuth app

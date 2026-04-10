@@ -19,6 +19,9 @@ projects:
     - label: vestibule_google
       key: vestibule_google
       changelog: packages/vestibule_google/CHANGELOG.md
+    - label: vestibule_indieauth
+      key: vestibule_indieauth
+      changelog: packages/vestibule_indieauth/CHANGELOG.md
     - label: vestibule_microsoft
       key: vestibule_microsoft
       changelog: packages/vestibule_microsoft/CHANGELOG.md
