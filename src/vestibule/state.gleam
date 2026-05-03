@@ -13,7 +13,10 @@ pub fn generate() -> String {
 
 /// Validate a received state parameter against the expected value.
 /// Uses constant-time comparison to prevent timing attacks.
-pub fn validate(received: String, expected: String) -> Result(Nil, AuthError(e)) {
+pub fn validate(
+  received: String,
+  expected: String,
+) -> Result(Nil, AuthError(e)) {
   case is_blank(received) || is_blank(expected) {
     True -> Error(StateMismatch)
     False -> {

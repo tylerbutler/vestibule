@@ -32,7 +32,9 @@ pub fn check_token_error(body: String) -> Result(String, AuthError(e)) {
 }
 
 /// Parse and validate a redirect URI.
-pub fn parse_redirect_uri(redirect_uri: String) -> Result(uri.Uri, AuthError(e)) {
+pub fn parse_redirect_uri(
+  redirect_uri: String,
+) -> Result(uri.Uri, AuthError(e)) {
   provider_support.parse_redirect_uri(redirect_uri)
 }
 
