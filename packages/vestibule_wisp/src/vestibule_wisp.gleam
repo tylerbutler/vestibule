@@ -30,20 +30,27 @@ pub fn request_phase(
     Ok(#(strategy, config)) ->
       case vestibule.authorize_url(strategy, config) {
         Ok(auth_request) -> {
-          let session_id =
-            state_store.store(
+          case
+            state_store.try_store(
               state_store,
               auth_request.state,
               auth_request.code_verifier,
             )
-          wisp.redirect(auth_request.url)
-          |> wisp.set_cookie(
-            req,
-            "vestibule_session",
-            session_id,
-            wisp.Signed,
-            600,
-          )
+          {
+            Ok(session_id) ->
+              wisp.redirect(auth_request.url)
+              |> wisp.set_cookie(
+                req,
+                "vestibule_session",
+                session_id,
+                wisp.Signed,
+                600,
+              )
+            Error(_) ->
+              error_response(error.ConfigError(
+                reason: "Failed to store OAuth session state",
+              ))
+          }
         }
         Error(err) -> error_response(err)
       }

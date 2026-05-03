@@ -29,3 +29,7 @@ case wisp.path_segments(req), req.method {
     vestibule_wisp.callback_phase(req, reg, provider, store, on_success)
 }
 ```
+
+Initialize the state store once per BEAM VM at application startup. For tests
+or multiple stores in one VM, use `state_store.init_named("unique_name")`;
+use `try_init`/`try_init_named` if you want to handle duplicate-table errors.

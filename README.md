@@ -106,6 +106,10 @@ case wisp.path_segments(req), req.method {
 }
 ```
 
+The Wisp state store creates a named ETS table, so initialize it once per BEAM
+VM at startup. Use `state_store.try_init` if you want to handle duplicate-table
+errors explicitly.
+
 If you want to handle callback failures yourself instead of using the default
 HTML error page, use `vestibule_wisp.callback_phase_result`.
 
