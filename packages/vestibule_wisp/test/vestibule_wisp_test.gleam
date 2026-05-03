@@ -1,7 +1,14 @@
+import gleam/http
 import gleam/string
 import startest
 import startest/expect
+import vestibule/config
+import vestibule/error
+import vestibule/registry
+import vestibule/strategy.{type Strategy, Strategy}
+import vestibule_wisp
 import vestibule_wisp/state_store
+import wisp/simulate
 
 pub fn main() -> Nil {
   startest.run(startest.default_config())
@@ -51,4 +58,46 @@ pub fn try_store_returns_session_id_and_retrievable_value_test() {
   state_store.retrieve(table, session_id)
   |> expect.to_be_ok()
   |> expect.to_equal(#(state, verifier))
+}
+
+pub fn callback_phase_auth_result_unknown_provider_test() {
+  let req = simulate.request(http.Get, "/auth/unknown/callback")
+  let store = state_store.init_named("test_callback_unknown_provider")
+
+  vestibule_wisp.callback_phase_auth_result(
+    req,
+    registry.new(),
+    "unknown",
+    store,
+  )
+  |> expect.to_equal(Error(vestibule_wisp.UnknownProvider("unknown")))
+}
+
+pub fn callback_phase_auth_result_missing_session_cookie_test() {
+  let req =
+    simulate.request(http.Get, "/auth/test/callback?state=state&code=code")
+  let store = state_store.init_named("test_callback_missing_session_cookie")
+  let reg =
+    registry.new()
+    |> registry.register(test_strategy(), test_config())
+
+  vestibule_wisp.callback_phase_auth_result(req, reg, "test", store)
+  |> expect.to_equal(Error(vestibule_wisp.MissingSessionCookie))
+}
+
+fn test_strategy() -> Strategy(e) {
+  Strategy(
+    provider: "test",
+    default_scopes: [],
+    token_url: "https://example.com/oauth/token",
+    authorize_url: fn(_config, _scopes, _state) { Ok("https://example.com") },
+    exchange_code: fn(_config, _code, _code_verifier) {
+      Error(error.ConfigError(reason: "test"))
+    },
+    fetch_user: fn(_credentials) { Error(error.ConfigError(reason: "test")) },
+  )
+}
+
+fn test_config() -> config.Config {
+  config.new("client_id", "client_secret", "https://example.com/callback")
 }

@@ -12,6 +12,20 @@ import vestibule/error
 import vestibule/registry.{type Registry}
 import vestibule_wisp/state_store.{type StateStore}
 
+/// Structured errors that can occur during the OAuth callback phase.
+pub type CallbackError(e) {
+  /// The requested provider is not registered.
+  UnknownProvider(provider: String)
+  /// The signed session cookie set during the request phase is missing or invalid.
+  MissingSessionCookie
+  /// The session state was not found, expired, or already used.
+  SessionExpired
+  /// Callback parameters could not be extracted from the request.
+  InvalidCallbackParams
+  /// Provider authentication failed.
+  AuthFailed(error.AuthError(e))
+}
+
 /// Phase 1: Redirect user to the OAuth provider.
 ///
 /// Looks up the provider in the registry, generates an authorization URL
@@ -75,9 +89,9 @@ pub fn callback_phase(
   state_store: StateStore,
   on_success: fn(Auth) -> Response,
 ) -> Response {
-  case do_callback(req, reg, provider, state_store) {
+  case callback_phase_auth_result(req, reg, provider, state_store) {
     Ok(auth) -> on_success(auth)
-    Error(response) -> response
+    Error(err) -> callback_error_response(err)
   }
 }
 
@@ -95,34 +109,34 @@ pub fn callback_phase_result(
   provider: String,
   state_store: StateStore,
 ) -> Result(Auth, Response) {
-  do_callback(req, reg, provider, state_store)
+  callback_phase_auth_result(req, reg, provider, state_store)
+  |> result.map_error(callback_error_response)
 }
 
-fn do_callback(
+/// Phase 2 (structured Result variant): Handle the OAuth callback and return
+/// either the Auth result or a structured callback error.
+///
+/// Use this when you want to distinguish provider lookup, session, callback
+/// parameter, and provider authentication failures without parsing responses.
+pub fn callback_phase_auth_result(
   req: Request,
   reg: Registry(e),
   provider: String,
   state_store: StateStore,
-) -> Result(Auth, Response) {
+) -> Result(Auth, CallbackError(e)) {
   use #(strategy, config) <- result.try(
     registry.get(reg, provider)
-    |> result.map_error(fn(_) { wisp.not_found() }),
+    |> result.map_error(fn(_) { UnknownProvider(provider) }),
   )
 
   use session_id <- result.try(
     wisp.get_cookie(req, "vestibule_session", wisp.Signed)
-    |> result.map_error(fn(_) {
-      error_response(error.ConfigError(reason: "Missing session cookie"))
-    }),
+    |> result.map_error(fn(_) { MissingSessionCookie }),
   )
 
   use #(expected_state, code_verifier) <- result.try(
     state_store.retrieve(state_store, session_id)
-    |> result.map_error(fn(_) {
-      error_response(error.ConfigError(
-        reason: "Session expired or already used",
-      ))
-    }),
+    |> result.map_error(fn(_) { SessionExpired }),
   )
 
   use params <- result.try(get_callback_params(req))
@@ -134,7 +148,7 @@ fn do_callback(
     expected_state,
     code_verifier,
   )
-  |> result.map_error(error_response)
+  |> result.map_error(AuthFailed)
 }
 
 /// Extract callback parameters from either query string (GET) or
@@ -142,7 +156,7 @@ fn do_callback(
 /// are merged over query parameters so they take precedence.
 fn get_callback_params(
   req: Request,
-) -> Result(dict.Dict(String, String), Response) {
+) -> Result(dict.Dict(String, String), CallbackError(e)) {
   let query_params = wisp.get_query(req)
   case req.method {
     http.Post -> {
@@ -171,6 +185,21 @@ fn get_callback_params(
       }
     }
     _ -> Ok(dict.from_list(query_params))
+  }
+}
+
+fn callback_error_response(err: CallbackError(e)) -> Response {
+  case err {
+    UnknownProvider(_) -> wisp.not_found()
+    MissingSessionCookie ->
+      error_response(error.ConfigError(reason: "Missing session cookie"))
+    SessionExpired ->
+      error_response(error.ConfigError(
+        reason: "Session expired or already used",
+      ))
+    InvalidCallbackParams ->
+      error_response(error.ConfigError(reason: "Invalid callback parameters"))
+    AuthFailed(err) -> error_response(err)
   }
 }
 

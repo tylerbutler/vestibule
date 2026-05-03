@@ -14,6 +14,7 @@ gleam add vestibule_wisp
 - stores CSRF state + PKCE verifier for the callback
 - handles both `GET` and `POST` callbacks
 - returns either the default HTML error page or a `Result` via `callback_phase_result`
+- exposes structured callback failures via `callback_phase_auth_result`
 
 ## Minimal shape
 
@@ -33,3 +34,7 @@ case wisp.path_segments(req), req.method {
 Initialize the state store once per BEAM VM at application startup. For tests
 or multiple stores in one VM, use `state_store.init_named("unique_name")`;
 use `try_init`/`try_init_named` if you want to handle duplicate-table errors.
+
+Use `callback_phase_auth_result` when you need exact error handling for
+`UnknownProvider`, `MissingSessionCookie`, `SessionExpired`,
+`InvalidCallbackParams`, or `AuthFailed` instead of an HTML error response.
