@@ -112,11 +112,7 @@ pub fn scopes_supported(config: OidcConfig) -> List(String) {
 pub fn fetch_configuration(
   issuer_url: String,
 ) -> Result(OidcConfig, AuthError(e)) {
-  // Security: require HTTPS for the issuer URL
-  use _ <- result.try(provider_support.require_https(issuer_url))
-
-  let discovery_url =
-    strip_trailing_slash(issuer_url) <> "/.well-known/openid-configuration"
+  use discovery_url <- result.try(discovery_url(issuer_url))
 
   use r <- result.try(
     request.to(discovery_url)
@@ -151,6 +147,37 @@ pub fn fetch_configuration(
         reason: "Failed to fetch OIDC discovery document from " <> discovery_url,
       ))
   }
+}
+
+/// Build the OpenID Connect discovery URL for an issuer URL.
+///
+/// Per OIDC Discovery, path-based issuers insert
+/// `/.well-known/openid-configuration` between the host and issuer path.
+pub fn discovery_url(issuer_url: String) -> Result(String, AuthError(e)) {
+  // Security: preserve issuer validation before constructing the fetch URL.
+  use _ <- result.try(provider_support.require_https(issuer_url))
+
+  use issuer <- result.try(
+    uri.parse(issuer_url)
+    |> result.map_error(fn(_) {
+      error.ConfigError(reason: "Invalid issuer URL: " <> issuer_url)
+    }),
+  )
+
+  let path = strip_trailing_slash(issuer.path)
+  let issuer_path = case path {
+    "" | "/" -> ""
+    _ -> path
+  }
+
+  uri.Uri(
+    ..issuer,
+    path: "/.well-known/openid-configuration" <> issuer_path,
+    query: None,
+    fragment: None,
+  )
+  |> uri.to_string()
+  |> Ok()
 }
 
 /// Parse an OIDC discovery JSON document into an `OidcConfig`.
@@ -243,7 +270,12 @@ pub fn discover(issuer_url: String) -> Result(Strategy(e), AuthError(e)) {
 /// Exported for testing.
 pub fn filter_default_scopes(scopes_supported: List(String)) -> List(String) {
   let desired = ["openid", "profile", "email"]
-  list.filter(desired, fn(scope) { list.contains(scopes_supported, scope) })
+  case
+    list.filter(desired, fn(scope) { list.contains(scopes_supported, scope) })
+  {
+    [] -> ["openid"]
+    scopes -> scopes
+  }
 }
 
 /// Parse a standard OAuth2/OIDC token response.

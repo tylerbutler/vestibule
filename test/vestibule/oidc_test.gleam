@@ -145,6 +145,27 @@ pub fn parse_discovery_document_missing_required_field_test() {
   Nil
 }
 
+// --- discovery_url ---
+
+pub fn discovery_url_for_host_issuer_test() {
+  oidc.discovery_url("https://example.com")
+  |> expect.to_equal(Ok("https://example.com/.well-known/openid-configuration"))
+}
+
+pub fn discovery_url_for_path_issuer_test() {
+  oidc.discovery_url("https://example.com/tenant")
+  |> expect.to_equal(Ok(
+    "https://example.com/.well-known/openid-configuration/tenant",
+  ))
+}
+
+pub fn discovery_url_preserves_issuer_validation_test() {
+  let _ =
+    oidc.discovery_url("http://example.com/tenant")
+    |> expect.to_be_error()
+  Nil
+}
+
 // --- parse_token_response ---
 
 pub fn parse_token_response_success_test() {
@@ -279,12 +300,12 @@ pub fn filter_default_scopes_partial_test() {
 pub fn filter_default_scopes_none_present_test() {
   let supported = ["custom_scope", "another_scope"]
   oidc.filter_default_scopes(supported)
-  |> expect.to_equal([])
+  |> expect.to_equal(["openid"])
 }
 
 pub fn filter_default_scopes_empty_test() {
   oidc.filter_default_scopes([])
-  |> expect.to_equal([])
+  |> expect.to_equal(["openid"])
 }
 
 // --- strategy_from_config ---
@@ -316,6 +337,32 @@ pub fn strategy_from_config_filters_scopes_test() {
       token_endpoint: "https://accounts.example.com/token",
       userinfo_endpoint: "https://accounts.example.com/userinfo",
       scopes_supported: ["openid", "custom"],
+    )
+  let strat = oidc.strategy_from_config(oidc_config, "example")
+  strat.default_scopes |> expect.to_equal(["openid"])
+}
+
+pub fn strategy_from_config_defaults_to_openid_without_scope_metadata_test() {
+  let assert Ok(oidc_config) =
+    oidc.new_config(
+      issuer: "https://accounts.example.com",
+      authorization_endpoint: "https://accounts.example.com/authorize",
+      token_endpoint: "https://accounts.example.com/token",
+      userinfo_endpoint: "https://accounts.example.com/userinfo",
+      scopes_supported: [],
+    )
+  let strat = oidc.strategy_from_config(oidc_config, "example")
+  strat.default_scopes |> expect.to_equal(["openid"])
+}
+
+pub fn strategy_from_config_defaults_to_openid_when_no_desired_scopes_supported_test() {
+  let assert Ok(oidc_config) =
+    oidc.new_config(
+      issuer: "https://accounts.example.com",
+      authorization_endpoint: "https://accounts.example.com/authorize",
+      token_endpoint: "https://accounts.example.com/token",
+      userinfo_endpoint: "https://accounts.example.com/userinfo",
+      scopes_supported: ["custom_scope"],
     )
   let strat = oidc.strategy_from_config(oidc_config, "example")
   strat.default_scopes |> expect.to_equal(["openid"])
