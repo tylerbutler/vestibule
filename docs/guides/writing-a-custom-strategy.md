@@ -171,16 +171,16 @@ import vestibule/strategy.{type Strategy, Strategy}
 import vestibule/user_info.{type UserInfo}
 
 fn do_authorize_url(
-  config: Config,
+  cfg: Config,
   scopes: List(String),
   state: String,
 ) -> Result(String, AuthError(e)) {
   let assert Ok(site) = uri.parse("https://id.twitch.tv")
-  let assert Ok(redirect) = uri.parse(config.redirect_uri)
+  let assert Ok(redirect) = uri.parse(config.redirect_uri(cfg))
   let client =
     glow_auth.Client(
-      id: config.client_id,
-      secret: config.client_secret,
+      id: config.client_id(cfg),
+      secret: config.client_secret(cfg),
       site: site,
     )
   let url =
@@ -213,16 +213,16 @@ import gleam/dynamic/decode
 import gleam/json
 
 fn do_exchange_code(
-  config: Config,
+  cfg: Config,
   code: String,
   code_verifier: Option(String),
 ) -> Result(Credentials, AuthError(e)) {
   let assert Ok(site) = uri.parse("https://id.twitch.tv")
-  let assert Ok(redirect) = uri.parse(config.redirect_uri)
+  let assert Ok(redirect) = uri.parse(config.redirect_uri(cfg))
   let client =
     glow_auth.Client(
-      id: config.client_id,
-      secret: config.client_secret,
+      id: config.client_id(cfg),
+      secret: config.client_secret(cfg),
       site: site,
     )
   let req =
@@ -233,7 +233,7 @@ fn do_exchange_code(
       redirect,
     )
     |> request.set_header("accept", "application/json")
-  let req = append_code_verifier(req, code_verifier)
+  let req = strategy.append_code_verifier(req, code_verifier)
   case httpc.send(req) {
     Ok(response) -> parse_token_response(response.body)
     Error(_) ->
@@ -243,26 +243,9 @@ fn do_exchange_code(
   }
 }
 
-/// Append code_verifier to the form-encoded request body when present.
-fn append_code_verifier(
-  req: request.Request(String),
-  code_verifier: Option(String),
-) -> request.Request(String) {
-  case code_verifier {
-    Some(verifier) -> {
-      let body = case req.body {
-        "" -> "code_verifier=" <> uri.percent_encode(verifier)
-        existing ->
-          existing <> "&code_verifier=" <> uri.percent_encode(verifier)
-      }
-      request.set_body(req, body)
-    }
-    None -> req
-  }
-}
 ```
 
-The PKCE code verifier is appended to the form body. Every existing vestibule strategy uses this same `append_code_verifier` helper pattern.
+The PKCE code verifier is appended to the form body with the public `strategy.append_code_verifier` helper. Use that helper in custom strategies instead of copying a local implementation.
 
 Now the token response parser:
 
@@ -457,7 +440,7 @@ pub fn start_auth() {
       client_secret: "your_client_secret",
       redirect_uri: "http://localhost:8080/auth/twitch/callback",
     )
-  let strategy = vestibule_twitch.strategy(twitch_config.client_id)
+  let strategy = vestibule_twitch.strategy(config.client_id(twitch_config))
   let assert Ok(auth_request) = vestibule.authorize_url(strategy, twitch_config)
   // Store auth_request.state and auth_request.code_verifier in session
   // Redirect user to auth_request.url
@@ -775,7 +758,7 @@ A brief catalog of differences across providers that may inform your implementat
 
 - **Multi-tenant**: Uses the `/common` tenant path (`login.microsoftonline.com/common/oauth2/v2.0`) to accept any Microsoft account. Replace `common` with a specific tenant ID to restrict to a single organization.
 - **User info API**: Uses the Microsoft Graph API (`graph.microsoft.com/v1.0/me`) rather than a standard OIDC userinfo endpoint. Field names are camelCase (`displayName`, `userPrincipalName`).
-- **Avatar fallback**: The Microsoft strategy uses Gravatar hashes as a fallback for profile images since Graph API photo access requires additional permissions.
+- **Profile photos**: Microsoft Graph `/me` does not return profile photos without additional permissions. The built-in strategy sets `UserInfo.image` to `None`; fetch photos separately from Microsoft Graph if your app needs them.
 - **Scope format**: Space-separated, but scopes are permission-style names like `User.Read` rather than URLs.
 
 ### Apple

@@ -111,7 +111,12 @@ VM at startup. Use `state_store.try_init` if you want to handle duplicate-table
 errors explicitly.
 
 If you want to handle callback failures yourself instead of using the default
-HTML error page, use `vestibule_wisp.callback_phase_result`.
+HTML error page, use `vestibule_wisp.callback_phase_result`. Use
+`vestibule_wisp.callback_phase_auth_result` when you need structured errors such
+as `UnknownProvider`, `MissingSessionCookie`, `SessionExpired`,
+`InvalidCallbackParams`, or `AuthFailed`. Missing or invalid callback `state` and
+`code` values are provider/authentication failures and are reported through
+`AuthFailed`.
 
 ## Packages
 
@@ -152,11 +157,47 @@ let assert Ok(updated) =
   vestibule.refresh_token(strategy, cfg, refresh_token)
 ```
 
+Add provider-specific authorization parameters when a provider requires them:
+
+```gleam
+let google_cfg =
+  config.new(
+    "google-client-id",
+    "google-client-secret",
+    "http://localhost:8000/auth/google/callback",
+  )
+  |> config.with_extra_params([
+    #("access_type", "offline"),
+    #("prompt", "consent"),
+  ])
+```
+
+These parameters are appended to the authorization URL. Common examples include
+Google's `access_type=offline` and `prompt=consent` for refresh tokens, or
+Microsoft's `prompt=select_account` and `login_hint`.
+
 Discover OpenID Connect providers from their issuer URL:
 
 ```gleam
 let assert Ok(strategy) = oidc.discover("https://accounts.google.com")
 ```
+
+## Migration Notes
+
+Recent review-fix changes made a few APIs stricter:
+
+- `Credentials.expires_at` was replaced with `Credentials.expires_in`. The value
+  is the provider's relative `expires_in` duration in seconds, not an absolute
+  timestamp.
+- OIDC configuration is opaque and validated. Create it with `oidc.new_config`
+  or `oidc.discover` instead of constructing records directly.
+- Provider-support helpers are public for custom strategy authors. Prefer
+  helpers such as `provider_support.parse_redirect_uri`,
+  `provider_support.check_response_status`, and
+  `strategy.append_code_verifier` over copying built-in strategy internals.
+- Wisp exposes structured callback errors through
+  `vestibule_wisp.callback_phase_auth_result` for apps that need more control
+  than the default HTML error page.
 
 ## Writing a Custom Strategy
 
