@@ -18,8 +18,10 @@
 ///
 /// ## Setup
 ///
-/// Call `vestibule_apple.init()` once at application startup to initialize
-/// caches, then use `vestibule_apple.strategy()` to create the strategy.
+/// Call `vestibule_apple.init()` once per VM at application startup to
+/// initialize caches, then use `vestibule_apple.strategy()` to create the
+/// strategy. Use `try_init()` if startup code needs to handle duplicate cache
+/// initialization without panicking.
 ///
 /// ```gleam
 /// let apple = vestibule_apple.init()
@@ -35,6 +37,7 @@ import gleam/string
 import gleam/time/duration
 import gleam/uri
 
+import bravo/uset
 import gleam/http/request
 import gleam/httpc
 
@@ -61,10 +64,18 @@ pub type AppleCache {
   AppleCache(id_tokens: IdTokenCache, jwks: JwksCache)
 }
 
+/// Errors returned by checked Apple cache initialization.
+pub type AppleInitError {
+  IdTokenCacheInitFailed(id_token_cache.CacheError)
+  JwksCacheInitFailed(jwks.JwksCacheError)
+}
+
 /// Initialize the Apple strategy's caches.
 ///
-/// Must be called once at application startup before handling any
+/// Must be called once per VM at application startup before handling any
 /// authentication flows. Returns the cache handle needed by `strategy()`.
+/// This convenience wrapper panics if the underlying cache tables already
+/// exist; use `try_init()` when startup code needs to handle that case.
 ///
 /// ## Example
 ///
@@ -73,7 +84,31 @@ pub type AppleCache {
 /// let strategy = vestibule_apple.strategy(apple)
 /// ```
 pub fn init() -> AppleCache {
-  AppleCache(id_tokens: id_token_cache.init(), jwks: jwks.init())
+  let assert Ok(apple) = try_init()
+    as "vestibule_apple caches must be initialized once per VM"
+  apple
+}
+
+/// Try to initialize the Apple strategy's caches.
+pub fn try_init() -> Result(AppleCache, AppleInitError) {
+  try_init_named("vestibule_apple")
+}
+
+/// Try to initialize named Apple strategy caches. Useful for tests that need
+/// isolated cache tables.
+pub fn try_init_named(prefix: String) -> Result(AppleCache, AppleInitError) {
+  case jwks.try_init_named(prefix <> "_jwks") {
+    Ok(jwks) -> {
+      case id_token_cache.try_init_named(prefix <> "_id_token") {
+        Ok(id_tokens) -> Ok(AppleCache(id_tokens: id_tokens, jwks: jwks))
+        Error(err) -> {
+          let _ = uset.delete(jwks)
+          Error(IdTokenCacheInitFailed(err))
+        }
+      }
+    }
+    Error(err) -> Error(JwksCacheInitFailed(err))
+  }
 }
 
 /// Create an Apple Sign In authentication strategy.

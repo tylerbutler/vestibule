@@ -17,6 +17,15 @@ let apple = vestibule_apple.init()
 let strategy = vestibule_apple.strategy(apple)
 ```
 
+`init()` is a convenience for application startup and should be called once per
+VM. If you need to handle duplicate initialization explicitly, use the checked
+initializer:
+
+```gleam
+let assert Ok(apple) = vestibule_apple.try_init()
+let strategy = vestibule_apple.strategy(apple)
+```
+
 ## Notes
 
 - Apple requires `response_mode=form_post`, which this strategy adds for you.
