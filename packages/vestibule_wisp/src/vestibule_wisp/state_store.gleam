@@ -1,11 +1,28 @@
 import bravo
-import bravo/uset.{type USet}
+import bravo/uset
 import gleam/bit_array
 import gleam/crypto
+import gleam/order
+import gleam/time/duration
+import gleam/time/timestamp
 
-/// The type alias for the state store table.
-pub type StateStore =
-  USet(String, #(String, String))
+const default_ttl_seconds = 600
+
+/// The state store table.
+///
+/// The concrete storage implementation is intentionally opaque so the public
+/// API can evolve without exposing the underlying table representation.
+pub opaque type StateStore {
+  StateStore(table: uset.USet(String, SessionState))
+}
+
+type SessionState {
+  SessionState(
+    state: String,
+    code_verifier: String,
+    expires_at: timestamp.Timestamp,
+  )
+}
 
 /// Errors returned by checked state store operations.
 pub type StateStoreError {
@@ -37,7 +54,7 @@ pub fn try_init() -> Result(StateStore, StateStoreError) {
 /// if the table already exists or cannot be created.
 pub fn try_init_named(name: String) -> Result(StateStore, StateStoreError) {
   case uset.new(name: name, access: bravo.Protected) {
-    Ok(table) -> Ok(table)
+    Ok(table) -> Ok(StateStore(table))
     Error(_) -> Error(TableCreateFailed)
   }
 }
@@ -59,11 +76,29 @@ pub fn try_store(
   state: String,
   code_verifier: String,
 ) -> Result(String, StateStoreError) {
+  try_store_with_ttl(table, state, code_verifier, default_ttl_seconds)
+}
+
+/// Try to store a CSRF state value and PKCE verifier with a TTL, returning a
+/// session ID.
+pub fn try_store_with_ttl(
+  table: StateStore,
+  state: String,
+  code_verifier: String,
+  ttl_seconds: Int,
+) -> Result(String, StateStoreError) {
   let session_id =
     crypto.strong_random_bytes(16)
     |> bit_array.base64_url_encode(False)
+  let expires_at =
+    timestamp.system_time()
+    |> timestamp.add(duration.seconds(ttl_seconds))
   case
-    uset.insert(into: table, key: session_id, value: #(state, code_verifier))
+    uset.insert(
+      into: table.table,
+      key: session_id,
+      value: SessionState(state:, code_verifier:, expires_at:),
+    )
   {
     Ok(Nil) -> Ok(session_id)
     Error(_) -> Error(InsertFailed)
@@ -76,8 +111,37 @@ pub fn retrieve(
   table: StateStore,
   session_id: String,
 ) -> Result(#(String, String), Nil) {
-  case uset.take(from: table, at: session_id) {
-    Ok(value) -> Ok(value)
+  case uset.take(from: table.table, at: session_id) {
+    Ok(session) -> validate_session(session)
     Error(_) -> Error(Nil)
+  }
+}
+
+/// Look up a CSRF state and code verifier by session ID without consuming it.
+///
+/// Expired sessions are treated as missing and removed from the store.
+pub fn peek(
+  table: StateStore,
+  session_id: String,
+) -> Result(#(String, String), Nil) {
+  case uset.lookup(from: table.table, at: session_id) {
+    Ok(session) -> {
+      case validate_session(session) {
+        Ok(value) -> Ok(value)
+        Error(Nil) -> {
+          let _ = uset.delete_key(from: table.table, at: session_id)
+          Error(Nil)
+        }
+      }
+    }
+    Error(_) -> Error(Nil)
+  }
+}
+
+fn validate_session(session: SessionState) -> Result(#(String, String), Nil) {
+  let SessionState(state:, code_verifier:, expires_at:) = session
+  case timestamp.compare(timestamp.system_time(), expires_at) {
+    order.Lt -> Ok(#(state, code_verifier))
+    _ -> Error(Nil)
   }
 }

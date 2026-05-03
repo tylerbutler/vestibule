@@ -8,6 +8,7 @@ import vestibule/registry
 import vestibule/strategy.{type Strategy, Strategy}
 import vestibule_wisp
 import vestibule_wisp/state_store
+import wisp
 import wisp/simulate
 
 pub fn main() -> Nil {
@@ -60,6 +61,31 @@ pub fn try_store_returns_session_id_and_retrievable_value_test() {
   |> expect.to_equal(#(state, verifier))
 }
 
+pub fn try_store_with_ttl_stores_retrievable_value_test() {
+  let assert Ok(table) =
+    state_store.try_init_named("vestibule_wisp_try_store_ttl_test")
+  let state = "state"
+  let verifier = "verifier"
+  let assert Ok(session_id) =
+    state_store.try_store_with_ttl(table, state, verifier, 600)
+
+  state_store.retrieve(table, session_id)
+  |> expect.to_be_ok()
+  |> expect.to_equal(#(state, verifier))
+}
+
+pub fn retrieve_consumes_expired_session_test() {
+  let assert Ok(table) =
+    state_store.try_init_named("vestibule_wisp_expired_session_test")
+  let assert Ok(session_id) =
+    state_store.try_store_with_ttl(table, "state", "verifier", 0)
+
+  state_store.retrieve(table, session_id)
+  |> expect.to_be_error()
+  state_store.retrieve(table, session_id)
+  |> expect.to_be_error()
+}
+
 pub fn callback_phase_auth_result_unknown_provider_test() {
   let req = simulate.request(http.Get, "/auth/unknown/callback")
   let store = state_store.init_named("test_callback_unknown_provider")
@@ -85,16 +111,95 @@ pub fn callback_phase_auth_result_missing_session_cookie_test() {
   |> expect.to_equal(Error(vestibule_wisp.MissingSessionCookie))
 }
 
+pub fn default_options_use_current_cookie_contract_test() {
+  vestibule_wisp.default_options()
+  |> expect.to_equal(vestibule_wisp.Options(
+    cookie_name: "vestibule_session",
+    session_ttl_seconds: 600,
+  ))
+}
+
+pub fn callback_phase_auth_result_with_options_uses_cookie_name_test() {
+  let store = state_store.init_named("test_callback_custom_cookie_name")
+  let session_id = state_store.store(store, "state", "verifier")
+  let req =
+    simulate.request(http.Get, "/auth/test/callback?state=state&code=code")
+    |> simulate.cookie("vestibule_session", session_id, wisp.Signed)
+  let reg =
+    registry.new()
+    |> registry.register(test_strategy(), test_config())
+
+  vestibule_wisp.callback_phase_auth_result_with_options(
+    req,
+    reg,
+    "test",
+    store,
+    vestibule_wisp.Options(
+      cookie_name: "custom_vestibule_session",
+      session_ttl_seconds: 600,
+    ),
+  )
+  |> expect.to_equal(Error(vestibule_wisp.MissingSessionCookie))
+}
+
+pub fn callback_phase_auth_result_malformed_post_body_returns_invalid_params_test() {
+  let store = state_store.init_named("test_callback_malformed_post_body")
+  let session_id = state_store.store(store, "state", "verifier")
+  let req =
+    simulate.request(http.Post, "/auth/test/callback?state=state&code=code")
+    |> simulate.bit_array_body(<<255>>)
+    |> simulate.cookie("vestibule_session", session_id, wisp.Signed)
+  let reg =
+    registry.new()
+    |> registry.register(test_strategy(), test_config())
+
+  vestibule_wisp.callback_phase_auth_result(req, reg, "test", store)
+  |> expect.to_equal(Error(vestibule_wisp.InvalidCallbackParams))
+}
+
+pub fn callback_phase_auth_result_missing_state_does_not_consume_session_test() {
+  let store = state_store.init_named("test_callback_missing_state_reusable")
+  let session_id = state_store.store(store, "state", "verifier")
+  let req_missing_state =
+    simulate.request(http.Get, "/auth/test/callback?code=code")
+    |> simulate.cookie("vestibule_session", session_id, wisp.Signed)
+  let req_with_state =
+    simulate.request(http.Get, "/auth/test/callback?state=state&code=code")
+    |> simulate.cookie("vestibule_session", session_id, wisp.Signed)
+  let reg =
+    registry.new()
+    |> registry.register(test_strategy(), test_config())
+
+  vestibule_wisp.callback_phase_auth_result(
+    req_missing_state,
+    reg,
+    "test",
+    store,
+  )
+  |> expect.to_equal(
+    Error(vestibule_wisp.AuthFailed(error.MissingCallbackParam("state"))),
+  )
+
+  vestibule_wisp.callback_phase_auth_result(req_with_state, reg, "test", store)
+  |> expect.to_equal(
+    Error(vestibule_wisp.AuthFailed(error.ConfigError(reason: "test"))),
+  )
+}
+
 fn test_strategy() -> Strategy(e) {
   Strategy(
     provider: "test",
     default_scopes: [],
-    token_url: "https://example.com/oauth/token",
     authorize_url: fn(_config, _scopes, _state) { Ok("https://example.com") },
     exchange_code: fn(_config, _code, _code_verifier) {
       Error(error.ConfigError(reason: "test"))
     },
-    fetch_user: fn(_credentials) { Error(error.ConfigError(reason: "test")) },
+    refresh_token: fn(_config, _refresh_token) {
+      Error(error.ConfigError(reason: "test"))
+    },
+    fetch_user: fn(_config, _credentials) {
+      Error(error.ConfigError(reason: "test"))
+    },
   )
 }
 

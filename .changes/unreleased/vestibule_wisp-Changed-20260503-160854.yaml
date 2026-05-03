@@ -1,0 +1,3 @@
+project: vestibule_wisp
+kind: Changed
+body: Stabilized the Wisp middleware for a 1.0 release with an opaque Bravo-backed `StateStore`, server-side OAuth session TTLs, configurable cookie options, fail-closed malformed POST callback parsing, and compatibility with the current `vestibule` auth error and strategy contracts.
