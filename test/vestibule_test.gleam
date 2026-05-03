@@ -119,6 +119,15 @@ pub fn handle_callback_fails_on_state_mismatch_test() {
   Nil
 }
 
+pub fn missing_callback_state_is_structured_test() {
+  let strat = test_strategy()
+  let conf = config.new("id", "secret", "http://localhost/cb")
+  let params = dict.from_list([#("code", "valid_code")])
+
+  vestibule.handle_callback(strat, conf, params, "expected", "test_verifier")
+  |> expect.to_equal(Error(error.MissingCallbackParam("state")))
+}
+
 pub fn handle_callback_fails_on_missing_code_test() {
   let strat = test_strategy()
   let conf = config.new("id", "secret", "http://localhost/cb")
@@ -128,4 +137,14 @@ pub fn handle_callback_fails_on_missing_code_test() {
     vestibule.handle_callback(strat, conf, params, state, "test_verifier")
   let _ = result |> expect.to_be_error()
   Nil
+}
+
+pub fn missing_callback_code_is_structured_test() {
+  let strat = test_strategy()
+  let conf = config.new("id", "secret", "http://localhost/cb")
+  let state = "test_state"
+  let params = dict.from_list([#("state", state)])
+
+  vestibule.handle_callback(strat, conf, params, state, "test_verifier")
+  |> expect.to_equal(Error(error.MissingCallbackParam("code")))
 }

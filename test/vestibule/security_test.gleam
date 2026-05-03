@@ -219,20 +219,16 @@ pub fn callback_rejects_missing_state_test() {
   let strat = test_strategy()
   let conf = config.new("id", "secret", "https://localhost/cb")
   let params = dict.from_list([#("code", "valid_code")])
-  let result =
-    vestibule.handle_callback(strat, conf, params, "expected", "verifier")
-  let _ = result |> expect.to_be_error()
-  Nil
+  vestibule.handle_callback(strat, conf, params, "expected", "verifier")
+  |> expect.to_equal(Error(error.MissingCallbackParam("state")))
 }
 
 /// Security: empty callback params must be rejected.
 pub fn callback_rejects_empty_params_test() {
   let strat = test_strategy()
   let conf = config.new("id", "secret", "https://localhost/cb")
-  let result =
-    vestibule.handle_callback(strat, conf, dict.new(), "expected", "verifier")
-  let _ = result |> expect.to_be_error()
-  Nil
+  vestibule.handle_callback(strat, conf, dict.new(), "expected", "verifier")
+  |> expect.to_equal(Error(error.MissingCallbackParam("state")))
 }
 
 /// Security: provider error responses must be detected.
@@ -253,6 +249,27 @@ pub fn callback_detects_provider_error_test() {
   |> expect.to_equal(error.ProviderError(
     code: "access_denied",
     description: "User denied access",
+    uri: None,
+  ))
+}
+
+pub fn callback_preserves_provider_error_uri_test() {
+  let strat = test_strategy()
+  let conf = config.new("id", "secret", "https://localhost/cb")
+  let state_val = "matching_state"
+  let params =
+    dict.from_list([
+      #("state", state_val),
+      #("error", "access_denied"),
+      #("error_description", "User denied access"),
+      #("error_uri", "https://example.com/access-denied"),
+    ])
+  vestibule.handle_callback(strat, conf, params, state_val, "verifier")
+  |> expect.to_be_error()
+  |> expect.to_equal(error.ProviderError(
+    code: "access_denied",
+    description: "User denied access",
+    uri: Some("https://example.com/access-denied"),
   ))
 }
 
@@ -311,7 +328,11 @@ pub fn refresh_response_handles_error_without_description_test() {
   let body = "{\"error\":\"invalid_grant\"}"
   vestibule.parse_refresh_response(body)
   |> expect.to_be_error()
-  |> expect.to_equal(error.ProviderError(code: "invalid_grant", description: ""))
+  |> expect.to_equal(error.ProviderError(
+    code: "invalid_grant",
+    description: "",
+    uri: None,
+  ))
 }
 
 /// Security: refresh response with extremely long token should not crash.

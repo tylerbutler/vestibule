@@ -82,9 +82,7 @@ pub fn handle_callback(
   // Extract state (needed for CSRF validation)
   use received_state <- result.try(
     dict.get(callback_params, "state")
-    |> result.replace_error(error.ConfigError(
-      reason: "Missing state parameter in callback",
-    )),
+    |> result.replace_error(error.MissingCallbackParam("state")),
   )
 
   // Validate state before surfacing any provider response details.
@@ -96,9 +94,7 @@ pub fn handle_callback(
   // Extract authorization code
   use code <- result.try(
     dict.get(callback_params, "code")
-    |> result.replace_error(error.ConfigError(
-      reason: "Missing code parameter in callback",
-    )),
+    |> result.replace_error(error.MissingCallbackParam("code")),
   )
 
   // Exchange code for credentials, passing the PKCE verifier
@@ -209,9 +205,9 @@ fn parse_refresh_success(body: String) -> Result(Credentials, AuthError(e)) {
   case json.parse(body, decoder) {
     Ok(creds) -> Ok(creds)
     Error(err) ->
-      Error(error.CodeExchangeFailed(
-        reason: "Failed to parse token refresh response: "
-        <> string.inspect(err),
+      Error(error.DecodeError(
+        context: "token refresh response",
+        reason: string.inspect(err),
       ))
   }
 }
@@ -225,7 +221,12 @@ fn check_provider_error(
       let description =
         dict.get(params, "error_description")
         |> result.unwrap("")
-      Error(error.ProviderError(code: error_code, description: description))
+      let uri = dict.get(params, "error_uri") |> option.from_result()
+      Error(error.ProviderError(
+        code: error_code,
+        description: description,
+        uri: uri,
+      ))
     }
     Error(Nil) -> Ok(Nil)
   }

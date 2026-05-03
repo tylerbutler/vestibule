@@ -18,9 +18,26 @@ pub fn check_response_status_rejects_non_2xx_test() {
     |> provider_support.check_response_status()
 
   case result {
-    Error(error.NetworkError(reason:)) ->
-      reason |> expect.to_equal("HTTP 500: boom")
-    _ -> panic as "expected NetworkError"
+    Error(error.HttpError(status:, body:)) -> {
+      status |> expect.to_equal(500)
+      body |> expect.to_equal("boom")
+    }
+    _ -> panic as "expected HttpError"
+  }
+}
+
+pub fn http_error_truncates_long_body_test() {
+  let long_body = string.repeat("x", 200)
+  let result =
+    response.Response(status: 400, headers: [], body: long_body)
+    |> provider_support.check_response_status()
+
+  case result {
+    Error(error.HttpError(status:, body:)) -> {
+      status |> expect.to_equal(400)
+      { string.length(body) <= 120 } |> expect.to_be_true()
+    }
+    _ -> panic as "expected HttpError"
   }
 }
 
@@ -81,7 +98,27 @@ pub fn check_token_error_returns_provider_error_test() {
 
   result
   |> expect.to_equal(
-    Error(error.ProviderError(code: "invalid_grant", description: "expired")),
+    Error(error.ProviderError(
+      code: "invalid_grant",
+      description: "expired",
+      uri: None,
+    )),
+  )
+}
+
+pub fn check_token_error_preserves_error_uri_test() {
+  let result =
+    provider_support.check_token_error(
+      "{\"error\":\"invalid_grant\",\"error_description\":\"expired\",\"error_uri\":\"https://example.com/error\"}",
+    )
+
+  result
+  |> expect.to_equal(
+    Error(error.ProviderError(
+      code: "invalid_grant",
+      description: "expired",
+      uri: Some("https://example.com/error"),
+    )),
   )
 }
 
@@ -168,8 +205,28 @@ pub fn parse_oauth_token_response_calls_check_token_error_first_test() {
     provider_support.RequiredScope(" "),
   )
   |> expect.to_equal(
-    Error(error.ProviderError(code: "invalid_client", description: "bad secret")),
+    Error(error.ProviderError(
+      code: "invalid_client",
+      description: "bad secret",
+      uri: None,
+    )),
   )
+}
+
+pub fn parse_oauth_token_response_malformed_json_is_decode_error_test() {
+  let result =
+    provider_support.parse_oauth_token_response(
+      "not valid json",
+      provider_support.RequiredScope(" "),
+    )
+
+  case result {
+    Error(error.DecodeError(context:, reason:)) -> {
+      context |> expect.to_equal("token response")
+      reason |> expect.to_equal("UnexpectedByte(\"0x6F\")")
+    }
+    _ -> panic as "expected DecodeError"
+  }
 }
 
 pub fn parse_oauth_token_response_requires_access_token_test() {
@@ -181,9 +238,11 @@ pub fn parse_oauth_token_response_requires_access_token_test() {
     )
 
   case result {
-    Error(error.CodeExchangeFailed(reason:)) ->
+    Error(error.DecodeError(context:, reason:)) -> {
+      context |> expect.to_equal("token response")
       string.contains(reason, "access_token") |> expect.to_be_true()
-    _ -> panic as "expected CodeExchangeFailed"
+    }
+    _ -> panic as "expected DecodeError"
   }
 }
 
@@ -196,9 +255,11 @@ pub fn parse_oauth_token_response_requires_token_type_test() {
     )
 
   case result {
-    Error(error.CodeExchangeFailed(reason:)) ->
+    Error(error.DecodeError(context:, reason:)) -> {
+      context |> expect.to_equal("token response")
       string.contains(reason, "token_type") |> expect.to_be_true()
-    _ -> panic as "expected CodeExchangeFailed"
+    }
+    _ -> panic as "expected DecodeError"
   }
 }
 
@@ -211,8 +272,10 @@ pub fn parse_oauth_token_response_required_scope_rejects_missing_scope_test() {
     )
 
   case result {
-    Error(error.CodeExchangeFailed(reason:)) ->
+    Error(error.DecodeError(context:, reason:)) -> {
+      context |> expect.to_equal("token response")
       string.contains(reason, "scope") |> expect.to_be_true()
-    _ -> panic as "expected CodeExchangeFailed"
+    }
+    _ -> panic as "expected DecodeError"
   }
 }

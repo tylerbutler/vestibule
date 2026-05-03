@@ -3,7 +3,6 @@ import gleam/dynamic/decode
 import gleam/http/request
 import gleam/http/response.{type Response}
 import gleam/httpc
-import gleam/int
 import gleam/json
 import gleam/option
 import gleam/result
@@ -14,19 +13,24 @@ import vestibule/error.{type AuthError}
 import vestibule/credentials.{type Credentials, Credentials}
 
 /// Check that an HTTP response has a 2xx status code.
-/// Returns the response body on success, or a NetworkError on failure.
+/// Returns the response body on success, or an HttpError on failure.
 pub fn check_response_status(
   response: Response(String),
 ) -> Result(String, AuthError(e)) {
   case response.status >= 200 && response.status < 300 {
     True -> Ok(response.body)
     False ->
-      Error(error.NetworkError(
-        reason: "HTTP "
-        <> int.to_string(response.status)
-        <> ": "
-        <> response.body,
+      Error(error.HttpError(
+        status: response.status,
+        body: safe_error_body(response.body),
       ))
+  }
+}
+
+fn safe_error_body(body: String) -> String {
+  case string.length(body) > 120 {
+    True -> string.slice(body, 0, 120)
+    False -> body
   }
 }
 
@@ -107,11 +111,16 @@ pub fn check_token_error(body: String) -> Result(String, AuthError(e)) {
       "",
       decode.string,
     )
-    decode.success(#(error_code, description))
+    use error_uri <- decode.optional_field(
+      "error_uri",
+      option.None,
+      decode.optional(decode.string),
+    )
+    decode.success(#(error_code, description, error_uri))
   }
   case json.parse(body, error_decoder) {
-    Ok(#(code, description)) ->
-      Error(error.ProviderError(code: code, description: description))
+    Ok(#(code, description, uri)) ->
+      Error(error.ProviderError(code: code, description: description, uri: uri))
     _ -> Ok(body)
   }
 }
@@ -208,8 +217,9 @@ fn parse_oauth_token_success(
   case json.parse(body, decoder) {
     Ok(credentials) -> Ok(credentials)
     Error(err) ->
-      Error(error.CodeExchangeFailed(
-        reason: "Failed to parse token response: " <> string.inspect(err),
+      Error(error.DecodeError(
+        context: "token response",
+        reason: string.inspect(err),
       ))
   }
 }

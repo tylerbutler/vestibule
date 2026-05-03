@@ -198,7 +198,11 @@ pub fn parse_token_response_error_without_description_test() {
   let json = "{\"error\":\"invalid_grant\"}"
   oidc.parse_token_response(json)
   |> expect.to_be_error()
-  |> expect.to_equal(error.ProviderError(code: "invalid_grant", description: ""))
+  |> expect.to_equal(error.ProviderError(
+    code: "invalid_grant",
+    description: "",
+    uri: None,
+  ))
 }
 
 pub fn parse_token_response_invalid_json_test() {

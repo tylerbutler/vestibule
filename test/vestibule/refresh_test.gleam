@@ -75,6 +75,7 @@ pub fn parse_refresh_response_error_invalid_grant_test() {
   |> expect.to_equal(error.ProviderError(
     code: "invalid_grant",
     description: "The refresh token has expired.",
+    uri: None,
   ))
 }
 
@@ -86,6 +87,7 @@ pub fn parse_refresh_response_error_invalid_client_test() {
   |> expect.to_equal(error.ProviderError(
     code: "invalid_client",
     description: "Client authentication failed.",
+    uri: None,
   ))
 }
 
@@ -93,8 +95,9 @@ pub fn parse_refresh_response_malformed_json_test() {
   let body = "not valid json at all"
   vestibule.parse_refresh_response(body)
   |> expect.to_be_error()
-  |> expect.to_equal(error.CodeExchangeFailed(
-    reason: "Failed to parse token refresh response: UnexpectedByte(\"0x6F\")",
+  |> expect.to_equal(error.DecodeError(
+    context: "token refresh response",
+    reason: "UnexpectedByte(\"0x6F\")",
   ))
 }
 
