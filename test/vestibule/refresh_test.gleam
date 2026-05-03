@@ -51,6 +51,22 @@ pub fn parse_refresh_response_with_refresh_token_rotation_test() {
   )
 }
 
+pub fn parse_refresh_response_rotation_without_refresh_token_test() {
+  let body =
+    "{\"access_token\":\"rotated_access\",\"token_type\":\"Bearer\",\"expires_in\":7200,\"scope\":\"user:email\"}"
+  vestibule.parse_refresh_response(body)
+  |> expect.to_be_ok()
+  |> expect.to_equal(
+    Credentials(
+      token: "rotated_access",
+      refresh_token: None,
+      token_type: "Bearer",
+      expires_in: Some(7200),
+      scopes: ["user:email"],
+    ),
+  )
+}
+
 pub fn parse_refresh_response_error_invalid_grant_test() {
   let body =
     "{\"error\":\"invalid_grant\",\"error_description\":\"The refresh token has expired.\"}"

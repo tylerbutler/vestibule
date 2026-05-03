@@ -66,10 +66,10 @@ pub fn append_code_verifier(
 ) -> request.Request(String) {
   case code_verifier {
     option.Some(verifier) -> {
+      let verifier_param = uri.query_to_string([#("code_verifier", verifier)])
       let body = case req.body {
-        "" -> "code_verifier=" <> uri.percent_encode(verifier)
-        existing ->
-          existing <> "&code_verifier=" <> uri.percent_encode(verifier)
+        "" -> verifier_param
+        existing -> existing <> "&" <> verifier_param
       }
       request.set_body(req, body)
     }
