@@ -35,7 +35,7 @@ import vestibule/user_info
 
 /// Configuration discovered from an OpenID Connect provider's
 /// `/.well-known/openid-configuration` endpoint.
-pub type OidcConfig {
+pub opaque type OidcConfig {
   OidcConfig(
     /// The issuer identifier (must match the URL used for discovery).
     issuer: String,
@@ -48,6 +48,56 @@ pub type OidcConfig {
     /// Scopes supported by this provider.
     scopes_supported: List(String),
   )
+}
+
+/// Construct a validated OIDC configuration.
+///
+/// The issuer and endpoint URLs must use HTTPS, except for localhost URLs
+/// which are allowed for local development.
+pub fn new_config(
+  issuer issuer: String,
+  authorization_endpoint authorization_endpoint: String,
+  token_endpoint token_endpoint: String,
+  userinfo_endpoint userinfo_endpoint: String,
+  scopes_supported scopes_supported: List(String),
+) -> Result(OidcConfig, AuthError(e)) {
+  use _ <- result.try(provider_support.require_https(issuer))
+  use _ <- result.try(provider_support.require_https(authorization_endpoint))
+  use _ <- result.try(provider_support.require_https(token_endpoint))
+  use _ <- result.try(provider_support.require_https(userinfo_endpoint))
+
+  Ok(OidcConfig(
+    issuer: issuer,
+    authorization_endpoint: authorization_endpoint,
+    token_endpoint: token_endpoint,
+    userinfo_endpoint: userinfo_endpoint,
+    scopes_supported: scopes_supported,
+  ))
+}
+
+/// Get the issuer identifier for an OIDC configuration.
+pub fn issuer(config: OidcConfig) -> String {
+  config.issuer
+}
+
+/// Get the authorization endpoint URL for an OIDC configuration.
+pub fn authorization_endpoint(config: OidcConfig) -> String {
+  config.authorization_endpoint
+}
+
+/// Get the token endpoint URL for an OIDC configuration.
+pub fn token_endpoint(config: OidcConfig) -> String {
+  config.token_endpoint
+}
+
+/// Get the userinfo endpoint URL for an OIDC configuration.
+pub fn userinfo_endpoint(config: OidcConfig) -> String {
+  config.userinfo_endpoint
+}
+
+/// Get the scopes supported by an OIDC configuration.
+pub fn scopes_supported(config: OidcConfig) -> List(String) {
+  config.scopes_supported
 }
 
 /// Fetch the OpenID Connect configuration from a provider's discovery endpoint.
@@ -86,19 +136,7 @@ pub fn fetch_configuration(
       let normalized_issuer = strip_trailing_slash(issuer_url)
       let response_issuer = strip_trailing_slash(config.issuer)
       case normalized_issuer == response_issuer {
-        True -> {
-          // Security: validate discovered endpoints use HTTPS
-          use _ <- result.try(provider_support.require_https(
-            config.authorization_endpoint,
-          ))
-          use _ <- result.try(provider_support.require_https(
-            config.token_endpoint,
-          ))
-          use _ <- result.try(provider_support.require_https(
-            config.userinfo_endpoint,
-          ))
-          Ok(config)
-        }
+        True -> Ok(config)
         False ->
           Error(error.ConfigError(
             reason: "Issuer mismatch: expected "
@@ -135,16 +173,29 @@ pub fn parse_discovery_document(
       [],
       decode.list(decode.string),
     )
-    decode.success(OidcConfig(
-      issuer: issuer,
-      authorization_endpoint: authorization_endpoint,
-      token_endpoint: token_endpoint,
-      userinfo_endpoint: userinfo_endpoint,
-      scopes_supported: scopes_supported,
+    decode.success(#(
+      issuer,
+      authorization_endpoint,
+      token_endpoint,
+      userinfo_endpoint,
+      scopes_supported,
     ))
   }
   case json.parse(body, decoder) {
-    Ok(config) -> Ok(config)
+    Ok(#(
+      issuer,
+      authorization_endpoint,
+      token_endpoint,
+      userinfo_endpoint,
+      scopes_supported,
+    )) ->
+      new_config(
+        issuer: issuer,
+        authorization_endpoint: authorization_endpoint,
+        token_endpoint: token_endpoint,
+        userinfo_endpoint: userinfo_endpoint,
+        scopes_supported: scopes_supported,
+      )
     Error(err) ->
       Error(error.ConfigError(
         reason: "Failed to parse OIDC discovery document: "

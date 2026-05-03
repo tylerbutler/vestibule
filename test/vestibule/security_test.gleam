@@ -338,7 +338,7 @@ pub fn oidc_issuer_mismatch_is_detected_test() {
   // Parser itself accepts it (validation happens at fetch_configuration level)
   let result = oidc.parse_discovery_document(json)
   let assert Ok(parsed) = result
-  parsed.issuer |> expect.to_equal("https://evil.example.com")
+  oidc.issuer(parsed) |> expect.to_equal("https://evil.example.com")
 }
 
 /// Security: OIDC discovery parser must handle missing required fields.
