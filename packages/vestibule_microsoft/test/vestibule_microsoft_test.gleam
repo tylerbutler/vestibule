@@ -102,7 +102,7 @@ pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
 
 pub fn authorize_url_includes_extra_params_test() {
   let strat = vestibule_microsoft.strategy()
-  let conf =
+  let assert Ok(conf) =
     config.new("client-id", "secret", "http://localhost/callback")
     |> config.with_extra_params([#("prompt", "select_account")])
   let assert Ok(url) = strat.authorize_url(conf, ["User.Read"], "state")

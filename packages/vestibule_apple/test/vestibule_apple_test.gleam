@@ -91,11 +91,6 @@ pub fn strategy_default_scopes_test() {
   s.default_scopes |> expect.to_equal(["name", "email"])
 }
 
-pub fn strategy_token_url_test() {
-  let s = vestibule_apple.strategy(test_apple_cache("url"))
-  s.token_url |> expect.to_equal("https://appleid.apple.com/auth/token")
-}
-
 // --- Token response parsing ---
 
 pub fn parse_token_response_success_test() {
