@@ -14,6 +14,7 @@ import vestibule/credentials.{Credentials}
 import vestibule/error
 import vestibule/oidc
 import vestibule/pkce
+import vestibule/provider_support
 import vestibule/state
 import vestibule/strategy.{type Strategy, Strategy, UserResult}
 import vestibule/user_info.{UserInfo}
@@ -315,13 +316,23 @@ pub fn callback_ignores_extra_params_test() {
 /// Security: refresh response parser must handle malformed JSON gracefully.
 pub fn refresh_response_handles_html_error_page_test() {
   let body = "<html><body><h1>500 Internal Server Error</h1></body></html>"
-  let _ = vestibule.parse_refresh_response(body) |> expect.to_be_error()
+  let _ =
+    provider_support.parse_oauth_token_response(
+      body,
+      provider_support.OptionalScope(" "),
+    )
+    |> expect.to_be_error()
   Nil
 }
 
 /// Security: refresh response parser must handle empty body.
 pub fn refresh_response_handles_empty_body_test() {
-  let _ = vestibule.parse_refresh_response("") |> expect.to_be_error()
+  let _ =
+    provider_support.parse_oauth_token_response(
+      "",
+      provider_support.OptionalScope(" "),
+    )
+    |> expect.to_be_error()
   Nil
 }
 
@@ -329,7 +340,10 @@ pub fn refresh_response_handles_empty_body_test() {
 /// Finding L5 -- some providers omit error_description.
 pub fn refresh_response_handles_error_without_description_test() {
   let body = "{\"error\":\"invalid_grant\"}"
-  vestibule.parse_refresh_response(body)
+  provider_support.parse_oauth_token_response(
+    body,
+    provider_support.OptionalScope(" "),
+  )
   |> expect.to_be_error()
   |> expect.to_equal(error.ProviderError(
     code: "invalid_grant",
@@ -343,7 +357,11 @@ pub fn refresh_response_handles_long_token_test() {
   let long_token = string.repeat("a", 10_000)
   let body =
     "{\"access_token\":\"" <> long_token <> "\",\"token_type\":\"bearer\"}"
-  let result = vestibule.parse_refresh_response(body)
+  let result =
+    provider_support.parse_oauth_token_response(
+      body,
+      provider_support.OptionalScope(" "),
+    )
   let assert Ok(creds) = result
   { string.length(creds.token) == 10_000 } |> expect.to_be_true()
 }

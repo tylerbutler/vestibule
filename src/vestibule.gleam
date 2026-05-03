@@ -4,9 +4,7 @@
 /// using a two-phase flow: redirect to provider, then handle callback.
 /// All flows use PKCE (Proof Key for Code Exchange) for enhanced security.
 import gleam/dict.{type Dict}
-import gleam/dynamic/decode
-import gleam/json
-import gleam/option.{None}
+import gleam/option
 import gleam/result
 import gleam/string
 import gleam/uri
@@ -16,9 +14,8 @@ import vestibule/authorization_request.{
   type AuthorizationRequest, AuthorizationRequest,
 }
 import vestibule/config.{type Config}
-import vestibule/credentials.{type Credentials, Credentials}
+import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
-import vestibule/internal/http as internal_http
 import vestibule/pkce
 import vestibule/state
 import vestibule/strategy.{type Strategy}
@@ -123,58 +120,6 @@ pub fn refresh_token(
   refresh_tok: String,
 ) -> Result(Credentials, AuthError(e)) {
   strategy.refresh_token(cfg, refresh_tok)
-}
-
-/// Parse a token refresh response JSON into Credentials.
-///
-/// Handles both success responses and error responses from the provider.
-/// Exported for testing.
-pub fn parse_refresh_response(
-  body: String,
-) -> Result(Credentials, AuthError(e)) {
-  use body <- result.try(internal_http.check_token_error(body))
-  parse_refresh_success(body)
-}
-
-fn parse_refresh_success(body: String) -> Result(Credentials, AuthError(e)) {
-  let decoder = {
-    use access_token <- decode.field("access_token", decode.string)
-    use token_type <- decode.field("token_type", decode.string)
-    use refresh_token_val <- decode.optional_field(
-      "refresh_token",
-      None,
-      decode.optional(decode.string),
-    )
-    use expires_in <- decode.optional_field(
-      "expires_in",
-      None,
-      decode.optional(decode.int),
-    )
-    use scope <- decode.optional_field(
-      "scope",
-      None,
-      decode.optional(decode.string),
-    )
-    let scopes = case scope {
-      option.Some("") | None -> []
-      option.Some(s) -> string.split(s, " ")
-    }
-    decode.success(Credentials(
-      token: access_token,
-      refresh_token: refresh_token_val,
-      token_type: token_type,
-      expires_in: expires_in,
-      scopes: scopes,
-    ))
-  }
-  case json.parse(body, decoder) {
-    Ok(creds) -> Ok(creds)
-    Error(err) ->
-      Error(error.DecodeError(
-        context: "token refresh response",
-        reason: string.inspect(err),
-      ))
-  }
 }
 
 /// Check callback params for a provider error response.

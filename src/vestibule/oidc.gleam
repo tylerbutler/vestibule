@@ -182,8 +182,8 @@ pub fn discovery_url(issuer_url: String) -> Result(String, AuthError(e)) {
 
 /// Parse an OIDC discovery JSON document into an `OidcConfig`.
 ///
-/// Exported for testing. Extracts the required fields from the standard
-/// OpenID Connect discovery response.
+/// Supported parsing helper for custom OIDC strategy authors. Extracts the
+/// required fields from the standard OpenID Connect discovery response.
 pub fn parse_discovery_document(
   body: String,
 ) -> Result(OidcConfig, AuthError(e)) {
@@ -267,7 +267,7 @@ pub fn discover(issuer_url: String) -> Result(Strategy(e), AuthError(e)) {
 
 /// Filter scopes to only include the standard OIDC scopes that the provider supports.
 ///
-/// Exported for testing.
+/// Supported helper for custom OIDC strategy authors.
 pub fn filter_default_scopes(scopes_supported: List(String)) -> List(String) {
   let desired = ["openid", "profile", "email"]
   case
@@ -280,7 +280,8 @@ pub fn filter_default_scopes(scopes_supported: List(String)) -> List(String) {
 
 /// Parse a standard OAuth2/OIDC token response.
 ///
-/// Exported for testing. Handles both success and error responses.
+/// Supported parsing helper for custom OIDC strategy authors. Handles both
+/// success and error responses.
 pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
   provider_support.parse_oauth_token_response(
     body,
@@ -290,7 +291,8 @@ pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
 
 /// Parse a standard OIDC userinfo response into a uid and UserInfo.
 ///
-/// Exported for testing. Maps standard OIDC claims to UserInfo fields:
+/// Supported parsing helper for custom OIDC strategy authors. Maps standard
+/// OIDC claims to UserInfo fields:
 /// - `sub` -> uid
 /// - `name` -> name
 /// - `email` -> email

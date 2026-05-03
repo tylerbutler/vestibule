@@ -36,7 +36,7 @@ pub fn strategy() -> Strategy(e) {
 }
 
 /// Parse a GitHub token exchange response into Credentials.
-/// Exported for testing.
+/// Supported parsing helper for GitHub strategy integrations.
 pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
   provider_support.parse_oauth_token_response(
     body,
@@ -45,7 +45,7 @@ pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
 }
 
 /// Parse a GitHub /user API response into a uid and UserInfo.
-/// Exported for testing.
+/// Supported parsing helper for GitHub strategy integrations.
 pub fn parse_user_response(
   body: String,
 ) -> Result(#(String, UserInfo), AuthError(e)) {
@@ -98,7 +98,7 @@ pub fn parse_user_response(
 }
 
 /// Parse the primary verified email from GitHub /user/emails response.
-/// Exported for testing.
+/// Supported parsing helper for GitHub strategy integrations.
 pub fn parse_primary_email(body: String) -> Option(String) {
   let email_decoder = {
     use email <- decode.field("email", decode.string)
