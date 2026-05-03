@@ -501,9 +501,9 @@ import vestibule_twitch
 pub fn start_auth() {
   let twitch_config =
     config.new(
-      client_id: "your_client_id",
-      client_secret: "your_client_secret",
-      redirect_uri: "http://localhost:8080/auth/twitch/callback",
+      "your_client_id",
+      "your_client_secret",
+      "http://localhost:8080/auth/twitch/callback",
     )
   let strategy = vestibule_twitch.strategy()
   let assert Ok(auth_request) = vestibule.authorize_url(strategy, twitch_config)
