@@ -118,7 +118,9 @@ pub fn check_token_error(body: String) -> Result(String, AuthError(e)) {
 ///
 /// Redirect URIs must be valid URLs and use HTTPS, except localhost/127.0.0.1
 /// which are allowed for local development.
-pub fn parse_redirect_uri(redirect_uri: String) -> Result(uri.Uri, AuthError(e)) {
+pub fn parse_redirect_uri(
+  redirect_uri: String,
+) -> Result(uri.Uri, AuthError(e)) {
   use parsed <- result.try(
     uri.parse(redirect_uri)
     |> result.map_error(fn(_) {

@@ -168,7 +168,9 @@ pub fn refresh_token(
 ///
 /// Handles both success responses and error responses from the provider.
 /// Exported for testing.
-pub fn parse_refresh_response(body: String) -> Result(Credentials, AuthError(e)) {
+pub fn parse_refresh_response(
+  body: String,
+) -> Result(Credentials, AuthError(e)) {
   use body <- result.try(internal_http.check_token_error(body))
   parse_refresh_success(body)
 }
