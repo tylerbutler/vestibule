@@ -20,7 +20,7 @@ pub fn parse_token_response_success_test() {
       token: "eyJ0eXAi_test_token",
       refresh_token: Some("AwABAAAA_test_refresh"),
       token_type: "Bearer",
-      expires_at: Some(3736),
+      expires_in: Some(3736),
       scopes: ["User.Read", "profile", "openid", "email"],
     ),
   )
@@ -36,7 +36,7 @@ pub fn parse_token_response_without_refresh_token_test() {
       token: "test_token",
       refresh_token: None,
       token_type: "Bearer",
-      expires_at: Some(3600),
+      expires_in: Some(3600),
       scopes: ["User.Read"],
     ),
   )

@@ -14,7 +14,7 @@ pub fn parse_refresh_response_success_with_all_fields_test() {
       token: "new_access_token",
       refresh_token: Some("new_refresh_token"),
       token_type: "Bearer",
-      expires_at: Some(3600),
+      expires_in: Some(3600),
       scopes: ["openid", "profile", "email"],
     ),
   )
@@ -29,7 +29,7 @@ pub fn parse_refresh_response_success_minimal_test() {
       token: "token_abc",
       refresh_token: None,
       token_type: "bearer",
-      expires_at: None,
+      expires_in: None,
       scopes: [],
     ),
   )
@@ -45,7 +45,7 @@ pub fn parse_refresh_response_with_refresh_token_rotation_test() {
       token: "rotated_access",
       refresh_token: Some("rotated_refresh"),
       token_type: "Bearer",
-      expires_at: Some(7200),
+      expires_in: Some(7200),
       scopes: ["user:email"],
     ),
   )

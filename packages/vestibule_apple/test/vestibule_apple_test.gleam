@@ -47,7 +47,7 @@ pub fn parse_token_response_success_test() {
       token: "a1b2c3.test_access_token",
       refresh_token: Some("r4e5f6.test_refresh"),
       token_type: "Bearer",
-      expires_at: Some(3600),
+      expires_in: Some(3600),
       scopes: [],
     ),
   )

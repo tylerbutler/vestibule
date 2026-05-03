@@ -84,7 +84,7 @@ pub fn parse_token_response_success_test() {
       token: "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9",
       refresh_token: Some("dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4"),
       token_type: "Bearer",
-      expires_at: Some(3600),
+      expires_in: Some(3600),
       scopes: ["openid", "profile", "email"],
     ),
   )
@@ -99,7 +99,7 @@ pub fn parse_token_response_minimal_test() {
       token: "abc123",
       refresh_token: None,
       token_type: "bearer",
-      expires_at: None,
+      expires_in: None,
       scopes: [],
     ),
   )

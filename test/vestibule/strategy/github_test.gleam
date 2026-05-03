@@ -16,7 +16,7 @@ pub fn parse_token_response_success_test() {
       token: "gho_abc123",
       refresh_token: None,
       token_type: "bearer",
-      expires_at: None,
+      expires_in: None,
       scopes: ["user:email"],
     ),
   )

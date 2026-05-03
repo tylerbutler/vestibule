@@ -11,7 +11,9 @@ pub type Credentials {
     token: String,
     refresh_token: Option(String),
     token_type: String,
-    expires_at: Option(Int),
+    /// Seconds until the access token expires, as returned by the provider's
+    /// `expires_in` field. This is not an absolute timestamp.
+    expires_in: Option(Int),
     scopes: List(String),
   )
 }

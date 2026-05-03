@@ -21,7 +21,7 @@ pub fn parse_token_response_success_test() {
       token: "ya29.test_token",
       refresh_token: None,
       token_type: "Bearer",
-      expires_at: Some(3599),
+      expires_in: Some(3599),
       scopes: [
         "openid",
         "https://www.googleapis.com/auth/userinfo.email",
@@ -41,7 +41,7 @@ pub fn parse_token_response_with_refresh_token_test() {
       token: "ya29.test",
       refresh_token: Some("1//test_refresh"),
       token_type: "Bearer",
-      expires_at: Some(3600),
+      expires_in: Some(3600),
       scopes: ["openid"],
     ),
   )

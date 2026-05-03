@@ -302,7 +302,7 @@ fn parse_success_token(body: String) -> Result(Credentials, AuthError(e)) {
       token: access_token,
       refresh_token: refresh_token,
       token_type: token_type,
-      expires_at: expires_in,
+      expires_in: expires_in,
       scopes: scope,
     ))
   }
@@ -573,10 +573,10 @@ The `Credentials` type has five fields. Map your provider's token response to th
 | `token` | `access_token` | Always present |
 | `refresh_token` | `refresh_token` | Optional -- some providers never return one |
 | `token_type` | `token_type` | Usually `"bearer"` or `"Bearer"` |
-| `expires_at` | `expires_in` | Seconds until expiry, or `None` |
+| `expires_in` | `expires_in` | Seconds until expiry, or `None` |
 | `scopes` | `scope` | Parse according to the provider's format |
 
-Note that `expires_at` in the `Credentials` type actually stores the `expires_in` value (seconds from now), not an absolute timestamp. This matches what providers return.
+`Credentials.expires_in` stores the provider `expires_in` value (seconds from now), not an absolute timestamp.
 
 ## Publishing as a Hex Package
 
@@ -691,7 +691,7 @@ pub fn parse_token_response_success_test() {
       token: "cfabdegwdoklmawdzdo98xt2fo512y",
       refresh_token: Some("eyJfMzUtNDU0OC04MWYwLTQ5MDY5ODY4NGNlMSJ9"),
       token_type: "bearer",
-      expires_at: Some(14346),
+      expires_in: Some(14346),
       scopes: ["user:read:email"],
     ),
   )

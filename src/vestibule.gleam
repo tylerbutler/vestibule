@@ -202,7 +202,7 @@ fn parse_refresh_success(body: String) -> Result(Credentials, AuthError(e)) {
       token: access_token,
       refresh_token: refresh_token_val,
       token_type: token_type,
-      expires_at: expires_in,
+      expires_in: expires_in,
       scopes: scopes,
     ))
   }

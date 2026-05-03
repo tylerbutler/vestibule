@@ -43,7 +43,7 @@ fn test_strategy() -> Strategy(e) {
               token: "tok",
               refresh_token: None,
               token_type: "bearer",
-              expires_at: None,
+              expires_in: None,
               scopes: [],
             ),
           )

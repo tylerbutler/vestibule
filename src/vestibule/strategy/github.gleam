@@ -51,7 +51,7 @@ fn parse_success_token(body: String) -> Result(Credentials, AuthError(e)) {
       token: access_token,
       refresh_token: None,
       token_type: token_type,
-      expires_at: None,
+      expires_in: None,
       scopes: string.split(scope, ","),
     ))
   }
