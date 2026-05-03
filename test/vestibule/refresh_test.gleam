@@ -88,3 +88,10 @@ pub fn parse_refresh_response_without_scope_has_empty_scopes_test() {
   let assert Ok(creds) = vestibule.parse_refresh_response(body)
   creds.scopes |> expect.to_equal([])
 }
+
+pub fn parse_refresh_response_empty_scope_has_empty_scopes_test() {
+  let body =
+    "{\"access_token\":\"tok\",\"token_type\":\"Bearer\",\"expires_in\":3600,\"scope\":\"\"}"
+  let assert Ok(creds) = vestibule.parse_refresh_response(body)
+  creds.scopes |> expect.to_equal([])
+}

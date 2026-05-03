@@ -71,6 +71,14 @@ pub fn parse_token_response_without_id_token_test() {
   id_token |> expect.to_equal(None)
 }
 
+pub fn parse_token_response_empty_scope_test() {
+  let body =
+    "{\"access_token\":\"test_token\",\"token_type\":\"Bearer\",\"expires_in\":3600,\"scope\":\"\"}"
+  let assert Ok(#(credentials, _id_token)) =
+    vestibule_apple.parse_token_response(body)
+  credentials.scopes |> expect.to_equal([])
+}
+
 pub fn parse_token_response_error_test() {
   let body =
     "{\"error\":\"invalid_grant\",\"error_description\":\"The code has expired.\"}"

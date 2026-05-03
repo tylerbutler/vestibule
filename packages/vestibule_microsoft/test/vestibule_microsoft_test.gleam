@@ -42,6 +42,13 @@ pub fn parse_token_response_without_refresh_token_test() {
   )
 }
 
+pub fn parse_token_response_empty_scope_test() {
+  let body =
+    "{\"token_type\":\"Bearer\",\"scope\":\"\",\"expires_in\":3600,\"access_token\":\"test_token\"}"
+  let assert Ok(credentials) = vestibule_microsoft.parse_token_response(body)
+  credentials.scopes |> expect.to_equal([])
+}
+
 pub fn parse_token_response_error_test() {
   let body =
     "{\"error\":\"invalid_grant\",\"error_description\":\"AADSTS70000: The provided value for the input parameter 'code' is not valid.\"}"

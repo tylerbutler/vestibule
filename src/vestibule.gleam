@@ -195,8 +195,8 @@ fn parse_refresh_success(body: String) -> Result(Credentials, AuthError(e)) {
       decode.optional(decode.string),
     )
     let scopes = case scope {
+      option.Some("") | None -> []
       option.Some(s) -> string.split(s, " ")
-      None -> []
     }
     decode.success(Credentials(
       token: access_token,

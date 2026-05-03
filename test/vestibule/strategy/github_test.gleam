@@ -30,6 +30,13 @@ pub fn parse_token_response_with_multiple_scopes_test() {
   creds.scopes |> expect.to_equal(["user:email", "read:org"])
 }
 
+pub fn parse_token_response_empty_scope_test() {
+  let json =
+    "{\"access_token\":\"gho_abc123\",\"token_type\":\"bearer\",\"scope\":\"\"}"
+  let assert Ok(creds) = github.parse_token_response(json)
+  creds.scopes |> expect.to_equal([])
+}
+
 pub fn parse_token_response_error_test() {
   let json =
     "{\"error\":\"bad_verification_code\",\"error_description\":\"The code has expired\"}"

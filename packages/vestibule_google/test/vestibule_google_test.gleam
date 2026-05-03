@@ -47,6 +47,13 @@ pub fn parse_token_response_with_refresh_token_test() {
   )
 }
 
+pub fn parse_token_response_empty_scope_test() {
+  let body =
+    "{\"access_token\":\"ya29.test\",\"expires_in\":3600,\"scope\":\"\",\"token_type\":\"Bearer\"}"
+  let assert Ok(credentials) = vestibule_google.parse_token_response(body)
+  credentials.scopes |> expect.to_equal([])
+}
+
 pub fn parse_token_response_error_test() {
   let body =
     "{\"error\":\"invalid_grant\",\"error_description\":\"Token has been expired or revoked.\"}"

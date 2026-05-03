@@ -27,9 +27,9 @@ import gleam/string
 import gleam/uri
 
 import vestibule/config
-import vestibule/credentials.{type Credentials, Credentials}
+import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
-import vestibule/internal/http as internal_http
+import vestibule/provider_support
 import vestibule/strategy.{type Strategy, Strategy}
 import vestibule/user_info
 
@@ -63,7 +63,7 @@ pub fn fetch_configuration(
   issuer_url: String,
 ) -> Result(OidcConfig, AuthError(e)) {
   // Security: require HTTPS for the issuer URL
-  use _ <- result.try(internal_http.require_https(issuer_url))
+  use _ <- result.try(provider_support.require_https(issuer_url))
 
   let discovery_url =
     strip_trailing_slash(issuer_url) <> "/.well-known/openid-configuration"
@@ -80,7 +80,7 @@ pub fn fetch_configuration(
 
   case httpc.send(r) {
     Ok(response) -> {
-      use body <- result.try(internal_http.check_response_status(response))
+      use body <- result.try(provider_support.check_response_status(response))
       use config <- result.try(parse_discovery_document(body))
       // Security: validate issuer matches per OIDC Discovery spec
       let normalized_issuer = strip_trailing_slash(issuer_url)
@@ -88,11 +88,13 @@ pub fn fetch_configuration(
       case normalized_issuer == response_issuer {
         True -> {
           // Security: validate discovered endpoints use HTTPS
-          use _ <- result.try(internal_http.require_https(
+          use _ <- result.try(provider_support.require_https(
             config.authorization_endpoint,
           ))
-          use _ <- result.try(internal_http.require_https(config.token_endpoint))
-          use _ <- result.try(internal_http.require_https(
+          use _ <- result.try(provider_support.require_https(
+            config.token_endpoint,
+          ))
+          use _ <- result.try(provider_support.require_https(
             config.userinfo_endpoint,
           ))
           Ok(config)
@@ -197,8 +199,10 @@ pub fn filter_default_scopes(scopes_supported: List(String)) -> List(String) {
 ///
 /// Exported for testing. Handles both success and error responses.
 pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
-  use body <- result.try(internal_http.check_token_error(body))
-  parse_success_token(body)
+  provider_support.parse_oauth_token_response(
+    body,
+    provider_support.OptionalScope(separator: " "),
+  )
 }
 
 /// Parse a standard OIDC userinfo response into a uid and UserInfo.
@@ -267,42 +271,6 @@ pub fn parse_userinfo_response(
 
 // --- Internal helpers ---
 
-fn parse_success_token(body: String) -> Result(Credentials, AuthError(e)) {
-  let decoder = {
-    use access_token <- decode.field("access_token", decode.string)
-    use token_type <- decode.field("token_type", decode.string)
-    use scope <- decode.optional_field("scope", "", decode.string)
-    use expires_in <- decode.optional_field(
-      "expires_in",
-      None,
-      decode.optional(decode.int),
-    )
-    use refresh_token <- decode.optional_field(
-      "refresh_token",
-      None,
-      decode.optional(decode.string),
-    )
-    let scopes = case scope {
-      "" -> []
-      s -> string.split(s, " ")
-    }
-    decode.success(Credentials(
-      token: access_token,
-      refresh_token: refresh_token,
-      token_type: token_type,
-      expires_in: expires_in,
-      scopes: scopes,
-    ))
-  }
-  case json.parse(body, decoder) {
-    Ok(creds) -> Ok(creds)
-    Error(err) ->
-      Error(error.CodeExchangeFailed(
-        reason: "Failed to parse OIDC token response: " <> string.inspect(err),
-      ))
-  }
-}
-
 fn strip_trailing_slash(url: String) -> String {
   case string.ends_with(url, "/") {
     True -> string.drop_end(url, 1)
@@ -329,7 +297,7 @@ fn build_authorize_url_fn(
     AuthError(e),
   ) {
     use redirect <- result.try(
-      internal_http.parse_redirect_uri(config.redirect_uri(cfg)),
+      provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
     )
     case uri.parse(authorization_endpoint) {
       Ok(base_uri) -> {
@@ -365,7 +333,7 @@ fn build_exchange_code_fn(
     AuthError(e),
   ) {
     use redirect <- result.try(
-      internal_http.parse_redirect_uri(config.redirect_uri(cfg)),
+      provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
     )
     let base_params = [
       #("grant_type", "authorization_code"),
@@ -398,7 +366,7 @@ fn build_exchange_code_fn(
 
     case httpc.send(r) {
       Ok(response) -> {
-        use body <- result.try(internal_http.check_response_status(response))
+        use body <- result.try(provider_support.check_response_status(response))
         parse_token_response(body)
       }
       Error(_) ->
@@ -414,7 +382,7 @@ fn build_fetch_user_fn(
 ) -> fn(Credentials) -> Result(#(String, user_info.UserInfo), AuthError(e)) {
   fn(creds: Credentials) -> Result(#(String, user_info.UserInfo), AuthError(e)) {
     use auth_header <- result.try(strategy.authorization_header(creds))
-    internal_http.fetch_json_with_auth(
+    provider_support.fetch_json_with_auth(
       userinfo_endpoint,
       auth_header,
       parse_userinfo_response,

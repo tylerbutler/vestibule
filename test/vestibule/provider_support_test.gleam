@@ -106,6 +106,18 @@ pub fn parse_oauth_token_response_required_scope_success_test() {
   )
 }
 
+pub fn parse_oauth_token_response_required_scope_empty_test() {
+  let body =
+    "{\"access_token\":\"tok\",\"token_type\":\"Bearer\",\"scope\":\"\"}"
+
+  let assert Ok(credentials) =
+    provider_support.parse_oauth_token_response(
+      body,
+      provider_support.RequiredScope(","),
+    )
+  credentials.scopes |> expect.to_equal([])
+}
+
 pub fn parse_oauth_token_response_optional_scope_missing_test() {
   let body = "{\"access_token\":\"tok\",\"token_type\":\"Bearer\"}"
 

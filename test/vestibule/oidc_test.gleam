@@ -105,6 +105,13 @@ pub fn parse_token_response_minimal_test() {
   )
 }
 
+pub fn parse_token_response_empty_scope_test() {
+  let json =
+    "{\"access_token\":\"abc123\",\"token_type\":\"Bearer\",\"scope\":\"\"}"
+  let assert Ok(credentials) = oidc.parse_token_response(json)
+  credentials.scopes |> expect.to_equal([])
+}
+
 pub fn parse_token_response_error_test() {
   let json =
     "{\"error\":\"invalid_grant\",\"error_description\":\"The authorization code has expired\"}"

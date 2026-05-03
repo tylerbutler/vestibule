@@ -17,9 +17,9 @@ import glow_auth/token_request
 import glow_auth/uri/uri_builder
 
 import vestibule/config.{type Config}
-import vestibule/credentials.{type Credentials, Credentials}
+import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
-import vestibule/internal/http as internal_http
+import vestibule/provider_support
 import vestibule/strategy.{type Strategy, Strategy}
 import vestibule/user_info.{type UserInfo}
 
@@ -38,30 +38,10 @@ pub fn strategy() -> Strategy(e) {
 /// Parse a GitHub token exchange response into Credentials.
 /// Exported for testing.
 pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
-  use body <- result.try(internal_http.check_token_error(body))
-  parse_success_token(body)
-}
-
-fn parse_success_token(body: String) -> Result(Credentials, AuthError(e)) {
-  let decoder = {
-    use access_token <- decode.field("access_token", decode.string)
-    use token_type <- decode.field("token_type", decode.string)
-    use scope <- decode.field("scope", decode.string)
-    decode.success(Credentials(
-      token: access_token,
-      refresh_token: None,
-      token_type: token_type,
-      expires_in: None,
-      scopes: string.split(scope, ","),
-    ))
-  }
-  case json.parse(body, decoder) {
-    Ok(creds) -> Ok(creds)
-    Error(err) ->
-      Error(error.CodeExchangeFailed(
-        reason: "Failed to parse token response: " <> string.inspect(err),
-      ))
-  }
+  provider_support.parse_oauth_token_response(
+    body,
+    provider_support.RequiredScope(separator: ","),
+  )
 }
 
 /// Parse a GitHub /user API response into a uid and UserInfo.
@@ -155,7 +135,7 @@ fn do_authorize_url(
     }),
   )
   use redirect <- result.try(
-    internal_http.parse_redirect_uri(config.redirect_uri(cfg)),
+    provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
   )
   let client =
     glow_auth.Client(
@@ -173,7 +153,9 @@ fn do_authorize_url(
     |> authorize_uri.set_state(state)
     |> authorize_uri.to_code_authorization_uri()
     |> uri.to_string()
-    |> internal_http.append_query_params(dict.to_list(config.extra_params(cfg)))
+    |> provider_support.append_query_params(
+      dict.to_list(config.extra_params(cfg)),
+    )
   Ok(url)
 }
 
@@ -189,7 +171,7 @@ fn do_exchange_code(
     }),
   )
   use redirect <- result.try(
-    internal_http.parse_redirect_uri(config.redirect_uri(cfg)),
+    provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
   )
   let client =
     glow_auth.Client(
@@ -209,7 +191,7 @@ fn do_exchange_code(
 
   case httpc.send(req) {
     Ok(response) -> {
-      use body <- result.try(internal_http.check_response_status(response))
+      use body <- result.try(provider_support.check_response_status(response))
       parse_token_response(body)
     }
     Error(_) ->
@@ -244,7 +226,7 @@ fn do_fetch_user(
       error.NetworkError(reason: "Failed to fetch GitHub user info")
     }),
   )
-  use user_body <- result.try(internal_http.check_response_status(resp))
+  use user_body <- result.try(provider_support.check_response_status(resp))
   use #(uid, info) <- result.try(parse_user_response(user_body))
 
   // Fetch verified primary email (best-effort — don't fail if this errors)
