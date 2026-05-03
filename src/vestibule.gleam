@@ -199,13 +199,28 @@ fn check_provider_error(
 
 /// Append PKCE code_challenge and code_challenge_method to an authorization URL.
 fn append_pkce_params(url: String, code_challenge: String) -> String {
+  let pkce_query =
+    uri.query_to_string([
+      #("code_challenge", code_challenge),
+      #("code_challenge_method", "S256"),
+    ])
+
+  case uri.parse(url) {
+    Ok(parsed) -> {
+      let query = case parsed.query {
+        option.Some(existing) -> existing <> "&" <> pkce_query
+        option.None -> pkce_query
+      }
+      uri.to_string(uri.Uri(..parsed, query: option.Some(query)))
+    }
+    Error(_) -> append_pkce_params_raw(url, pkce_query)
+  }
+}
+
+fn append_pkce_params_raw(url: String, pkce_query: String) -> String {
   let separator = case string.contains(url, "?") {
     True -> "&"
     False -> "?"
   }
-  url
-  <> separator
-  <> "code_challenge="
-  <> uri.percent_encode(code_challenge)
-  <> "&code_challenge_method=S256"
+  url <> separator <> pkce_query
 }

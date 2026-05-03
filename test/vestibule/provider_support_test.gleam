@@ -62,6 +62,16 @@ pub fn require_https_rejects_remote_http_test() {
   }
 }
 
+pub fn require_https_rejects_https_without_host_test() {
+  let result = provider_support.require_https("https:///callback")
+
+  case result {
+    Error(error.ConfigError(reason:)) ->
+      reason |> expect.to_equal("URL must include a host: https:///callback")
+    _ -> panic as "expected ConfigError"
+  }
+}
+
 pub fn parse_redirect_uri_rejects_remote_http_test() {
   let result =
     provider_support.parse_redirect_uri("http://example.com/callback")
@@ -72,6 +82,17 @@ pub fn parse_redirect_uri_rejects_remote_http_test() {
       |> expect.to_equal(
         "Redirect URI must use HTTPS (except localhost): http://example.com/callback",
       )
+    _ -> panic as "expected ConfigError"
+  }
+}
+
+pub fn parse_redirect_uri_rejects_https_without_host_test() {
+  let result = provider_support.parse_redirect_uri("https:///callback")
+
+  case result {
+    Error(error.ConfigError(reason:)) ->
+      reason
+      |> expect.to_equal("Redirect URI must include a host: https:///callback")
     _ -> panic as "expected ConfigError"
   }
 }

@@ -348,7 +348,7 @@ pub fn strategy_from_config_authorize_url_with_extra_params_test() {
       scopes_supported: ["openid"],
     )
   let strat = oidc.strategy_from_config(oidc_config, "example")
-  let conf =
+  let assert Ok(conf) =
     config.new("client-id", "secret", "http://localhost/cb")
     |> config.with_extra_params([#("prompt", "consent")])
   let assert Ok(url) = strat.authorize_url(conf, ["openid"], "state-123")

@@ -75,6 +75,14 @@ fn test_strategy() -> Strategy(e) {
   )
 }
 
+fn fragment_strategy() -> Strategy(e) {
+  Strategy(..test_strategy(), authorize_url: fn(_config, _scopes, state) {
+    Ok(
+      "https://test.com/auth?state=" <> state <> "&existing=1#provider-fragment",
+    )
+  })
+}
+
 pub fn authorize_url_returns_authorization_request_test() {
   let strat = test_strategy()
   let conf = config.new("id", "secret", "http://localhost/cb")
@@ -89,6 +97,17 @@ pub fn authorize_url_returns_authorization_request_test() {
   // URL should contain PKCE params
   { string.contains(url, "code_challenge=") } |> expect.to_be_true()
   { string.contains(url, "code_challenge_method=S256") } |> expect.to_be_true()
+}
+
+pub fn authorize_url_appends_pkce_before_url_fragment_test() {
+  let conf = config.new("id", "secret", "http://localhost/cb")
+  let assert Ok(AuthorizationRequest(url:, ..)) =
+    vestibule.authorize_url(fragment_strategy(), conf)
+
+  { string.contains(url, "&existing=1&code_challenge=") }
+  |> expect.to_be_true()
+  { string.contains(url, "code_challenge_method=S256#provider-fragment") }
+  |> expect.to_be_true()
 }
 
 pub fn authorize_url_uses_config_scopes_when_present_test() {

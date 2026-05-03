@@ -41,7 +41,14 @@ pub fn require_https(url: String) -> Result(Nil, AuthError(e)) {
   case uri.parse(url) {
     Ok(parsed) ->
       case parsed.scheme {
-        option.Some("https") -> Ok(Nil)
+        option.Some("https") ->
+          case parsed.host {
+            option.Some("") | option.None ->
+              Error(error.ConfigError(
+                reason: "URL must include a host: " <> url,
+              ))
+            option.Some(_) -> Ok(Nil)
+          }
         option.Some("http") ->
           case parsed.host {
             option.Some("localhost") | option.Some("127.0.0.1") -> Ok(Nil)
@@ -143,7 +150,14 @@ pub fn parse_redirect_uri(
       reason: "Redirect URI must use HTTPS (except localhost): " <> redirect_uri,
     ))
   case parsed.scheme {
-    option.Some("https") -> Ok(parsed)
+    option.Some("https") ->
+      case parsed.host {
+        option.Some("") | option.None ->
+          Error(error.ConfigError(
+            reason: "Redirect URI must include a host: " <> redirect_uri,
+          ))
+        option.Some(_) -> Ok(parsed)
+      }
     option.Some("http") ->
       case parsed.host {
         option.Some("localhost") | option.Some("127.0.0.1") -> Ok(parsed)
