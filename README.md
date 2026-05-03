@@ -7,15 +7,14 @@ The name "vestibule" refers to an entrance hall — the transitional space betwe
 [![Package Version](https://img.shields.io/hexpm/v/vestibule)](https://hex.pm/packages/vestibule)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/vestibule/)
 
-> [!IMPORTANT]
-> vestibule is not yet 1.0. This means:
+> [!NOTE]
+> vestibule follows [Semantic Versioning](https://semver.org/) for 1.0 and
+> later releases. Public APIs are intended to be stable across patch and minor
+> releases; breaking changes are reserved for major versions.
 >
-> - the API is unstable
-> - features and APIs may be removed in minor releases
-> - quality should not be considered production-ready
->
-> We welcome usage and feedback in
-> the meantime! We will do our best to minimize breaking changes regardless.
+> OAuth security depends on application configuration too: production redirect
+> URIs must use HTTPS. `http://localhost` and `http://127.0.0.1` redirect URIs
+> are allowed for local development only.
 
 ## Quick Start
 
@@ -46,7 +45,8 @@ let cfg =
 
 // Phase 1: Generate authorization URL and redirect user
 let assert Ok(auth_request) = vestibule.authorize_url(strategy, cfg)
-// Store auth_request.state and auth_request.code_verifier in session
+// Store auth_request.state and auth_request.code_verifier server-side,
+// bound to this user's session, with an expiration time.
 // Redirect user to auth_request.url
 
 // Phase 2: Handle the callback
@@ -64,8 +64,14 @@ let assert Ok(auth) =
     "expected state from session",
     "code verifier from session",
   )
+// Delete the stored state and code verifier after a successful callback.
 // auth.uid, auth.info.email, auth.credentials.token
 ```
+
+Store `state` and the PKCE `code_verifier` on the server, bound to the user's
+session. Expire them quickly, reject callbacks with missing or mismatched
+values, and delete both values after a successful callback so they cannot be
+replayed.
 
 Or use the `vestibule_wisp` middleware for a higher-level API:
 
@@ -160,7 +166,7 @@ let assert Ok(updated) =
 Add provider-specific authorization parameters when a provider requires them:
 
 ```gleam
-let google_cfg =
+let assert Ok(google_cfg) =
   config.new(
     "google-client-id",
     "google-client-secret",
@@ -172,9 +178,11 @@ let google_cfg =
   ])
 ```
 
-These parameters are appended to the authorization URL. Common examples include
-Google's `access_type=offline` and `prompt=consent` for refresh tokens, or
-Microsoft's `prompt=select_account` and `login_hint`.
+`config.with_extra_params` returns a `Result` because reserved OAuth
+authorization parameters such as `state`, `client_id`, and `code_challenge`
+cannot be overridden. Valid parameters are appended to the authorization URL.
+Common examples include Google's `access_type=offline` and `prompt=consent` for
+refresh tokens, or Microsoft's `prompt=select_account` and `login_hint`.
 
 Discover OpenID Connect providers from their issuer URL:
 
@@ -182,19 +190,27 @@ Discover OpenID Connect providers from their issuer URL:
 let assert Ok(strategy) = oidc.discover("https://accounts.google.com")
 ```
 
-## Migration Notes
+## API Notes
 
-Recent review-fix changes made a few APIs stricter:
+The 1.0 API intentionally keeps provider behavior explicit:
 
 - `Credentials.expires_at` was replaced with `Credentials.expires_in`. The value
   is the provider's relative `expires_in` duration in seconds, not an absolute
   timestamp.
 - OIDC configuration is opaque and validated. Create it with `oidc.new_config`
   or `oidc.discover` instead of constructing records directly.
+- `config.with_extra_params` returns `Result(Config, AuthError(e))` and rejects
+  reserved authorization parameters.
+- `Strategy` records include provider-owned `refresh_token` and
+  `fetch_user(Config, Credentials)` functions.
 - Provider-support helpers are public for custom strategy authors. Prefer
   helpers such as `provider_support.parse_redirect_uri`,
   `provider_support.check_response_status`, and
-  `strategy.append_code_verifier` over copying built-in strategy internals.
+  `strategy.authorization_header`, and `strategy.append_code_verifier` over
+  copying built-in strategy internals.
+- Supported parsers such as `provider_support.parse_oauth_token_response`,
+  `oidc.parse_token_response`, and `github.parse_token_response` are public API
+  for strategy authors.
 - Wisp exposes structured callback errors through
   `vestibule_wisp.callback_phase_auth_result` for apps that need more control
   than the default HTML error page.

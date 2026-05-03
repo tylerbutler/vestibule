@@ -1,19 +1,20 @@
-/// OpenID Connect Discovery support for auto-configuring strategies.
-///
-/// This module implements [OIDC Discovery 1.0](https://openid.net/specs/openid-connect-discovery-1_0.html)
-/// to automatically fetch provider configuration from a well-known endpoint
-/// and build a `Strategy` from the discovered endpoints.
-///
-/// ## Usage
-///
-/// ```gleam
-/// // Auto-discover and create a strategy in one step:
-/// let assert Ok(strategy) = oidc.discover("https://accounts.google.com")
-///
-/// // Or fetch configuration separately for inspection:
-/// let assert Ok(config) = oidc.fetch_configuration("https://accounts.google.com")
-/// let strategy = oidc.strategy_from_config(config, "my-provider")
-/// ```
+//// OpenID Connect Discovery support for auto-configuring strategies.
+////
+//// This module implements [OIDC Discovery 1.0](https://openid.net/specs/openid-connect-discovery-1_0.html)
+//// to automatically fetch provider configuration from a well-known endpoint
+//// and build a `Strategy` from the discovered endpoints.
+////
+//// ## Usage
+////
+//// ```gleam
+//// // Auto-discover and create a strategy in one step:
+//// let assert Ok(strategy) = oidc.discover("https://accounts.google.com")
+////
+//// // Or fetch configuration separately for inspection:
+//// let assert Ok(config) = oidc.fetch_configuration("https://accounts.google.com")
+//// let strategy = oidc.strategy_from_config(config, "my-provider")
+//// ```
+
 import gleam/dict
 import gleam/dynamic/decode
 import gleam/http

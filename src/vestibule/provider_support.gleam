@@ -1,4 +1,5 @@
-/// Stable helpers for OAuth provider implementations.
+//// Stable helpers for OAuth provider implementations.
+
 import gleam/dynamic/decode
 import gleam/http/request
 import gleam/http/response.{type Response}

@@ -1,8 +1,9 @@
-/// Vestibule — a strategy-based authentication library for Gleam.
-///
-/// Provides a consistent interface across OAuth2 identity providers
-/// using a two-phase flow: redirect to provider, then handle callback.
-/// All flows use PKCE (Proof Key for Code Exchange) for enhanced security.
+//// Vestibule — a strategy-based authentication library for Gleam.
+////
+//// Provides a consistent interface across OAuth2 identity providers
+//// using a two-phase flow: redirect to provider, then handle callback.
+//// All flows use PKCE (Proof Key for Code Exchange) for enhanced security.
+
 import gleam/dict.{type Dict}
 import gleam/option
 import gleam/result

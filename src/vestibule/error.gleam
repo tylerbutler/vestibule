@@ -1,8 +1,9 @@
-/// Authentication error types.
-///
-/// The type parameter `e` allows third-party providers to define custom
-/// error variants via the `Custom(e)` constructor. Built-in strategies
-/// that only use standard variants are polymorphic in `e`.
+//// Authentication error types.
+////
+//// The type parameter `e` allows third-party providers to define custom
+//// error variants via the `Custom(e)` constructor. Built-in strategies
+//// that only use standard variants are polymorphic in `e`.
+
 import gleam/option
 
 pub type AuthError(e) {
