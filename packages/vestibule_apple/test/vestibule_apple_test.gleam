@@ -44,10 +44,13 @@ pub fn id_token_cache_try_store_cleans_up_token_when_key_store_fails_test() {
     uset.new(name: "apple_test_store_partial_tokens", access: bravo.Protected)
   let assert Ok(keys) =
     uset.new(name: "apple_test_store_partial_keys", access: bravo.Private)
+  // Simulate the second insert failing after the token insert succeeds.
   let _ = uset.delete(keys)
   let cache = id_token_cache.IdTokenCache(tokens: tokens, keys: keys)
 
-  let _ = id_token_cache.try_store(cache, "access-token", "id-token")
+  id_token_cache.try_store(cache, "access-token", "id-token")
+  |> expect.to_equal(Error(id_token_cache.KeyStoreFailed))
+
   let assert Ok(token_entries) = uset.tab2list(tokens)
   token_entries |> expect.to_equal([])
 }
