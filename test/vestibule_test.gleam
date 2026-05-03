@@ -1,4 +1,6 @@
 import gleam/dict
+import gleam/dynamic
+import gleam/dynamic/decode
 import gleam/option.{None, Some}
 import gleam/string
 import startest
@@ -8,7 +10,7 @@ import vestibule/authorization_request.{AuthorizationRequest}
 import vestibule/config
 import vestibule/credentials.{Credentials}
 import vestibule/error
-import vestibule/strategy.{type Strategy, Strategy}
+import vestibule/strategy.{type Strategy, Strategy, UserResult}
 import vestibule/user_info.{UserInfo}
 
 pub fn main() -> Nil {
@@ -20,7 +22,6 @@ fn test_strategy() -> Strategy(e) {
   Strategy(
     provider: "test",
     default_scopes: ["default_scope"],
-    token_url: "https://test.com/oauth/token",
     authorize_url: fn(_config, scopes, state) {
       Ok(
         "https://test.com/auth?scope="
@@ -44,10 +45,21 @@ fn test_strategy() -> Strategy(e) {
         _ -> Error(error.CodeExchangeFailed(reason: "bad code"))
       }
     },
-    fetch_user: fn(_creds) {
-      Ok(#(
-        "user123",
-        UserInfo(
+    refresh_token: fn(cfg, refresh_tok) {
+      Ok(
+        Credentials(
+          token: "delegated:" <> refresh_tok <> ":" <> config.client_id(cfg),
+          refresh_token: Some("rotated_by_strategy"),
+          token_type: "bearer",
+          expires_in: Some(3600),
+          scopes: ["delegated_scope"],
+        ),
+      )
+    },
+    fetch_user: fn(_cfg, _creds) {
+      Ok(UserResult(
+        uid: "user123",
+        info: UserInfo(
           name: Some("Test User"),
           email: Some("test@example.com"),
           nickname: None,
@@ -55,6 +67,9 @@ fn test_strategy() -> Strategy(e) {
           description: None,
           urls: dict.new(),
         ),
+        extra: dict.from_list([
+          #("raw_provider", dynamic.string("from-provider")),
+        ]),
       ))
     },
   )
@@ -107,6 +122,37 @@ pub fn handle_callback_succeeds_with_valid_params_test() {
   auth.provider |> expect.to_equal("test")
   auth.info.name |> expect.to_equal(Some("Test User"))
   auth.credentials.token |> expect.to_equal("test_token")
+}
+
+pub fn handle_callback_populates_auth_extra_from_strategy_user_result_test() {
+  let strat = test_strategy()
+  let conf = config.new("id", "secret", "http://localhost/cb")
+  let state = "test_state_value"
+  let params = dict.from_list([#("code", "valid_code"), #("state", state)])
+
+  let assert Ok(auth) =
+    vestibule.handle_callback(strat, conf, params, state, "test_verifier")
+  let assert Ok(raw_provider) = dict.get(auth.extra, "raw_provider")
+  decode.run(raw_provider, decode.string)
+  |> expect.to_equal(Ok("from-provider"))
+}
+
+pub fn refresh_token_delegates_to_strategy_refresh_token_test() {
+  let strat = test_strategy()
+  let conf = config.new("client-id", "secret", "http://localhost/cb")
+
+  vestibule.refresh_token(strat, conf, "refresh-123")
+  |> expect.to_equal(
+    Ok(
+      Credentials(
+        token: "delegated:refresh-123:client-id",
+        refresh_token: Some("rotated_by_strategy"),
+        token_type: "bearer",
+        expires_in: Some(3600),
+        scopes: ["delegated_scope"],
+      ),
+    ),
+  )
 }
 
 pub fn handle_callback_fails_on_state_mismatch_test() {

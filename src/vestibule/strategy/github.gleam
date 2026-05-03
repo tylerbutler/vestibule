@@ -20,7 +20,7 @@ import vestibule/config.{type Config}
 import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/provider_support
-import vestibule/strategy.{type Strategy, Strategy}
+import vestibule/strategy.{type Strategy, type UserResult, Strategy, UserResult}
 import vestibule/user_info.{type UserInfo}
 
 /// Create a GitHub authentication strategy.
@@ -28,9 +28,9 @@ pub fn strategy() -> Strategy(e) {
   Strategy(
     provider: "github",
     default_scopes: ["user:email"],
-    token_url: "https://github.com/login/oauth/access_token",
     authorize_url: do_authorize_url,
     exchange_code: do_exchange_code,
+    refresh_token: do_refresh_token,
     fetch_user: do_fetch_user,
   )
 }
@@ -201,9 +201,46 @@ fn do_exchange_code(
   }
 }
 
+fn do_refresh_token(
+  cfg: Config,
+  refresh_tok: String,
+) -> Result(Credentials, AuthError(e)) {
+  use site <- result.try(
+    uri.parse("https://github.com")
+    |> result.map_error(fn(_) {
+      error.ConfigError(reason: "Failed to parse GitHub OAuth base URL")
+    }),
+  )
+  let client =
+    glow_auth.Client(
+      id: config.client_id(cfg),
+      secret: config.client_secret(cfg),
+      site: site,
+    )
+  let req =
+    token_request.refresh(
+      client,
+      uri_builder.RelativePath("/login/oauth/access_token"),
+      refresh_tok,
+    )
+    |> request.set_header("accept", "application/json")
+
+  case httpc.send(req) {
+    Ok(response) -> {
+      use body <- result.try(provider_support.check_response_status(response))
+      parse_token_response(body)
+    }
+    Error(_) ->
+      Error(error.NetworkError(
+        reason: "Failed to connect to GitHub token endpoint",
+      ))
+  }
+}
+
 fn do_fetch_user(
+  _cfg: Config,
   creds: Credentials,
-) -> Result(#(String, UserInfo), AuthError(e)) {
+) -> Result(UserResult, AuthError(e)) {
   // Validate token type
   use auth_header <- result.try(strategy.authorization_header(creds))
 
@@ -252,5 +289,5 @@ fn do_fetch_user(
     None -> info
   }
 
-  Ok(#(uid, final_info))
+  Ok(UserResult(uid: uid, info: final_info, extra: dict.new()))
 }

@@ -9,12 +9,14 @@ fn test_strategy(name: String) -> Strategy(e) {
   Strategy(
     provider: name,
     default_scopes: [],
-    token_url: "https://example.com/oauth/token",
     authorize_url: fn(_config, _scopes, _state) { Ok("https://example.com") },
     exchange_code: fn(_config, _code, _code_verifier) {
       Error(error.ConfigError(reason: "test"))
     },
-    fetch_user: fn(_creds) { Error(error.ConfigError(reason: "test")) },
+    refresh_token: fn(_config, _refresh_token) {
+      Error(error.ConfigError(reason: "test"))
+    },
+    fetch_user: fn(_config, _creds) { Error(error.ConfigError(reason: "test")) },
   )
 }
 

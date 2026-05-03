@@ -30,7 +30,7 @@ import vestibule/config
 import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/provider_support
-import vestibule/strategy.{type Strategy, Strategy}
+import vestibule/strategy.{type Strategy, type UserResult, Strategy, UserResult}
 import vestibule/user_info
 
 /// Configuration discovered from an OpenID Connect provider's
@@ -220,9 +220,9 @@ pub fn strategy_from_config(
   Strategy(
     provider: provider_name,
     default_scopes: scopes,
-    token_url: oidc_config.token_endpoint,
     authorize_url: build_authorize_url_fn(oidc_config.authorization_endpoint),
     exchange_code: build_exchange_code_fn(oidc_config.token_endpoint),
+    refresh_token: build_refresh_token_fn(oidc_config.token_endpoint),
     fetch_user: build_fetch_user_fn(oidc_config.userinfo_endpoint),
   )
 }
@@ -430,14 +430,61 @@ fn build_exchange_code_fn(
 
 fn build_fetch_user_fn(
   userinfo_endpoint: String,
-) -> fn(Credentials) -> Result(#(String, user_info.UserInfo), AuthError(e)) {
-  fn(creds: Credentials) -> Result(#(String, user_info.UserInfo), AuthError(e)) {
+) -> fn(config.Config, Credentials) -> Result(UserResult, AuthError(e)) {
+  fn(_cfg: config.Config, creds: Credentials) -> Result(
+    UserResult,
+    AuthError(e),
+  ) {
     use auth_header <- result.try(strategy.authorization_header(creds))
-    provider_support.fetch_json_with_auth(
+    use #(uid, info) <- result.try(provider_support.fetch_json_with_auth(
       userinfo_endpoint,
       auth_header,
       parse_userinfo_response,
       "OIDC userinfo",
+    ))
+    Ok(UserResult(uid: uid, info: info, extra: dict.new()))
+  }
+}
+
+fn build_refresh_token_fn(
+  token_endpoint: String,
+) -> fn(config.Config, String) -> Result(Credentials, AuthError(e)) {
+  fn(cfg: config.Config, refresh_tok: String) -> Result(
+    Credentials,
+    AuthError(e),
+  ) {
+    let body =
+      uri.query_to_string([
+        #("grant_type", "refresh_token"),
+        #("refresh_token", refresh_tok),
+        #("client_id", config.client_id(cfg)),
+        #("client_secret", config.client_secret(cfg)),
+      ])
+
+    use r <- result.try(
+      request.to(token_endpoint)
+      |> result.map_error(fn(_) {
+        error.ConfigError(
+          reason: "Invalid token endpoint URL: " <> token_endpoint,
+        )
+      }),
     )
+    let r =
+      r
+      |> request.set_method(http.Post)
+      |> request.set_header("content-type", "application/x-www-form-urlencoded")
+      |> request.set_header("accept", "application/json")
+      |> request.set_body(body)
+
+    case httpc.send(r) {
+      Ok(response) -> {
+        use body <- result.try(provider_support.check_response_status(response))
+        parse_token_response(body)
+      }
+      Error(_) ->
+        Error(error.NetworkError(
+          reason: "Failed to connect to OIDC token endpoint: " <> token_endpoint,
+        ))
+    }
   }
 }

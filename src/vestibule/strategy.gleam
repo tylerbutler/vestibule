@@ -1,3 +1,5 @@
+import gleam/dict.{type Dict}
+import gleam/dynamic.{type Dynamic}
 import gleam/http/request
 import gleam/option.{type Option}
 import gleam/string
@@ -7,6 +9,11 @@ import vestibule/config.{type Config}
 import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/user_info.{type UserInfo}
+
+/// Normalized user details returned by a strategy.
+pub type UserResult {
+  UserResult(uid: String, info: UserInfo, extra: Dict(String, Dynamic))
+}
 
 /// A strategy is a record containing the functions needed
 /// to authenticate with a specific provider.
@@ -19,8 +26,6 @@ pub type Strategy(e) {
     provider: String,
     /// Default scopes for this provider.
     default_scopes: List(String),
-    /// The provider's token endpoint URL, used for code exchange and token refresh.
-    token_url: String,
     /// Build the authorization URL to redirect the user to.
     /// Parameters: config, scopes, state.
     authorize_url: fn(Config, List(String), String) ->
@@ -29,9 +34,10 @@ pub type Strategy(e) {
     /// The third parameter is an optional PKCE code verifier.
     exchange_code: fn(Config, String, Option(String)) ->
       Result(Credentials, AuthError(e)),
+    /// Refresh credentials using a provider-specific refresh token request.
+    refresh_token: fn(Config, String) -> Result(Credentials, AuthError(e)),
     /// Fetch user info using the obtained credentials.
-    /// Returns #(uid, user_info).
-    fetch_user: fn(Credentials) -> Result(#(String, UserInfo), AuthError(e)),
+    fetch_user: fn(Config, Credentials) -> Result(UserResult, AuthError(e)),
   )
 }
 

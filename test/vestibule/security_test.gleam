@@ -15,7 +15,7 @@ import vestibule/error
 import vestibule/oidc
 import vestibule/pkce
 import vestibule/state
-import vestibule/strategy.{type Strategy, Strategy}
+import vestibule/strategy.{type Strategy, Strategy, UserResult}
 import vestibule/user_info.{UserInfo}
 
 // ---------------------------------------------------------------------------
@@ -26,7 +26,6 @@ fn test_strategy() -> Strategy(e) {
   Strategy(
     provider: "test",
     default_scopes: ["scope"],
-    token_url: "https://test.example.com/token",
     authorize_url: fn(_config, scopes, st) {
       Ok(
         "https://test.example.com/auth?scope="
@@ -50,10 +49,13 @@ fn test_strategy() -> Strategy(e) {
         _ -> Error(error.CodeExchangeFailed(reason: "bad code"))
       }
     },
-    fetch_user: fn(_creds) {
-      Ok(#(
-        "uid",
-        UserInfo(
+    refresh_token: fn(_config, _refresh_token) {
+      Error(error.ConfigError(reason: "refresh not implemented"))
+    },
+    fetch_user: fn(_config, _creds) {
+      Ok(UserResult(
+        uid: "uid",
+        info: UserInfo(
           name: None,
           email: None,
           nickname: None,
@@ -61,6 +63,7 @@ fn test_strategy() -> Strategy(e) {
           description: None,
           urls: dict.new(),
         ),
+        extra: dict.new(),
       ))
     },
   )

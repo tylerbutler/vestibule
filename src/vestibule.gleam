@@ -5,9 +5,6 @@
 /// All flows use PKCE (Proof Key for Code Exchange) for enhanced security.
 import gleam/dict.{type Dict}
 import gleam/dynamic/decode
-import gleam/http
-import gleam/http/request
-import gleam/httpc
 import gleam/json
 import gleam/option.{None}
 import gleam/result
@@ -105,59 +102,27 @@ pub fn handle_callback(
   ))
 
   // Fetch user info
-  use #(uid, info) <- result.try(strategy.fetch_user(credentials))
+  use user <- result.try(strategy.fetch_user(cfg, credentials))
 
   // Assemble the Auth result
   Ok(Auth(
-    uid: uid,
+    uid: user.uid,
     provider: strategy.provider,
-    info: info,
+    info: user.info,
     credentials: credentials,
-    extra: dict.new(),
+    extra: user.extra,
   ))
 }
 
 /// Refresh an access token using a refresh token.
 ///
-/// Sends a POST request to the strategy's token endpoint with the
-/// `refresh_token` grant type. Returns new credentials on success.
+/// Delegates to the provider strategy so refresh semantics remain provider-owned.
 pub fn refresh_token(
   strategy: Strategy(e),
   cfg: Config,
   refresh_tok: String,
 ) -> Result(Credentials, AuthError(e)) {
-  let body =
-    uri.query_to_string([
-      #("grant_type", "refresh_token"),
-      #("refresh_token", refresh_tok),
-      #("client_id", config.client_id(cfg)),
-      #("client_secret", config.client_secret(cfg)),
-    ])
-
-  use req <- result.try(
-    request.to(strategy.token_url)
-    |> result.replace_error(error.ConfigError(
-      reason: "Invalid token URL: " <> strategy.token_url,
-    )),
-  )
-
-  let req =
-    req
-    |> request.set_method(http.Post)
-    |> request.set_header("content-type", "application/x-www-form-urlencoded")
-    |> request.set_header("accept", "application/json")
-    |> request.set_body(body)
-
-  case httpc.send(req) {
-    Ok(response) -> {
-      use body <- result.try(internal_http.check_response_status(response))
-      parse_refresh_response(body)
-    }
-    Error(_) ->
-      Error(error.NetworkError(
-        reason: "Failed to connect to token endpoint: " <> strategy.token_url,
-      ))
-  }
+  strategy.refresh_token(cfg, refresh_tok)
 }
 
 /// Parse a token refresh response JSON into Credentials.
