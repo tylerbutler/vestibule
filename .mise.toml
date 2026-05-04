@@ -1,9 +1,8 @@
 [tools]
 changie = "latest"
-erlang = "27"
-gleam = "latest"
-just = "latest"
-rebar = "3.26.0"
+
+[settings]
+legacy_version_file = true
 
 [env]
 LC_ALL = "en_US.UTF-8"

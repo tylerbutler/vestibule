@@ -14,8 +14,9 @@ import vestibule/credentials.{Credentials}
 import vestibule/error
 import vestibule/oidc
 import vestibule/pkce
+import vestibule/provider_support
 import vestibule/state
-import vestibule/strategy.{type Strategy, Strategy}
+import vestibule/strategy.{type Strategy, Strategy, UserResult}
 import vestibule/user_info.{UserInfo}
 
 // ---------------------------------------------------------------------------
@@ -26,7 +27,6 @@ fn test_strategy() -> Strategy(e) {
   Strategy(
     provider: "test",
     default_scopes: ["scope"],
-    token_url: "https://test.example.com/token",
     authorize_url: fn(_config, scopes, st) {
       Ok(
         "https://test.example.com/auth?scope="
@@ -43,17 +43,20 @@ fn test_strategy() -> Strategy(e) {
               token: "tok",
               refresh_token: None,
               token_type: "bearer",
-              expires_at: None,
+              expires_in: None,
               scopes: [],
             ),
           )
         _ -> Error(error.CodeExchangeFailed(reason: "bad code"))
       }
     },
-    fetch_user: fn(_creds) {
-      Ok(#(
-        "uid",
-        UserInfo(
+    refresh_token: fn(_config, _refresh_token) {
+      Error(error.ConfigError(reason: "refresh not implemented"))
+    },
+    fetch_user: fn(_config, _creds) {
+      Ok(UserResult(
+        uid: "uid",
+        info: UserInfo(
           name: None,
           email: None,
           nickname: None,
@@ -61,6 +64,7 @@ fn test_strategy() -> Strategy(e) {
           description: None,
           urls: dict.new(),
         ),
+        extra: dict.new(),
       ))
     },
   )
@@ -219,20 +223,16 @@ pub fn callback_rejects_missing_state_test() {
   let strat = test_strategy()
   let conf = config.new("id", "secret", "https://localhost/cb")
   let params = dict.from_list([#("code", "valid_code")])
-  let result =
-    vestibule.handle_callback(strat, conf, params, "expected", "verifier")
-  let _ = result |> expect.to_be_error()
-  Nil
+  vestibule.handle_callback(strat, conf, params, "expected", "verifier")
+  |> expect.to_equal(Error(error.MissingCallbackParam("state")))
 }
 
 /// Security: empty callback params must be rejected.
 pub fn callback_rejects_empty_params_test() {
   let strat = test_strategy()
   let conf = config.new("id", "secret", "https://localhost/cb")
-  let result =
-    vestibule.handle_callback(strat, conf, dict.new(), "expected", "verifier")
-  let _ = result |> expect.to_be_error()
-  Nil
+  vestibule.handle_callback(strat, conf, dict.new(), "expected", "verifier")
+  |> expect.to_equal(Error(error.MissingCallbackParam("state")))
 }
 
 /// Security: provider error responses must be detected.
@@ -253,6 +253,27 @@ pub fn callback_detects_provider_error_test() {
   |> expect.to_equal(error.ProviderError(
     code: "access_denied",
     description: "User denied access",
+    uri: None,
+  ))
+}
+
+pub fn callback_preserves_provider_error_uri_test() {
+  let strat = test_strategy()
+  let conf = config.new("id", "secret", "https://localhost/cb")
+  let state_val = "matching_state"
+  let params =
+    dict.from_list([
+      #("state", state_val),
+      #("error", "access_denied"),
+      #("error_description", "User denied access"),
+      #("error_uri", "https://example.com/access-denied"),
+    ])
+  vestibule.handle_callback(strat, conf, params, state_val, "verifier")
+  |> expect.to_be_error()
+  |> expect.to_equal(error.ProviderError(
+    code: "access_denied",
+    description: "User denied access",
+    uri: Some("https://example.com/access-denied"),
   ))
 }
 
@@ -295,13 +316,23 @@ pub fn callback_ignores_extra_params_test() {
 /// Security: refresh response parser must handle malformed JSON gracefully.
 pub fn refresh_response_handles_html_error_page_test() {
   let body = "<html><body><h1>500 Internal Server Error</h1></body></html>"
-  let _ = vestibule.parse_refresh_response(body) |> expect.to_be_error()
+  let _ =
+    provider_support.parse_oauth_token_response(
+      body,
+      provider_support.OptionalScope(" "),
+    )
+    |> expect.to_be_error()
   Nil
 }
 
 /// Security: refresh response parser must handle empty body.
 pub fn refresh_response_handles_empty_body_test() {
-  let _ = vestibule.parse_refresh_response("") |> expect.to_be_error()
+  let _ =
+    provider_support.parse_oauth_token_response(
+      "",
+      provider_support.OptionalScope(" "),
+    )
+    |> expect.to_be_error()
   Nil
 }
 
@@ -309,9 +340,16 @@ pub fn refresh_response_handles_empty_body_test() {
 /// Finding L5 -- some providers omit error_description.
 pub fn refresh_response_handles_error_without_description_test() {
   let body = "{\"error\":\"invalid_grant\"}"
-  vestibule.parse_refresh_response(body)
+  provider_support.parse_oauth_token_response(
+    body,
+    provider_support.OptionalScope(" "),
+  )
   |> expect.to_be_error()
-  |> expect.to_equal(error.ProviderError(code: "invalid_grant", description: ""))
+  |> expect.to_equal(error.ProviderError(
+    code: "invalid_grant",
+    description: "",
+    uri: None,
+  ))
 }
 
 /// Security: refresh response with extremely long token should not crash.
@@ -319,7 +357,11 @@ pub fn refresh_response_handles_long_token_test() {
   let long_token = string.repeat("a", 10_000)
   let body =
     "{\"access_token\":\"" <> long_token <> "\",\"token_type\":\"bearer\"}"
-  let result = vestibule.parse_refresh_response(body)
+  let result =
+    provider_support.parse_oauth_token_response(
+      body,
+      provider_support.OptionalScope(" "),
+    )
   let assert Ok(creds) = result
   { string.length(creds.token) == 10_000 } |> expect.to_be_true()
 }
@@ -338,7 +380,7 @@ pub fn oidc_issuer_mismatch_is_detected_test() {
   // Parser itself accepts it (validation happens at fetch_configuration level)
   let result = oidc.parse_discovery_document(json)
   let assert Ok(parsed) = result
-  parsed.issuer |> expect.to_equal("https://evil.example.com")
+  oidc.issuer(parsed) |> expect.to_equal("https://evil.example.com")
 }
 
 /// Security: OIDC discovery parser must handle missing required fields.

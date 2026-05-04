@@ -271,11 +271,11 @@ just build
 ### Test Failures
 
 ```bash
-# Run a specific test
-gleam test -- --filter "test_name"
+# Run a specific test by name
+gleam test -- --test-name-filter "test_name"
 
-# Run with more output
-gleam test -- --verbose
+# Run tests from one file
+gleam test -- test/vestibule_test.gleam
 ```
 
 ### Dependency Issues

@@ -20,7 +20,7 @@ pub fn parse_token_response_success_test() {
       token: "eyJ0eXAi_test_token",
       refresh_token: Some("AwABAAAA_test_refresh"),
       token_type: "Bearer",
-      expires_at: Some(3736),
+      expires_in: Some(3736),
       scopes: ["User.Read", "profile", "openid", "email"],
     ),
   )
@@ -36,10 +36,17 @@ pub fn parse_token_response_without_refresh_token_test() {
       token: "test_token",
       refresh_token: None,
       token_type: "Bearer",
-      expires_at: Some(3600),
+      expires_in: Some(3600),
       scopes: ["User.Read"],
     ),
   )
+}
+
+pub fn parse_token_response_empty_scope_test() {
+  let body =
+    "{\"token_type\":\"Bearer\",\"scope\":\"\",\"expires_in\":3600,\"access_token\":\"test_token\"}"
+  let assert Ok(credentials) = vestibule_microsoft.parse_token_response(body)
+  credentials.scopes |> expect.to_equal([])
 }
 
 pub fn parse_token_response_error_test() {
@@ -95,7 +102,7 @@ pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
 
 pub fn authorize_url_includes_extra_params_test() {
   let strat = vestibule_microsoft.strategy()
-  let conf =
+  let assert Ok(conf) =
     config.new("client-id", "secret", "http://localhost/callback")
     |> config.with_extra_params([#("prompt", "select_account")])
   let assert Ok(url) = strat.authorize_url(conf, ["User.Read"], "state")

@@ -17,6 +17,53 @@ let apple = vestibule_apple.init()
 let strategy = vestibule_apple.strategy(apple)
 ```
 
+`init()` is a convenience for application startup and should be called once per
+VM. If you need to handle duplicate initialization explicitly, use the checked
+initializer:
+
+```gleam
+let assert Ok(apple) = vestibule_apple.try_init()
+let strategy = vestibule_apple.strategy(apple)
+```
+
+## Client-secret JWT setup
+
+Apple does not use a static client secret. The `client_secret` value in your
+vestibule config must be a signed JWT generated from your Apple Developer
+account details:
+
+- **Team ID**: your Apple Developer team identifier; use this as the JWT `iss`.
+- **Key ID**: the identifier for the Sign in with Apple private key; include it
+  in the JWT header as `kid`.
+- **Services ID / client ID**: the Services ID registered for your web app; use
+  this as both the OAuth client ID and the JWT `sub`.
+- **Private key**: the `.p8` key downloaded from Apple. Store it securely and do
+  not commit it to your repository.
+
+Sign the JWT with ES256. The header and claims should have this shape:
+
+```json
+{
+  "alg": "ES256",
+  "kid": "APPLE_KEY_ID"
+}
+```
+
+```json
+{
+  "iss": "APPLE_TEAM_ID",
+  "iat": 1710000000,
+  "exp": 1710604800,
+  "aud": "https://appleid.apple.com",
+  "sub": "com.example.service-id"
+}
+```
+
+`iat` and `exp` are Unix timestamps. Apple allows client-secret JWTs to live for
+up to six months, but shorter lifetimes and rotation are safer. Generate this
+JWT in your application or deployment pipeline, then pass the resulting string
+as the `client_secret` when you build the vestibule config.
+
 ## Notes
 
 - Apple requires `response_mode=form_post`, which this strategy adds for you.

@@ -1,6 +1,7 @@
 import gleam/bit_array
 import gleam/dict
 import gleam/http
+import gleam/int
 import gleam/result
 import gleam/string
 import gleam/uri
@@ -11,6 +12,32 @@ import vestibule/auth.{type Auth}
 import vestibule/error
 import vestibule/registry.{type Registry}
 import vestibule_wisp/state_store.{type StateStore}
+
+/// Middleware configuration options.
+pub type Options {
+  Options(cookie_name: String, session_ttl_seconds: Int)
+}
+
+/// Structured errors that can occur during the OAuth callback phase.
+pub type CallbackError(e) {
+  /// The requested provider is not registered.
+  UnknownProvider(provider: String)
+  /// The signed session cookie set during the request phase is missing or invalid.
+  MissingSessionCookie
+  /// The session state was not found, expired, or already used.
+  SessionExpired
+  /// Callback parameters could not be extracted from the request.
+  InvalidCallbackParams
+  /// Provider authentication failed.
+  AuthFailed(error.AuthError(e))
+}
+
+/// Default middleware options.
+///
+/// Uses the `vestibule_session` signed cookie with a 600-second session TTL.
+pub fn default_options() -> Options {
+  Options(cookie_name: "vestibule_session", session_ttl_seconds: 600)
+}
 
 /// Phase 1: Redirect user to the OAuth provider.
 ///
@@ -25,25 +52,45 @@ pub fn request_phase(
   provider: String,
   state_store: StateStore,
 ) -> Response {
+  request_phase_with_options(req, reg, provider, state_store, default_options())
+}
+
+/// Phase 1: Redirect user to the OAuth provider using custom middleware
+/// options.
+pub fn request_phase_with_options(
+  req: Request,
+  reg: Registry(e),
+  provider: String,
+  state_store: StateStore,
+  options: Options,
+) -> Response {
   case registry.get(reg, provider) {
     Error(Nil) -> wisp.not_found()
     Ok(#(strategy, config)) ->
       case vestibule.authorize_url(strategy, config) {
         Ok(auth_request) -> {
-          let session_id =
-            state_store.store(
+          case
+            state_store.try_store_with_ttl(
               state_store,
               auth_request.state,
               auth_request.code_verifier,
+              options.session_ttl_seconds,
             )
-          wisp.redirect(auth_request.url)
-          |> wisp.set_cookie(
-            req,
-            "vestibule_session",
-            session_id,
-            wisp.Signed,
-            600,
-          )
+          {
+            Ok(session_id) ->
+              wisp.redirect(auth_request.url)
+              |> wisp.set_cookie(
+                req,
+                options.cookie_name,
+                session_id,
+                wisp.Signed,
+                options.session_ttl_seconds,
+              )
+            Error(_) ->
+              error_response(error.ConfigError(
+                reason: "Failed to store OAuth session state",
+              ))
+          }
         }
         Error(err) -> error_response(err)
       }
@@ -68,9 +115,36 @@ pub fn callback_phase(
   state_store: StateStore,
   on_success: fn(Auth) -> Response,
 ) -> Response {
-  case do_callback(req, reg, provider, state_store) {
+  callback_phase_with_options(
+    req,
+    reg,
+    provider,
+    state_store,
+    on_success,
+    default_options(),
+  )
+}
+
+/// Phase 2: Handle the OAuth callback using custom middleware options.
+pub fn callback_phase_with_options(
+  req: Request,
+  reg: Registry(e),
+  provider: String,
+  state_store: StateStore,
+  on_success: fn(Auth) -> Response,
+  options: Options,
+) -> Response {
+  case
+    callback_phase_auth_result_with_options(
+      req,
+      reg,
+      provider,
+      state_store,
+      options,
+    )
+  {
     Ok(auth) -> on_success(auth)
-    Error(response) -> response
+    Error(err) -> callback_error_response(err)
   }
 }
 
@@ -80,45 +154,106 @@ pub fn callback_phase(
 /// Supports both GET callbacks (query parameters) and POST callbacks
 /// (form-encoded body). See `callback_phase` for details.
 ///
-/// Use this instead of `callback_phase` when you want to handle
-/// errors yourself rather than using the default error pages.
+/// Use this instead of `callback_phase` when you want to decide how to use the
+/// success value or generated error response yourself.
 pub fn callback_phase_result(
   req: Request,
   reg: Registry(e),
   provider: String,
   state_store: StateStore,
 ) -> Result(Auth, Response) {
-  do_callback(req, reg, provider, state_store)
+  callback_phase_result_with_options(
+    req,
+    reg,
+    provider,
+    state_store,
+    default_options(),
+  )
 }
 
-fn do_callback(
+/// Phase 2 (Result variant): Handle the OAuth callback using custom middleware
+/// options.
+pub fn callback_phase_result_with_options(
   req: Request,
   reg: Registry(e),
   provider: String,
   state_store: StateStore,
+  options: Options,
 ) -> Result(Auth, Response) {
+  callback_phase_auth_result_with_options(
+    req,
+    reg,
+    provider,
+    state_store,
+    options,
+  )
+  |> result.map_error(callback_error_response)
+}
+
+/// Phase 2 (structured Result variant): Handle the OAuth callback and return
+/// either the Auth result or a structured callback error.
+///
+/// Use this when you want to distinguish provider lookup, session, callback
+/// parameter, and provider authentication failures without parsing responses.
+pub fn callback_phase_auth_result(
+  req: Request,
+  reg: Registry(e),
+  provider: String,
+  state_store: StateStore,
+) -> Result(Auth, CallbackError(e)) {
+  callback_phase_auth_result_with_options(
+    req,
+    reg,
+    provider,
+    state_store,
+    default_options(),
+  )
+}
+
+/// Phase 2 (structured Result variant): Handle the OAuth callback using custom
+/// middleware options.
+///
+/// Callback parameters are parsed and state is validated before the stored
+/// session is consumed, so malformed or wrong-state callbacks do not burn a
+/// valid in-flight login.
+pub fn callback_phase_auth_result_with_options(
+  req: Request,
+  reg: Registry(e),
+  provider: String,
+  state_store: StateStore,
+  options: Options,
+) -> Result(Auth, CallbackError(e)) {
   use #(strategy, config) <- result.try(
     registry.get(reg, provider)
-    |> result.map_error(fn(_) { wisp.not_found() }),
-  )
-
-  use session_id <- result.try(
-    wisp.get_cookie(req, "vestibule_session", wisp.Signed)
-    |> result.map_error(fn(_) {
-      error_response(error.ConfigError(reason: "Missing session cookie"))
-    }),
-  )
-
-  use #(expected_state, code_verifier) <- result.try(
-    state_store.retrieve(state_store, session_id)
-    |> result.map_error(fn(_) {
-      error_response(error.ConfigError(
-        reason: "Session expired or already used",
-      ))
-    }),
+    |> result.map_error(fn(_) { UnknownProvider(provider) }),
   )
 
   use params <- result.try(get_callback_params(req))
+
+  use received_state <- result.try(
+    dict.get(params, "state")
+    |> result.replace_error(AuthFailed(error.MissingCallbackParam("state"))),
+  )
+
+  use session_id <- result.try(
+    wisp.get_cookie(req, options.cookie_name, wisp.Signed)
+    |> result.map_error(fn(_) { MissingSessionCookie }),
+  )
+
+  use #(expected_state, _code_verifier) <- result.try(
+    state_store.peek(state_store, session_id)
+    |> result.map_error(fn(_) { SessionExpired }),
+  )
+
+  use _ <- result.try(case received_state == expected_state {
+    True -> Ok(Nil)
+    False -> Error(AuthFailed(error.StateMismatch))
+  })
+
+  use #(expected_state, code_verifier) <- result.try(
+    state_store.retrieve(state_store, session_id)
+    |> result.map_error(fn(_) { SessionExpired }),
+  )
 
   vestibule.handle_callback(
     strategy,
@@ -127,7 +262,7 @@ fn do_callback(
     expected_state,
     code_verifier,
   )
-  |> result.map_error(error_response)
+  |> result.map_error(AuthFailed)
 }
 
 /// Extract callback parameters from either query string (GET) or
@@ -135,7 +270,7 @@ fn do_callback(
 /// are merged over query parameters so they take precedence.
 fn get_callback_params(
   req: Request,
-) -> Result(dict.Dict(String, String), Response) {
+) -> Result(dict.Dict(String, String), CallbackError(e)) {
   let query_params = wisp.get_query(req)
   case req.method {
     http.Post -> {
@@ -151,29 +286,46 @@ fn get_callback_params(
                     dict.from_list(body_params),
                   ))
                 }
-                Error(_) -> {
-                  // Body isn't valid form data, fall back to query params
-                  Ok(dict.from_list(query_params))
-                }
+                Error(_) -> Error(InvalidCallbackParams)
               }
             }
-            Error(_) -> Ok(dict.from_list(query_params))
+            Error(_) -> Error(InvalidCallbackParams)
           }
         }
-        Error(_) -> Ok(dict.from_list(query_params))
+        Error(_) -> Error(InvalidCallbackParams)
       }
     }
     _ -> Ok(dict.from_list(query_params))
   }
 }
 
+fn callback_error_response(err: CallbackError(e)) -> Response {
+  case err {
+    UnknownProvider(_) -> wisp.not_found()
+    MissingSessionCookie ->
+      error_response(error.ConfigError(reason: "Missing session cookie"))
+    SessionExpired ->
+      error_response(error.ConfigError(
+        reason: "Session expired or already used",
+      ))
+    InvalidCallbackParams ->
+      error_response(error.ConfigError(reason: "Invalid callback parameters"))
+    AuthFailed(err) -> error_response(err)
+  }
+}
+
 fn error_response(err: error.AuthError(e)) -> Response {
   let message = case err {
     error.StateMismatch -> "State mismatch — possible CSRF attack"
+    error.MissingCallbackParam(name:) -> "Missing callback parameter: " <> name
     error.CodeExchangeFailed(reason:) -> "Code exchange failed: " <> reason
     error.UserInfoFailed(reason:) -> "User info fetch failed: " <> reason
-    error.ProviderError(code:, description:) ->
+    error.ProviderError(code:, description:, uri: _) ->
       "Provider error [" <> code <> "]: " <> description
+    error.HttpError(status:, body:) ->
+      "Provider HTTP error [" <> int.to_string(status) <> "]: " <> body
+    error.DecodeError(context:, reason:) ->
+      "Failed to decode " <> context <> ": " <> reason
     error.NetworkError(reason:) -> "Network error: " <> reason
     error.ConfigError(reason:) -> "Configuration error: " <> reason
     error.Custom(_) -> "Custom provider error"

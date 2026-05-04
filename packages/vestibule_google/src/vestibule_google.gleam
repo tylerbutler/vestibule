@@ -1,6 +1,5 @@
 import gleam/dict
 import gleam/dynamic/decode
-import gleam/int
 import gleam/json
 import gleam/option.{type Option, None, Some}
 import gleam/result
@@ -16,10 +15,10 @@ import glow_auth/token_request
 import glow_auth/uri/uri_builder
 
 import vestibule/config.{type Config}
-import vestibule/credentials.{type Credentials, Credentials}
+import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
-import vestibule/internal/http as internal_http
-import vestibule/strategy.{type Strategy, Strategy}
+import vestibule/provider_support
+import vestibule/strategy.{type Strategy, type UserResult, Strategy, UserResult}
 import vestibule/user_info
 
 /// Create a Google authentication strategy.
@@ -27,49 +26,19 @@ pub fn strategy() -> Strategy(e) {
   Strategy(
     provider: "google",
     default_scopes: ["openid", "profile", "email"],
-    token_url: "https://oauth2.googleapis.com/token",
     authorize_url: do_authorize_url,
     exchange_code: do_exchange_code,
+    refresh_token: do_refresh_token,
     fetch_user: do_fetch_user,
   )
 }
 
 /// Parse Google token response JSON.
 pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
-  use body <- result.try(internal_http.check_token_error(body))
-  parse_success_token(body)
-}
-
-fn parse_success_token(body: String) -> Result(Credentials, AuthError(e)) {
-  let decoder = {
-    use access_token <- decode.field("access_token", decode.string)
-    use token_type <- decode.field("token_type", decode.string)
-    use scope <- decode.field("scope", decode.string)
-    use expires_in <- decode.optional_field(
-      "expires_in",
-      None,
-      decode.optional(decode.int),
-    )
-    use refresh_token <- decode.optional_field(
-      "refresh_token",
-      None,
-      decode.optional(decode.string),
-    )
-    decode.success(Credentials(
-      token: access_token,
-      refresh_token: refresh_token,
-      token_type: token_type,
-      expires_at: expires_in,
-      scopes: string.split(scope, " "),
-    ))
-  }
-  case json.parse(body, decoder) {
-    Ok(creds) -> Ok(creds)
-    Error(err) ->
-      Error(error.CodeExchangeFailed(
-        reason: "Failed to parse Google token response: " <> string.inspect(err),
-      ))
-  }
+  provider_support.parse_oauth_token_response(
+    body,
+    provider_support.RequiredScope(separator: " "),
+  )
 }
 
 /// Parse Google /oauth2/v3/userinfo response JSON.
@@ -128,9 +97,14 @@ fn do_authorize_url(
   scopes: List(String),
   state: String,
 ) -> Result(String, AuthError(e)) {
-  let assert Ok(site) = uri.parse("https://accounts.google.com")
+  use site <- result.try(
+    uri.parse("https://accounts.google.com")
+    |> result.map_error(fn(_) {
+      error.ConfigError(reason: "Failed to parse Google OAuth base URL")
+    }),
+  )
   use redirect <- result.try(
-    internal_http.parse_redirect_uri(config.redirect_uri(cfg)),
+    provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
   )
   let client =
     glow_auth.Client(
@@ -148,7 +122,9 @@ fn do_authorize_url(
     |> authorize_uri.set_state(state)
     |> authorize_uri.to_code_authorization_uri()
     |> uri.to_string()
-    |> internal_http.append_query_params(dict.to_list(config.extra_params(cfg)))
+    |> provider_support.append_query_params(
+      dict.to_list(config.extra_params(cfg)),
+    )
   Ok(url)
 }
 
@@ -157,9 +133,14 @@ fn do_exchange_code(
   code: String,
   code_verifier: Option(String),
 ) -> Result(Credentials, AuthError(e)) {
-  let assert Ok(site) = uri.parse("https://oauth2.googleapis.com")
+  use site <- result.try(
+    uri.parse("https://oauth2.googleapis.com")
+    |> result.map_error(fn(_) {
+      error.ConfigError(reason: "Failed to parse Google OAuth base URL")
+    }),
+  )
   use redirect <- result.try(
-    internal_http.parse_redirect_uri(config.redirect_uri(cfg)),
+    provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
   )
   let client =
     glow_auth.Client(
@@ -177,15 +158,49 @@ fn do_exchange_code(
     |> request.set_header("accept", "application/json")
   let req = strategy.append_code_verifier(req, code_verifier)
   case httpc.send(req) {
-    Ok(response) if response.status >= 200 && response.status < 300 ->
-      parse_token_response(response.body)
-    Ok(response) ->
+    Ok(response) -> {
+      use body <- result.try(provider_support.check_response_status(response))
+      parse_token_response(body)
+    }
+    Error(_) ->
       Error(error.NetworkError(
-        reason: "HTTP "
-        <> int.to_string(response.status)
-        <> ": "
-        <> response.body,
+        reason: "Failed to connect to Google token endpoint",
       ))
+  }
+}
+
+fn do_refresh_token(
+  cfg: Config,
+  refresh_tok: String,
+) -> Result(Credentials, AuthError(e)) {
+  use site <- result.try(
+    uri.parse("https://oauth2.googleapis.com")
+    |> result.map_error(fn(_) {
+      error.ConfigError(reason: "Failed to parse Google OAuth base URL")
+    }),
+  )
+  let client =
+    glow_auth.Client(
+      id: config.client_id(cfg),
+      secret: config.client_secret(cfg),
+      site: site,
+    )
+  let req =
+    token_request.refresh(
+      client,
+      uri_builder.RelativePath("/token"),
+      refresh_tok,
+    )
+    |> request.set_header("accept", "application/json")
+
+  case httpc.send(req) {
+    Ok(response) -> {
+      use body <- result.try(provider_support.check_response_status(response))
+      provider_support.parse_oauth_token_response(
+        body,
+        provider_support.OptionalScope(" "),
+      )
+    }
     Error(_) ->
       Error(error.NetworkError(
         reason: "Failed to connect to Google token endpoint",
@@ -194,13 +209,15 @@ fn do_exchange_code(
 }
 
 fn do_fetch_user(
+  _cfg: Config,
   creds: Credentials,
-) -> Result(#(String, user_info.UserInfo), AuthError(e)) {
+) -> Result(UserResult, AuthError(e)) {
   use auth_header <- result.try(strategy.authorization_header(creds))
-  internal_http.fetch_json_with_auth(
+  use #(uid, info) <- result.try(provider_support.fetch_json_with_auth(
     "https://www.googleapis.com/oauth2/v3/userinfo",
     auth_header,
     parse_user_response,
     "Google userinfo",
-  )
+  ))
+  Ok(UserResult(uid: uid, info: info, extra: dict.new()))
 }

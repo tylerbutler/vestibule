@@ -16,7 +16,7 @@ pub fn parse_token_response_success_test() {
       token: "gho_abc123",
       refresh_token: None,
       token_type: "bearer",
-      expires_at: None,
+      expires_in: None,
       scopes: ["user:email"],
     ),
   )
@@ -28,6 +28,13 @@ pub fn parse_token_response_with_multiple_scopes_test() {
   let result = github.parse_token_response(json)
   let assert Ok(creds) = result
   creds.scopes |> expect.to_equal(["user:email", "read:org"])
+}
+
+pub fn parse_token_response_empty_scope_test() {
+  let json =
+    "{\"access_token\":\"gho_abc123\",\"token_type\":\"bearer\",\"scope\":\"\"}"
+  let assert Ok(creds) = github.parse_token_response(json)
+  creds.scopes |> expect.to_equal([])
 }
 
 pub fn parse_token_response_error_test() {
@@ -92,7 +99,7 @@ pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
 
 pub fn authorize_url_includes_extra_params_test() {
   let strat = github.strategy()
-  let conf =
+  let assert Ok(conf) =
     config.new("client-id", "secret", "http://localhost/callback")
     |> config.with_extra_params([#("allow_signup", "false")])
   let assert Ok(url) = strat.authorize_url(conf, ["user:email"], "state")

@@ -7,7 +7,8 @@ set dotenv-path := "example/.env"
 alias b := build
 alias t := test
 alias f := format
-alias c := check
+alias l := lint
+alias c := clean
 alias d := docs
 alias cl := change
 
@@ -32,13 +33,7 @@ build-strict:
 
 # Build sub-packages with warnings as errors
 build-strict-packages:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    for pkg in packages/vestibule_*/; do
-        [ -f "$pkg/gleam.toml" ] || continue
-        echo "=== Building $pkg (strict) ==="
-        (cd "$pkg" && gleam build --warnings-as-errors)
-    done
+    scripts/build-strict-packages.sh
 
 # Build all packages with warnings as errors
 build-strict-all: build-strict build-strict-packages
@@ -51,13 +46,7 @@ test:
 
 # Run tests for all sub-packages
 test-packages:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    for pkg in packages/vestibule_*/; do
-        [ -f "$pkg/gleam.toml" ] || continue
-        echo "=== Testing $pkg ==="
-        (cd "$pkg" && gleam test)
-    done
+    scripts/test-packages.sh
 
 # Run all tests (root + sub-packages)
 test-all: test test-packages
@@ -74,13 +63,7 @@ format:
 
 # Format sub-package source code
 format-packages:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    for pkg in packages/vestibule_*/; do
-        [ -f "$pkg/gleam.toml" ] || continue
-        echo "=== Formatting $pkg ==="
-        (cd "$pkg" && gleam format src test)
-    done
+    scripts/format-packages.sh
 
 # Format all packages
 format-all: format format-packages
@@ -91,30 +74,21 @@ format-check:
 
 # Check formatting for sub-packages
 format-check-packages:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    for pkg in packages/vestibule_*/; do
-        [ -f "$pkg/gleam.toml" ] || continue
-        echo "=== Checking format: $pkg ==="
-        (cd "$pkg" && gleam format --check src test)
-    done
+    scripts/format-check-packages.sh
 
 # Check formatting for all packages
 format-check-all: format-check format-check-packages
 
 # Type check without building
-check:
+check: lint
+
+# Run linter/static checks
+lint:
     gleam check
 
 # Type check sub-packages
 check-packages:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    for pkg in packages/vestibule_*/; do
-        [ -f "$pkg/gleam.toml" ] || continue
-        echo "=== Checking $pkg ==="
-        (cd "$pkg" && gleam check)
-    done
+    scripts/check-packages.sh
 
 # Type check all packages
 check-all: check check-packages
@@ -133,13 +107,7 @@ docs:
 
 # Build documentation for sub-packages
 docs-packages:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    for pkg in packages/vestibule_*/; do
-        [ -f "$pkg/gleam.toml" ] || continue
-        echo "=== Building docs: $pkg ==="
-        (cd "$pkg" && gleam docs build)
-    done
+    scripts/docs-packages.sh
 
 # Build documentation for all packages
 docs-all: docs docs-packages
@@ -171,7 +139,7 @@ clean:
 # === CI ===
 
 # Run all CI checks (format, check, root + package tests, build)
-ci: format-check check test-all build-strict
+ci: format-check lint test-all build-strict
 
 # Run all CI checks across all packages
 ci-all: format-check-all check-all test-all build-strict-all

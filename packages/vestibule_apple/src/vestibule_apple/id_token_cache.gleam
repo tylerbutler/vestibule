@@ -28,22 +28,49 @@ pub type IdTokenCache {
   )
 }
 
-/// Initialize the ID token cache. Call once at application startup.
+/// Errors returned by checked ID token cache operations.
+pub type CacheError {
+  TokenTableCreateFailed
+  KeyTableCreateFailed
+  TokenStoreFailed
+  KeyStoreFailed
+}
+
+/// Initialize the ID token cache. Call once per VM at application startup.
 /// Returns the cache handle needed by store/retrieve.
 pub fn init() -> IdTokenCache {
-  let assert Ok(tokens) =
-    uset.new(name: "vestibule_apple_id_tokens", access: bravo.Protected)
-  let assert Ok(keys) =
-    uset.new(name: "vestibule_apple_id_token_keys", access: bravo.Private)
-  IdTokenCache(tokens: tokens, keys: keys)
+  let assert Ok(cache) = try_init()
+    as "vestibule_apple ID token cache must be initialized once per VM"
+  cache
 }
 
 /// Initialize a named ID token cache. Useful for testing with isolated tables.
 pub fn init_named(name: String) -> IdTokenCache {
-  let assert Ok(tokens) =
-    uset.new(name: name <> "_tokens", access: bravo.Protected)
-  let assert Ok(keys) = uset.new(name: name <> "_keys", access: bravo.Private)
-  IdTokenCache(tokens: tokens, keys: keys)
+  let assert Ok(cache) = try_init_named(name)
+    as "vestibule_apple named ID token cache must be initialized once per VM"
+  cache
+}
+
+/// Try to initialize the ID token cache.
+pub fn try_init() -> Result(IdTokenCache, CacheError) {
+  try_init_named("vestibule_apple_id_token")
+}
+
+/// Try to initialize a named ID token cache. Returns an error if either
+/// backing table already exists or cannot be created.
+pub fn try_init_named(name: String) -> Result(IdTokenCache, CacheError) {
+  case uset.new(name: name <> "_tokens", access: bravo.Protected) {
+    Ok(tokens) -> {
+      case uset.new(name: name <> "_keys", access: bravo.Private) {
+        Ok(keys) -> Ok(IdTokenCache(tokens: tokens, keys: keys))
+        Error(_) -> {
+          let _ = uset.delete(tokens)
+          Error(KeyTableCreateFailed)
+        }
+      }
+    }
+    Error(_) -> Error(TokenTableCreateFailed)
+  }
 }
 
 /// Generate a cryptographically random cache key.
@@ -54,11 +81,35 @@ fn generate_cache_key() -> String {
 
 /// Store an ID token under a random cache key, mapped from the access token.
 /// Returns Nil.
-pub fn store(cache: IdTokenCache, access_token: String, id_token: String) -> Nil {
-  let cache_key = generate_cache_key()
-  let _ = uset.insert(into: cache.tokens, key: cache_key, value: id_token)
-  let _ = uset.insert(into: cache.keys, key: access_token, value: cache_key)
+pub fn store(
+  cache: IdTokenCache,
+  access_token: String,
+  id_token: String,
+) -> Nil {
+  let assert Ok(_) = try_store(cache, access_token, id_token)
+    as "vestibule_apple failed to store ID token"
   Nil
+}
+
+/// Try to store an ID token under a random cache key, mapped from the access token.
+pub fn try_store(
+  cache: IdTokenCache,
+  access_token: String,
+  id_token: String,
+) -> Result(Nil, CacheError) {
+  let cache_key = generate_cache_key()
+  case uset.insert(into: cache.tokens, key: cache_key, value: id_token) {
+    Ok(Nil) -> {
+      case uset.insert(into: cache.keys, key: access_token, value: cache_key) {
+        Ok(Nil) -> Ok(Nil)
+        Error(_) -> {
+          let _ = uset.delete_key(from: cache.tokens, at: cache_key)
+          Error(KeyStoreFailed)
+        }
+      }
+    }
+    Error(_) -> Error(TokenStoreFailed)
+  }
 }
 
 /// Retrieve and consume an ID token by access token.

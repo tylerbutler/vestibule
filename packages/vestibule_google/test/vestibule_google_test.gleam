@@ -21,7 +21,7 @@ pub fn parse_token_response_success_test() {
       token: "ya29.test_token",
       refresh_token: None,
       token_type: "Bearer",
-      expires_at: Some(3599),
+      expires_in: Some(3599),
       scopes: [
         "openid",
         "https://www.googleapis.com/auth/userinfo.email",
@@ -41,10 +41,17 @@ pub fn parse_token_response_with_refresh_token_test() {
       token: "ya29.test",
       refresh_token: Some("1//test_refresh"),
       token_type: "Bearer",
-      expires_at: Some(3600),
+      expires_in: Some(3600),
       scopes: ["openid"],
     ),
   )
+}
+
+pub fn parse_token_response_empty_scope_test() {
+  let body =
+    "{\"access_token\":\"ya29.test\",\"expires_in\":3600,\"scope\":\"\",\"token_type\":\"Bearer\"}"
+  let assert Ok(credentials) = vestibule_google.parse_token_response(body)
+  credentials.scopes |> expect.to_equal([])
 }
 
 pub fn parse_token_response_error_test() {
@@ -64,6 +71,7 @@ pub fn parse_token_response_error_without_description_test() {
     |> expect.to_equal(error.ProviderError(
       code: "invalid_grant",
       description: "",
+      uri: None,
     ))
   Nil
 }
@@ -110,7 +118,7 @@ pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
 
 pub fn authorize_url_includes_extra_params_test() {
   let strat = vestibule_google.strategy()
-  let conf =
+  let assert Ok(conf) =
     config.new("client-id", "secret", "http://localhost/callback")
     |> config.with_extra_params([#("prompt", "consent")])
   let assert Ok(url) = strat.authorize_url(conf, ["openid"], "state")

@@ -14,13 +14,17 @@ Google providers.
 
 ## Setup
 
+Copy the example environment file and fill in at least one provider. This is the
+primary setup path; `just serve` reads `example/.env` automatically.
+
 ```bash
 cp example/.env.example example/.env
-# Fill in at least one provider in example/.env
+# Edit example/.env and fill in at least one provider
 just deps
 ```
 
-Set credentials for any provider you want to try:
+If you do not want to use `example/.env`, you can export credentials in your
+shell before starting the server instead:
 
 ```bash
 export GITHUB_CLIENT_ID="your_github_client_id"
@@ -37,7 +41,12 @@ export GOOGLE_CLIENT_SECRET="your_google_client_secret"
 just serve
 ```
 
-Open http://localhost:8000 and sign in with any configured provider.
+`just serve` starts the example app with values from `example/.env`. Open
+http://localhost:8000 and sign in with any configured provider.
+
+Apple is intentionally omitted from this example. Sign in with Apple requires a
+generated client-secret JWT and once-per-VM cache initialization, which would add
+setup complexity that distracts from the multi-provider example.
 
 ## Configuration
 
