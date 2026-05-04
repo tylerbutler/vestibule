@@ -1,5 +1,3 @@
-import bravo
-import bravo/uset
 import gleam/bit_array
 import gleam/crypto
 import gleam/order
@@ -13,8 +11,10 @@ const default_ttl_seconds = 600
 /// The concrete storage implementation is intentionally opaque so the public
 /// API can evolve without exposing the underlying table representation.
 pub opaque type StateStore {
-  StateStore(table: uset.USet(String, SessionState))
+  StateStore(table: EtsTable)
 }
+
+type EtsTable
 
 type SessionState {
   SessionState(
@@ -53,7 +53,7 @@ pub fn try_init() -> Result(StateStore, StateStoreError) {
 /// Try to initialize a named state store. Returns `Error(TableCreateFailed)`
 /// if the table already exists or cannot be created.
 pub fn try_init_named(name: String) -> Result(StateStore, StateStoreError) {
-  case uset.new(name: name, access: bravo.Protected) {
+  case create_table(name) {
     Ok(table) -> Ok(StateStore(table))
     Error(_) -> Error(TableCreateFailed)
   }
@@ -93,11 +93,12 @@ pub fn try_store_with_ttl(
   let expires_at =
     timestamp.system_time()
     |> timestamp.add(duration.seconds(ttl_seconds))
+
   case
-    uset.insert(
-      into: table.table,
-      key: session_id,
-      value: SessionState(state:, code_verifier:, expires_at:),
+    insert(
+      table.table,
+      session_id,
+      SessionState(state:, code_verifier:, expires_at:),
     )
   {
     Ok(Nil) -> Ok(session_id)
@@ -111,7 +112,7 @@ pub fn retrieve(
   table: StateStore,
   session_id: String,
 ) -> Result(#(String, String), Nil) {
-  case uset.take(from: table.table, at: session_id) {
+  case take(table.table, session_id) {
     Ok(session) -> validate_session(session)
     Error(_) -> Error(Nil)
   }
@@ -124,12 +125,12 @@ pub fn peek(
   table: StateStore,
   session_id: String,
 ) -> Result(#(String, String), Nil) {
-  case uset.lookup(from: table.table, at: session_id) {
+  case lookup(table.table, session_id) {
     Ok(session) -> {
       case validate_session(session) {
         Ok(value) -> Ok(value)
         Error(Nil) -> {
-          let _ = uset.delete_key(from: table.table, at: session_id)
+          let _ = delete_key(table.table, session_id)
           Error(Nil)
         }
       }
@@ -145,3 +146,21 @@ fn validate_session(session: SessionState) -> Result(#(String, String), Nil) {
     _ -> Error(Nil)
   }
 }
+
+// Direct ETS FFI keeps this package Hex-publishable while Bravo's Hex release
+// is incompatible with current Gleam dependencies. Prefer replacing this with
+// Bravo again once a compatible Bravo version is available on Hex.
+@external(erlang, "vestibule_wisp_state_store_ffi", "create_table")
+fn create_table(name: String) -> Result(EtsTable, Nil)
+
+@external(erlang, "vestibule_wisp_state_store_ffi", "insert")
+fn insert(table: EtsTable, key: String, value: SessionState) -> Result(Nil, Nil)
+
+@external(erlang, "vestibule_wisp_state_store_ffi", "take")
+fn take(table: EtsTable, key: String) -> Result(SessionState, Nil)
+
+@external(erlang, "vestibule_wisp_state_store_ffi", "lookup")
+fn lookup(table: EtsTable, key: String) -> Result(SessionState, Nil)
+
+@external(erlang, "vestibule_wisp_state_store_ffi", "delete_key")
+fn delete_key(table: EtsTable, key: String) -> Result(Nil, Nil)

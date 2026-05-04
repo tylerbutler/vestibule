@@ -135,8 +135,8 @@ decoded as UTF-8, or parsed as form data, callback handling returns
 ## State store
 
 `vestibule_wisp/state_store` provides the default in-memory state store backed
-by Bravo. The public `StateStore` type is opaque; applications should create and
-use stores through the module functions.
+by Erlang ETS. The public `StateStore` type is opaque; applications should
+create and use stores through the module functions.
 
 - Use `try_init` or `try_init_named` when you want to handle duplicate table
   errors explicitly.

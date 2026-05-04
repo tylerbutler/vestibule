@@ -48,6 +48,11 @@ pub fn try_init_named_returns_error_for_duplicate_table_test() {
   Nil
 }
 
+pub fn state_store_survives_creator_process_exit_test() {
+  state_store_survives_creator_process_exit()
+  |> expect.to_be_true()
+}
+
 pub fn try_store_returns_session_id_and_retrievable_value_test() {
   let assert Ok(table) =
     state_store.try_init_named("vestibule_wisp_try_store_test")
@@ -206,3 +211,6 @@ fn test_strategy() -> Strategy(e) {
 fn test_config() -> config.Config {
   config.new("client_id", "client_secret", "https://example.com/callback")
 }
+
+@external(erlang, "vestibule_wisp_state_store_test_ffi", "state_store_survives_creator_process_exit")
+fn state_store_survives_creator_process_exit() -> Bool
