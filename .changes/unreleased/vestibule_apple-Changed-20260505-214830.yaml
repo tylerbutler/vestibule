@@ -1,0 +1,4 @@
+project: vestibule_apple
+kind: Changed
+body: 'Apple Sign In now carries `id_token` through `ExchangeResult.artifacts` instead of an implicit ID-token cache. `AppleCache` now only manages JWKS caching, and the `vestibule_apple/id_token_cache` module has been removed.'
+time: 2026-05-05T21:48:30.693941084-07:00
