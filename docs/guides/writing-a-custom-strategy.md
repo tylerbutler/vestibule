@@ -583,11 +583,16 @@ fn do_fetch_user(
 
   // Primary request
   use resp <- result.try(fetch_profile(cfg, creds))
-  use #(uid, info) <- result.try(parse_user_response(resp.body))
+  use profile_body <- result.try(provider_support.check_response_status(resp))
+  use #(uid, info) <- result.try(parse_user_response(profile_body))
 
   // Secondary request (best-effort -- don't fail if this errors)
   let email = case fetch_emails(creds) {
-    Ok(response) -> parse_primary_email(response.body)
+    Ok(response) ->
+      case provider_support.check_response_status(response) {
+        Ok(body) -> parse_primary_email(body)
+        Error(_) -> None
+      }
     Error(_) -> None
   }
 
@@ -600,7 +605,7 @@ fn do_fetch_user(
 }
 ```
 
-The secondary request is best-effort: if it fails, the strategy still returns the user info without the email. This is the recommended pattern for supplementary data.
+The secondary request is best-effort: if either the HTTP call or the status check fails, the strategy still returns the user info without the email. Always pass each response through `provider_support.check_response_status` before parsing its body.
 
 ### Scope formatting
 
@@ -708,11 +713,30 @@ repository = { type = "github", user = "tylerbutler", repo = "vestibule", path =
 
 Make JSON parsing functions public when they are part of your supported strategy-author API. This makes them unit-testable with mock data and gives downstream strategy authors stable helpers to reuse. Do not rely on private or test-only exports from another package; use public helpers such as `provider_support.parse_oauth_token_response`, `oidc.parse_token_response`, `oidc.parse_userinfo_response`, `github.parse_token_response`, and `github.parse_primary_email` when they fit your provider.
 
+`provider_support.parse_oauth_token_response` also needs to know how the
+provider formats scopes:
+
+```gleam
+provider_support.parse_oauth_token_response(
+  body,
+  provider_support.RequiredScope(separator: " "),
+)
+```
+
+Use `RequiredScope(separator:)` when a successful token response must include a
+scope string, `OptionalScope(separator:)` when the scope field may be absent, and
+`NoScope` when the provider does not return scopes in token responses. Set the
+separator to the provider's response format, such as `" "` for standard OAuth2
+responses or `","` for GitHub token responses.
+
 ```gleam
 /// Parse a Twitch token exchange response into Credentials.
 /// Supported parser helper for consumers and tests.
 pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
-  // ...
+  provider_support.parse_oauth_token_response(
+    body,
+    provider_support.RequiredScope(separator: " "),
+  )
 }
 
 /// Parse a Twitch /helix/users response into a uid and UserInfo.

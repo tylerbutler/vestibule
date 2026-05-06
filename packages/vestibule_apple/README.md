@@ -30,6 +30,9 @@ let assert Ok(apple) = vestibule_apple.try_init()
 let strategy = vestibule_apple.strategy(apple)
 ```
 
+`try_init()` returns `Error(JwksCacheInitFailed(_))` when the JWKS cache cannot
+be initialized, including duplicate cache initialization.
+
 ## Client-secret JWT setup
 
 Apple does not use a static client secret. The `client_secret` value in your
