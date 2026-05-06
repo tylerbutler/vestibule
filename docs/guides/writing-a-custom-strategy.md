@@ -730,7 +730,9 @@ separator to the provider's response format, such as `" "` for standard OAuth2
 responses or `","` for GitHub token responses.
 
 ```gleam
-/// Parse a Twitch token exchange response into Credentials.
+/// Parse a standard OAuth token exchange response into Credentials.
+/// Use this helper for providers whose scope field is absent or a
+/// separator-delimited string.
 /// Supported parser helper for consumers and tests.
 pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
   provider_support.parse_oauth_token_response(
