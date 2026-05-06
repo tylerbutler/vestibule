@@ -10,7 +10,7 @@ import vestibule/authorization_request.{AuthorizationRequest}
 import vestibule/config
 import vestibule/credentials.{Credentials}
 import vestibule/error
-import vestibule/strategy.{type Strategy, Strategy, UserResult}
+import vestibule/strategy.{type Strategy, ExchangeResult, Strategy, UserResult}
 import vestibule/user_info.{UserInfo}
 
 pub fn main() -> Nil {
@@ -33,15 +33,16 @@ fn test_strategy() -> Strategy(e) {
     exchange_code: fn(_config, code, _code_verifier) {
       case code {
         "valid_code" ->
-          Ok(
-            Credentials(
+          Ok(ExchangeResult(
+            credentials: Credentials(
               token: "test_token",
               refresh_token: None,
               token_type: "bearer",
               expires_in: None,
               scopes: ["default_scope"],
             ),
-          )
+            artifacts: dict.new(),
+          ))
         _ -> Error(error.CodeExchangeFailed(reason: "bad code"))
       }
     },
@@ -56,7 +57,8 @@ fn test_strategy() -> Strategy(e) {
         ),
       )
     },
-    fetch_user: fn(_cfg, _creds) {
+    fetch_user: fn(_cfg, exchange) {
+      exchange.credentials.token |> expect.to_equal("test_token")
       Ok(UserResult(
         uid: "user123",
         info: UserInfo(
@@ -70,6 +72,49 @@ fn test_strategy() -> Strategy(e) {
         extra: dict.from_list([
           #("raw_provider", dynamic.string("from-provider")),
         ]),
+      ))
+    },
+  )
+}
+
+fn artifact_strategy() -> Strategy(e) {
+  Strategy(
+    provider: "artifact",
+    default_scopes: [],
+    authorize_url: fn(_config, _scopes, state) {
+      Ok("https://test.com/auth?state=" <> state)
+    },
+    exchange_code: fn(_config, _code, _code_verifier) {
+      Ok(ExchangeResult(
+        credentials: Credentials(
+          token: "artifact_token",
+          refresh_token: None,
+          token_type: "bearer",
+          expires_in: None,
+          scopes: [],
+        ),
+        artifacts: dict.from_list([
+          #("exchange_marker", dynamic.string("from-exchange")),
+        ]),
+      ))
+    },
+    refresh_token: fn(_config, _refresh_tok) {
+      Error(error.ConfigError(reason: "refresh not implemented"))
+    },
+    fetch_user: fn(_cfg, exchange) {
+      let assert Ok(marker) = dict.get(exchange.artifacts, "exchange_marker")
+      let assert Ok(decoded) = decode.run(marker, decode.string)
+      Ok(UserResult(
+        uid: decoded,
+        info: UserInfo(
+          name: None,
+          email: None,
+          nickname: None,
+          image: None,
+          description: None,
+          urls: dict.new(),
+        ),
+        extra: dict.new(),
       ))
     },
   )
@@ -154,6 +199,24 @@ pub fn handle_callback_populates_auth_extra_from_strategy_user_result_test() {
   let assert Ok(raw_provider) = dict.get(auth.extra, "raw_provider")
   decode.run(raw_provider, decode.string)
   |> expect.to_equal(Ok("from-provider"))
+}
+
+pub fn handle_callback_passes_exchange_artifacts_to_fetch_user_test() {
+  let conf = config.new("id", "secret", "http://localhost/cb")
+  let state = "test_state_value"
+  let params = dict.from_list([#("code", "valid_code"), #("state", state)])
+
+  let assert Ok(auth) =
+    vestibule.handle_callback(
+      artifact_strategy(),
+      conf,
+      params,
+      state,
+      "test_verifier",
+    )
+
+  auth.uid |> expect.to_equal("from-exchange")
+  auth.credentials.token |> expect.to_equal("artifact_token")
 }
 
 pub fn refresh_token_delegates_to_strategy_refresh_token_test() {

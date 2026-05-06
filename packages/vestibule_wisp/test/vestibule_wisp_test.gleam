@@ -202,7 +202,7 @@ fn test_strategy() -> Strategy(e) {
     refresh_token: fn(_config, _refresh_token) {
       Error(error.ConfigError(reason: "test"))
     },
-    fetch_user: fn(_config, _credentials) {
+    fetch_user: fn(_config, _exchange) {
       Error(error.ConfigError(reason: "test"))
     },
   )
