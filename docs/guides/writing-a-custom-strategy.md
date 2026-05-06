@@ -16,7 +16,7 @@ Vestibule authenticates users in two phases:
 
 1. **Request phase** -- Your application calls `vestibule.authorize_url(strategy, config)`. Vestibule generates a CSRF state token and PKCE code verifier, calls your strategy's `authorize_url` function to build the provider-specific URL, then appends the PKCE `code_challenge` parameter. You get back an `AuthorizationRequest` containing the URL, state, and code verifier. Store the state and code verifier in the user's session, then redirect them to the URL.
 
-2. **Callback phase** -- The provider redirects the user back to your application with a `code` and `state` parameter. Your application calls `vestibule.handle_callback(strategy, config, params, expected_state, code_verifier)`. Vestibule validates the CSRF state, calls your strategy's `exchange_code` function (passing the PKCE code verifier), then calls your strategy's `fetch_user` function with the config and credentials. You get back an `Auth` record with the user's UID, normalized info, provider extras, and OAuth credentials.
+2. **Callback phase** -- The provider redirects the user back to your application with a `code` and `state` parameter. Your application calls `vestibule.handle_callback(strategy, config, params, expected_state, code_verifier)`. Vestibule validates the CSRF state, calls your strategy's `exchange_code` function (passing the PKCE code verifier), then calls your strategy's `fetch_user` function with the config and `ExchangeResult`. You get back an `Auth` record with the user's UID, normalized info, provider extras, and OAuth credentials.
 
 ### What the core library handles for you
 
@@ -31,7 +31,7 @@ You do not need to implement any of the following -- vestibule's core takes care
 Your strategy is responsible for:
 
 - Building the provider's authorization URL (with scopes, state, redirect URI, and client ID)
-- POSTing to the provider's token endpoint and parsing the response into `Credentials`
+- POSTing to the provider's token endpoint and parsing the response into `ExchangeResult`
 - Fetching user info from the provider's API and normalizing it into `UserResult`
 - Refreshing credentials when the provider issues refresh tokens
 
@@ -42,6 +42,10 @@ Here is the full type definition from `vestibule/strategy.gleam`:
 ```gleam
 pub type UserResult {
   UserResult(uid: String, info: UserInfo, extra: Dict(String, Dynamic))
+}
+
+pub type ExchangeResult {
+  ExchangeResult(credentials: Credentials, artifacts: Dict(String, Dynamic))
 }
 
 pub type Strategy(e) {
@@ -57,11 +61,11 @@ pub type Strategy(e) {
     /// Exchange an authorization code for credentials.
     /// The third parameter is an optional PKCE code verifier.
     exchange_code: fn(Config, String, Option(String)) ->
-      Result(Credentials, AuthError(e)),
+      Result(ExchangeResult, AuthError(e)),
     /// Refresh credentials using a provider-specific refresh token request.
     refresh_token: fn(Config, String) -> Result(Credentials, AuthError(e)),
-    /// Fetch user info using the obtained credentials.
-    fetch_user: fn(Config, Credentials) -> Result(UserResult, AuthError(e)),
+    /// Fetch user info using the obtained credentials and artifacts.
+    fetch_user: fn(Config, ExchangeResult) -> Result(UserResult, AuthError(e)),
   )
 }
 ```
@@ -74,11 +78,11 @@ pub type Strategy(e) {
 
 **`authorize_url: fn(Config, List(String), String) -> Result(String, AuthError(e))`** -- Given the application config, resolved scopes, and CSRF state string, return the full authorization URL. Vestibule will append the PKCE parameters after your function returns. You must include `response_type=code`, `client_id`, `redirect_uri`, `scope`, and `state` in the URL.
 
-**`exchange_code: fn(Config, String, Option(String)) -> Result(Credentials, AuthError(e))`** -- Given the config, authorization code, and optional PKCE code verifier, POST to the token endpoint and return parsed `Credentials`. The code verifier will be `Some(verifier)` when PKCE is in use (which is always, in the current implementation).
+**`exchange_code: fn(Config, String, Option(String)) -> Result(ExchangeResult, AuthError(e))`** -- Given the config, authorization code, and optional PKCE code verifier, POST to the token endpoint and return parsed credentials plus any provider-specific token response artifacts. The code verifier will be `Some(verifier)` when PKCE is in use (which is always, in the current implementation). Use `strategy.exchange_result(credentials)` when the provider has no artifacts to carry forward.
 
 **`refresh_token: fn(Config, String) -> Result(Credentials, AuthError(e))`** -- Given the config and a refresh token string, POST to the provider's token endpoint and return updated `Credentials`. Providers differ on refresh-token rotation, scopes, and error formats, so refresh stays strategy-owned.
 
-**`fetch_user: fn(Config, Credentials) -> Result(UserResult, AuthError(e))`** -- Given the config and valid credentials, fetch the provider's user info API and return `UserResult(uid, info, extra)`. The UID should be the provider's stable unique identifier for the user (e.g., a numeric ID or a `sub` claim). Use `extra: dict.new()` when the provider has no extra data to expose.
+**`fetch_user: fn(Config, ExchangeResult) -> Result(UserResult, AuthError(e))`** -- Given the config and successful exchange result, fetch the provider's user info API and return `UserResult(uid, info, extra)`. The exchange result contains standard credentials and any token response artifacts your provider needs while resolving the user. The UID should be the provider's stable unique identifier for the user (e.g., a numeric ID or a `sub` claim). Use `extra: dict.new()` when the provider has no extra data to expose.
 
 ### The generic error type
 
@@ -217,7 +221,7 @@ Key points:
 
 ### 3. Implement exchange_code
 
-The `exchange_code` function POSTs the authorization code to the provider's token endpoint and parses the response into `Credentials`.
+The `exchange_code` function POSTs the authorization code to the provider's token endpoint and parses the response into `Credentials`, then wraps them in an `ExchangeResult`.
 
 ```gleam
 import gleam/dynamic/decode
@@ -227,7 +231,7 @@ fn do_exchange_code(
   cfg: Config,
   code: String,
   code_verifier: Option(String),
-) -> Result(Credentials, AuthError(e)) {
+) -> Result(strategy.ExchangeResult, AuthError(e)) {
   let assert Ok(site) = uri.parse("https://id.twitch.tv")
   use redirect <- result.try(
     provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
@@ -251,6 +255,7 @@ fn do_exchange_code(
     Ok(response) -> {
       use body <- result.try(provider_support.check_response_status(response))
       parse_token_response(body)
+      |> result.map(strategy.exchange_result)
     }
     Error(_) ->
       Error(error.NetworkError(
@@ -365,7 +370,7 @@ fn do_refresh_token(
 
 The `fetch_user` function calls the provider's user info endpoint and normalizes the response into vestibule's `UserInfo` type.
 
-Twitch's Helix API returns user data at `https://api.twitch.tv/helix/users` and requires both an `Authorization` header and a `Client-Id` header. `fetch_user` receives both `Config` and `Credentials`, so it can read the client ID from the config while using the access token from the credentials.
+Twitch's Helix API returns user data at `https://api.twitch.tv/helix/users` and requires both an `Authorization` header and a `Client-Id` header. `fetch_user` receives both `Config` and `ExchangeResult`, so it can read the client ID from the config while using the credentials from the exchange result.
 
 ```gleam
 import gleam/dict
@@ -374,8 +379,9 @@ import gleam/list
 
 fn do_fetch_user(
   cfg: Config,
-  creds: Credentials,
+  exchange: strategy.ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
+  let creds = exchange.credentials
   use auth_header <- result.try(strategy.authorization_header(creds))
   use user_req <- result.try(
     request.to("https://api.twitch.tv/helix/users")
@@ -569,7 +575,12 @@ the provider also returns an error documentation URI.
 Some providers require multiple API calls to get complete user information. GitHub is the canonical example -- the `/user` endpoint does not include the user's email, so the GitHub strategy makes a second request to `/user/emails`:
 
 ```gleam
-fn do_fetch_user(cfg: Config, creds: Credentials) -> Result(UserResult, AuthError(e)) {
+fn do_fetch_user(
+  cfg: Config,
+  exchange: strategy.ExchangeResult,
+) -> Result(UserResult, AuthError(e)) {
+  let creds = exchange.credentials
+
   // Primary request
   use resp <- result.try(fetch_profile(cfg, creds))
   use #(uid, info) <- result.try(parse_user_response(resp.body))
