@@ -132,7 +132,7 @@ fn do_exchange_code(
   cfg: Config,
   code: String,
   code_verifier: Option(String),
-) -> Result(Credentials, AuthError(e)) {
+) -> Result(strategy.ExchangeResult, AuthError(e)) {
   use site <- result.try(
     uri.parse("https://oauth2.googleapis.com")
     |> result.map_error(fn(_) {
@@ -161,6 +161,7 @@ fn do_exchange_code(
     Ok(response) -> {
       use body <- result.try(provider_support.check_response_status(response))
       parse_token_response(body)
+      |> result.map(strategy.exchange_result)
     }
     Error(_) ->
       Error(error.NetworkError(
@@ -210,9 +211,11 @@ fn do_refresh_token(
 
 fn do_fetch_user(
   _cfg: Config,
-  creds: Credentials,
+  exchange: strategy.ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
-  use auth_header <- result.try(strategy.authorization_header(creds))
+  use auth_header <- result.try(strategy.authorization_header(
+    exchange.credentials,
+  ))
   use #(uid, info) <- result.try(provider_support.fetch_json_with_auth(
     "https://www.googleapis.com/oauth2/v3/userinfo",
     auth_header,

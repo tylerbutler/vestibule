@@ -413,9 +413,9 @@ fn build_authorize_url_fn(
 fn build_exchange_code_fn(
   token_endpoint: String,
 ) -> fn(config.Config, String, option.Option(String)) ->
-  Result(Credentials, AuthError(e)) {
+  Result(strategy.ExchangeResult, AuthError(e)) {
   fn(cfg: config.Config, code: String, code_verifier: option.Option(String)) -> Result(
-    Credentials,
+    strategy.ExchangeResult,
     AuthError(e),
   ) {
     use redirect <- result.try(
@@ -454,6 +454,7 @@ fn build_exchange_code_fn(
       Ok(response) -> {
         use body <- result.try(provider_support.check_response_status(response))
         parse_token_response(body)
+        |> result.map(strategy.exchange_result)
       }
       Error(_) ->
         Error(error.NetworkError(
@@ -465,12 +466,15 @@ fn build_exchange_code_fn(
 
 fn build_fetch_user_fn(
   userinfo_endpoint: String,
-) -> fn(config.Config, Credentials) -> Result(UserResult, AuthError(e)) {
-  fn(_cfg: config.Config, creds: Credentials) -> Result(
+) -> fn(config.Config, strategy.ExchangeResult) ->
+  Result(UserResult, AuthError(e)) {
+  fn(_cfg: config.Config, exchange: strategy.ExchangeResult) -> Result(
     UserResult,
     AuthError(e),
   ) {
-    use auth_header <- result.try(strategy.authorization_header(creds))
+    use auth_header <- result.try(strategy.authorization_header(
+      exchange.credentials,
+    ))
     use #(uid, info) <- result.try(provider_support.fetch_json_with_auth(
       userinfo_endpoint,
       auth_header,
