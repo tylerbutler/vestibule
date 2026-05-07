@@ -201,8 +201,10 @@ The 1.0 API intentionally keeps provider behavior explicit:
   or `oidc.discover` instead of constructing records directly.
 - `config.with_extra_params` returns `Result(Config, AuthError(e))` and rejects
   reserved authorization parameters.
-- `Strategy` records include provider-owned `refresh_token` and
-  `fetch_user(Config, Credentials)` functions.
+- `Strategy.exchange_code` returns `ExchangeResult(credentials, artifacts)`.
+  Use `strategy.exchange_result(credentials)` for providers with no exchange
+  artifacts. `Strategy.fetch_user(Config, ExchangeResult)` receives both the
+  standard credentials and any provider-specific token response artifacts.
 - Provider-support helpers are public for custom strategy authors. Prefer
   helpers such as `provider_support.parse_redirect_uri`,
   `provider_support.check_response_status`, and

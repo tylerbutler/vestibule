@@ -28,6 +28,7 @@
 /// let strategy = vestibule_apple.strategy(apple)
 /// ```
 import gleam/dict
+import gleam/dynamic
 import gleam/dynamic/decode
 import gleam/int
 import gleam/json
@@ -37,7 +38,6 @@ import gleam/string
 import gleam/time/duration
 import gleam/uri
 
-import bravo/uset
 import gleam/http/request
 import gleam/httpc
 
@@ -50,23 +50,23 @@ import vestibule/config.{type Config}
 import vestibule/credentials.{type Credentials, Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/provider_support
-import vestibule/strategy.{type Strategy, type UserResult, Strategy, UserResult}
+import vestibule/strategy.{
+  type ExchangeResult, type Strategy, type UserResult, Strategy, UserResult,
+}
 import vestibule/user_info
-import vestibule_apple/id_token_cache.{type IdTokenCache}
 import vestibule_apple/jwks.{type JwksCache}
 import vestibule_apple/jwt
 import ywt/claim
 import ywt/verify_key.{type VerifyKey}
 
-/// Holds both the ID token cache and the JWKS cache.
+/// Holds the JWKS cache used for Apple ID token signature verification.
 /// Returned by `init()` and required by `strategy()`.
 pub type AppleCache {
-  AppleCache(id_tokens: IdTokenCache, jwks: JwksCache)
+  AppleCache(jwks: JwksCache)
 }
 
 /// Errors returned by checked Apple cache initialization.
 pub type AppleInitError {
-  IdTokenCacheInitFailed(id_token_cache.CacheError)
   JwksCacheInitFailed(jwks.JwksCacheError)
 }
 
@@ -98,15 +98,7 @@ pub fn try_init() -> Result(AppleCache, AppleInitError) {
 /// isolated cache tables.
 pub fn try_init_named(prefix: String) -> Result(AppleCache, AppleInitError) {
   case jwks.try_init_named(prefix <> "_jwks") {
-    Ok(jwks) -> {
-      case id_token_cache.try_init_named(prefix <> "_id_token") {
-        Ok(id_tokens) -> Ok(AppleCache(id_tokens: id_tokens, jwks: jwks))
-        Error(err) -> {
-          let _ = uset.delete(jwks)
-          Error(IdTokenCacheInitFailed(err))
-        }
-      }
-    }
+    Ok(jwks) -> Ok(AppleCache(jwks: jwks))
     Error(err) -> Error(JwksCacheInitFailed(err))
   }
 }
@@ -126,30 +118,26 @@ pub fn strategy(apple: AppleCache) -> Strategy(e) {
     default_scopes: ["name", "email"],
     authorize_url: do_authorize_url,
     exchange_code: fn(config, code, code_verifier) {
-      do_exchange_code(apple, config, code, code_verifier)
+      do_exchange_code(config, code, code_verifier)
     },
-    refresh_token: fn(config, refresh_tok) {
-      do_refresh_token(apple, config, refresh_tok)
-    },
-    fetch_user: fn(_config, creds) { do_fetch_user(apple, creds) },
+    refresh_token: do_refresh_token,
+    fetch_user: fn(config, exchange) { do_fetch_user(apple, config, exchange) },
   )
 }
 
 /// Parse Apple token response JSON.
 ///
 /// Apple's token response includes an `id_token` JWT containing user claims.
-/// This function parses the response and returns both the Credentials and the
-/// raw id_token string as a tuple.
+/// This function parses the response and returns standard credentials plus
+/// provider-specific artifacts such as the raw `id_token`.
 pub fn parse_token_response(
   body: String,
-) -> Result(#(Credentials, Option(String)), AuthError(e)) {
+) -> Result(ExchangeResult, AuthError(e)) {
   use body <- result.try(provider_support.check_token_error(body))
   parse_success_token(body)
 }
 
-fn parse_success_token(
-  body: String,
-) -> Result(#(Credentials, Option(String)), AuthError(e)) {
+fn parse_success_token(body: String) -> Result(ExchangeResult, AuthError(e)) {
   let decoder = {
     use access_token <- decode.field("access_token", decode.string)
     use token_type <- decode.field("token_type", decode.string)
@@ -185,11 +173,24 @@ fn parse_success_token(
     ))
   }
   case json.parse(body, decoder) {
-    Ok(parsed) -> Ok(parsed)
+    Ok(#(credentials, id_token)) ->
+      Ok(strategy.exchange_result_with_artifacts(
+        credentials,
+        id_token_artifacts(id_token),
+      ))
     _ ->
       Error(error.CodeExchangeFailed(
         reason: "Failed to parse Apple token response",
       ))
+  }
+}
+
+fn id_token_artifacts(
+  id_token: Option(String),
+) -> dict.Dict(String, dynamic.Dynamic) {
+  case id_token {
+    Some(token) -> dict.from_list([#("id_token", dynamic.string(token))])
+    None -> dict.new()
   }
 }
 
@@ -324,11 +325,10 @@ fn do_authorize_url(
 }
 
 fn do_exchange_code(
-  apple: AppleCache,
   cfg: Config,
   code: String,
   code_verifier: Option(String),
-) -> Result(Credentials, AuthError(e)) {
+) -> Result(ExchangeResult, AuthError(e)) {
   use site <- result.try(
     uri.parse("https://appleid.apple.com")
     |> result.map_error(fn(_) {
@@ -354,25 +354,8 @@ fn do_exchange_code(
     |> request.set_header("accept", "application/json")
   let req = strategy.append_code_verifier(req, code_verifier)
   case httpc.send(req) {
-    Ok(response) if response.status >= 200 && response.status < 300 -> {
-      case parse_token_response(response.body) {
-        Ok(#(creds, id_token)) -> {
-          // Store the id_token + client_id in the cache so fetch_user can
-          // verify and decode it
-          case id_token {
-            Some(token) ->
-              id_token_cache.store(
-                apple.id_tokens,
-                creds.token,
-                token <> "\n" <> config.client_id(cfg),
-              )
-            None -> Nil
-          }
-          Ok(creds)
-        }
-        Error(err) -> Error(err)
-      }
-    }
+    Ok(response) if response.status >= 200 && response.status < 300 ->
+      parse_token_response(response.body)
     Ok(response) ->
       Error(error.NetworkError(
         reason: "HTTP "
@@ -388,7 +371,6 @@ fn do_exchange_code(
 }
 
 fn do_refresh_token(
-  apple: AppleCache,
   cfg: Config,
   refresh_tok: String,
 ) -> Result(Credentials, AuthError(e)) {
@@ -415,21 +397,8 @@ fn do_refresh_token(
   case httpc.send(req) {
     Ok(response) -> {
       use body <- result.try(provider_support.check_response_status(response))
-      case parse_token_response(body) {
-        Ok(#(creds, id_token)) -> {
-          case id_token {
-            Some(token) ->
-              id_token_cache.store(
-                apple.id_tokens,
-                creds.token,
-                token <> "\n" <> config.client_id(cfg),
-              )
-            None -> Nil
-          }
-          Ok(creds)
-        }
-        Error(err) -> Error(err)
-      }
+      use exchange <- result.try(parse_token_response(body))
+      Ok(exchange.credentials)
     }
     Error(_) ->
       Error(error.NetworkError(
@@ -440,27 +409,28 @@ fn do_refresh_token(
 
 fn do_fetch_user(
   apple: AppleCache,
-  creds: Credentials,
+  cfg: Config,
+  exchange: ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
   // Apple has no userinfo endpoint. User info comes from the id_token JWT
-  // stored during exchange_code.
-  use cached <- result.try(
-    id_token_cache.retrieve(apple.id_tokens, creds.token)
+  // returned as an exchange artifact.
+  use artifact <- result.try(
+    dict.get(exchange.artifacts, "id_token")
     |> result.replace_error(error.UserInfoFailed(
-      reason: "No Apple ID token found. Ensure exchange_code was called first and init() was called at startup.",
+      reason: "No Apple ID token found in exchange artifacts.",
     )),
   )
-
-  // The cache stores "id_token\nclient_id"
-  case string.split_once(cached, "\n") {
-    Ok(#(id_token, client_id)) -> {
-      // Fetch JWKS keys and verify the token
-      use keys <- result.try(jwks.get_keys(apple.jwks))
-      use #(uid, info) <- result.try(verify_id_token(id_token, keys, client_id))
-      Ok(UserResult(uid: uid, info: info, extra: dict.new()))
-    }
-    Error(_) ->
-      // Fallback: cached value has no client_id separator (shouldn't happen)
-      Error(error.UserInfoFailed(reason: "Cached Apple ID token is malformed"))
-  }
+  use id_token <- result.try(
+    decode.run(artifact, decode.string)
+    |> result.map_error(fn(_) {
+      error.UserInfoFailed(reason: "Apple ID token artifact is not a string")
+    }),
+  )
+  use keys <- result.try(jwks.get_keys(apple.jwks))
+  use #(uid, info) <- result.try(verify_id_token(
+    id_token,
+    keys,
+    config.client_id(cfg),
+  ))
+  Ok(UserResult(uid: uid, info: info, extra: dict.new()))
 }

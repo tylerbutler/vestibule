@@ -16,7 +16,7 @@ import vestibule/oidc
 import vestibule/pkce
 import vestibule/provider_support
 import vestibule/state
-import vestibule/strategy.{type Strategy, Strategy, UserResult}
+import vestibule/strategy.{type Strategy, ExchangeResult, Strategy, UserResult}
 import vestibule/user_info.{UserInfo}
 
 // ---------------------------------------------------------------------------
@@ -38,22 +38,23 @@ fn test_strategy() -> Strategy(e) {
     exchange_code: fn(_config, code, _verifier) {
       case code {
         "valid_code" ->
-          Ok(
-            Credentials(
+          Ok(ExchangeResult(
+            credentials: Credentials(
               token: "tok",
               refresh_token: None,
               token_type: "bearer",
               expires_in: None,
               scopes: [],
             ),
-          )
+            artifacts: dict.new(),
+          ))
         _ -> Error(error.CodeExchangeFailed(reason: "bad code"))
       }
     },
     refresh_token: fn(_config, _refresh_token) {
       Error(error.ConfigError(reason: "refresh not implemented"))
     },
-    fetch_user: fn(_config, _creds) {
+    fetch_user: fn(_config, _exchange) {
       Ok(UserResult(
         uid: "uid",
         info: UserInfo(

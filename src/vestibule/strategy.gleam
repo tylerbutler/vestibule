@@ -15,6 +15,28 @@ pub type UserResult {
   UserResult(uid: String, info: UserInfo, extra: Dict(String, Dynamic))
 }
 
+/// The result of exchanging an authorization code.
+///
+/// `credentials` contains the standard OAuth credentials. `artifacts` contains
+/// provider-specific token response data that may be needed while resolving the
+/// user, such as an OpenID Connect `id_token`.
+pub type ExchangeResult {
+  ExchangeResult(credentials: Credentials, artifacts: Dict(String, Dynamic))
+}
+
+/// Build an exchange result for providers with no provider-specific artifacts.
+pub fn exchange_result(credentials: Credentials) -> ExchangeResult {
+  ExchangeResult(credentials: credentials, artifacts: dict.new())
+}
+
+/// Build an exchange result with provider-specific artifacts.
+pub fn exchange_result_with_artifacts(
+  credentials: Credentials,
+  artifacts: Dict(String, Dynamic),
+) -> ExchangeResult {
+  ExchangeResult(credentials: credentials, artifacts: artifacts)
+}
+
 /// A strategy is a record containing the functions needed
 /// to authenticate with a specific provider.
 ///
@@ -30,14 +52,14 @@ pub type Strategy(e) {
     /// Parameters: config, scopes, state.
     authorize_url: fn(Config, List(String), String) ->
       Result(String, AuthError(e)),
-    /// Exchange an authorization code for credentials.
+    /// Exchange an authorization code for credentials and provider-specific artifacts.
     /// The third parameter is an optional PKCE code verifier.
     exchange_code: fn(Config, String, Option(String)) ->
-      Result(Credentials, AuthError(e)),
+      Result(ExchangeResult, AuthError(e)),
     /// Refresh credentials using a provider-specific refresh token request.
     refresh_token: fn(Config, String) -> Result(Credentials, AuthError(e)),
-    /// Fetch user info using the obtained credentials.
-    fetch_user: fn(Config, Credentials) -> Result(UserResult, AuthError(e)),
+    /// Fetch user info using the obtained exchange result.
+    fetch_user: fn(Config, ExchangeResult) -> Result(UserResult, AuthError(e)),
   )
 }
 

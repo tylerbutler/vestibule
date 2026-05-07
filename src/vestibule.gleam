@@ -92,22 +92,22 @@ pub fn handle_callback(
     |> result.replace_error(error.MissingCallbackParam("code")),
   )
 
-  // Exchange code for credentials, passing the PKCE verifier
-  use credentials <- result.try(strategy.exchange_code(
+  // Exchange code for credentials and provider-specific artifacts, passing the PKCE verifier
+  use exchange <- result.try(strategy.exchange_code(
     cfg,
     code,
     option.Some(code_verifier),
   ))
 
   // Fetch user info
-  use user <- result.try(strategy.fetch_user(cfg, credentials))
+  use user <- result.try(strategy.fetch_user(cfg, exchange))
 
   // Assemble the Auth result
   Ok(Auth(
     uid: user.uid,
     provider: strategy.provider,
     info: user.info,
-    credentials: credentials,
+    credentials: exchange.credentials,
     extra: user.extra,
   ))
 }
