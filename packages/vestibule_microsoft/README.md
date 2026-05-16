@@ -28,7 +28,7 @@ The strategy uses Microsoft Graph `/me` for profile data and keeps
 
 ## Default scopes
 
-`openid email profile offline_access`. Override with `config.with_scopes`.
+`User.Read`. Override with `config.with_scopes`.
 
 ## Azure portal setup
 

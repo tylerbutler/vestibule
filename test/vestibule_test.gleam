@@ -124,9 +124,10 @@ fn artifact_strategy() -> Strategy(e) {
 }
 
 fn fragment_strategy() -> Strategy(e) {
+  let base = test_strategy()
   strategy.new(
-    provider: strategy.provider(test_strategy()),
-    default_scopes: strategy.default_scopes(test_strategy()),
+    provider: strategy.provider(base),
+    default_scopes: strategy.default_scopes(base),
     authorize_url: fn(_config, _scopes, state) {
       Ok(
         "https://test.com/auth?state="
@@ -135,14 +136,10 @@ fn fragment_strategy() -> Strategy(e) {
       )
     },
     exchange_code: fn(cfg, code, verifier) {
-      strategy.exchange_code(test_strategy(), cfg, code, verifier)
+      strategy.exchange_code(base, cfg, code, verifier)
     },
-    refresh_token: fn(cfg, tok) {
-      strategy.refresh_token(test_strategy(), cfg, tok)
-    },
-    fetch_user: fn(cfg, exchange) {
-      strategy.fetch_user(test_strategy(), cfg, exchange)
-    },
+    refresh_token: fn(cfg, tok) { strategy.refresh_token(base, cfg, tok) },
+    fetch_user: fn(cfg, exchange) { strategy.fetch_user(base, cfg, exchange) },
   )
 }
 

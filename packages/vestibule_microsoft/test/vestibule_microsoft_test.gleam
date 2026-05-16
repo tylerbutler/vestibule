@@ -3,8 +3,8 @@ import gleam/string
 import startest
 import startest/expect
 import vestibule/config
-import vestibule/strategy
 import vestibule/credentials.{Credentials}
+import vestibule/strategy
 import vestibule_microsoft
 
 pub fn main() -> Nil {
@@ -106,6 +106,7 @@ pub fn authorize_url_includes_extra_params_test() {
   let assert Ok(conf) =
     config.new("client-id", "secret", "http://localhost/callback")
     |> config.with_extra_params([#("prompt", "select_account")])
-  let assert Ok(url) = strategy.build_authorize_url(strat, conf, ["User.Read"], "state")
+  let assert Ok(url) =
+    strategy.build_authorize_url(strat, conf, ["User.Read"], "state")
   { string.contains(url, "prompt=select_account") } |> expect.to_be_true()
 }

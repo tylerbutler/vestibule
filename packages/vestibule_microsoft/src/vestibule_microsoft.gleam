@@ -1,7 +1,7 @@
 //// Microsoft Identity Platform (v2.0) strategy.
 ////
 //// Supports common, organizations, consumers, and per-tenant authorities.
-//// Requests `openid email profile offline_access` by default. Tokens are
+//// Requests `User.Read` by default. Tokens are
 //// exchanged against `/oauth2/v2.0/token`; user info comes from Microsoft
 //// Graph `/me`.
 
@@ -214,9 +214,9 @@ fn do_fetch_user(
   _cfg: Config,
   exchange: strategy.ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
-  use auth_header <- result.try(strategy.authorization_header(
-    strategy.exchange_credentials(exchange),
-  ))
+  use auth_header <- result.try(
+    strategy.authorization_header(strategy.exchange_credentials(exchange)),
+  )
   use #(uid, info) <- result.try(provider_support.fetch_json_with_auth(
     "https://graph.microsoft.com/v1.0/me",
     auth_header,
