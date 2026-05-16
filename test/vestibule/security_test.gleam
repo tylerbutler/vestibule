@@ -10,7 +10,7 @@ import startest/expect
 import vestibule
 import vestibule/authorization_request
 import vestibule/config
-import vestibule/credentials.{Credentials}
+import vestibule/credentials
 import vestibule/error
 import vestibule/oidc
 import vestibule/pkce
@@ -40,7 +40,7 @@ fn test_strategy() -> Strategy(e) {
         "valid_code" ->
           Ok(
             strategy.exchange_result(
-              Credentials(
+              credentials.new(
                 token: "tok",
                 refresh_token: None,
                 token_type: "bearer",
@@ -370,7 +370,7 @@ pub fn refresh_response_handles_long_token_test() {
       provider_support.OptionalScope(" "),
     )
   let assert Ok(creds) = result
-  { string.length(creds.token) == 10_000 } |> expect.to_be_true()
+  { string.length(credentials.token(creds)) == 10_000 } |> expect.to_be_true()
 }
 
 // ===========================================================================

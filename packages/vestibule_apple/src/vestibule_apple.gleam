@@ -27,6 +27,7 @@
 //// let apple = vestibule_apple.init()
 //// let strategy = vestibule_apple.strategy(apple)
 //// ```
+
 import gleam/dict
 import gleam/dynamic
 import gleam/dynamic/decode
@@ -47,7 +48,7 @@ import glow_auth/token_request
 import glow_auth/uri/uri_builder
 
 import vestibule/config.{type Config}
-import vestibule/credentials.{type Credentials, Credentials}
+import vestibule/credentials
 import vestibule/error.{type AuthError}
 import vestibule/provider_support
 import vestibule/strategy.{type ExchangeResult, type Strategy, type UserResult}
@@ -162,7 +163,7 @@ fn parse_success_token(body: String) -> Result(ExchangeResult, AuthError(e)) {
       s -> string.split(s, " ")
     }
     decode.success(#(
-      Credentials(
+      credentials.new(
         token: access_token,
         refresh_token: refresh_token,
         token_type: token_type,
@@ -373,7 +374,7 @@ fn do_exchange_code(
 fn do_refresh_token(
   cfg: Config,
   refresh_tok: String,
-) -> Result(Credentials, AuthError(e)) {
+) -> Result(credentials.Credentials, AuthError(e)) {
   use site <- result.try(
     uri.parse("https://appleid.apple.com")
     |> result.map_error(fn(_) {

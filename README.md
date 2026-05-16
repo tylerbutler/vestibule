@@ -65,7 +65,7 @@ let assert Ok(auth) =
     "code verifier from session",
   )
 // Delete the stored state and code verifier after a successful callback.
-// auth.uid, auth.info.email, auth.credentials.token
+// auth.uid, auth.info.email, credentials.token(auth.credentials)
 ```
 
 Store `state` and the PKCE `code_verifier` on the server, bound to the user's

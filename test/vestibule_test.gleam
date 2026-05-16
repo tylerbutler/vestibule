@@ -8,7 +8,7 @@ import startest/expect
 import vestibule
 import vestibule/authorization_request
 import vestibule/config
-import vestibule/credentials.{Credentials}
+import vestibule/credentials
 import vestibule/error
 import vestibule/strategy.{type Strategy}
 import vestibule/user_info.{UserInfo}
@@ -35,7 +35,7 @@ fn test_strategy() -> Strategy(e) {
         "valid_code" ->
           Ok(
             strategy.exchange_result(
-              Credentials(
+              credentials.new(
                 token: "test_token",
                 refresh_token: None,
                 token_type: "bearer",
@@ -49,7 +49,7 @@ fn test_strategy() -> Strategy(e) {
     },
     refresh_token: fn(cfg, refresh_tok) {
       Ok(
-        Credentials(
+        credentials.new(
           token: "delegated:" <> refresh_tok <> ":" <> config.client_id(cfg),
           refresh_token: Some("rotated_by_strategy"),
           token_type: "bearer",
@@ -59,7 +59,8 @@ fn test_strategy() -> Strategy(e) {
       )
     },
     fetch_user: fn(_cfg, exchange) {
-      strategy.exchange_credentials(exchange).token
+      strategy.exchange_credentials(exchange)
+      |> credentials.token()
       |> expect.to_equal("test_token")
       Ok(strategy.user_result(
         uid: "user123",
@@ -88,7 +89,7 @@ fn artifact_strategy() -> Strategy(e) {
     },
     exchange_code: fn(_config, _code, _code_verifier) {
       Ok(strategy.exchange_result_with_artifacts(
-        Credentials(
+        credentials.new(
           token: "artifact_token",
           refresh_token: None,
           token_type: "bearer",
@@ -202,7 +203,7 @@ pub fn handle_callback_succeeds_with_valid_params_test() {
   auth.uid |> expect.to_equal("user123")
   auth.provider |> expect.to_equal("test")
   auth.info.name |> expect.to_equal(Some("Test User"))
-  auth.credentials.token |> expect.to_equal("test_token")
+  credentials.token(auth.credentials) |> expect.to_equal("test_token")
 }
 
 pub fn handle_callback_populates_auth_extra_from_strategy_user_result_test() {
@@ -233,7 +234,7 @@ pub fn handle_callback_passes_exchange_artifacts_to_fetch_user_test() {
     )
 
   auth.uid |> expect.to_equal("from-exchange")
-  auth.credentials.token |> expect.to_equal("artifact_token")
+  credentials.token(auth.credentials) |> expect.to_equal("artifact_token")
 }
 
 pub fn refresh_token_delegates_to_strategy_refresh_token_test() {
@@ -243,7 +244,7 @@ pub fn refresh_token_delegates_to_strategy_refresh_token_test() {
   vestibule.refresh_token(strat, conf, "refresh-123")
   |> expect.to_equal(
     Ok(
-      Credentials(
+      credentials.new(
         token: "delegated:refresh-123:client-id",
         refresh_token: Some("rotated_by_strategy"),
         token_type: "bearer",

@@ -9,9 +9,7 @@
 import gleam/bit_array
 import gleam/dict
 import gleam/http
-import gleam/int
 import gleam/result
-import gleam/string
 import gleam/uri
 import wisp.{type Request, type Response}
 
@@ -324,38 +322,16 @@ fn callback_error_response(err: CallbackError(e)) -> Response {
   }
 }
 
-fn error_response(err: error.AuthError(e)) -> Response {
-  let message = case err {
-    error.StateMismatch -> "State mismatch — possible CSRF attack"
-    error.MissingCallbackParam(name:) -> "Missing callback parameter: " <> name
-    error.CodeExchangeFailed(reason:) -> "Code exchange failed: " <> reason
-    error.UserInfoFailed(reason:) -> "User info fetch failed: " <> reason
-    error.ProviderError(code:, description:, uri: _) ->
-      "Provider error [" <> code <> "]: " <> description
-    error.HttpError(status:, body:) ->
-      "Provider HTTP error [" <> int.to_string(status) <> "]: " <> body
-    error.DecodeError(context:, reason:) ->
-      "Failed to decode " <> context <> ": " <> reason
-    error.NetworkError(reason:) -> "Network error: " <> reason
-    error.ConfigError(reason:) -> "Configuration error: " <> reason
-    error.Custom(_) -> "Custom provider error"
-  }
-  let safe_message = html_escape(message)
-  wisp.html_response("<html>
+fn error_response(_err: error.AuthError(e)) -> Response {
+  wisp.html_response(
+    "<html>
 <head><title>Authentication Error</title></head>
 <body style=\"font-family: system-ui, sans-serif; max-width: 600px; margin: 80px auto;\">
   <h1>Authentication Failed</h1>
-  <p style=\"color: #c0392b;\">" <> safe_message <> "</p>
+  <p style=\"color: #c0392b;\">Authentication failed. Please try again.</p>
   <a href=\"/\">Try again</a>
 </body>
-</html>", 400)
-}
-
-fn html_escape(text: String) -> String {
-  text
-  |> string.replace("&", "&amp;")
-  |> string.replace("<", "&lt;")
-  |> string.replace(">", "&gt;")
-  |> string.replace("\"", "&quot;")
-  |> string.replace("'", "&#x27;")
+</html>",
+    400,
+  )
 }

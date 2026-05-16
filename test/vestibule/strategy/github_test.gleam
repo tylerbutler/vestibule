@@ -3,7 +3,7 @@ import gleam/option.{None, Some}
 import gleam/string
 import startest/expect
 import vestibule/config
-import vestibule/credentials.{Credentials}
+import vestibule/credentials
 import vestibule/strategy
 import vestibule/strategy/github
 
@@ -13,7 +13,7 @@ pub fn parse_token_response_success_test() {
   github.parse_token_response(json)
   |> expect.to_be_ok()
   |> expect.to_equal(
-    Credentials(
+    credentials.new(
       token: "gho_abc123",
       refresh_token: None,
       token_type: "bearer",
@@ -28,14 +28,14 @@ pub fn parse_token_response_with_multiple_scopes_test() {
     "{\"access_token\":\"gho_abc123\",\"token_type\":\"bearer\",\"scope\":\"user:email,read:org\"}"
   let result = github.parse_token_response(json)
   let assert Ok(creds) = result
-  creds.scopes |> expect.to_equal(["user:email", "read:org"])
+  credentials.scopes(creds) |> expect.to_equal(["user:email", "read:org"])
 }
 
 pub fn parse_token_response_empty_scope_test() {
   let json =
     "{\"access_token\":\"gho_abc123\",\"token_type\":\"bearer\",\"scope\":\"\"}"
   let assert Ok(creds) = github.parse_token_response(json)
-  creds.scopes |> expect.to_equal([])
+  credentials.scopes(creds) |> expect.to_equal([])
 }
 
 pub fn parse_token_response_error_test() {

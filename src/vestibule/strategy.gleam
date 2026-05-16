@@ -14,7 +14,7 @@ import gleam/string
 import gleam/uri
 
 import vestibule/config.{type Config}
-import vestibule/credentials.{type Credentials}
+import vestibule/credentials
 import vestibule/error.{type AuthError}
 import vestibule/user_info.{type UserInfo}
 
@@ -59,24 +59,29 @@ pub fn user_result_extra(user: UserResult) -> Dict(String, Dynamic) {
 ///
 /// Opaque to keep provider-specific artifacts evolution-safe.
 pub opaque type ExchangeResult {
-  ExchangeResult(credentials: Credentials, artifacts: Dict(String, Dynamic))
+  ExchangeResult(
+    credentials: credentials.Credentials,
+    artifacts: Dict(String, Dynamic),
+  )
 }
 
 /// Build an exchange result for providers with no provider-specific artifacts.
-pub fn exchange_result(credentials: Credentials) -> ExchangeResult {
+pub fn exchange_result(credentials: credentials.Credentials) -> ExchangeResult {
   ExchangeResult(credentials: credentials, artifacts: dict.new())
 }
 
 /// Build an exchange result with provider-specific artifacts.
 pub fn exchange_result_with_artifacts(
-  credentials: Credentials,
+  credentials: credentials.Credentials,
   artifacts: Dict(String, Dynamic),
 ) -> ExchangeResult {
   ExchangeResult(credentials: credentials, artifacts: artifacts)
 }
 
 /// Return the OAuth credentials produced by the exchange.
-pub fn exchange_credentials(exchange: ExchangeResult) -> Credentials {
+pub fn exchange_credentials(
+  exchange: ExchangeResult,
+) -> credentials.Credentials {
   exchange.credentials
 }
 
@@ -105,7 +110,8 @@ pub opaque type Strategy(e) {
       Result(String, AuthError(e)),
     exchange_code: fn(Config, String, Option(String)) ->
       Result(ExchangeResult, AuthError(e)),
-    refresh_token: fn(Config, String) -> Result(Credentials, AuthError(e)),
+    refresh_token: fn(Config, String) ->
+      Result(credentials.Credentials, AuthError(e)),
     fetch_user: fn(Config, ExchangeResult) -> Result(UserResult, AuthError(e)),
   )
 }
@@ -126,7 +132,7 @@ pub fn new(
   exchange_code exchange_code: fn(Config, String, Option(String)) ->
     Result(ExchangeResult, AuthError(e)),
   refresh_token refresh_token: fn(Config, String) ->
-    Result(Credentials, AuthError(e)),
+    Result(credentials.Credentials, AuthError(e)),
   fetch_user fetch_user: fn(Config, ExchangeResult) ->
     Result(UserResult, AuthError(e)),
 ) -> Strategy(e) {
@@ -178,7 +184,7 @@ pub fn refresh_token(
   strat: Strategy(e),
   cfg: Config,
   refresh_tok: String,
-) -> Result(Credentials, AuthError(e)) {
+) -> Result(credentials.Credentials, AuthError(e)) {
   strat.refresh_token(cfg, refresh_tok)
 }
 
@@ -199,10 +205,10 @@ pub fn fetch_user(
 /// Returns `Error` if the token type is not "bearer" (case-insensitive),
 /// as vestibule only supports Bearer token authentication.
 pub fn authorization_header(
-  credentials: Credentials,
+  credentials creds: credentials.Credentials,
 ) -> Result(String, AuthError(e)) {
-  case string.lowercase(credentials.token_type) {
-    "bearer" -> Ok("Bearer " <> credentials.token)
+  case string.lowercase(credentials.token_type(creds)) {
+    "bearer" -> Ok("Bearer " <> credentials.token(creds))
     other ->
       Error(error.ConfigError(
         reason: "Unsupported token type: "

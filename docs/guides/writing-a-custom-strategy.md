@@ -306,7 +306,7 @@ fn parse_success_token(body: String) -> Result(Credentials, AuthError(e)) {
       decode.optional(decode.string),
     )
     use scope <- decode.optional_field("scope", [], decode.list(decode.string))
-    decode.success(Credentials(
+    decode.success(credentials.new(
       token: access_token,
       refresh_token: refresh_token,
       token_type: token_type,
@@ -761,7 +761,7 @@ import gleam/dict
 import gleam/option.{None, Some}
 import startest
 import startest/expect
-import vestibule/credentials.{Credentials}
+import vestibule/credentials
 import vestibule_twitch
 
 pub fn main() -> Nil {
@@ -774,7 +774,7 @@ pub fn parse_token_response_success_test() {
   vestibule_twitch.parse_token_response(body)
   |> expect.to_be_ok()
   |> expect.to_equal(
-    Credentials(
+    credentials.new(
       token: "cfabdegwdoklmawdzdo98xt2fo512y",
       refresh_token: Some("eyJfMzUtNDU0OC04MWYwLTQ5MDY5ODY4NGNlMSJ9"),
       token_type: "bearer",

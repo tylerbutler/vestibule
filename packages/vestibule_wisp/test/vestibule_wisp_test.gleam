@@ -1,4 +1,5 @@
 import gleam/http
+import gleam/option
 import gleam/string
 import startest
 import startest/expect
@@ -208,9 +209,78 @@ fn test_strategy() -> Strategy(e) {
   )
 }
 
+fn leaky_error_strategy() -> Strategy(e) {
+  strategy.new(
+    provider: "test",
+    default_scopes: [],
+    authorize_url: fn(_config, _scopes, _state) { Ok("https://example.com") },
+    exchange_code: fn(_config, _code, _code_verifier) {
+      Error(error.ProviderError(
+        code: "invalid_request",
+        description: "provider-controlled phishing text secret-token",
+        uri: option.None,
+      ))
+    },
+    refresh_token: fn(_config, _refresh_token) {
+      Error(error.ConfigError(reason: "test"))
+    },
+    fetch_user: fn(_config, _exchange) {
+      Error(error.ConfigError(reason: "test"))
+    },
+  )
+}
+
 fn test_config() -> config.Config {
   config.new("client_id", "client_secret", "https://example.com/callback")
 }
 
 @external(erlang, "vestibule_wisp_state_store_test_ffi", "state_store_survives_creator_process_exit")
 fn state_store_survives_creator_process_exit() -> Bool
+
+pub fn callback_phase_default_error_response_does_not_render_provider_details_test() {
+  let store = state_store.init_named("test_callback_generic_error_html")
+  let session_id = state_store.store(store, "state", "verifier")
+  let req =
+    simulate.request(http.Get, "/auth/test/callback?state=state&code=code")
+    |> simulate.cookie("vestibule_session", session_id, wisp.Signed)
+  let reg =
+    registry.new()
+    |> registry.register(leaky_error_strategy(), test_config())
+
+  let response =
+    vestibule_wisp.callback_phase(req, reg, "test", store, fn(_auth) {
+      wisp.html_response("success", 200)
+    })
+
+  response.status |> expect.to_equal(400)
+  let body = case response.body {
+    wisp.Text(body) -> body
+    _ -> panic as "expected text response body"
+  }
+  { string.contains(body, "secret-token") } |> expect.to_be_false()
+  { string.contains(body, "provider-controlled phishing text") }
+  |> expect.to_be_false()
+  { string.contains(body, "Authentication failed") } |> expect.to_be_true()
+}
+
+pub fn callback_phase_auth_result_preserves_provider_error_details_test() {
+  let store = state_store.init_named("test_callback_structured_error_details")
+  let session_id = state_store.store(store, "state", "verifier")
+  let req =
+    simulate.request(http.Get, "/auth/test/callback?state=state&code=code")
+    |> simulate.cookie("vestibule_session", session_id, wisp.Signed)
+  let reg =
+    registry.new()
+    |> registry.register(leaky_error_strategy(), test_config())
+
+  vestibule_wisp.callback_phase_auth_result(req, reg, "test", store)
+  |> expect.to_equal(
+    Error(
+      vestibule_wisp.AuthFailed(error.ProviderError(
+        code: "invalid_request",
+        description: "provider-controlled phishing text secret-token",
+        uri: option.None,
+      )),
+    ),
+  )
+}

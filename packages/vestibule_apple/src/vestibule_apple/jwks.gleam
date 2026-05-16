@@ -3,6 +3,7 @@
 //// Fetches Apple's public keys from `https://appleid.apple.com/auth/keys`
 //// and caches them in a bravo ETS table for reuse. Keys are used to verify
 //// the signature of Apple's ID token JWTs.
+
 import bravo
 import bravo/uset.{type USet}
 import gleam/http/request

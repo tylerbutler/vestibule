@@ -3,9 +3,9 @@ import gleam/string
 import startest
 import startest/expect
 import vestibule/config
-import vestibule/credentials.{Credentials}
-import vestibule/strategy
+import vestibule/credentials
 import vestibule/error
+import vestibule/strategy
 import vestibule_google
 
 pub fn main() -> Nil {
@@ -18,7 +18,7 @@ pub fn parse_token_response_success_test() {
   vestibule_google.parse_token_response(body)
   |> expect.to_be_ok()
   |> expect.to_equal(
-    Credentials(
+    credentials.new(
       token: "ya29.test_token",
       refresh_token: None,
       token_type: "Bearer",
@@ -38,7 +38,7 @@ pub fn parse_token_response_with_refresh_token_test() {
   vestibule_google.parse_token_response(body)
   |> expect.to_be_ok()
   |> expect.to_equal(
-    Credentials(
+    credentials.new(
       token: "ya29.test",
       refresh_token: Some("1//test_refresh"),
       token_type: "Bearer",
@@ -51,8 +51,8 @@ pub fn parse_token_response_with_refresh_token_test() {
 pub fn parse_token_response_empty_scope_test() {
   let body =
     "{\"access_token\":\"ya29.test\",\"expires_in\":3600,\"scope\":\"\",\"token_type\":\"Bearer\"}"
-  let assert Ok(credentials) = vestibule_google.parse_token_response(body)
-  credentials.scopes |> expect.to_equal([])
+  let assert Ok(creds) = vestibule_google.parse_token_response(body)
+  credentials.scopes(creds) |> expect.to_equal([])
 }
 
 pub fn parse_token_response_error_test() {
@@ -122,6 +122,7 @@ pub fn authorize_url_includes_extra_params_test() {
   let assert Ok(conf) =
     config.new("client-id", "secret", "http://localhost/callback")
     |> config.with_extra_params([#("prompt", "consent")])
-  let assert Ok(url) = strategy.build_authorize_url(strat, conf, ["openid"], "state")
+  let assert Ok(url) =
+    strategy.build_authorize_url(strat, conf, ["openid"], "state")
   { string.contains(url, "prompt=consent") } |> expect.to_be_true()
 }
