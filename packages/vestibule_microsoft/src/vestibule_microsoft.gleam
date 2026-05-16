@@ -1,3 +1,10 @@
+//// Microsoft Identity Platform (v2.0) strategy.
+////
+//// Supports common, organizations, consumers, and per-tenant authorities.
+//// Requests `User.Read` by default. Tokens are
+//// exchanged against `/oauth2/v2.0/token`; user info comes from Microsoft
+//// Graph `/me`.
+
 import gleam/dict
 import gleam/dynamic/decode
 import gleam/json
@@ -18,12 +25,12 @@ import vestibule/config.{type Config}
 import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/provider_support
-import vestibule/strategy.{type Strategy, type UserResult, Strategy, UserResult}
+import vestibule/strategy.{type Strategy, type UserResult}
 import vestibule/user_info.{type UserInfo}
 
 /// Create a Microsoft authentication strategy using /common tenant.
 pub fn strategy() -> Strategy(e) {
-  Strategy(
+  strategy.new(
     provider: "microsoft",
     default_scopes: ["User.Read"],
     authorize_url: do_authorize_url,
@@ -193,7 +200,7 @@ fn do_refresh_token(
       use body <- result.try(provider_support.check_response_status(response))
       provider_support.parse_oauth_token_response(
         body,
-        provider_support.OptionalScope(" "),
+        provider_support.RequiredScope(separator: " "),
       )
     }
     Error(_) ->
@@ -207,14 +214,14 @@ fn do_fetch_user(
   _cfg: Config,
   exchange: strategy.ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
-  use auth_header <- result.try(strategy.authorization_header(
-    exchange.credentials,
-  ))
+  use auth_header <- result.try(
+    strategy.authorization_header(strategy.exchange_credentials(exchange)),
+  )
   use #(uid, info) <- result.try(provider_support.fetch_json_with_auth(
     "https://graph.microsoft.com/v1.0/me",
     auth_header,
     parse_user_response,
     "Microsoft Graph",
   ))
-  Ok(UserResult(uid: uid, info: info, extra: dict.new()))
+  Ok(strategy.user_result(uid: uid, info: info, extra: dict.new()))
 }

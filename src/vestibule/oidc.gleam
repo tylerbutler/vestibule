@@ -31,7 +31,7 @@ import vestibule/config
 import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/provider_support
-import vestibule/strategy.{type Strategy, type UserResult, Strategy, UserResult}
+import vestibule/strategy.{type Strategy, type UserResult}
 import vestibule/user_info
 
 /// Configuration discovered from an OpenID Connect provider's
@@ -245,7 +245,7 @@ pub fn strategy_from_config(
   provider_name: String,
 ) -> Strategy(e) {
   let scopes = filter_default_scopes(oidc_config.scopes_supported)
-  Strategy(
+  strategy.new(
     provider: provider_name,
     default_scopes: scopes,
     authorize_url: build_authorize_url_fn(oidc_config.authorization_endpoint),
@@ -472,16 +472,16 @@ fn build_fetch_user_fn(
     UserResult,
     AuthError(e),
   ) {
-    use auth_header <- result.try(strategy.authorization_header(
-      exchange.credentials,
-    ))
+    use auth_header <- result.try(
+      strategy.authorization_header(strategy.exchange_credentials(exchange)),
+    )
     use #(uid, info) <- result.try(provider_support.fetch_json_with_auth(
       userinfo_endpoint,
       auth_header,
       parse_userinfo_response,
       "OIDC userinfo",
     ))
-    Ok(UserResult(uid: uid, info: info, extra: dict.new()))
+    Ok(strategy.user_result(uid: uid, info: info, extra: dict.new()))
   }
 }
 

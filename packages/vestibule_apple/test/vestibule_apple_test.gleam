@@ -4,6 +4,7 @@ import gleam/option.{None, Some}
 import startest
 import startest/expect
 import vestibule/config
+import vestibule/strategy
 import vestibule/credentials.{Credentials}
 import vestibule_apple
 import vestibule_apple/jwks
@@ -15,7 +16,9 @@ pub fn main() -> Nil {
 // --- Strategy construction ---
 
 fn test_apple_cache(name: String) -> vestibule_apple.AppleCache {
-  vestibule_apple.AppleCache(jwks: jwks.init_named("apple_test_jwks_" <> name))
+  let assert Ok(cache) =
+    vestibule_apple.try_init_named("apple_test_" <> name)
+  cache
 }
 
 pub fn jwks_try_init_named_returns_error_for_duplicate_table_test() {
@@ -36,12 +39,12 @@ pub fn apple_try_init_named_returns_error_for_duplicate_cache_test() {
 
 pub fn strategy_provider_test() {
   let s = vestibule_apple.strategy(test_apple_cache("provider"))
-  s.provider |> expect.to_equal("apple")
+  strategy.provider(s) |> expect.to_equal("apple")
 }
 
 pub fn strategy_default_scopes_test() {
   let s = vestibule_apple.strategy(test_apple_cache("scopes"))
-  s.default_scopes |> expect.to_equal(["name", "email"])
+  strategy.default_scopes(s) |> expect.to_equal(["name", "email"])
 }
 
 // --- Token response parsing ---
@@ -50,7 +53,7 @@ pub fn parse_token_response_success_test() {
   let body =
     "{\"access_token\":\"a1b2c3.test_access_token\",\"token_type\":\"Bearer\",\"expires_in\":3600,\"refresh_token\":\"r4e5f6.test_refresh\",\"id_token\":\"header.payload.signature\"}"
   let assert Ok(exchange) = vestibule_apple.parse_token_response(body)
-  exchange.credentials
+  strategy.exchange_credentials(exchange)
   |> expect.to_equal(
     Credentials(
       token: "a1b2c3.test_access_token",
@@ -60,7 +63,7 @@ pub fn parse_token_response_success_test() {
       scopes: [],
     ),
   )
-  let assert Ok(id_token) = dict.get(exchange.artifacts, "id_token")
+  let assert Ok(id_token) = dict.get(strategy.exchange_artifacts(exchange), "id_token")
   decode.run(id_token, decode.string)
   |> expect.to_equal(Ok("header.payload.signature"))
 }
@@ -69,9 +72,9 @@ pub fn parse_token_response_without_refresh_token_test() {
   let body =
     "{\"access_token\":\"test_token\",\"token_type\":\"Bearer\",\"expires_in\":3600,\"id_token\":\"h.p.s\"}"
   let assert Ok(exchange) = vestibule_apple.parse_token_response(body)
-  exchange.credentials.token |> expect.to_equal("test_token")
-  exchange.credentials.refresh_token |> expect.to_equal(None)
-  let assert Ok(id_token) = dict.get(exchange.artifacts, "id_token")
+  strategy.exchange_credentials(exchange).token |> expect.to_equal("test_token")
+  strategy.exchange_credentials(exchange).refresh_token |> expect.to_equal(None)
+  let assert Ok(id_token) = dict.get(strategy.exchange_artifacts(exchange), "id_token")
   decode.run(id_token, decode.string) |> expect.to_equal(Ok("h.p.s"))
 }
 
@@ -79,15 +82,15 @@ pub fn parse_token_response_without_id_token_test() {
   let body =
     "{\"access_token\":\"test_token\",\"token_type\":\"Bearer\",\"expires_in\":3600}"
   let assert Ok(exchange) = vestibule_apple.parse_token_response(body)
-  exchange.credentials.token |> expect.to_equal("test_token")
-  dict.get(exchange.artifacts, "id_token") |> expect.to_be_error()
+  strategy.exchange_credentials(exchange).token |> expect.to_equal("test_token")
+  dict.get(strategy.exchange_artifacts(exchange), "id_token") |> expect.to_be_error()
 }
 
 pub fn parse_token_response_empty_scope_test() {
   let body =
     "{\"access_token\":\"test_token\",\"token_type\":\"Bearer\",\"expires_in\":3600,\"scope\":\"\"}"
   let assert Ok(exchange) = vestibule_apple.parse_token_response(body)
-  exchange.credentials.scopes |> expect.to_equal([])
+  strategy.exchange_credentials(exchange).scopes |> expect.to_equal([])
 }
 
 pub fn parse_token_response_error_test() {
@@ -111,7 +114,7 @@ pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
   let strat = vestibule_apple.strategy(test_apple_cache("invalid_redirect"))
   let conf = config.new("client-id", "secret", "not a uri")
   let _ =
-    strat.authorize_url(conf, ["name", "email"], "state")
+    strategy.build_authorize_url(strat, conf, ["name", "email"], "state")
     |> expect.to_be_error()
   Nil
 }

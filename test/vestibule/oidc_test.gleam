@@ -6,6 +6,7 @@ import vestibule/config
 import vestibule/credentials.{Credentials}
 import vestibule/error
 import vestibule/oidc
+import vestibule/strategy
 
 // --- OidcConfig construction ---
 
@@ -313,7 +314,7 @@ pub fn filter_default_scopes_empty_test() {
 pub fn strategy_from_config_sets_provider_name_test() {
   let oidc_config = example_config()
   let strat = oidc.strategy_from_config(oidc_config, "my-oidc-provider")
-  strat.provider |> expect.to_equal("my-oidc-provider")
+  strategy.provider(strat) |> expect.to_equal("my-oidc-provider")
 }
 
 pub fn strategy_from_config_sets_default_scopes_test() {
@@ -326,7 +327,8 @@ pub fn strategy_from_config_sets_default_scopes_test() {
       scopes_supported: ["openid", "profile", "email", "address"],
     )
   let strat = oidc.strategy_from_config(oidc_config, "example")
-  strat.default_scopes |> expect.to_equal(["openid", "profile", "email"])
+  strategy.default_scopes(strat)
+  |> expect.to_equal(["openid", "profile", "email"])
 }
 
 pub fn strategy_from_config_filters_scopes_test() {
@@ -339,7 +341,7 @@ pub fn strategy_from_config_filters_scopes_test() {
       scopes_supported: ["openid", "custom"],
     )
   let strat = oidc.strategy_from_config(oidc_config, "example")
-  strat.default_scopes |> expect.to_equal(["openid"])
+  strategy.default_scopes(strat) |> expect.to_equal(["openid"])
 }
 
 pub fn strategy_from_config_defaults_to_openid_without_scope_metadata_test() {
@@ -352,7 +354,7 @@ pub fn strategy_from_config_defaults_to_openid_without_scope_metadata_test() {
       scopes_supported: [],
     )
   let strat = oidc.strategy_from_config(oidc_config, "example")
-  strat.default_scopes |> expect.to_equal(["openid"])
+  strategy.default_scopes(strat) |> expect.to_equal(["openid"])
 }
 
 pub fn strategy_from_config_defaults_to_openid_when_no_desired_scopes_supported_test() {
@@ -365,7 +367,7 @@ pub fn strategy_from_config_defaults_to_openid_when_no_desired_scopes_supported_
       scopes_supported: ["custom_scope"],
     )
   let strat = oidc.strategy_from_config(oidc_config, "example")
-  strat.default_scopes |> expect.to_equal(["openid"])
+  strategy.default_scopes(strat) |> expect.to_equal(["openid"])
 }
 
 pub fn strategy_from_config_authorize_url_test() {
@@ -373,7 +375,13 @@ pub fn strategy_from_config_authorize_url_test() {
   let strat = oidc.strategy_from_config(oidc_config, "example")
   let conf =
     config.new("my-client-id", "my-secret", "http://localhost/callback")
-  let result = strat.authorize_url(conf, ["openid", "profile"], "test-state")
+  let result =
+    strategy.build_authorize_url(
+      strat,
+      conf,
+      ["openid", "profile"],
+      "test-state",
+    )
   let assert Ok(url) = result
   // Verify all expected query parameters are in the URL
   { string.contains(url, "https://accounts.example.com/authorize") }
@@ -398,7 +406,8 @@ pub fn strategy_from_config_authorize_url_with_extra_params_test() {
   let assert Ok(conf) =
     config.new("client-id", "secret", "http://localhost/cb")
     |> config.with_extra_params([#("prompt", "consent")])
-  let assert Ok(url) = strat.authorize_url(conf, ["openid"], "state-123")
+  let assert Ok(url) =
+    strategy.build_authorize_url(strat, conf, ["openid"], "state-123")
   { string.contains(url, "prompt=consent") } |> expect.to_be_true()
 }
 
@@ -414,7 +423,7 @@ pub fn strategy_from_config_invalid_redirect_uri_returns_error_test() {
   let strat = oidc.strategy_from_config(oidc_config, "example")
   let conf = config.new("client-id", "secret", "not a uri")
   let _ =
-    strat.authorize_url(conf, ["openid"], "state-123")
+    strategy.build_authorize_url(strat, conf, ["openid"], "state-123")
     |> expect.to_be_error()
   Nil
 }

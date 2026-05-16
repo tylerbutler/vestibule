@@ -8,7 +8,7 @@ import gleam/option.{None, Some}
 import gleam/string
 import startest/expect
 import vestibule
-import vestibule/authorization_request.{AuthorizationRequest}
+import vestibule/authorization_request
 import vestibule/config
 import vestibule/credentials.{Credentials}
 import vestibule/error
@@ -16,7 +16,7 @@ import vestibule/oidc
 import vestibule/pkce
 import vestibule/provider_support
 import vestibule/state
-import vestibule/strategy.{type Strategy, ExchangeResult, Strategy, UserResult}
+import vestibule/strategy.{type Strategy}
 import vestibule/user_info.{UserInfo}
 
 // ---------------------------------------------------------------------------
@@ -24,7 +24,7 @@ import vestibule/user_info.{UserInfo}
 // ---------------------------------------------------------------------------
 
 fn test_strategy() -> Strategy(e) {
-  Strategy(
+  strategy.new(
     provider: "test",
     default_scopes: ["scope"],
     authorize_url: fn(_config, scopes, st) {
@@ -38,16 +38,17 @@ fn test_strategy() -> Strategy(e) {
     exchange_code: fn(_config, code, _verifier) {
       case code {
         "valid_code" ->
-          Ok(ExchangeResult(
-            credentials: Credentials(
-              token: "tok",
-              refresh_token: None,
-              token_type: "bearer",
-              expires_in: None,
-              scopes: [],
+          Ok(
+            strategy.exchange_result(
+              Credentials(
+                token: "tok",
+                refresh_token: None,
+                token_type: "bearer",
+                expires_in: None,
+                scopes: [],
+              ),
             ),
-            artifacts: dict.new(),
-          ))
+          )
         _ -> Error(error.CodeExchangeFailed(reason: "bad code"))
       }
     },
@@ -55,7 +56,7 @@ fn test_strategy() -> Strategy(e) {
       Error(error.ConfigError(reason: "refresh not implemented"))
     },
     fetch_user: fn(_config, _exchange) {
-      Ok(UserResult(
+      Ok(strategy.user_result(
         uid: "uid",
         info: UserInfo(
           name: None,
@@ -188,8 +189,8 @@ pub fn pkce_different_verifiers_produce_different_challenges_test() {
 pub fn authorize_url_always_includes_pkce_test() {
   let strat = test_strategy()
   let conf = config.new("id", "secret", "https://localhost/cb")
-  let assert Ok(AuthorizationRequest(url:, ..)) =
-    vestibule.authorize_url(strat, conf)
+  let assert Ok(auth_req) = vestibule.authorize_url(strat, conf)
+  let url = authorization_request.url(auth_req)
   { string.contains(url, "code_challenge=") } |> expect.to_be_true()
   { string.contains(url, "code_challenge_method=S256") } |> expect.to_be_true()
 }
@@ -200,8 +201,13 @@ pub fn authorize_url_produces_fresh_state_and_verifier_test() {
   let conf = config.new("id", "secret", "https://localhost/cb")
   let assert Ok(req1) = vestibule.authorize_url(strat, conf)
   let assert Ok(req2) = vestibule.authorize_url(strat, conf)
-  { req1.state != req2.state } |> expect.to_be_true()
-  { req1.code_verifier != req2.code_verifier } |> expect.to_be_true()
+  { authorization_request.state(req1) != authorization_request.state(req2) }
+  |> expect.to_be_true()
+  {
+    authorization_request.code_verifier(req1)
+    != authorization_request.code_verifier(req2)
+  }
+  |> expect.to_be_true()
 }
 
 // ===========================================================================

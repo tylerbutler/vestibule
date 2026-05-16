@@ -1,3 +1,7 @@
+//// OAuth provider configuration. Each `ProviderConfig` carries the
+//// `client_id`, `client_secret`, `redirect_uri`, and optional per-strategy
+//// overrides used to build authorization requests and exchange codes.
+
 import gleam/dict.{type Dict}
 import gleam/list
 import vestibule/error.{type AuthError}

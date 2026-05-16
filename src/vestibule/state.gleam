@@ -1,3 +1,7 @@
+//// CSRF state token generation and constant-time validation. A fresh
+//// 256-bit base64url token is minted for every authorization request and
+//// must be echoed back unchanged on the callback.
+
 import gleam/bit_array
 import gleam/crypto
 import gleam/string

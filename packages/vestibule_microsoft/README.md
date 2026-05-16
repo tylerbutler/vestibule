@@ -26,6 +26,28 @@ let cfg =
 The strategy uses Microsoft Graph `/me` for profile data and keeps
 `userPrincipalName` as the nickname rather than treating it as a verified email.
 
+## Default scopes
+
+`User.Read`. Override with `config.with_scopes`.
+
+## Azure portal setup
+
+1. Sign in to <https://portal.azure.com/> and open **Microsoft Entra ID
+   → App registrations → New registration**.
+2. **Supported account types**: pick one that matches the tenant
+   behavior section below (most apps want
+   *Accounts in any organizational directory and personal Microsoft
+   accounts*).
+3. **Redirect URI**: platform *Web*, value
+   `http://localhost:8000/auth/microsoft/callback` for dev (add the
+   HTTPS production URI as a second entry).
+4. After creation, copy the **Application (client) ID**.
+5. **Certificates & secrets → New client secret** → copy the secret
+   `Value` (not the ID). It is shown once.
+6. **API permissions**: the default `User.Read` (delegated) is enough
+   for the built-in Graph `/me` parsing; click **Grant admin consent**
+   if your tenant requires it.
+
 ## Tenant behavior
 
 The built-in strategy uses Microsoft Entra ID's `/common` tenant:

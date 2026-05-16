@@ -109,6 +109,7 @@ case wisp.path_segments(req), req.method {
       // auth.uid, auth.info.name, auth.info.email
       wisp.redirect("/dashboard")
     })
+  _, _ -> wisp.not_found()
 }
 ```
 
@@ -189,6 +190,45 @@ Discover OpenID Connect providers from their issuer URL:
 ```gleam
 let assert Ok(strategy) = oidc.discover("https://accounts.google.com")
 ```
+
+## Security
+
+Vestibule implements the OAuth 2.0 / OIDC pieces that protect against
+common attacks, but a few responsibilities remain with the consuming app.
+
+**Built in**
+
+- **PKCE (RFC 7636)** — every authorization request gets a 256-bit
+  `code_verifier` and an `S256` `code_challenge`. Stored verifiers must
+  be sent with the token exchange.
+- **CSRF state** — every request gets a 256-bit base64url state token.
+  `state.validate` does a constant-time comparison and rejects empty
+  values. Validation runs before any provider response detail is surfaced.
+- **HTTPS enforcement** — production redirect URIs and OIDC issuers
+  must use HTTPS. `http://localhost` and `http://127.0.0.1` are
+  permitted for development only.
+- **JWT signature verification (Apple)** — Apple ID tokens are
+  verified against Apple's published JWKS (ES256) and validated for
+  `iss`, `aud`, and `exp` with a 60-second clock skew.
+- **Verified-email gating (OIDC, Google, Apple)** — `UserInfo.email`
+  is only populated when the provider reports `email_verified`.
+
+**Caller responsibilities**
+
+- **Persist `state` and `code_verifier`** server-side, bound to the
+  user's session, with a short TTL. Reject callbacks that are missing
+  either, and **delete both after a successful callback** so they
+  cannot be replayed. The `vestibule_wisp` middleware handles this
+  via single-use ETS entries.
+- **Redact `Credentials` and `Auth`** in logs and error reports.
+  Access tokens, refresh tokens, and ID tokens are bearer credentials —
+  treat them like passwords.
+- **Cookie-secret rotation** invalidates in-flight OAuth flows that
+  used the signed session cookie. Time rotations accordingly.
+- **OIDC `nonce`** is not currently generated or validated by the
+  discover-built strategy. If you need id_token replay protection
+  beyond PKCE, validate the `nonce` yourself when consuming the
+  `id_token` artifact returned in `ExchangeResult`.
 
 ## API Notes
 

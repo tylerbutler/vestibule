@@ -1,0 +1,4 @@
+project: vestibule_wisp
+kind: Security
+body: 'State comparison in `callback_phase` now uses `state.validate` (constant-time) instead of `==`, closing a timing side-channel on CSRF token validation.'
+time: 2026-05-16T00:51:25.398675+00:00

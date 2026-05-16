@@ -4,6 +4,7 @@ import startest
 import startest/expect
 import vestibule/config
 import vestibule/credentials.{Credentials}
+import vestibule/strategy
 import vestibule/error
 import vestibule_google
 
@@ -111,7 +112,7 @@ pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
   let strat = vestibule_google.strategy()
   let conf = config.new("client-id", "secret", "not a uri")
   let _ =
-    strat.authorize_url(conf, ["openid"], "state")
+    strategy.build_authorize_url(strat, conf, ["openid"], "state")
     |> expect.to_be_error()
   Nil
 }
@@ -121,6 +122,6 @@ pub fn authorize_url_includes_extra_params_test() {
   let assert Ok(conf) =
     config.new("client-id", "secret", "http://localhost/callback")
     |> config.with_extra_params([#("prompt", "consent")])
-  let assert Ok(url) = strat.authorize_url(conf, ["openid"], "state")
+  let assert Ok(url) = strategy.build_authorize_url(strat, conf, ["openid"], "state")
   { string.contains(url, "prompt=consent") } |> expect.to_be_true()
 }

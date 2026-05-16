@@ -5,7 +5,7 @@ import startest/expect
 import vestibule/config
 import vestibule/error
 import vestibule/registry
-import vestibule/strategy.{type Strategy, Strategy}
+import vestibule/strategy.{type Strategy}
 import vestibule_wisp
 import vestibule_wisp/state_store
 import wisp
@@ -192,7 +192,7 @@ pub fn callback_phase_auth_result_missing_state_does_not_consume_session_test() 
 }
 
 fn test_strategy() -> Strategy(e) {
-  Strategy(
+  strategy.new(
     provider: "test",
     default_scopes: [],
     authorize_url: fn(_config, _scopes, _state) { Ok("https://example.com") },

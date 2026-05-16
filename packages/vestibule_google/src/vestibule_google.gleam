@@ -1,3 +1,9 @@
+//// Google OAuth 2.0 / OIDC strategy.
+////
+//// Uses Google's discovery document to build authorize/token/userinfo
+//// endpoints, requests `openid email profile` by default, and validates
+//// `email_verified` before populating `UserInfo.email`.
+
 import gleam/dict
 import gleam/dynamic/decode
 import gleam/json
@@ -18,12 +24,12 @@ import vestibule/config.{type Config}
 import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/provider_support
-import vestibule/strategy.{type Strategy, type UserResult, Strategy, UserResult}
+import vestibule/strategy.{type Strategy, type UserResult}
 import vestibule/user_info
 
 /// Create a Google authentication strategy.
 pub fn strategy() -> Strategy(e) {
-  Strategy(
+  strategy.new(
     provider: "google",
     default_scopes: ["openid", "profile", "email"],
     authorize_url: do_authorize_url,
@@ -214,7 +220,7 @@ fn do_fetch_user(
   exchange: strategy.ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
   use auth_header <- result.try(strategy.authorization_header(
-    exchange.credentials,
+    strategy.exchange_credentials(exchange),
   ))
   use #(uid, info) <- result.try(provider_support.fetch_json_with_auth(
     "https://www.googleapis.com/oauth2/v3/userinfo",
@@ -222,5 +228,5 @@ fn do_fetch_user(
     parse_user_response,
     "Google userinfo",
   ))
-  Ok(UserResult(uid: uid, info: info, extra: dict.new()))
+  Ok(strategy.user_result(uid: uid, info: info, extra: dict.new()))
 }

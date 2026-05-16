@@ -33,6 +33,28 @@ let strategy = vestibule_apple.strategy(apple)
 `try_init()` returns `Error(JwksCacheInitFailed(_))` when the JWKS cache cannot
 be initialized, including duplicate cache initialization.
 
+## Default scopes
+
+`name email`. Override with `config.with_scopes`. Apple delivers `name`
+and `email` only on the **first** consent, in the form-post callback.
+
+## Apple Developer portal setup
+
+1. Sign in at <https://developer.apple.com/account>.
+2. **Certificates, IDs & Profiles → Identifiers**:
+   - Create an **App ID** for your app, enable the
+     *Sign In with Apple* capability.
+   - Create a **Services ID** — this is your OAuth `client_id`.
+     Enable *Sign In with Apple*, add your domain, and register the
+     **return URL** (e.g. `https://example.com/auth/apple/callback`).
+     Apple does **not** allow `localhost` or `http://` callbacks.
+3. **Keys → register a new key**, enable *Sign In with Apple*, associate
+   it with your App ID, download the `.p8` private key (one-time
+   download). Note the **Key ID**.
+4. Note your **Team ID** (top-right of the developer portal).
+5. Use these to generate the signed JWT `client_secret` (see below).
+   Tracking issue: [#43](https://github.com/tylerbutler/vestibule/issues/43).
+
 ## Client-secret JWT setup
 
 Apple does not use a static client secret. The `client_secret` value in your

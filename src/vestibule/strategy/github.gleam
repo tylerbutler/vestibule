@@ -20,12 +20,12 @@ import vestibule/config.{type Config}
 import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/provider_support
-import vestibule/strategy.{type Strategy, type UserResult, Strategy, UserResult}
+import vestibule/strategy.{type Strategy, type UserResult}
 import vestibule/user_info.{type UserInfo}
 
 /// Create a GitHub authentication strategy.
 pub fn strategy() -> Strategy(e) {
-  Strategy(
+  strategy.new(
     provider: "github",
     default_scopes: ["user:email"],
     authorize_url: do_authorize_url,
@@ -242,7 +242,7 @@ fn do_fetch_user(
   _cfg: Config,
   exchange: strategy.ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
-  let creds = exchange.credentials
+  let creds = strategy.exchange_credentials(exchange)
   // Validate token type
   use auth_header <- result.try(strategy.authorization_header(creds))
 
@@ -291,5 +291,5 @@ fn do_fetch_user(
     None -> info
   }
 
-  Ok(UserResult(uid: uid, info: final_info, extra: dict.new()))
+  Ok(strategy.user_result(uid: uid, info: final_info, extra: dict.new()))
 }

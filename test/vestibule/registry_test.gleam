@@ -3,10 +3,10 @@ import startest/expect
 import vestibule/config
 import vestibule/error
 import vestibule/registry
-import vestibule/strategy.{type Strategy, Strategy}
+import vestibule/strategy.{type Strategy}
 
 fn test_strategy(name: String) -> Strategy(e) {
-  Strategy(
+  strategy.new(
     provider: name,
     default_scopes: [],
     authorize_url: fn(_config, _scopes, _state) { Ok("https://example.com") },
@@ -39,7 +39,7 @@ pub fn register_and_get_provider_test() {
     registry.new()
     |> registry.register(strategy, cfg)
   let assert Ok(#(s, _c)) = registry.get(reg, "github")
-  s.provider |> expect.to_equal("github")
+  strategy.provider(s) |> expect.to_equal("github")
 }
 
 pub fn get_unknown_provider_returns_error_test() {
