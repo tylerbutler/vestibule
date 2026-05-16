@@ -3,7 +3,7 @@ import gleam/option.{None, Some}
 import gleam/string
 import startest/expect
 import vestibule/config
-import vestibule/credentials.{Credentials}
+import vestibule/credentials
 import vestibule/error
 import vestibule/oidc
 import vestibule/strategy
@@ -175,7 +175,7 @@ pub fn parse_token_response_success_test() {
   oidc.parse_token_response(json)
   |> expect.to_be_ok()
   |> expect.to_equal(
-    Credentials(
+    credentials.new(
       token: "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9",
       refresh_token: Some("dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4"),
       token_type: "Bearer",
@@ -190,7 +190,7 @@ pub fn parse_token_response_minimal_test() {
   oidc.parse_token_response(json)
   |> expect.to_be_ok()
   |> expect.to_equal(
-    Credentials(
+    credentials.new(
       token: "abc123",
       refresh_token: None,
       token_type: "bearer",
@@ -203,8 +203,8 @@ pub fn parse_token_response_minimal_test() {
 pub fn parse_token_response_empty_scope_test() {
   let json =
     "{\"access_token\":\"abc123\",\"token_type\":\"Bearer\",\"scope\":\"\"}"
-  let assert Ok(credentials) = oidc.parse_token_response(json)
-  credentials.scopes |> expect.to_equal([])
+  let assert Ok(creds) = oidc.parse_token_response(json)
+  credentials.scopes(creds) |> expect.to_equal([])
 }
 
 pub fn parse_token_response_error_test() {

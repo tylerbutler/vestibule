@@ -4,8 +4,8 @@ import gleam/option.{None, Some}
 import startest
 import startest/expect
 import vestibule/config
+import vestibule/credentials
 import vestibule/strategy
-import vestibule/credentials.{Credentials}
 import vestibule_apple
 import vestibule_apple/jwks
 
@@ -16,8 +16,7 @@ pub fn main() -> Nil {
 // --- Strategy construction ---
 
 fn test_apple_cache(name: String) -> vestibule_apple.AppleCache {
-  let assert Ok(cache) =
-    vestibule_apple.try_init_named("apple_test_" <> name)
+  let assert Ok(cache) = vestibule_apple.try_init_named("apple_test_" <> name)
   cache
 }
 
@@ -55,7 +54,7 @@ pub fn parse_token_response_success_test() {
   let assert Ok(exchange) = vestibule_apple.parse_token_response(body)
   strategy.exchange_credentials(exchange)
   |> expect.to_equal(
-    Credentials(
+    credentials.new(
       token: "a1b2c3.test_access_token",
       refresh_token: Some("r4e5f6.test_refresh"),
       token_type: "Bearer",
@@ -63,7 +62,8 @@ pub fn parse_token_response_success_test() {
       scopes: [],
     ),
   )
-  let assert Ok(id_token) = dict.get(strategy.exchange_artifacts(exchange), "id_token")
+  let assert Ok(id_token) =
+    dict.get(strategy.exchange_artifacts(exchange), "id_token")
   decode.run(id_token, decode.string)
   |> expect.to_equal(Ok("header.payload.signature"))
 }
@@ -72,9 +72,14 @@ pub fn parse_token_response_without_refresh_token_test() {
   let body =
     "{\"access_token\":\"test_token\",\"token_type\":\"Bearer\",\"expires_in\":3600,\"id_token\":\"h.p.s\"}"
   let assert Ok(exchange) = vestibule_apple.parse_token_response(body)
-  strategy.exchange_credentials(exchange).token |> expect.to_equal("test_token")
-  strategy.exchange_credentials(exchange).refresh_token |> expect.to_equal(None)
-  let assert Ok(id_token) = dict.get(strategy.exchange_artifacts(exchange), "id_token")
+  strategy.exchange_credentials(exchange)
+  |> credentials.token()
+  |> expect.to_equal("test_token")
+  strategy.exchange_credentials(exchange)
+  |> credentials.refresh_token()
+  |> expect.to_equal(None)
+  let assert Ok(id_token) =
+    dict.get(strategy.exchange_artifacts(exchange), "id_token")
   decode.run(id_token, decode.string) |> expect.to_equal(Ok("h.p.s"))
 }
 
@@ -82,15 +87,20 @@ pub fn parse_token_response_without_id_token_test() {
   let body =
     "{\"access_token\":\"test_token\",\"token_type\":\"Bearer\",\"expires_in\":3600}"
   let assert Ok(exchange) = vestibule_apple.parse_token_response(body)
-  strategy.exchange_credentials(exchange).token |> expect.to_equal("test_token")
-  dict.get(strategy.exchange_artifacts(exchange), "id_token") |> expect.to_be_error()
+  strategy.exchange_credentials(exchange)
+  |> credentials.token()
+  |> expect.to_equal("test_token")
+  dict.get(strategy.exchange_artifacts(exchange), "id_token")
+  |> expect.to_be_error()
 }
 
 pub fn parse_token_response_empty_scope_test() {
   let body =
     "{\"access_token\":\"test_token\",\"token_type\":\"Bearer\",\"expires_in\":3600,\"scope\":\"\"}"
   let assert Ok(exchange) = vestibule_apple.parse_token_response(body)
-  strategy.exchange_credentials(exchange).scopes |> expect.to_equal([])
+  strategy.exchange_credentials(exchange)
+  |> credentials.scopes()
+  |> expect.to_equal([])
 }
 
 pub fn parse_token_response_error_test() {

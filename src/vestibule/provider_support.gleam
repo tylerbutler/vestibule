@@ -11,7 +11,7 @@ import gleam/string
 import gleam/uri
 import vestibule/error.{type AuthError}
 
-import vestibule/credentials.{type Credentials, Credentials}
+import vestibule/credentials
 
 /// Check that an HTTP response has a 2xx status code.
 /// Returns the response body on success, or an HttpError on failure.
@@ -79,6 +79,7 @@ pub fn fetch_json_with_auth(
   parse: fn(String) -> Result(a, AuthError(e)),
   provider_name: String,
 ) -> Result(a, AuthError(e)) {
+  use _ <- result.try(require_https(url))
   use req <- result.try(
     request.to(url)
     |> result.map_error(fn(_) {
@@ -198,7 +199,7 @@ pub type ScopeParsing {
 pub fn parse_oauth_token_response(
   body: String,
   scope_parsing: ScopeParsing,
-) -> Result(Credentials, AuthError(e)) {
+) -> Result(credentials.Credentials, AuthError(e)) {
   use body <- result.try(check_token_error(body))
   parse_oauth_token_success(body, scope_parsing)
 }
@@ -206,7 +207,7 @@ pub fn parse_oauth_token_response(
 fn parse_oauth_token_success(
   body: String,
   scope_parsing: ScopeParsing,
-) -> Result(Credentials, AuthError(e)) {
+) -> Result(credentials.Credentials, AuthError(e)) {
   let decoder = {
     use access_token <- decode.field("access_token", decode.string)
     use token_type <- decode.field("token_type", decode.string)
@@ -245,7 +246,7 @@ fn decode_token_credentials(
   token_type: String,
   expires_in: option.Option(Int),
   scope_parsing: ScopeParsing,
-) -> decode.Decoder(Credentials) {
+) -> decode.Decoder(credentials.Credentials) {
   case scope_parsing {
     RequiredScope(separator) -> {
       use scope <- decode.field("scope", decode.string)
@@ -286,8 +287,8 @@ fn token_credentials(
   token_type: String,
   expires_in: option.Option(Int),
   scopes: List(String),
-) -> Credentials {
-  Credentials(
+) -> credentials.Credentials {
+  credentials.new(
     token: access_token,
     refresh_token: refresh_token,
     token_type: token_type,

@@ -119,6 +119,11 @@ case vestibule_wisp.callback_phase_auth_result(req, reg, provider, store) {
 }
 ```
 
+`callback_phase` renders a generic authentication failure page on error so
+provider-controlled error descriptions are not reflected to users. Use
+`callback_phase_auth_result` or `callback_phase_auth_result_with_options` when
+the application needs structured error details for logging or custom rendering.
+
 Malformed provider responses and missing `state` or `code` parameters are
 reported through `AuthFailed`. `InvalidCallbackParams` is returned when callback
 parameters cannot be extracted from the request, such as malformed POST form

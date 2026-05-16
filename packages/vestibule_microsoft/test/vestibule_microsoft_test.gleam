@@ -3,7 +3,7 @@ import gleam/string
 import startest
 import startest/expect
 import vestibule/config
-import vestibule/credentials.{Credentials}
+import vestibule/credentials
 import vestibule/strategy
 import vestibule_microsoft
 
@@ -17,7 +17,7 @@ pub fn parse_token_response_success_test() {
   vestibule_microsoft.parse_token_response(body)
   |> expect.to_be_ok()
   |> expect.to_equal(
-    Credentials(
+    credentials.new(
       token: "eyJ0eXAi_test_token",
       refresh_token: Some("AwABAAAA_test_refresh"),
       token_type: "Bearer",
@@ -33,7 +33,7 @@ pub fn parse_token_response_without_refresh_token_test() {
   vestibule_microsoft.parse_token_response(body)
   |> expect.to_be_ok()
   |> expect.to_equal(
-    Credentials(
+    credentials.new(
       token: "test_token",
       refresh_token: None,
       token_type: "Bearer",
@@ -46,8 +46,8 @@ pub fn parse_token_response_without_refresh_token_test() {
 pub fn parse_token_response_empty_scope_test() {
   let body =
     "{\"token_type\":\"Bearer\",\"scope\":\"\",\"expires_in\":3600,\"access_token\":\"test_token\"}"
-  let assert Ok(credentials) = vestibule_microsoft.parse_token_response(body)
-  credentials.scopes |> expect.to_equal([])
+  let assert Ok(creds) = vestibule_microsoft.parse_token_response(body)
+  credentials.scopes(creds) |> expect.to_equal([])
 }
 
 pub fn parse_token_response_error_test() {

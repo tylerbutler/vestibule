@@ -219,9 +219,9 @@ fn do_fetch_user(
   _cfg: Config,
   exchange: strategy.ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
-  use auth_header <- result.try(strategy.authorization_header(
-    strategy.exchange_credentials(exchange),
-  ))
+  use auth_header <- result.try(
+    strategy.authorization_header(strategy.exchange_credentials(exchange)),
+  )
   use #(uid, info) <- result.try(provider_support.fetch_json_with_auth(
     "https://www.googleapis.com/oauth2/v3/userinfo",
     auth_header,

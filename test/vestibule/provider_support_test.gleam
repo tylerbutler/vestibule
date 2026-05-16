@@ -2,7 +2,7 @@ import gleam/http/response
 import gleam/option.{None, Some}
 import gleam/string
 import startest/expect
-import vestibule/credentials.{Credentials}
+import vestibule/credentials
 import vestibule/error
 import vestibule/provider_support
 
@@ -153,7 +153,7 @@ pub fn parse_oauth_token_response_required_scope_success_test() {
   )
   |> expect.to_equal(
     Ok(
-      Credentials(
+      credentials.new(
         token: "tok",
         refresh_token: Some("ref"),
         token_type: "Bearer",
@@ -168,12 +168,12 @@ pub fn parse_oauth_token_response_required_scope_empty_test() {
   let body =
     "{\"access_token\":\"tok\",\"token_type\":\"Bearer\",\"scope\":\"\"}"
 
-  let assert Ok(credentials) =
+  let assert Ok(creds) =
     provider_support.parse_oauth_token_response(
       body,
       provider_support.RequiredScope(","),
     )
-  credentials.scopes |> expect.to_equal([])
+  credentials.scopes(creds) |> expect.to_equal([])
 }
 
 pub fn parse_oauth_token_response_optional_scope_missing_test() {
@@ -185,7 +185,7 @@ pub fn parse_oauth_token_response_optional_scope_missing_test() {
   )
   |> expect.to_equal(
     Ok(
-      Credentials(
+      credentials.new(
         token: "tok",
         refresh_token: None,
         token_type: "Bearer",
@@ -200,21 +200,21 @@ pub fn parse_oauth_token_response_optional_scope_empty_test() {
   let body =
     "{\"access_token\":\"tok\",\"token_type\":\"Bearer\",\"scope\":\"\"}"
 
-  let assert Ok(credentials) =
+  let assert Ok(creds) =
     provider_support.parse_oauth_token_response(
       body,
       provider_support.OptionalScope(" "),
     )
-  credentials.scopes |> expect.to_equal([])
+  credentials.scopes(creds) |> expect.to_equal([])
 }
 
 pub fn parse_oauth_token_response_no_scope_ignores_present_scope_test() {
   let body =
     "{\"access_token\":\"tok\",\"token_type\":\"Bearer\",\"scope\":\"ignored\"}"
 
-  let assert Ok(credentials) =
+  let assert Ok(creds) =
     provider_support.parse_oauth_token_response(body, provider_support.NoScope)
-  credentials.scopes |> expect.to_equal([])
+  credentials.scopes(creds) |> expect.to_equal([])
 }
 
 pub fn parse_oauth_token_response_calls_check_token_error_first_test() {
@@ -298,5 +298,24 @@ pub fn parse_oauth_token_response_required_scope_rejects_missing_scope_test() {
       string.contains(reason, "scope") |> expect.to_be_true()
     }
     _ -> panic as "expected DecodeError"
+  }
+}
+
+pub fn fetch_json_with_auth_rejects_remote_http_before_sending_token_test() {
+  let result =
+    provider_support.fetch_json_with_auth(
+      "http://example.com/userinfo",
+      "Bearer secret-token",
+      fn(_body) { Ok("parsed") },
+      "test userinfo",
+    )
+
+  case result {
+    Error(error.ConfigError(reason:)) ->
+      reason
+      |> expect.to_equal(
+        "HTTPS required for endpoint URL: http://example.com/userinfo",
+      )
+    _ -> panic as "expected ConfigError before sending bearer token"
   }
 }
