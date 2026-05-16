@@ -1,8 +1,8 @@
-/// JWT verification using ywt_core with a custom Erlang FFI backend.
-///
-/// This replaces ywt_erlang to avoid an OTP 27 compatibility issue in
-/// its EC key generation. We only need verification (not key generation)
-/// for production use, plus HMAC signing for tests.
+//// JWT verification using ywt_core with a custom Erlang FFI backend.
+////
+//// This replaces ywt_erlang to avoid an OTP 27 compatibility issue in
+//// its EC key generation. We only need verification (not key generation)
+//// for production use, plus HMAC signing for tests.
 import gleam/crypto
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json

@@ -25,6 +25,23 @@ let cfg =
 
 Google userinfo only populates `UserInfo.email` when `email_verified` is true.
 
+## Default scopes
+
+`openid email profile`. Override with `config.with_scopes`.
+
+## Google Cloud Console setup
+
+1. Create or select a project at <https://console.cloud.google.com/>.
+2. **APIs & Services → OAuth consent screen**: configure the consent
+   screen (User Type, app name, support email, scopes
+   `openid`, `email`, `profile`).
+3. **APIs & Services → Credentials → Create credentials → OAuth client ID**.
+4. Application type: *Web application*.
+5. Add your redirect URI exactly, e.g.
+   `http://localhost:8000/auth/google/callback` for development and
+   the HTTPS production URI.
+6. Copy the **Client ID** and **Client secret** into your environment.
+
 ## Refresh tokens
 
 Google only returns a refresh token on the first user consent for a given

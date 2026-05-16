@@ -1,32 +1,32 @@
-/// Apple Sign In strategy for vestibule.
-///
-/// Apple's OAuth implementation has several key differences from standard providers:
-///
-/// - **No userinfo endpoint**: User info is extracted from the `id_token` JWT
-///   in the token response rather than from a separate API call.
-/// - **`response_mode=form_post`**: Apple sends the callback as a POST with
-///   form data. The vestibule core handles extracting callback params, so this
-///   strategy just adds the parameter to the authorization URL.
-/// - **Client secret is a JWT**: Apple requires the client_secret to be a signed
-///   JWT. The caller is responsible for generating this JWT and providing it in
-///   the Config. This strategy passes it through to the token endpoint.
-/// - **User info only on first auth**: Apple only sends the full user object
-///   (with name) on the first authorization. Subsequent authorizations only
-///   include `sub` and `email` in the ID token.
-/// - **JWT signature verification**: ID tokens are verified against Apple's
-///   published JWKS keys using ES256.
-///
-/// ## Setup
-///
-/// Call `vestibule_apple.init()` once per VM at application startup to
-/// initialize caches, then use `vestibule_apple.strategy()` to create the
-/// strategy. Use `try_init()` if startup code needs to handle duplicate cache
-/// initialization without panicking.
-///
-/// ```gleam
-/// let apple = vestibule_apple.init()
-/// let strategy = vestibule_apple.strategy(apple)
-/// ```
+//// Apple Sign In strategy for vestibule.
+////
+//// Apple's OAuth implementation has several key differences from standard providers:
+////
+//// - **No userinfo endpoint**: User info is extracted from the `id_token` JWT
+////   in the token response rather than from a separate API call.
+//// - **`response_mode=form_post`**: Apple sends the callback as a POST with
+////   form data. The vestibule core handles extracting callback params, so this
+////   strategy just adds the parameter to the authorization URL.
+//// - **Client secret is a JWT**: Apple requires the client_secret to be a signed
+////   JWT. The caller is responsible for generating this JWT and providing it in
+////   the Config. This strategy passes it through to the token endpoint.
+//// - **User info only on first auth**: Apple only sends the full user object
+////   (with name) on the first authorization. Subsequent authorizations only
+////   include `sub` and `email` in the ID token.
+//// - **JWT signature verification**: ID tokens are verified against Apple's
+////   published JWKS keys using ES256.
+////
+//// ## Setup
+////
+//// Call `vestibule_apple.init()` once per VM at application startup to
+//// initialize caches, then use `vestibule_apple.strategy()` to create the
+//// strategy. Use `try_init()` if startup code needs to handle duplicate cache
+//// initialization without panicking.
+////
+//// ```gleam
+//// let apple = vestibule_apple.init()
+//// let strategy = vestibule_apple.strategy(apple)
+//// ```
 import gleam/dict
 import gleam/dynamic
 import gleam/dynamic/decode
@@ -50,9 +50,7 @@ import vestibule/config.{type Config}
 import vestibule/credentials.{type Credentials, Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/provider_support
-import vestibule/strategy.{
-  type ExchangeResult, type Strategy, type UserResult, Strategy, UserResult,
-}
+import vestibule/strategy.{type ExchangeResult, type Strategy, type UserResult}
 import vestibule/user_info
 import vestibule_apple/jwks.{type JwksCache}
 import vestibule_apple/jwt
@@ -60,8 +58,10 @@ import ywt/claim
 import ywt/verify_key.{type VerifyKey}
 
 /// Holds the JWKS cache used for Apple ID token signature verification.
-/// Returned by `init()` and required by `strategy()`.
-pub type AppleCache {
+/// Returned by `init()` and required by `strategy()`. Construction and field
+/// access are intentionally opaque so the cache backing store can change
+/// without breaking consumers.
+pub opaque type AppleCache {
   AppleCache(jwks: JwksCache)
 }
 
@@ -113,7 +113,7 @@ pub fn try_init_named(prefix: String) -> Result(AppleCache, AppleInitError) {
 /// ID tokens are verified against Apple's published JWKS keys with
 /// claim validation for issuer, audience, and expiration.
 pub fn strategy(apple: AppleCache) -> Strategy(e) {
-  Strategy(
+  strategy.new(
     provider: "apple",
     default_scopes: ["name", "email"],
     authorize_url: do_authorize_url,
@@ -398,7 +398,7 @@ fn do_refresh_token(
     Ok(response) -> {
       use body <- result.try(provider_support.check_response_status(response))
       use exchange <- result.try(parse_token_response(body))
-      Ok(exchange.credentials)
+      Ok(strategy.exchange_credentials(exchange))
     }
     Error(_) ->
       Error(error.NetworkError(
@@ -415,7 +415,7 @@ fn do_fetch_user(
   // Apple has no userinfo endpoint. User info comes from the id_token JWT
   // returned as an exchange artifact.
   use artifact <- result.try(
-    dict.get(exchange.artifacts, "id_token")
+    dict.get(strategy.exchange_artifacts(exchange), "id_token")
     |> result.replace_error(error.UserInfoFailed(
       reason: "No Apple ID token found in exchange artifacts.",
     )),
@@ -432,5 +432,5 @@ fn do_fetch_user(
     keys,
     config.client_id(cfg),
   ))
-  Ok(UserResult(uid: uid, info: info, extra: dict.new()))
+  Ok(strategy.user_result(uid: uid, info: info, extra: dict.new()))
 }

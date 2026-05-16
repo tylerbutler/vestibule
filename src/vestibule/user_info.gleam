@@ -1,3 +1,6 @@
+//// Normalized user profile returned by a provider's userinfo endpoint or
+//// extracted from an ID token. Provider-specific fields land in `extra`.
+
 import gleam/dict.{type Dict}
 import gleam/option.{type Option}
 

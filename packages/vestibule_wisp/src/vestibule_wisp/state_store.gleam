@@ -1,3 +1,7 @@
+//// Single-use storage for in-flight OAuth flow state (CSRF `state` and
+//// PKCE `code_verifier`). Entries are deleted on first read to prevent
+//// replay.
+
 import gleam/bit_array
 import gleam/crypto
 import gleam/order

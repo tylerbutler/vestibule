@@ -6,11 +6,11 @@ import gleam/string
 import startest
 import startest/expect
 import vestibule
-import vestibule/authorization_request.{AuthorizationRequest}
+import vestibule/authorization_request
 import vestibule/config
 import vestibule/credentials.{Credentials}
 import vestibule/error
-import vestibule/strategy.{type Strategy, ExchangeResult, Strategy, UserResult}
+import vestibule/strategy.{type Strategy}
 import vestibule/user_info.{UserInfo}
 
 pub fn main() -> Nil {
@@ -19,7 +19,7 @@ pub fn main() -> Nil {
 
 // A fake strategy for testing the orchestrator
 fn test_strategy() -> Strategy(e) {
-  Strategy(
+  strategy.new(
     provider: "test",
     default_scopes: ["default_scope"],
     authorize_url: fn(_config, scopes, state) {
@@ -33,16 +33,17 @@ fn test_strategy() -> Strategy(e) {
     exchange_code: fn(_config, code, _code_verifier) {
       case code {
         "valid_code" ->
-          Ok(ExchangeResult(
-            credentials: Credentials(
-              token: "test_token",
-              refresh_token: None,
-              token_type: "bearer",
-              expires_in: None,
-              scopes: ["default_scope"],
+          Ok(
+            strategy.exchange_result(
+              Credentials(
+                token: "test_token",
+                refresh_token: None,
+                token_type: "bearer",
+                expires_in: None,
+                scopes: ["default_scope"],
+              ),
             ),
-            artifacts: dict.new(),
-          ))
+          )
         _ -> Error(error.CodeExchangeFailed(reason: "bad code"))
       }
     },
@@ -58,8 +59,9 @@ fn test_strategy() -> Strategy(e) {
       )
     },
     fetch_user: fn(_cfg, exchange) {
-      exchange.credentials.token |> expect.to_equal("test_token")
-      Ok(UserResult(
+      strategy.exchange_credentials(exchange).token
+      |> expect.to_equal("test_token")
+      Ok(strategy.user_result(
         uid: "user123",
         info: UserInfo(
           name: Some("Test User"),
@@ -78,22 +80,22 @@ fn test_strategy() -> Strategy(e) {
 }
 
 fn artifact_strategy() -> Strategy(e) {
-  Strategy(
+  strategy.new(
     provider: "artifact",
     default_scopes: [],
     authorize_url: fn(_config, _scopes, state) {
       Ok("https://test.com/auth?state=" <> state)
     },
     exchange_code: fn(_config, _code, _code_verifier) {
-      Ok(ExchangeResult(
-        credentials: Credentials(
+      Ok(strategy.exchange_result_with_artifacts(
+        Credentials(
           token: "artifact_token",
           refresh_token: None,
           token_type: "bearer",
           expires_in: None,
           scopes: [],
         ),
-        artifacts: dict.from_list([
+        dict.from_list([
           #("exchange_marker", dynamic.string("from-exchange")),
         ]),
       ))
@@ -102,9 +104,10 @@ fn artifact_strategy() -> Strategy(e) {
       Error(error.ConfigError(reason: "refresh not implemented"))
     },
     fetch_user: fn(_cfg, exchange) {
-      let assert Ok(marker) = dict.get(exchange.artifacts, "exchange_marker")
+      let assert Ok(marker) =
+        dict.get(strategy.exchange_artifacts(exchange), "exchange_marker")
       let assert Ok(decoded) = decode.run(marker, decode.string)
-      Ok(UserResult(
+      Ok(strategy.user_result(
         uid: decoded,
         info: UserInfo(
           name: None,
@@ -121,24 +124,41 @@ fn artifact_strategy() -> Strategy(e) {
 }
 
 fn fragment_strategy() -> Strategy(e) {
-  Strategy(..test_strategy(), authorize_url: fn(_config, _scopes, state) {
-    Ok(
-      "https://test.com/auth?state=" <> state <> "&existing=1#provider-fragment",
-    )
-  })
+  strategy.new(
+    provider: strategy.provider(test_strategy()),
+    default_scopes: strategy.default_scopes(test_strategy()),
+    authorize_url: fn(_config, _scopes, state) {
+      Ok(
+        "https://test.com/auth?state="
+        <> state
+        <> "&existing=1#provider-fragment",
+      )
+    },
+    exchange_code: fn(cfg, code, verifier) {
+      strategy.exchange_code(test_strategy(), cfg, code, verifier)
+    },
+    refresh_token: fn(cfg, tok) {
+      strategy.refresh_token(test_strategy(), cfg, tok)
+    },
+    fetch_user: fn(cfg, exchange) {
+      strategy.fetch_user(test_strategy(), cfg, exchange)
+    },
+  )
 }
 
 pub fn authorize_url_returns_authorization_request_test() {
   let strat = test_strategy()
   let conf = config.new("id", "secret", "http://localhost/cb")
-  let result = vestibule.authorize_url(strat, conf)
-  let assert Ok(AuthorizationRequest(url:, state:, code_verifier:)) = result
+  let assert Ok(req) = vestibule.authorize_url(strat, conf)
+  let url = authorization_request.url(req)
+  let state = authorization_request.state(req)
+  let verifier = authorization_request.code_verifier(req)
   // URL should contain the state
   { string.contains(url, state) } |> expect.to_be_true()
   // State should be non-empty
   { string.length(state) >= 43 } |> expect.to_be_true()
   // Code verifier should be non-empty
-  { string.length(code_verifier) >= 43 } |> expect.to_be_true()
+  { string.length(verifier) >= 43 } |> expect.to_be_true()
   // URL should contain PKCE params
   { string.contains(url, "code_challenge=") } |> expect.to_be_true()
   { string.contains(url, "code_challenge_method=S256") } |> expect.to_be_true()
@@ -146,8 +166,8 @@ pub fn authorize_url_returns_authorization_request_test() {
 
 pub fn authorize_url_appends_pkce_before_url_fragment_test() {
   let conf = config.new("id", "secret", "http://localhost/cb")
-  let assert Ok(AuthorizationRequest(url:, ..)) =
-    vestibule.authorize_url(fragment_strategy(), conf)
+  let assert Ok(req) = vestibule.authorize_url(fragment_strategy(), conf)
+  let url = authorization_request.url(req)
 
   { string.contains(url, "&existing=1&code_challenge=") }
   |> expect.to_be_true()
@@ -160,8 +180,8 @@ pub fn authorize_url_uses_config_scopes_when_present_test() {
   let conf =
     config.new("id", "secret", "http://localhost/cb")
     |> config.with_scopes(["custom_scope"])
-  let assert Ok(AuthorizationRequest(url:, ..)) =
-    vestibule.authorize_url(strat, conf)
+  let assert Ok(req) = vestibule.authorize_url(strat, conf)
+  let url = authorization_request.url(req)
   { string.contains(url, "custom_scope") } |> expect.to_be_true()
   { string.contains(url, "default_scope") } |> expect.to_be_false()
 }
@@ -169,8 +189,8 @@ pub fn authorize_url_uses_config_scopes_when_present_test() {
 pub fn authorize_url_uses_default_scopes_when_config_empty_test() {
   let strat = test_strategy()
   let conf = config.new("id", "secret", "http://localhost/cb")
-  let assert Ok(AuthorizationRequest(url:, ..)) =
-    vestibule.authorize_url(strat, conf)
+  let assert Ok(req) = vestibule.authorize_url(strat, conf)
+  let url = authorization_request.url(req)
   { string.contains(url, "default_scope") } |> expect.to_be_true()
 }
 

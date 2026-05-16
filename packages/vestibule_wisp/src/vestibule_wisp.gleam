@@ -1,3 +1,11 @@
+//// Wisp middleware that wires a `Registry` of `Strategy` values into HTTP
+//// endpoints.
+////
+//// Provides `request_phase` (start an authorization flow, persist `state`
+//// and `code_verifier`) and `callback_phase` (validate state, exchange
+//// code, fetch user, invoke caller's success handler). Uses a `StateStore`
+//// for single-use storage of in-flight flow state.
+
 import gleam/bit_array
 import gleam/dict
 import gleam/http
@@ -9,8 +17,10 @@ import wisp.{type Request, type Response}
 
 import vestibule
 import vestibule/auth.{type Auth}
+import vestibule/authorization_request
 import vestibule/error
 import vestibule/registry.{type Registry}
+import vestibule/state
 import vestibule_wisp/state_store.{type StateStore}
 
 /// Middleware configuration options.
@@ -72,13 +82,13 @@ pub fn request_phase_with_options(
           case
             state_store.try_store_with_ttl(
               state_store,
-              auth_request.state,
-              auth_request.code_verifier,
+              authorization_request.state(auth_request),
+              authorization_request.code_verifier(auth_request),
               options.session_ttl_seconds,
             )
           {
             Ok(session_id) ->
-              wisp.redirect(auth_request.url)
+              wisp.redirect(authorization_request.url(auth_request))
               |> wisp.set_cookie(
                 req,
                 options.cookie_name,
@@ -245,10 +255,10 @@ pub fn callback_phase_auth_result_with_options(
     |> result.map_error(fn(_) { SessionExpired }),
   )
 
-  use _ <- result.try(case received_state == expected_state {
-    True -> Ok(Nil)
-    False -> Error(AuthFailed(error.StateMismatch))
-  })
+  use _ <- result.try(
+    state.validate(received_state, expected_state)
+    |> result.map_error(AuthFailed),
+  )
 
   use #(expected_state, code_verifier) <- result.try(
     state_store.retrieve(state_store, session_id)

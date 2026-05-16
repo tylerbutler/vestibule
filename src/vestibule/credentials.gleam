@@ -1,3 +1,10 @@
+//// Bearer credentials returned by a provider after a successful token
+//// exchange or refresh.
+////
+//// > **Security**: `Credentials` values contain access/refresh/id tokens.
+//// > Treat them like passwords — never log them, never include them in
+//// > error reports, and store them encrypted at rest.
+
 import gleam/option.{type Option}
 
 /// OAuth credentials from the provider.

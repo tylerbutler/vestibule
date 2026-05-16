@@ -1,3 +1,7 @@
+//// In-memory registry that maps provider names ("google", "apple", ...)
+//// to `Strategy` values. Used by the middleware to dispatch incoming
+//// authorize/callback requests to the right provider.
+
 import gleam/dict.{type Dict}
 import vestibule/config.{type Config}
 import vestibule/strategy.{type Strategy}
@@ -21,7 +25,7 @@ pub fn register(
   config: Config,
 ) -> Registry(e) {
   Registry(
-    providers: dict.insert(registry.providers, strategy.provider, #(
+    providers: dict.insert(registry.providers, strategy.provider(strategy), #(
       strategy,
       config,
     )),

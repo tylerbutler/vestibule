@@ -1,8 +1,8 @@
-/// Apple JWKS (JSON Web Key Set) fetching and caching.
-///
-/// Fetches Apple's public keys from `https://appleid.apple.com/auth/keys`
-/// and caches them in a bravo ETS table for reuse. Keys are used to verify
-/// the signature of Apple's ID token JWTs.
+//// Apple JWKS (JSON Web Key Set) fetching and caching.
+////
+//// Fetches Apple's public keys from `https://appleid.apple.com/auth/keys`
+//// and caches them in a bravo ETS table for reuse. Keys are used to verify
+//// the signature of Apple's ID token JWTs.
 import bravo
 import bravo/uset.{type USet}
 import gleam/http/request
@@ -18,8 +18,12 @@ import ywt/verify_key.{type VerifyKey}
 const apple_jwks_url = "https://appleid.apple.com/auth/keys"
 
 /// Opaque cache for Apple's JWKS keys.
-pub type JwksCache =
-  USet(String, List(VerifyKey))
+///
+/// Backed by a bravo `USet` ETS table, but the underlying storage is hidden
+/// so the dependency can be swapped without breaking consumers.
+pub opaque type JwksCache {
+  JwksCache(table: USet(String, List(VerifyKey)))
+}
 
 const cache_key = "apple_jwks"
 
@@ -51,7 +55,7 @@ pub fn try_init() -> Result(JwksCache, JwksCacheError) {
 /// exists or cannot be created.
 pub fn try_init_named(name: String) -> Result(JwksCache, JwksCacheError) {
   case uset.new(name: name, access: bravo.Protected) {
-    Ok(table) -> Ok(table)
+    Ok(table) -> Ok(JwksCache(table: table))
     Error(_) -> Error(JwksTableCreateFailed)
   }
 }
@@ -59,11 +63,11 @@ pub fn try_init_named(name: String) -> Result(JwksCache, JwksCacheError) {
 /// Get Apple's public verification keys, using cached keys if available.
 /// Falls back to fetching from Apple's JWKS endpoint.
 pub fn get_keys(cache: JwksCache) -> Result(List(VerifyKey), AuthError(e)) {
-  case uset.lookup(from: cache, at: cache_key) {
+  case uset.lookup(from: cache.table, at: cache_key) {
     Ok(keys) -> Ok(keys)
     Error(_) -> {
       use keys <- result.try(fetch_keys())
-      let _ = uset.insert(into: cache, key: cache_key, value: keys)
+      let _ = uset.insert(into: cache.table, key: cache_key, value: keys)
       Ok(keys)
     }
   }
@@ -72,7 +76,7 @@ pub fn get_keys(cache: JwksCache) -> Result(List(VerifyKey), AuthError(e)) {
 /// Force refresh the cached keys from Apple's endpoint.
 pub fn refresh_keys(cache: JwksCache) -> Result(List(VerifyKey), AuthError(e)) {
   use keys <- result.try(fetch_keys())
-  let _ = uset.insert(into: cache, key: cache_key, value: keys)
+  let _ = uset.insert(into: cache.table, key: cache_key, value: keys)
   Ok(keys)
 }
 

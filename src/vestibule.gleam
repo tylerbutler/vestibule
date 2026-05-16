@@ -11,9 +11,7 @@ import gleam/string
 import gleam/uri
 
 import vestibule/auth.{type Auth, Auth}
-import vestibule/authorization_request.{
-  type AuthorizationRequest, AuthorizationRequest,
-}
+import vestibule/authorization_request.{type AuthorizationRequest}
 import vestibule/config.{type Config}
 import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
@@ -35,19 +33,24 @@ import vestibule/strategy.{type Strategy}
 /// timestamp alongside the state when saving it to your session and
 /// check it before calling `handle_callback`.
 pub fn authorize_url(
-  strategy: Strategy(e),
+  strat: Strategy(e),
   cfg: Config,
 ) -> Result(AuthorizationRequest, AuthError(e)) {
   let csrf_state = state.generate()
   let code_verifier = pkce.generate_verifier()
   let code_challenge = pkce.compute_challenge(code_verifier)
   let scopes = case config.scopes(cfg) {
-    [] -> strategy.default_scopes
+    [] -> strategy.default_scopes(strat)
     custom -> custom
   }
-  use base_url <- result.try(strategy.authorize_url(cfg, scopes, csrf_state))
+  use base_url <- result.try(strategy.build_authorize_url(
+    strat,
+    cfg,
+    scopes,
+    csrf_state,
+  ))
   let url = append_pkce_params(base_url, code_challenge)
-  Ok(AuthorizationRequest(
+  Ok(authorization_request.new(
     url: url,
     state: csrf_state,
     code_verifier: code_verifier,
@@ -68,7 +71,7 @@ pub fn authorize_url(
 /// expiration, check the timestamp you stored alongside the state
 /// before calling this function.
 pub fn handle_callback(
-  strategy: Strategy(e),
+  strat: Strategy(e),
   cfg: Config,
   callback_params: Dict(String, String),
   expected_state: String,
@@ -94,21 +97,22 @@ pub fn handle_callback(
 
   // Exchange code for credentials and provider-specific artifacts, passing the PKCE verifier
   use exchange <- result.try(strategy.exchange_code(
+    strat,
     cfg,
     code,
     option.Some(code_verifier),
   ))
 
   // Fetch user info
-  use user <- result.try(strategy.fetch_user(cfg, exchange))
+  use user <- result.try(strategy.fetch_user(strat, cfg, exchange))
 
   // Assemble the Auth result
   Ok(Auth(
-    uid: user.uid,
-    provider: strategy.provider,
-    info: user.info,
-    credentials: exchange.credentials,
-    extra: user.extra,
+    uid: strategy.user_result_uid(user),
+    provider: strategy.provider(strat),
+    info: strategy.user_result_info(user),
+    credentials: strategy.exchange_credentials(exchange),
+    extra: strategy.user_result_extra(user),
   ))
 }
 
@@ -116,11 +120,11 @@ pub fn handle_callback(
 ///
 /// Delegates to the provider strategy so refresh semantics remain provider-owned.
 pub fn refresh_token(
-  strategy: Strategy(e),
+  strat: Strategy(e),
   cfg: Config,
   refresh_tok: String,
 ) -> Result(Credentials, AuthError(e)) {
-  strategy.refresh_token(cfg, refresh_tok)
+  strategy.refresh_token(strat, cfg, refresh_tok)
 }
 
 /// Check callback params for a provider error response.

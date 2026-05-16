@@ -1,3 +1,6 @@
+//// Authentication result types returned to the calling application after a
+//// successful OAuth/OIDC flow.
+
 import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
 import vestibule/credentials.{type Credentials}

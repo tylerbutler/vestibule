@@ -1,0 +1,4 @@
+project: vestibule
+kind: Security
+body: 'Documented PKCE, state, JWT verification, and the OIDC nonce gap in the root README. No behavior change.'
+time: 2026-05-16T00:51:20.369312+00:00
