@@ -29,7 +29,7 @@ high-entropy value (e.g. 64+ random bytes) and load it from configuration or
 a secrets manager.
 
 If the secret changes, existing OAuth callbacks cannot read the signed
-session cookie and will return `MissingSessionCookie`.
+session cookie and will return `MissingOrInvalidSessionCookie`.
 
 ## What it does
 
@@ -92,12 +92,13 @@ let options =
 Defaults match `vestibule_wisp`: cookie name `vestibule_session`, TTL 600
 seconds. The cookie TTL and server-side state-store TTL share the same
 value. The cookie is set with `HttpOnly`, `SameSite=Lax`, `Path=/`, and
-`Secure` when the request was made over HTTPS.
+`Secure` by default. For local HTTP development only, set `secure_cookie:
+False` with record-update syntax.
 
 If the signed cookie is missing, invalid, or signed with a different
-secret, the structured API returns `MissingSessionCookie`. If the cookie is
-valid but the stored state is missing, expired, or already used, it returns
-`SessionExpired`.
+secret, the structured API returns `MissingOrInvalidSessionCookie`. If the
+cookie is valid but the stored state is missing, expired, or already used, it
+returns `SessionUnavailable`.
 
 ## Callback error handling
 
@@ -114,8 +115,8 @@ valid but the stored state is missing, expired, or already used, it returns
 case vestibule_mist.callback_phase_auth_result(req, reg, provider, store, options) {
   Ok(auth) -> on_success(auth)
   Error(vestibule_mist.UnknownProvider(provider)) -> handle_unknown(provider)
-  Error(vestibule_mist.MissingSessionCookie) -> handle_missing_cookie()
-  Error(vestibule_mist.SessionExpired) -> handle_expired_session()
+  Error(vestibule_mist.MissingOrInvalidSessionCookie) -> handle_missing_cookie()
+  Error(vestibule_mist.SessionUnavailable) -> handle_expired_session()
   Error(vestibule_mist.InvalidCallbackParams) -> handle_bad_callback()
   Error(vestibule_mist.AuthFailed(err)) -> handle_auth_failure(err)
 }

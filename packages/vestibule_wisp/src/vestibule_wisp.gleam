@@ -13,13 +13,11 @@ import gleam/result
 import gleam/uri
 import wisp.{type Request, type Response}
 
-import vestibule
 import vestibule/auth.{type Auth}
-import vestibule/authorization_request
 import vestibule/error
 import vestibule/registry.{type Registry}
-import vestibule/state
 import vestibule/state_store.{type StateStore}
+import vestibule/transport_flow
 
 /// Middleware configuration options.
 pub type Options {
@@ -72,36 +70,29 @@ pub fn request_phase_with_options(
   state_store: StateStore,
   options: Options,
 ) -> Response {
-  case registry.get(reg, provider) {
-    Error(Nil) -> wisp.not_found()
-    Ok(#(strategy, config)) ->
-      case vestibule.authorize_url(strategy, config) {
-        Ok(auth_request) -> {
-          case
-            state_store.try_store_with_ttl(
-              state_store,
-              authorization_request.state(auth_request),
-              authorization_request.code_verifier(auth_request),
-              options.session_ttl_seconds,
-            )
-          {
-            Ok(session_id) ->
-              wisp.redirect(authorization_request.url(auth_request))
-              |> wisp.set_cookie(
-                req,
-                options.cookie_name,
-                session_id,
-                wisp.Signed,
-                options.session_ttl_seconds,
-              )
-            Error(_) ->
-              error_response(error.ConfigError(
-                reason: "Failed to store OAuth session state",
-              ))
-          }
-        }
-        Error(err) -> error_response(err)
-      }
+  case
+    transport_flow.start_authorization(
+      reg,
+      provider,
+      state_store,
+      options.session_ttl_seconds,
+    )
+  {
+    Error(transport_flow.UnknownProvider(_)) -> wisp.not_found()
+    Error(transport_flow.AuthFailed(err)) -> error_response(err)
+    Error(transport_flow.StoreFailed(_)) ->
+      error_response(error.ConfigError(
+        reason: "Failed to store OAuth session state",
+      ))
+    Ok(#(url, session_id)) ->
+      wisp.redirect(url)
+      |> wisp.set_cookie(
+        req,
+        options.cookie_name,
+        session_id,
+        wisp.Signed,
+        options.session_ttl_seconds,
+      )
   }
 }
 
@@ -231,46 +222,20 @@ pub fn callback_phase_auth_result_with_options(
   state_store: StateStore,
   options: Options,
 ) -> Result(Auth, CallbackError(e)) {
-  use #(strategy, config) <- result.try(
-    registry.get(reg, provider)
-    |> result.map_error(fn(_) { UnknownProvider(provider) }),
+  use _ <- result.try(
+    transport_flow.ensure_callback_provider(reg, provider)
+    |> result.map_error(map_callback_flow_error),
   )
 
   use params <- result.try(get_callback_params(req))
-
-  use received_state <- result.try(
-    dict.get(params, "state")
-    |> result.replace_error(AuthFailed(error.MissingCallbackParam("state"))),
-  )
 
   use session_id <- result.try(
     wisp.get_cookie(req, options.cookie_name, wisp.Signed)
     |> result.map_error(fn(_) { MissingSessionCookie }),
   )
 
-  use #(expected_state, _code_verifier) <- result.try(
-    state_store.peek(state_store, session_id)
-    |> result.map_error(fn(_) { SessionExpired }),
-  )
-
-  use _ <- result.try(
-    state.validate(received_state, expected_state)
-    |> result.map_error(AuthFailed),
-  )
-
-  use #(expected_state, code_verifier) <- result.try(
-    state_store.retrieve(state_store, session_id)
-    |> result.map_error(fn(_) { SessionExpired }),
-  )
-
-  vestibule.handle_callback(
-    strategy,
-    config,
-    params,
-    expected_state,
-    code_verifier,
-  )
-  |> result.map_error(AuthFailed)
+  transport_flow.finish_callback(reg, provider, state_store, params, session_id)
+  |> result.map_error(map_callback_flow_error)
 }
 
 /// Extract callback parameters from either query string (GET) or
@@ -304,6 +269,17 @@ fn get_callback_params(
       }
     }
     _ -> Ok(dict.from_list(query_params))
+  }
+}
+
+fn map_callback_flow_error(
+  err: transport_flow.CallbackFlowError(e),
+) -> CallbackError(e) {
+  case err {
+    transport_flow.CallbackUnknownProvider(provider) ->
+      UnknownProvider(provider)
+    transport_flow.CallbackSessionUnavailable -> SessionExpired
+    transport_flow.CallbackAuthFailed(err) -> AuthFailed(err)
   }
 }
 

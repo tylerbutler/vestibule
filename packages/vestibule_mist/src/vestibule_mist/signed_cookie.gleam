@@ -6,6 +6,7 @@
 
 import gleam/bit_array
 import gleam/crypto
+import gleam/result
 
 /// Sign `payload` with `secret_key_base` using HMAC-SHA256 and return a
 /// URL-safe token (`protected.payload.signature`) suitable for use as a
@@ -22,8 +23,9 @@ pub fn sign(payload: String, secret_key_base: BitArray) -> String {
 /// payload string, or `Error(Nil)` if the token is malformed, the
 /// signature does not match, or the payload is not valid UTF-8.
 pub fn verify(token: String, secret_key_base: BitArray) -> Result(String, Nil) {
-  case crypto.verify_signed_message(token, secret_key_base) {
-    Ok(payload_bits) -> bit_array.to_string(payload_bits)
-    Error(Nil) -> Error(Nil)
-  }
+  use payload_bits <- result.try(crypto.verify_signed_message(
+    token,
+    secret_key_base,
+  ))
+  bit_array.to_string(payload_bits)
 }

@@ -1,6 +1,6 @@
 import gleam/dict
-import gleam/http
 import gleam/http/request
+import gleam/list
 import gleam/option
 import gleam/string
 import startest
@@ -56,6 +56,7 @@ pub fn new_options_uses_default_cookie_contract_test() {
     secret_key_base: secret,
     cookie_name: "vestibule_session",
     session_ttl_seconds: 600,
+    secure_cookie: True,
   ))
 }
 
@@ -95,23 +96,23 @@ pub fn request_phase_success_sets_signed_cookie_and_redirects_test() {
   { string.contains(cookie_header, "HttpOnly") } |> expect.to_be_true()
   { string.contains(cookie_header, "SameSite=Lax") } |> expect.to_be_true()
   { string.contains(cookie_header, "Path=/") } |> expect.to_be_true()
+  { string.contains(cookie_header, "Secure") } |> expect.to_be_true()
 }
 
-pub fn request_phase_https_request_marks_cookie_secure_test() {
+pub fn request_phase_allows_secure_cookie_opt_out_test() {
   let req =
     request.new()
-    |> request.set_scheme(http.Https)
     |> request.set_path("/auth/test")
-  let store = state_store.init_named("test_mist_request_https_secure_cookie")
+  let store = state_store.init_named("test_mist_request_secure_cookie_opt_out")
   let reg =
     registry.new()
     |> registry.register(test_strategy(), test_config())
+  let options = vestibule_mist.Options(..test_options(), secure_cookie: False)
 
-  let resp =
-    vestibule_mist.request_phase(req, reg, "test", store, test_options())
+  let resp = vestibule_mist.request_phase(req, reg, "test", store, options)
 
   let assert Ok(cookie_header) = find_header(resp.headers, "set-cookie")
-  { string.contains(cookie_header, "Secure") } |> expect.to_be_true()
+  { string.contains(cookie_header, "Secure") } |> expect.to_be_false()
 }
 
 // === callback_phase_auth_result_with_params ===
@@ -146,7 +147,7 @@ pub fn callback_missing_session_cookie_test() {
     store,
     test_options(),
   )
-  |> expect.to_equal(Error(vestibule_mist.MissingSessionCookie))
+  |> expect.to_equal(Error(vestibule_mist.MissingOrInvalidSessionCookie))
 }
 
 pub fn callback_tampered_cookie_fails_as_missing_test() {
@@ -166,7 +167,7 @@ pub fn callback_tampered_cookie_fails_as_missing_test() {
     store,
     test_options(),
   )
-  |> expect.to_equal(Error(vestibule_mist.MissingSessionCookie))
+  |> expect.to_equal(Error(vestibule_mist.MissingOrInvalidSessionCookie))
 }
 
 pub fn callback_wrong_secret_fails_as_missing_test() {
@@ -189,7 +190,7 @@ pub fn callback_wrong_secret_fails_as_missing_test() {
     store,
     test_options(),
   )
-  |> expect.to_equal(Error(vestibule_mist.MissingSessionCookie))
+  |> expect.to_equal(Error(vestibule_mist.MissingOrInvalidSessionCookie))
 }
 
 pub fn callback_missing_state_does_not_consume_session_test() {
@@ -246,7 +247,7 @@ pub fn callback_unknown_session_returns_expired_test() {
     store,
     test_options(),
   )
-  |> expect.to_equal(Error(vestibule_mist.SessionExpired))
+  |> expect.to_equal(Error(vestibule_mist.SessionUnavailable))
 }
 
 pub fn callback_auth_result_preserves_provider_error_details_test() {
@@ -298,7 +299,7 @@ pub fn callback_custom_cookie_name_is_honored_test() {
     store,
     test_options(),
   )
-  |> expect.to_equal(Error(vestibule_mist.MissingSessionCookie))
+  |> expect.to_equal(Error(vestibule_mist.MissingOrInvalidSessionCookie))
 
   let custom_options =
     vestibule_mist.Options(..test_options(), cookie_name: "custom_session")
@@ -372,12 +373,5 @@ fn find_header(
   headers: List(#(String, String)),
   name: String,
 ) -> Result(String, Nil) {
-  case headers {
-    [] -> Error(Nil)
-    [#(k, v), ..rest] ->
-      case k == name {
-        True -> Ok(v)
-        False -> find_header(rest, name)
-      }
-  }
+  list.key_find(headers, name)
 }

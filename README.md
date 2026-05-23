@@ -153,6 +153,10 @@ fn handle_request(req: Request(Connection)) -> Response(ResponseData) {
 }
 ```
 
+`vestibule_mist` sets its signed session cookie with `Secure` by default. Its
+structured cookie/session errors are named `MissingOrInvalidSessionCookie` and
+`SessionUnavailable`.
+
 ## Packages
 
 | Package | Description | Install |

@@ -1,6 +1,6 @@
 -module(vestibule_state_store_test_ffi).
 
--export([state_store_survives_creator_process_exit/0]).
+-export([state_store_survives_creator_process_exit/0, count_store_entries/1]).
 
 state_store_survives_creator_process_exit() ->
     Name = <<"vestibule_owner_lifetime_test">>,
@@ -32,4 +32,10 @@ state_store_survives_creator_process_exit() ->
     case vestibule_state_store_ffi:lookup(Name, Key) of
         {ok, Value} -> true;
         _ -> false
+    end.
+
+count_store_entries(Name) ->
+    case vestibule_state_store_ffi:count(Name) of
+        {ok, Count} -> Count;
+        {error, _} -> -1
     end.

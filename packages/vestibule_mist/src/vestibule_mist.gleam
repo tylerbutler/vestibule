@@ -26,13 +26,11 @@ import gleam/result
 import gleam/uri
 import mist.{type Connection, type ResponseData}
 
-import vestibule
 import vestibule/auth.{type Auth}
-import vestibule/authorization_request
 import vestibule/error
 import vestibule/registry.{type Registry}
-import vestibule/state
 import vestibule/state_store.{type StateStore}
+import vestibule/transport_flow
 import vestibule_mist/signed_cookie
 
 /// Maximum body size accepted from a POST callback. 64 KiB is well above the
@@ -49,6 +47,7 @@ pub type Options {
     secret_key_base: BitArray,
     cookie_name: String,
     session_ttl_seconds: Int,
+    secure_cookie: Bool,
   )
 }
 
@@ -59,9 +58,9 @@ pub type CallbackError(e) {
   /// The signed session cookie set during the request phase is missing or
   /// invalid (no cookie present, signature mismatch, wrong secret, tampered
   /// payload).
-  MissingSessionCookie
+  MissingOrInvalidSessionCookie
   /// The session state was not found, expired, or already used.
-  SessionExpired
+  SessionUnavailable
   /// Callback parameters could not be extracted from the request (e.g.
   /// malformed POST body, body too large, non-UTF-8 body).
   InvalidCallbackParams
@@ -78,6 +77,7 @@ pub fn new_options(secret_key_base: BitArray) -> Options {
     secret_key_base: secret_key_base,
     cookie_name: "vestibule_session",
     session_ttl_seconds: 600,
+    secure_cookie: True,
   )
 }
 
@@ -93,47 +93,40 @@ pub fn new_options(secret_key_base: BitArray) -> Options {
 /// Generic over the request body type: the body is never read, only request
 /// metadata (scheme, cookies) is inspected.
 pub fn request_phase(
-  req: Request(body),
+  _req: Request(body),
   reg: Registry(e),
   provider: String,
   store: StateStore,
   options: Options,
 ) -> Response(ResponseData) {
-  case registry.get(reg, provider) {
-    Error(Nil) -> not_found_response()
-    Ok(#(strategy, config)) ->
-      case vestibule.authorize_url(strategy, config) {
-        Ok(auth_request) ->
-          case
-            state_store.try_store_with_ttl(
-              store,
-              authorization_request.state(auth_request),
-              authorization_request.code_verifier(auth_request),
-              options.session_ttl_seconds,
-            )
-          {
-            Ok(session_id) -> {
-              let token =
-                signed_cookie.sign(session_id, options.secret_key_base)
-              let attrs =
-                cookie.Attributes(
-                  max_age: option.Some(options.session_ttl_seconds),
-                  domain: option.None,
-                  path: option.Some("/"),
-                  secure: req.scheme == http.Https,
-                  http_only: True,
-                  same_site: option.Some(cookie.Lax),
-                )
-              redirect(authorization_request.url(auth_request))
-              |> response.set_cookie(options.cookie_name, token, attrs)
-            }
-            Error(_) ->
-              error_response(error.ConfigError(
-                reason: "Failed to store OAuth session state",
-              ))
-          }
-        Error(err) -> error_response(err)
-      }
+  case
+    transport_flow.start_authorization(
+      reg,
+      provider,
+      store,
+      options.session_ttl_seconds,
+    )
+  {
+    Error(transport_flow.UnknownProvider(_)) -> not_found_response()
+    Error(transport_flow.AuthFailed(err)) -> error_response(err)
+    Error(transport_flow.StoreFailed(_)) ->
+      error_response(error.ConfigError(
+        reason: "Failed to store OAuth session state",
+      ))
+    Ok(#(url, session_id)) -> {
+      let token = signed_cookie.sign(session_id, options.secret_key_base)
+      let attrs =
+        cookie.Attributes(
+          max_age: option.Some(options.session_ttl_seconds),
+          domain: option.None,
+          path: option.Some("/"),
+          secure: options.secure_cookie,
+          http_only: True,
+          same_site: option.Some(cookie.Lax),
+        )
+      redirect(url)
+      |> response.set_cookie(options.cookie_name, token, attrs)
+    }
   }
 }
 
@@ -194,7 +187,14 @@ pub fn callback_phase_auth_result(
   options: Options,
 ) -> Result(Auth, CallbackError(e)) {
   use params <- result.try(get_callback_params(req))
-  callback_phase_auth_result_with_params(req, params, reg, provider, store, options)
+  callback_phase_auth_result_with_params(
+    req,
+    params,
+    reg,
+    provider,
+    store,
+    options,
+  )
 }
 
 /// Phase 2 with pre-extracted callback parameters.
@@ -211,14 +211,9 @@ pub fn callback_phase_auth_result_with_params(
   store: StateStore,
   options: Options,
 ) -> Result(Auth, CallbackError(e)) {
-  use #(strategy, config) <- result.try(
-    registry.get(reg, provider)
-    |> result.map_error(fn(_) { UnknownProvider(provider) }),
-  )
-
-  use received_state <- result.try(
-    dict.get(params, "state")
-    |> result.replace_error(AuthFailed(error.MissingCallbackParam("state"))),
+  use _ <- result.try(
+    transport_flow.ensure_callback_provider(reg, provider)
+    |> result.map_error(map_callback_flow_error),
   )
 
   use session_id <- result.try(get_signed_cookie(
@@ -227,29 +222,8 @@ pub fn callback_phase_auth_result_with_params(
     options.secret_key_base,
   ))
 
-  use #(expected_state, _code_verifier) <- result.try(
-    state_store.peek(store, session_id)
-    |> result.map_error(fn(_) { SessionExpired }),
-  )
-
-  use _ <- result.try(
-    state.validate(received_state, expected_state)
-    |> result.map_error(AuthFailed),
-  )
-
-  use #(expected_state, code_verifier) <- result.try(
-    state_store.retrieve(store, session_id)
-    |> result.map_error(fn(_) { SessionExpired }),
-  )
-
-  vestibule.handle_callback(
-    strategy,
-    config,
-    params,
-    expected_state,
-    code_verifier,
-  )
-  |> result.map_error(AuthFailed)
+  transport_flow.finish_callback(reg, provider, store, params, session_id)
+  |> result.map_error(map_callback_flow_error)
 }
 
 fn get_signed_cookie(
@@ -259,10 +233,10 @@ fn get_signed_cookie(
 ) -> Result(String, CallbackError(e)) {
   let cookies = request.get_cookies(req)
   case list.key_find(cookies, cookie_name) {
-    Error(Nil) -> Error(MissingSessionCookie)
+    Error(Nil) -> Error(MissingOrInvalidSessionCookie)
     Ok(token) ->
       signed_cookie.verify(token, secret_key_base)
-      |> result.map_error(fn(_) { MissingSessionCookie })
+      |> result.map_error(fn(_) { MissingOrInvalidSessionCookie })
   }
 }
 
@@ -278,33 +252,41 @@ fn get_callback_params(
   }
   case req.method {
     http.Post -> {
-      case mist.read_body(req, max_callback_body_bytes) {
-        Ok(req_with_body) ->
-          case bit_array.to_string(req_with_body.body) {
-            Ok(body_string) ->
-              case uri.parse_query(body_string) {
-                Ok(body_params) ->
-                  Ok(dict.merge(
-                    dict.from_list(query_params),
-                    dict.from_list(body_params),
-                  ))
-                Error(_) -> Error(InvalidCallbackParams)
-              }
-            Error(_) -> Error(InvalidCallbackParams)
-          }
-        Error(_) -> Error(InvalidCallbackParams)
-      }
+      use req_with_body <- result.try(
+        mist.read_body(req, max_callback_body_bytes)
+        |> result.map_error(fn(_) { InvalidCallbackParams }),
+      )
+      use body_string <- result.try(
+        bit_array.to_string(req_with_body.body)
+        |> result.map_error(fn(_) { InvalidCallbackParams }),
+      )
+      use body_params <- result.try(
+        uri.parse_query(body_string)
+        |> result.map_error(fn(_) { InvalidCallbackParams }),
+      )
+      Ok(dict.merge(dict.from_list(query_params), dict.from_list(body_params)))
     }
     _ -> Ok(dict.from_list(query_params))
+  }
+}
+
+fn map_callback_flow_error(
+  err: transport_flow.CallbackFlowError(e),
+) -> CallbackError(e) {
+  case err {
+    transport_flow.CallbackUnknownProvider(provider) ->
+      UnknownProvider(provider)
+    transport_flow.CallbackSessionUnavailable -> SessionUnavailable
+    transport_flow.CallbackAuthFailed(err) -> AuthFailed(err)
   }
 }
 
 fn callback_error_response(err: CallbackError(e)) -> Response(ResponseData) {
   case err {
     UnknownProvider(_) -> not_found_response()
-    MissingSessionCookie ->
+    MissingOrInvalidSessionCookie ->
       error_response(error.ConfigError(reason: "Missing session cookie"))
-    SessionExpired ->
+    SessionUnavailable ->
       error_response(error.ConfigError(
         reason: "Session expired or already used",
       ))
