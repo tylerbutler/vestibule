@@ -139,9 +139,10 @@ decoded as UTF-8, or parsed as form data, callback handling returns
 
 ## State store
 
-`vestibule_wisp/state_store` provides the default in-memory state store backed
-by Erlang ETS. The public `StateStore` type is opaque; applications should
-create and use stores through the module functions.
+`vestibule_wisp` uses the shared `vestibule/state_store` from core
+`vestibule` — the default in-memory state store backed by Erlang ETS. The
+public `StateStore` type is opaque; applications should create and use
+stores through the module functions.
 
 - Use `try_init` or `try_init_named` when you want to handle duplicate table
   errors explicitly.
@@ -149,3 +150,5 @@ create and use stores through the module functions.
   application startup and simple examples.
 - `retrieve` consumes state exactly once.
 - Expired sessions are treated as missing and removed from the store.
+- The same store can be shared with `vestibule_mist`; a single ETS owner
+  process is shared across all transports.

@@ -19,7 +19,7 @@ import vestibule/authorization_request
 import vestibule/error
 import vestibule/registry.{type Registry}
 import vestibule/state
-import vestibule_wisp/state_store.{type StateStore}
+import vestibule/state_store.{type StateStore}
 
 /// Middleware configuration options.
 pub type Options {

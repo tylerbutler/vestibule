@@ -1,0 +1,17 @@
+name = "vestibule_mist"
+version = "0.1.0"
+description = "Mist middleware for vestibule OAuth authentication"
+licences = ["MIT"]
+repository = { type = "github", user = "tylerbutler", repo = "vestibule", path = "packages/vestibule_mist" }
+gleam = ">= 1.7.0"
+
+[dependencies]
+vestibule = { path = "../.." }
+mist = ">= 6.0.0 and < 7.0.0"
+gleam_stdlib = ">= 0.48.0 and < 2.0.0"
+gleam_http = ">= 4.3.0 and < 5.0.0"
+gleam_crypto = ">= 1.5.0 and < 2.0.0"
+gleam_erlang = ">= 1.0.0 and < 2.0.0"
+
+[dev-dependencies]
+startest = ">= 0.8.0 and < 1.0.0"

@@ -1,6 +1,10 @@
 //// Single-use storage for in-flight OAuth flow state (CSRF `state` and
 //// PKCE `code_verifier`). Entries are deleted on first read to prevent
 //// replay.
+////
+//// This is the shared store used by transport packages (`vestibule_wisp`,
+//// `vestibule_mist`, etc.). Applications that load more than one
+//// transport share a single ETS owner process and may share a store.
 
 import gleam/bit_array
 import gleam/crypto
@@ -38,20 +42,20 @@ pub type StateStoreError {
 /// Returns the table handle needed by store/retrieve.
 pub fn init() -> StateStore {
   let assert Ok(table) = try_init()
-    as "vestibule_wisp state store must be initialized once per VM"
+    as "vestibule state store must be initialized once per VM"
   table
 }
 
 /// Initialize a named state store. Useful for testing with isolated tables.
 pub fn init_named(name: String) -> StateStore {
   let assert Ok(table) = try_init_named(name)
-    as "vestibule_wisp named state store must be initialized once per VM"
+    as "vestibule named state store must be initialized once per VM"
   table
 }
 
 /// Try to initialize the state store.
 pub fn try_init() -> Result(StateStore, StateStoreError) {
-  try_init_named("vestibule_wisp_sessions")
+  try_init_named("vestibule_sessions")
 }
 
 /// Try to initialize a named state store. Returns `Error(TableCreateFailed)`
@@ -70,7 +74,7 @@ pub fn store(
   code_verifier: String,
 ) -> String {
   let assert Ok(session_id) = try_store(table, state, code_verifier)
-    as "vestibule_wisp failed to store OAuth session state"
+    as "vestibule failed to store OAuth session state"
   session_id
 }
 
@@ -154,17 +158,17 @@ fn validate_session(session: SessionState) -> Result(#(String, String), Nil) {
 // Direct ETS FFI keeps this package Hex-publishable while Bravo's Hex release
 // is incompatible with current Gleam dependencies. Prefer replacing this with
 // Bravo again once a compatible Bravo version is available on Hex.
-@external(erlang, "vestibule_wisp_state_store_ffi", "create_table")
+@external(erlang, "vestibule_state_store_ffi", "create_table")
 fn create_table(name: String) -> Result(EtsTable, Nil)
 
-@external(erlang, "vestibule_wisp_state_store_ffi", "insert")
+@external(erlang, "vestibule_state_store_ffi", "insert")
 fn insert(table: EtsTable, key: String, value: SessionState) -> Result(Nil, Nil)
 
-@external(erlang, "vestibule_wisp_state_store_ffi", "take")
+@external(erlang, "vestibule_state_store_ffi", "take")
 fn take(table: EtsTable, key: String) -> Result(SessionState, Nil)
 
-@external(erlang, "vestibule_wisp_state_store_ffi", "lookup")
+@external(erlang, "vestibule_state_store_ffi", "lookup")
 fn lookup(table: EtsTable, key: String) -> Result(SessionState, Nil)
 
-@external(erlang, "vestibule_wisp_state_store_ffi", "delete_key")
+@external(erlang, "vestibule_state_store_ffi", "delete_key")
 fn delete_key(table: EtsTable, key: String) -> Result(Nil, Nil)

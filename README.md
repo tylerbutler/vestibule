@@ -82,7 +82,7 @@ import vestibule/config
 import vestibule/registry
 import vestibule/strategy/github
 import vestibule_wisp
-import vestibule_wisp/state_store
+import vestibule/state_store
 
 // Initialize once at startup
 let reg =
@@ -113,9 +113,10 @@ case wisp.path_segments(req), req.method {
 }
 ```
 
-The Wisp state store creates a named ETS table, so initialize it once per BEAM
-VM at startup. Use `state_store.try_init` if you want to handle duplicate-table
-errors explicitly.
+The state store creates a named ETS table, so initialize it once per BEAM
+VM at startup. Use `state_store.try_init` if you want to handle
+duplicate-table errors explicitly. The same store can be shared between
+`vestibule_wisp` and `vestibule_mist`.
 
 If you want to handle callback failures yourself instead of using the default
 HTML error page, use `vestibule_wisp.callback_phase_result`. Use
@@ -125,12 +126,40 @@ as `UnknownProvider`, `MissingSessionCookie`, `SessionExpired`,
 `code` values are provider/authentication failures and are reported through
 `AuthFailed`.
 
+Or use the `vestibule_mist` middleware for the same ergonomics on a plain
+mist server. Mist has no built-in signed-cookie helper, so you supply the
+secret explicitly:
+
+```gleam
+import gleam/http
+import gleam/http/request.{type Request}
+import gleam/http/response.{type Response}
+import mist.{type Connection, type ResponseData}
+import vestibule/state_store
+import vestibule_mist
+
+let assert Ok(store) = state_store.try_init()
+let options = vestibule_mist.new_options(secret_key_base)
+
+fn handle_request(req: Request(Connection)) -> Response(ResponseData) {
+  case request.path_segments(req), req.method {
+    ["auth", provider], http.Get ->
+      vestibule_mist.request_phase(req, reg, provider, store, options)
+    ["auth", provider, "callback"], http.Get
+    | ["auth", provider, "callback"], http.Post ->
+      vestibule_mist.callback_phase(req, reg, provider, store, options, on_success)
+    _, _ -> not_found()
+  }
+}
+```
+
 ## Packages
 
 | Package | Description | Install |
 |---------|-------------|---------|
-| `vestibule` | Core types, two-phase OAuth2 flow, PKCE, token refresh | `gleam add vestibule` |
+| `vestibule` | Core types, two-phase OAuth2 flow, PKCE, token refresh, shared state store | `gleam add vestibule` |
 | `vestibule_wisp` | Wisp middleware for request/callback routing | `gleam add vestibule_wisp` |
+| `vestibule_mist` | Mist middleware for request/callback routing | `gleam add vestibule_mist` |
 | `vestibule_google` | Google OAuth strategy | `gleam add vestibule_google` |
 | `vestibule_microsoft` | Microsoft OAuth strategy | `gleam add vestibule_microsoft` |
 | `vestibule_apple` | Apple Sign In strategy | `gleam add vestibule_apple` |

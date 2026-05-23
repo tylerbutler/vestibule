@@ -13,7 +13,7 @@ import vestibule/registry
 import vestibule/strategy/github
 import vestibule_google
 import vestibule_microsoft
-import vestibule_wisp/state_store
+import vestibule/state_store
 
 pub fn main() {
   let port =

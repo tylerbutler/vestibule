@@ -1,8 +1,8 @@
--module(vestibule_wisp_state_store_ffi).
+-module(vestibule_state_store_ffi).
 
 -export([create_table/1, insert/3, take/2, lookup/2, delete_key/2]).
 
--define(SERVER, vestibule_wisp_state_store_owner).
+-define(SERVER, vestibule_state_store_owner).
 
 create_table(Name) ->
     call({create, Name}).
@@ -63,7 +63,7 @@ loop(Tables) ->
                     loop(Tables);
                 false ->
                     try
-                        Table = ets:new(vestibule_wisp_state_store,
+                        Table = ets:new(vestibule_state_store,
                                         [set, protected]),
                         From ! {Ref, {ok, Name}},
                         loop(maps:put(Name, Table, Tables))
