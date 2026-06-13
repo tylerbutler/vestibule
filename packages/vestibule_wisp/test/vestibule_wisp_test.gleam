@@ -110,7 +110,7 @@ pub fn callback_phase_auth_result_missing_session_cookie_test() {
   let req =
     simulate.request(http.Get, "/auth/test/callback?state=state&code=code")
   let store = state_store.init_named("test_callback_missing_session_cookie")
-  let reg =
+  let assert Ok(reg) =
     registry.new()
     |> registry.register(test_strategy(), test_config())
 
@@ -144,7 +144,7 @@ pub fn is_host_bound_cookie_name_accepts_host_prefixed_test() {
 
 pub fn request_phase_sets_host_bound_cookie_test() {
   let store = state_store.init_named("test_request_phase_host_bound_cookie")
-  let reg =
+  let assert Ok(reg) =
     registry.new()
     |> registry.register(test_strategy(), test_config())
   let req = simulate.request(http.Get, "/auth/test")
@@ -169,7 +169,7 @@ pub fn callback_phase_auth_result_with_options_uses_cookie_name_test() {
   let req =
     simulate.request(http.Get, "/auth/test/callback?state=state&code=code")
     |> simulate.cookie("vestibule_session", session_id, wisp.Signed)
-  let reg =
+  let assert Ok(reg) =
     registry.new()
     |> registry.register(test_strategy(), test_config())
 
@@ -193,7 +193,7 @@ pub fn callback_phase_auth_result_malformed_post_body_returns_invalid_params_tes
     simulate.request(http.Post, "/auth/test/callback?state=state&code=code")
     |> simulate.bit_array_body(<<255>>)
     |> simulate.cookie("__Host-vestibule_session", session_id, wisp.Signed)
-  let reg =
+  let assert Ok(reg) =
     registry.new()
     |> registry.register(test_strategy(), test_config())
 
@@ -210,7 +210,7 @@ pub fn callback_phase_auth_result_missing_state_does_not_consume_session_test() 
   let req_with_state =
     simulate.request(http.Get, "/auth/test/callback?state=state&code=code")
     |> simulate.cookie("__Host-vestibule_session", session_id, wisp.Signed)
-  let reg =
+  let assert Ok(reg) =
     registry.new()
     |> registry.register(test_strategy(), test_config())
 
@@ -281,7 +281,7 @@ pub fn callback_phase_default_error_response_does_not_render_provider_details_te
   let req =
     simulate.request(http.Get, "/auth/test/callback?state=state&code=code")
     |> simulate.cookie("__Host-vestibule_session", session_id, wisp.Signed)
-  let reg =
+  let assert Ok(reg) =
     registry.new()
     |> registry.register(leaky_error_strategy(), test_config())
 
@@ -307,7 +307,7 @@ pub fn callback_phase_auth_result_preserves_provider_error_details_test() {
   let req =
     simulate.request(http.Get, "/auth/test/callback?state=state&code=code")
     |> simulate.cookie("__Host-vestibule_session", session_id, wisp.Signed)
-  let reg =
+  let assert Ok(reg) =
     registry.new()
     |> registry.register(leaky_error_strategy(), test_config())
 
