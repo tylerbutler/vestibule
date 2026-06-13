@@ -10,13 +10,13 @@ on:
 jobs:
   checks:
     name: Checks
-    uses: tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@1b043450f1919503d6c23e3ada9fc7aaa4e2a99b # ratchet:tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@main
+    uses: tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@77f80621309fc7443b628802e08a815d41dd4b47 # ratchet:tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@main
     with:
       cache: true
 
   docs:
     name: Docs
-    uses: tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@1b043450f1919503d6c23e3ada9fc7aaa4e2a99b # ratchet:tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@main
+    uses: tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@77f80621309fc7443b628802e08a815d41dd4b47 # ratchet:tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@main
     with:
       cache: true
       format-check: false

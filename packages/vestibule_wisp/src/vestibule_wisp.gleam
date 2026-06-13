@@ -10,6 +10,7 @@ import gleam/bit_array
 import gleam/dict
 import gleam/http
 import gleam/result
+import gleam/string
 import gleam/uri
 import wisp.{type Request, type Response}
 
@@ -20,6 +21,15 @@ import vestibule/state_store.{type StateStore}
 import vestibule/transport_flow
 
 /// Middleware configuration options.
+///
+/// `cookie_name` should be host-bound (use the `__Host-` prefix) to defend
+/// against OAuth session cookie tossing / fixation. A non-host-bound name such
+/// as `vestibule_session` can be overwritten by a sibling subdomain setting a
+/// `Domain=.example.com` cookie of the same name, which lets an attacker plant
+/// their own in-flight flow state and fixate the victim's session — especially
+/// dangerous in account-linking flows. The default options use a host-bound
+/// name; keep the `__Host-` prefix for any custom `cookie_name`. See
+/// `is_host_bound_cookie_name`.
 pub type Options {
   Options(cookie_name: String, session_ttl_seconds: Int)
 }
@@ -40,9 +50,33 @@ pub type CallbackError(e) {
 
 /// Default middleware options.
 ///
-/// Uses the `vestibule_session` signed cookie with a 600-second session TTL.
+/// Uses the host-bound `__Host-vestibule_session` signed cookie with a
+/// 600-second session TTL. The `__Host-` prefix makes browsers reject the
+/// cookie unless it is set with `Secure`, `Path=/`, and no `Domain` attribute,
+/// which prevents a sibling subdomain from tossing/fixating the OAuth session
+/// (see the `Options` docs). `wisp.set_cookie` already sets `Secure` (over
+/// HTTPS), `Path=/`, and no `Domain`, so this cookie meets the `__Host-`
+/// requirements.
 pub fn default_options() -> Options {
-  Options(cookie_name: "vestibule_session", session_ttl_seconds: 600)
+  Options(cookie_name: host_bound_cookie_name, session_ttl_seconds: 600)
+}
+
+/// Prefix that makes a cookie host-bound under the `__Host-` cookie name rule.
+const host_cookie_prefix: String = "__Host-"
+
+/// The default host-bound OAuth session cookie name.
+const host_bound_cookie_name: String = "__Host-vestibule_session"
+
+/// Returns `True` when `name` is host-bound (uses the `__Host-` prefix).
+///
+/// Host-bound cookie names resist cookie tossing / session fixation from
+/// sibling subdomains: browsers only accept a `__Host-` cookie when it is set
+/// with `Secure`, `Path=/`, and no `Domain` attribute, so a sibling subdomain
+/// cannot overwrite it with a `Domain=.example.com` cookie of the same name.
+/// Prefer keeping the `__Host-` prefix for any custom `Options.cookie_name`;
+/// use this to validate names supplied by callers.
+pub fn is_host_bound_cookie_name(name: String) -> Bool {
+  string.starts_with(name, host_cookie_prefix)
 }
 
 /// Phase 1: Redirect user to the OAuth provider.

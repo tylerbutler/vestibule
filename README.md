@@ -85,7 +85,7 @@ import vestibule_wisp
 import vestibule/state_store
 
 // Initialize once at startup
-let reg =
+let assert Ok(reg) =
   registry.new()
   |> registry.register(
     github.strategy(),
@@ -184,11 +184,20 @@ Strategies are records of functions — no behaviours, macros, or magic. Each st
 Use a registry to support multiple providers in one app:
 
 ```gleam
-let reg =
+let assert Ok(reg) =
   registry.new()
   |> registry.register(github.strategy(), github_cfg)
+let assert Ok(reg) =
+  reg
   |> registry.register(vestibule_google.strategy(), google_cfg)
 ```
+
+`register` rejects a second registration under an already-registered provider
+name with `Error(DuplicateProvider(name))`, so an untrusted or dynamic provider
+config cannot silently replace a trusted provider. Namespace custom provider
+names (for example `"custom:acme"`) when names come from untrusted input. Use
+`registry.register_or_replace` only when a trusted caller intentionally needs to
+overwrite an existing provider.
 
 Refresh access tokens when a provider issues refresh tokens:
 
