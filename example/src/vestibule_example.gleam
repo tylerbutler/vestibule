@@ -34,11 +34,13 @@ pub fn main() {
   {
     Ok(id), Ok(secret) -> {
       io.println("  Registered provider: github")
-      registry.register(
-        reg,
-        github.strategy(),
-        config.new(id, secret, callback_base <> "/auth/github/callback"),
-      )
+      let assert Ok(reg) =
+        registry.register(
+          reg,
+          github.strategy(),
+          config.new(id, secret, callback_base <> "/auth/github/callback"),
+        )
+      reg
     }
     _, _ -> reg
   }
@@ -49,11 +51,13 @@ pub fn main() {
   {
     Ok(id), Ok(secret) -> {
       io.println("  Registered provider: microsoft")
-      registry.register(
-        reg,
-        vestibule_microsoft.strategy(),
-        config.new(id, secret, callback_base <> "/auth/microsoft/callback"),
-      )
+      let assert Ok(reg) =
+        registry.register(
+          reg,
+          vestibule_microsoft.strategy(),
+          config.new(id, secret, callback_base <> "/auth/microsoft/callback"),
+        )
+      reg
     }
     _, _ -> reg
   }
@@ -64,11 +68,13 @@ pub fn main() {
   {
     Ok(id), Ok(secret) -> {
       io.println("  Registered provider: google")
-      registry.register(
-        reg,
-        vestibule_google.strategy(),
-        config.new(id, secret, callback_base <> "/auth/google/callback"),
-      )
+      let assert Ok(reg) =
+        registry.register(
+          reg,
+          vestibule_google.strategy(),
+          config.new(id, secret, callback_base <> "/auth/google/callback"),
+        )
+      reg
     }
     _, _ -> reg
   }
