@@ -9,7 +9,7 @@ Ensure you have the following installed:
 | Tool | Version | Purpose |
 |------|---------|---------|
 | Erlang/OTP | 27.2.1+ | BEAM runtime |
-| Gleam | 1.14.0+ | Compiler and tooling |
+| Gleam | 1.16.0+ | Compiler and tooling |
 | just | 1.38.0+ | Task runner |
 
 **Recommended:** Use [mise](https://mise.jdx.dev/) or [asdf](https://asdf-vm.com/) with the provided `.tool-versions` file.
@@ -41,10 +41,10 @@ just ci
 ### Daily Development
 
 ```bash
-# Check your code compiles
+# Check every package compiles
 just check
 
-# Run tests
+# Run all package tests
 just test
 
 # Format code (do this before committing)
@@ -90,7 +90,8 @@ just main
 │   ├── vestibule_apple/              # Apple Sign In strategy
 │   ├── vestibule_google/             # Google OAuth strategy
 │   ├── vestibule_microsoft/          # Microsoft OAuth strategy
-│   └── vestibule_wisp/               # Wisp middleware
+│   ├── vestibule_wisp/               # Wisp middleware
+│   └── vestibule_mist/               # Mist middleware
 ├── example/                          # Example OAuth app
 ├── .github/
 │   ├── actions/setup/                # Reusable CI setup
@@ -159,10 +160,10 @@ pub fn parse(input: String) -> Result(Value, ParseError)
 ### Running Tests
 
 ```bash
-# Run root-package tests
+# Run all package tests
 just test
 
-# Run root + package tests
+# Backwards-compatible alias for all package tests
 just test-all
 ```
 
@@ -218,8 +219,8 @@ test: add edge case tests for unicode handling
 ## Release Process
 
 This is a multi-package repository. Each package (`vestibule`, `vestibule_apple`,
-`vestibule_google`, `vestibule_microsoft`, `vestibule_wisp`) is independently
-versioned and published to Hex.pm.
+`vestibule_google`, `vestibule_microsoft`, `vestibule_wisp`, and
+`vestibule_mist`) is independently versioned and published to Hex.pm.
 
 ### Adding Changelog Entries
 

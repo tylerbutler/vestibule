@@ -1,8 +1,8 @@
 name: Publish
 
 # Broad tag pattern so new packages added to workspace.toml are automatically
-# publishable without editing this workflow. Safe because gleam-publish skips
-# versions already on Hex and only publishes packages listed in workspace.toml.
+# publishable without editing this workflow. The workspace reader maps the tag
+# to a known package path before validation or publish runs.
 on:
   push:
     tags:
@@ -10,7 +10,32 @@ on:
 
 jobs:
   test:
-    uses: ./.github/workflows/ci.yml
+    runs-on: ubuntu-latest
+    outputs:
+      package-path: ${{ steps.ws.outputs.tag-package-path }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
+
+      - name: Read workspace
+        id: ws
+        uses: tylerbutler/actions/read-gleam-workspace@f3a3a7d38466a1407c7965872f20e9e8157c11f1 # ratchet:tylerbutler/actions/read-gleam-workspace@main
+        with:
+          tag: ${{ github.ref_name }}
+
+      - name: Setup environment
+        uses: ./.github/actions/setup
+
+      - name: Validate tagged package
+        env:
+          PACKAGE: ${{ steps.ws.outputs.tag-package-path }}
+        run: |
+          cd "$PACKAGE"
+          gleam deps download
+          gleam format --check src test
+          gleam check
+          gleam build --warnings-as-errors
+          gleam test
+          gleam docs build
 
   publish:
     needs: test
@@ -18,20 +43,16 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
 
-      - name: Read workspace
-        id: ws
-        uses: tylerbutler/actions/read-gleam-workspace@77f80621309fc7443b628802e08a815d41dd4b47 # ratchet:tylerbutler/actions/read-gleam-workspace@main
-
       - name: Setup environment
         uses: ./.github/actions/setup
 
-      # Publish packages in dependency order (from workspace.toml).
-      # replace-path-deps rewrites `vestibule = { path = "../.." }` to Hex
-      # version ranges derived from the root gleam.toml before publishing.
+      # Publish only the package named by the pushed tag.
+      # replace-path-deps rewrites path dependencies to Hex version ranges
+      # derived from each package's gleam.toml before publishing.
       - name: Publish to Hex.pm
-        uses: tylerbutler/actions/gleam-publish@77f80621309fc7443b628802e08a815d41dd4b47 # ratchet:tylerbutler/actions/gleam-publish@main
+        uses: tylerbutler/actions/gleam-publish@f3a3a7d38466a1407c7965872f20e9e8157c11f1 # ratchet:tylerbutler/actions/gleam-publish@main
         with:
-          packages: ${{ steps.ws.outputs.packages }}
+          packages: ${{ needs.test.outputs.package-path }}
           replace-path-deps: |
             vestibule:gleam.toml
           hex-api-key: ${{ secrets.HEXPM_API_KEY }}
@@ -47,7 +68,7 @@ jobs:
     steps:
       - name: Generate app token
         id: app-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # ratchet:actions/create-github-app-token@v3
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # ratchet:actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
@@ -62,11 +83,7 @@ jobs:
 
       - name: Refresh lockfiles
         run: |
-          # Refresh manifest.toml in root and all sub-packages
-          echo "Refreshing root manifest..."
-          gleam deps download
-
-          for pkg_dir in packages/vestibule_*/; do
+          for pkg_dir in . packages/vestibule_*/; do
             if [ -f "$pkg_dir/gleam.toml" ]; then
               echo "Refreshing $pkg_dir manifest..."
               (cd "$pkg_dir" && gleam deps download)

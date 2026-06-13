@@ -19,15 +19,14 @@ gleam run                # Run (if executable)
 
 ```bash
 just deps              # Download dependencies
-just build             # Build project
-just test              # Run tests for root package
-just test-packages     # Run tests for all sub-packages
-just test-all          # Run all tests (root + sub-packages)
+just build             # Build all packages
+just test              # Run tests for all packages
+just test-all          # Alias for all package tests
 just test-pkg <pkg>    # Run tests for a specific sub-package
 just format            # Format code
 just format-check      # Check formatting
-just check             # Type check
-just docs              # Build documentation
+just check             # Type check all packages
+just docs              # Build documentation for all packages
 just ci                # Run all CI checks (format, check, test, build)
 just pr                # Alias for ci (use before PR)
 just main              # Extended checks for main branch
@@ -51,7 +50,8 @@ packages/
 ├── vestibule_apple/                  # Apple Sign In strategy
 ├── vestibule_google/                 # Google OAuth strategy
 ├── vestibule_microsoft/              # Microsoft OAuth strategy
-└── vestibule_wisp/                   # Wisp middleware
+├── vestibule_wisp/                   # Wisp middleware
+└── vestibule_mist/                   # Mist middleware
 example/                              # Example OAuth app
 test/
 └── vestibule_test.gleam
@@ -119,7 +119,7 @@ gleam test
 Managed via `.tool-versions` (source of truth for CI):
 - Erlang 27.2.1
 - Rebar3 3.24.0 (required by vestibule_wisp's transitive deps)
-- Gleam 1.14.0
+- Gleam 1.16.0
 - just 1.38.0
 
 Local development can use `.mise.toml` for flexible versions.
@@ -127,7 +127,7 @@ Local development can use `.mise.toml` for flexible versions.
 ## CI/CD
 
 ### Workflows
-- **ci.yml**: Format check, type check, build, test (root + all sub-packages)
+- **ci.yml**: Split format, type check, build, test, and docs jobs across all packages
 - **pr.yml**: PR title validation (commitlint) and changelog entry check
 - **release.yml**: Multi-project changie-release — batches all packages with changes into a single release PR
 - **auto-tag.yml**: Creates per-package tags (e.g., `vestibule-v0.2.0`, `vestibule_apple-v0.1.1`) when release PR merges
@@ -163,7 +163,7 @@ See `.commitlintrc.json` for configuration.
 ## Changelog
 
 Managed with [changie](https://changie.dev/) using the **projects** feature for multi-package support:
-- **`.changie.yaml`**: Configures 5 projects (vestibule + 4 provider packages) with `projectsVersionSeparator: "-"`
+- **`.changie.yaml`**: Configures 6 projects (vestibule + 5 add-on packages) with `projectsVersionSeparator: "-"`
 - Each package has its own `CHANGELOG.md` (root for vestibule, `packages/<pkg>/CHANGELOG.md` for sub-packages)
 - Fragments go in `.changes/unreleased/`, prefixed by project name
 - Per-project version files stored in `.changes/<project>/v*.md`

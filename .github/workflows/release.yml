@@ -11,7 +11,7 @@ jobs:
     steps:
       - name: Generate app token
         id: app-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # ratchet:actions/create-github-app-token@v3
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # ratchet:actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
@@ -22,24 +22,25 @@ jobs:
 
       - name: Read workspace
         id: ws
-        uses: tylerbutler/actions/read-gleam-workspace@77f80621309fc7443b628802e08a815d41dd4b47 # ratchet:tylerbutler/actions/read-gleam-workspace@main
+        uses: tylerbutler/actions/read-gleam-workspace@d67948fe17fa338034eb7cff2ef51779992438a3 # ratchet:tylerbutler/actions/read-gleam-workspace@main
 
       - name: Setup environment
         uses: ./.github/actions/setup
 
-      - uses: tylerbutler/actions/changie-release@77f80621309fc7443b628802e08a815d41dd4b47 # ratchet:tylerbutler/actions/changie-release@main
+      - uses: tylerbutler/actions/changie-release@d67948fe17fa338034eb7cff2ef51779992438a3 # ratchet:tylerbutler/actions/changie-release@main
         id: release
         with:
           token: ${{ steps.app-token.outputs.token }}
-          pr-title-template: 'release {version}'
+          pr-title-template: 'chore(release): {version}'
           projects: ${{ steps.ws.outputs.projects }}
           version-files: |
             ${{ steps.ws.outputs.version-files }}
           post-batch-command: |
             echo "Refreshing lockfiles after version bumps..."
-            gleam deps download
             for d in packages/vestibule_*/; do
-              [ -f "$d/gleam.toml" ] && (cd "$d" && gleam deps download)
+              [ -f "$d/gleam.toml" ] || continue
+              deps=$(grep -E '^vestibule = \{ path =' "$d/gleam.toml" | cut -d= -f1 | xargs || true)
+              [ -n "$deps" ] && (cd "$d" && gleam update $deps)
             done
 
       - name: Summary
