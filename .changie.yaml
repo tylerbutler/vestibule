@@ -25,6 +25,9 @@ projects:
     - label: vestibule_wisp
       key: vestibule_wisp
       changelog: packages/vestibule_wisp/CHANGELOG.md
+    - label: vestibule_mist
+      key: vestibule_mist
+      changelog: packages/vestibule_mist/CHANGELOG.md
 
 versionFormat: '## {{.Version}} - {{.Time.Format "2006-01-02"}}'
 kindFormat: '#### {{.Kind}}'
