@@ -9,22 +9,13 @@ permissions:
   contents: write
 
 jobs:
-  workspace:
-    runs-on: ubuntu-latest
-    outputs:
-      projects: ${{ steps.ws.outputs.projects }}
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
-      - name: Read workspace
-        id: ws
-        uses: tylerbutler/actions/read-gleam-workspace@77f80621309fc7443b628802e08a815d41dd4b47 # ratchet:tylerbutler/actions/read-gleam-workspace@main
-
   auto-tag:
-    needs: workspace
-    uses: tylerbutler/actions/.github/workflows/auto-tag.yml@77f80621309fc7443b628802e08a815d41dd4b47 # ratchet:tylerbutler/actions/.github/workflows/auto-tag.yml@main
+    uses: tylerbutler/actions/.github/workflows/auto-tag.yml@1761c18aa4583d74916e1a53f2a106d1d70d72a8 # ratchet:tylerbutler/actions/.github/workflows/auto-tag.yml@main
     with:
-      projects: ${{ needs.workspace.outputs.projects }}
+      workspace-file: workspace.toml
       create-release: true
+      wait-for-publish: true
+      publish-workflow-name: Publish
     secrets:
       app-id: ${{ secrets.RELEASE_APP_ID }}
       app-private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}

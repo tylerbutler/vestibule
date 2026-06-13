@@ -16,30 +16,31 @@ jobs:
           app-id: ${{ secrets.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
         with:
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Read workspace
         id: ws
-        uses: tylerbutler/actions/read-gleam-workspace@77f80621309fc7443b628802e08a815d41dd4b47 # ratchet:tylerbutler/actions/read-gleam-workspace@main
+        uses: tylerbutler/actions/read-gleam-workspace@1761c18aa4583d74916e1a53f2a106d1d70d72a8 # ratchet:tylerbutler/actions/read-gleam-workspace@main
 
       - name: Setup environment
         uses: ./.github/actions/setup
 
-      - uses: tylerbutler/actions/changie-release@77f80621309fc7443b628802e08a815d41dd4b47 # ratchet:tylerbutler/actions/changie-release@main
+      - uses: tylerbutler/actions/changie-release@1761c18aa4583d74916e1a53f2a106d1d70d72a8 # ratchet:tylerbutler/actions/changie-release@main
         id: release
         with:
           token: ${{ steps.app-token.outputs.token }}
-          pr-title-template: 'release {version}'
+          pr-title-template: 'chore(release): {version}'
           projects: ${{ steps.ws.outputs.projects }}
           version-files: |
             ${{ steps.ws.outputs.version-files }}
           post-batch-command: |
             echo "Refreshing lockfiles after version bumps..."
-            gleam deps download
             for d in packages/vestibule_*/; do
-              [ -f "$d/gleam.toml" ] && (cd "$d" && gleam deps download)
+              [ -f "$d/gleam.toml" ] || continue
+              deps=$(grep -E '^vestibule = \{ path =' "$d/gleam.toml" | cut -d= -f1 | xargs || true)
+              [ -n "$deps" ] && (cd "$d" && gleam update $deps)
             done
 
       - name: Summary

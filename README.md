@@ -305,7 +305,7 @@ See the [strategy authoring guide](docs/guides/writing-a-custom-strategy.md) for
 
 ## Target
 
-Erlang (BEAM) runtime. Core types can cross-compile to JavaScript, but OAuth callbacks require a server.
+Erlang (BEAM) runtime. The current packages are validated on the Erlang target only.
 
 ## License
 
