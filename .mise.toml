@@ -1,5 +1,6 @@
 [tools]
 changie = "latest"
+just = "latest"
 
 [settings]
 legacy_version_file = true
