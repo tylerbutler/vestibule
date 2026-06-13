@@ -64,19 +64,28 @@ For a runnable app, see `example/`.
 
 ## Options
 
-The default options preserve the existing cookie contract:
+The default options use a host-bound (`__Host-` prefixed) session cookie:
 
 ```gleam
 vestibule_wisp.default_options()
-// -> Options(cookie_name: "vestibule_session", session_ttl_seconds: 600)
+// -> Options(cookie_name: "__Host-vestibule_session", session_ttl_seconds: 600)
 ```
 
-Use the `_with_options` functions to customize the cookie name or session TTL:
+The `__Host-` prefix defends against OAuth session cookie tossing / fixation:
+browsers only accept a `__Host-` cookie when it is set with `Secure`, `Path=/`,
+and no `Domain` attribute, so a sibling subdomain cannot overwrite it with a
+`Domain=.example.com` cookie of the same name. `wisp.set_cookie` already sets
+those attributes, so the default cookie meets the `__Host-` requirements.
+
+Use the `_with_options` functions to customize the cookie name or session TTL.
+**Keep the `__Host-` prefix on any custom cookie name** — a non-host-bound name
+re-introduces the cookie-tossing vulnerability. Use
+`vestibule_wisp.is_host_bound_cookie_name/1` to validate a caller-supplied name.
 
 ```gleam
 let options =
   vestibule_wisp.Options(
-    cookie_name: "my_app_oauth_session",
+    cookie_name: "__Host-my_app_oauth_session",
     session_ttl_seconds: 300,
   )
 
