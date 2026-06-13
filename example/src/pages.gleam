@@ -1,8 +1,10 @@
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
+import houdini
 import wisp
 
+import html
 import vestibule/auth.{type Auth}
 
 /// Landing page with dynamic provider buttons.
@@ -36,14 +38,20 @@ fn capitalize(s: String) -> String {
 
 /// Success page showing authenticated user info.
 pub fn success(auth: Auth) -> wisp.Response {
-  let name = option_or(auth.info.name, "—")
-  let email = option_or(auth.info.email, "—")
-  let nickname = option_or(auth.info.nickname, "—")
+  let name = houdini.escape(option_or(auth.info.name, "—"))
+  let email = houdini.escape(option_or(auth.info.email, "—"))
+  let nickname = houdini.escape(option_or(auth.info.nickname, "—"))
+  let provider = houdini.escape(auth.provider)
+  let uid = houdini.escape(auth.uid)
   let image_html = case auth.info.image {
     Some(url) ->
-      "<img src=\""
-      <> url
-      <> "\" width=\"80\" height=\"80\" style=\"border-radius: 50%;\" />"
+      case html.safe_image_url(url) {
+        Some(safe_url) ->
+          "<img src=\""
+          <> safe_url
+          <> "\" width=\"80\" height=\"80\" style=\"border-radius: 50%;\" />"
+        None -> ""
+      }
     None -> ""
   }
   wisp.html_response("<html>
@@ -52,8 +60,8 @@ pub fn success(auth: Auth) -> wisp.Response {
   <h1>Authenticated!</h1>
   " <> image_html <> "
   <table style=\"margin: 20px 0; border-collapse: collapse;\">
-    <tr><td style=\"padding: 8px; font-weight: bold;\">Provider</td><td style=\"padding: 8px;\">" <> auth.provider <> "</td></tr>
-    <tr><td style=\"padding: 8px; font-weight: bold;\">UID</td><td style=\"padding: 8px;\">" <> auth.uid <> "</td></tr>
+    <tr><td style=\"padding: 8px; font-weight: bold;\">Provider</td><td style=\"padding: 8px;\">" <> provider <> "</td></tr>
+    <tr><td style=\"padding: 8px; font-weight: bold;\">UID</td><td style=\"padding: 8px;\">" <> uid <> "</td></tr>
     <tr><td style=\"padding: 8px; font-weight: bold;\">Name</td><td style=\"padding: 8px;\">" <> name <> "</td></tr>
     <tr><td style=\"padding: 8px; font-weight: bold;\">Email</td><td style=\"padding: 8px;\">" <> email <> "</td></tr>
     <tr><td style=\"padding: 8px; font-weight: bold;\">Nickname</td><td style=\"padding: 8px;\">" <> nickname <> "</td></tr>
