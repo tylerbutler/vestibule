@@ -1,6 +1,7 @@
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
+import houdini
 import wisp
 
 import html
@@ -37,11 +38,11 @@ fn capitalize(s: String) -> String {
 
 /// Success page showing authenticated user info.
 pub fn success(auth: Auth) -> wisp.Response {
-  let name = html.escape(option_or(auth.info.name, "—"))
-  let email = html.escape(option_or(auth.info.email, "—"))
-  let nickname = html.escape(option_or(auth.info.nickname, "—"))
-  let provider = html.escape(auth.provider)
-  let uid = html.escape(auth.uid)
+  let name = houdini.escape(option_or(auth.info.name, "—"))
+  let email = houdini.escape(option_or(auth.info.email, "—"))
+  let nickname = houdini.escape(option_or(auth.info.nickname, "—"))
+  let provider = houdini.escape(auth.provider)
+  let uid = houdini.escape(auth.uid)
   let image_html = case auth.info.image {
     Some(url) ->
       case html.safe_image_url(url) {

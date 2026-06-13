@@ -3,22 +3,14 @@
 //// Provider-controlled profile fields (name, email, image URL, etc.) must
 //// never be concatenated into an HTML response unescaped — doing so allows
 //// a malicious or compromised provider to inject markup/scripts and run an
-//// XSS attack on the application origin. Always route provider data through
-//// these helpers before rendering.
+//// XSS attack on the application origin. Text nodes and attribute values are
+//// escaped with the `houdini` library (the same escaper `wisp` uses); the
+//// image-URL scheme allowlist below is custom because no escaping library
+//// validates URL schemes.
 
 import gleam/option.{type Option, None, Some}
 import gleam/string
-
-/// HTML-escape a text node so it is rendered as literal text rather than
-/// markup. Also safe for use inside double-quoted attribute values.
-pub fn escape(text: String) -> String {
-  text
-  |> string.replace("&", "&amp;")
-  |> string.replace("<", "&lt;")
-  |> string.replace(">", "&gt;")
-  |> string.replace("\"", "&quot;")
-  |> string.replace("'", "&#39;")
-}
+import houdini
 
 /// Validate and escape a provider-supplied image URL for use in an `src`
 /// attribute. Only `https://` URLs are allowed; anything else (including
@@ -29,7 +21,7 @@ pub fn escape(text: String) -> String {
 /// not allowlisted.
 pub fn safe_image_url(url: String) -> Option(String) {
   case string.starts_with(string.lowercase(url), "https://") {
-    True -> Some(escape(url))
+    True -> Some(houdini.escape(url))
     False -> None
   }
 }

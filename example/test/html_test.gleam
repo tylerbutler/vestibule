@@ -3,28 +3,6 @@ import startest/expect
 
 import html
 
-pub fn escape_replaces_html_special_chars_test() {
-  html.escape("<script>alert('x')</script>")
-  |> expect.to_equal("&lt;script&gt;alert(&#39;x&#39;)&lt;/script&gt;")
-}
-
-pub fn escape_replaces_ampersand_and_quotes_test() {
-  html.escape("Tom & \"Jerry\"")
-  |> expect.to_equal("Tom &amp; &quot;Jerry&quot;")
-}
-
-pub fn escape_leaves_plain_text_untouched_test() {
-  html.escape("Ada Lovelace")
-  |> expect.to_equal("Ada Lovelace")
-}
-
-pub fn escape_ampersand_is_applied_first_test() {
-  // Ensures already-escaped entities are not double-decoded: a raw "&lt;"
-  // becomes "&amp;lt;", not "&lt;".
-  html.escape("&lt;")
-  |> expect.to_equal("&amp;lt;")
-}
-
 pub fn safe_image_url_allows_https_test() {
   html.safe_image_url("https://example.com/avatar.png")
   |> expect.to_equal(Some("https://example.com/avatar.png"))
