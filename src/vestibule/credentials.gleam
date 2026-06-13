@@ -8,16 +8,20 @@
 import gleam/int
 import gleam/option.{type Option, None, Some}
 import gleam/string
+import vestibule/internal/secret.{type Secret}
 
 /// OAuth credentials from the provider.
 ///
 /// Opaque so raw access and refresh tokens are not exposed through pattern
-/// matching or casual field access. Use `new` to construct credentials in
-/// strategies and accessors to read fields when needed.
+/// matching or casual field access. The access and refresh tokens are wrapped
+/// in `Secret`, so `string.inspect`, Erlang `~p` formatting, logs, and crash
+/// reports redact them even when a caller accidentally renders a `Credentials`
+/// (or an `Auth` containing one) directly. Use `new` to construct credentials
+/// in strategies and accessors to read fields when needed.
 pub opaque type Credentials {
   Credentials(
-    token: String,
-    refresh_token: Option(String),
+    token: Secret,
+    refresh_token: Option(Secret),
     token_type: String,
     /// Seconds until the access token expires, as returned by the provider's
     /// `expires_in` field. This is not an absolute timestamp.
@@ -35,8 +39,8 @@ pub fn new(
   scopes scopes: List(String),
 ) -> Credentials {
   Credentials(
-    token: token,
-    refresh_token: refresh_token,
+    token: secret.from_string(token),
+    refresh_token: option.map(refresh_token, secret.from_string),
     token_type: token_type,
     expires_in: expires_in,
     scopes: scopes,
@@ -45,12 +49,12 @@ pub fn new(
 
 /// Return the access token.
 pub fn token(credentials: Credentials) -> String {
-  credentials.token
+  secret.expose(credentials.token)
 }
 
 /// Return the refresh token, when the provider supplied one.
 pub fn refresh_token(credentials: Credentials) -> Option(String) {
-  credentials.refresh_token
+  option.map(credentials.refresh_token, secret.expose)
 }
 
 /// Return the token type, usually `Bearer`.
