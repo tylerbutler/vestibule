@@ -1,10 +1,15 @@
 //// Single-use storage for in-flight OAuth flow state (CSRF `state` and
 //// PKCE `code_verifier`). Entries are deleted on first read to prevent
 //// replay.
+////
+//// This is the shared store used by transport packages (`vestibule_wisp`,
+//// `vestibule_mist`, etc.). Applications that load more than one
+//// transport share a single ETS owner process and may share a store.
 
 import gleam/bit_array
 import gleam/crypto
 import gleam/order
+import gleam/result
 import gleam/time/duration
 import gleam/time/timestamp
 
@@ -30,36 +35,42 @@ type SessionState {
 
 /// Errors returned by checked state store operations.
 pub type StateStoreError {
+  OwnerUnavailable
+  OperationTimedOut
+  TableAlreadyExists
   TableCreateFailed
+  TableNotFound
   InsertFailed
+  CleanupFailed
 }
 
 /// Initialize the state store. Call once per VM at application startup.
 /// Returns the table handle needed by store/retrieve.
 pub fn init() -> StateStore {
   let assert Ok(table) = try_init()
-    as "vestibule_wisp state store must be initialized once per VM"
+    as "vestibule state store must be initialized once per VM"
   table
 }
 
 /// Initialize a named state store. Useful for testing with isolated tables.
 pub fn init_named(name: String) -> StateStore {
   let assert Ok(table) = try_init_named(name)
-    as "vestibule_wisp named state store must be initialized once per VM"
+    as "vestibule named state store must be initialized once per VM"
   table
 }
 
 /// Try to initialize the state store.
 pub fn try_init() -> Result(StateStore, StateStoreError) {
-  try_init_named("vestibule_wisp_sessions")
+  try_init_named("vestibule_sessions")
 }
 
-/// Try to initialize a named state store. Returns `Error(TableCreateFailed)`
-/// if the table already exists or cannot be created.
+/// Try to initialize a named state store. Returns `Error(TableAlreadyExists)`
+/// if the table already exists, or another `StateStoreError` if the owner
+/// process or ETS operation fails.
 pub fn try_init_named(name: String) -> Result(StateStore, StateStoreError) {
   case create_table(name) {
     Ok(table) -> Ok(StateStore(table))
-    Error(_) -> Error(TableCreateFailed)
+    Error(reason) -> Error(map_create_error(reason))
   }
 }
 
@@ -70,7 +81,7 @@ pub fn store(
   code_verifier: String,
 ) -> String {
   let assert Ok(session_id) = try_store(table, state, code_verifier)
-    as "vestibule_wisp failed to store OAuth session state"
+    as "vestibule failed to store OAuth session state"
   session_id
 }
 
@@ -91,6 +102,11 @@ pub fn try_store_with_ttl(
   code_verifier: String,
   ttl_seconds: Int,
 ) -> Result(String, StateStoreError) {
+  use _ <- result.try(
+    cleanup_expired(table.table, timestamp.system_time())
+    |> result.map_error(map_cleanup_error),
+  )
+
   let session_id =
     crypto.strong_random_bytes(16)
     |> bit_array.base64_url_encode(False)
@@ -106,13 +122,14 @@ pub fn try_store_with_ttl(
     )
   {
     Ok(Nil) -> Ok(session_id)
-    Error(_) -> Error(InsertFailed)
+    Error(reason) -> Error(map_insert_error(reason))
   }
 }
 
-/// Retrieve and consume a CSRF state and code verifier by session ID.
-/// Returns Error(Nil) if not found or already consumed (one-time use).
-pub fn retrieve(
+/// Consume a CSRF state and code verifier by session ID.
+///
+/// Returns `Error(Nil)` if not found, expired, or already consumed.
+pub fn consume(
   table: StateStore,
   session_id: String,
 ) -> Result(#(String, String), Nil) {
@@ -135,11 +152,40 @@ pub fn peek(
         Ok(value) -> Ok(value)
         Error(Nil) -> {
           let _ = delete_key(table.table, session_id)
+          let _ = cleanup_expired(table.table, timestamp.system_time())
           Error(Nil)
         }
       }
     }
     Error(_) -> Error(Nil)
+  }
+}
+
+fn map_create_error(reason: String) -> StateStoreError {
+  case reason {
+    "owner_init_failed" | "owner_unavailable" -> OwnerUnavailable
+    "timeout" -> OperationTimedOut
+    "table_already_exists" -> TableAlreadyExists
+    "table_not_found" -> TableNotFound
+    _ -> TableCreateFailed
+  }
+}
+
+fn map_insert_error(reason: String) -> StateStoreError {
+  case reason {
+    "owner_init_failed" | "owner_unavailable" -> OwnerUnavailable
+    "timeout" -> OperationTimedOut
+    "table_not_found" -> TableNotFound
+    _ -> InsertFailed
+  }
+}
+
+fn map_cleanup_error(reason: String) -> StateStoreError {
+  case reason {
+    "owner_init_failed" | "owner_unavailable" -> OwnerUnavailable
+    "timeout" -> OperationTimedOut
+    "table_not_found" -> TableNotFound
+    _ -> CleanupFailed
   }
 }
 
@@ -154,17 +200,27 @@ fn validate_session(session: SessionState) -> Result(#(String, String), Nil) {
 // Direct ETS FFI keeps this package Hex-publishable while Bravo's Hex release
 // is incompatible with current Gleam dependencies. Prefer replacing this with
 // Bravo again once a compatible Bravo version is available on Hex.
-@external(erlang, "vestibule_wisp_state_store_ffi", "create_table")
-fn create_table(name: String) -> Result(EtsTable, Nil)
+@external(erlang, "vestibule_state_store_ffi", "create_table")
+fn create_table(name: String) -> Result(EtsTable, String)
 
-@external(erlang, "vestibule_wisp_state_store_ffi", "insert")
-fn insert(table: EtsTable, key: String, value: SessionState) -> Result(Nil, Nil)
+@external(erlang, "vestibule_state_store_ffi", "insert")
+fn insert(
+  table: EtsTable,
+  key: String,
+  value: SessionState,
+) -> Result(Nil, String)
 
-@external(erlang, "vestibule_wisp_state_store_ffi", "take")
-fn take(table: EtsTable, key: String) -> Result(SessionState, Nil)
+@external(erlang, "vestibule_state_store_ffi", "take")
+fn take(table: EtsTable, key: String) -> Result(SessionState, String)
 
-@external(erlang, "vestibule_wisp_state_store_ffi", "lookup")
-fn lookup(table: EtsTable, key: String) -> Result(SessionState, Nil)
+@external(erlang, "vestibule_state_store_ffi", "lookup")
+fn lookup(table: EtsTable, key: String) -> Result(SessionState, String)
 
-@external(erlang, "vestibule_wisp_state_store_ffi", "delete_key")
-fn delete_key(table: EtsTable, key: String) -> Result(Nil, Nil)
+@external(erlang, "vestibule_state_store_ffi", "delete_key")
+fn delete_key(table: EtsTable, key: String) -> Result(Nil, String)
+
+@external(erlang, "vestibule_state_store_ffi", "cleanup_expired")
+fn cleanup_expired(
+  table: EtsTable,
+  now: timestamp.Timestamp,
+) -> Result(Int, String)

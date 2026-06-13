@@ -1,8 +1,9 @@
--module(vestibule_wisp_state_store_ffi).
+-module(vestibule_state_store_ffi).
 
--export([create_table/1, insert/3, take/2, lookup/2, delete_key/2]).
+-export([create_table/1, insert/3, take/2, lookup/2, delete_key/2,
+         cleanup_expired/2, count/1]).
 
--define(SERVER, vestibule_wisp_state_store_owner).
+-define(SERVER, vestibule_state_store_owner).
 
 create_table(Name) ->
     call({create, Name}).
@@ -19,18 +20,29 @@ lookup(Table, Key) ->
 delete_key(Table, Key) ->
     call({delete_key, Table, Key}).
 
+cleanup_expired(Table, Now) ->
+    call({cleanup_expired, Table, Now}).
+
+count(Table) ->
+    call({count, Table}).
+
 call(Request) ->
     case ensure_owner() of
         ok ->
             Ref = make_ref(),
-            ?SERVER ! {self(), Ref, Request},
-            receive
-                {Ref, Reply} -> Reply
-            after 5000 ->
-                {error, nil}
+            try
+                ?SERVER ! {self(), Ref, Request},
+                receive
+                    {Ref, Reply} -> Reply
+                after 5000 ->
+                    {error, <<"timeout">>}
+                end
+            catch
+                _:_ ->
+                    {error, <<"owner_unavailable">>}
             end;
         error ->
-            {error, nil}
+            {error, <<"owner_init_failed">>}
     end.
 
 ensure_owner() ->
@@ -48,6 +60,7 @@ ensure_owner() ->
                         _ -> ok
                     end;
                 _:_ ->
+                    exit(Pid, kill),
                     error
             end;
         _ ->
@@ -59,17 +72,17 @@ loop(Tables) ->
         {From, Ref, {create, Name}} ->
             case maps:is_key(Name, Tables) of
                 true ->
-                    From ! {Ref, {error, nil}},
+                    From ! {Ref, {error, <<"table_already_exists">>}},
                     loop(Tables);
                 false ->
                     try
-                        Table = ets:new(vestibule_wisp_state_store,
+                        Table = ets:new(vestibule_state_store,
                                         [set, protected]),
                         From ! {Ref, {ok, Name}},
                         loop(maps:put(Name, Table, Tables))
                     catch
                         _:_ ->
-                            From ! {Ref, {error, nil}},
+                            From ! {Ref, {error, <<"table_create_failed">>}},
                             loop(Tables)
                     end
             end;
@@ -100,6 +113,17 @@ loop(Tables) ->
                 ets:delete(Table, Key),
                 {ok, nil}
             end)},
+            loop(Tables);
+        {From, Ref, {cleanup_expired, Name, Now}} ->
+            From ! {Ref, with_table(Name, Tables, fun(Table) ->
+                Count = cleanup_expired_entries(Table, Now),
+                {ok, Count}
+            end)},
+            loop(Tables);
+        {From, Ref, {count, Name}} ->
+            From ! {Ref, with_table(Name, Tables, fun(Table) ->
+                {ok, ets:info(Table, size)}
+            end)},
             loop(Tables)
     end.
 
@@ -107,8 +131,27 @@ with_table(Name, Tables, Fun) ->
     case maps:find(Name, Tables) of
         {ok, Table} ->
             try Fun(Table)
-            catch _:_ -> {error, nil}
+            catch _:_ -> {error, <<"ets_operation_failed">>}
             end;
         error ->
-            {error, nil}
+            {error, <<"table_not_found">>}
     end.
+
+cleanup_expired_entries(Table, Now) ->
+    ets:foldl(fun
+        ({Key, {session_state, _State, _Verifier, ExpiresAt}}, Count) ->
+            case timestamp_lte(ExpiresAt, Now) of
+                true ->
+                    ets:delete(Table, Key),
+                    Count + 1;
+                false ->
+                    Count
+            end;
+        (_, Count) ->
+            Count
+    end, 0, Table).
+
+timestamp_lte({timestamp, LeftSeconds, LeftNanoseconds},
+              {timestamp, RightSeconds, RightNanoseconds}) ->
+    LeftSeconds < RightSeconds orelse
+        (LeftSeconds =:= RightSeconds andalso LeftNanoseconds =< RightNanoseconds).

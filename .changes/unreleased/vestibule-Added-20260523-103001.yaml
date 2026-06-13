@@ -1,0 +1,4 @@
+project: vestibule
+kind: Added
+body: '`vestibule/state_store` — the ETS-backed OAuth state store (CSRF state + PKCE verifier) is now part of core `vestibule`, shared by all transports (`vestibule_wisp`, `vestibule_mist`). It includes consume-oriented reads, richer initialization/store errors, and opportunistic cleanup of expired sessions.'
+time: 2026-05-23T10:30:01.000000+00:00
