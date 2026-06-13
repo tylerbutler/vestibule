@@ -53,8 +53,11 @@ pub opaque type OidcConfig {
 
 /// Construct a validated OIDC configuration.
 ///
-/// The issuer and endpoint URLs must use HTTPS, except for localhost URLs
-/// which are allowed for local development.
+/// The issuer and endpoint URLs must use HTTPS and target a publicly-routable
+/// host. Loopback (`localhost`, `127.0.0.1`, `[::1]`), private, and link-local
+/// addresses are rejected: these endpoints come from a provider-controlled
+/// discovery document and are called server-side with an `Authorization`
+/// header, so permitting internal hosts would enable SSRF.
 pub fn new_config(
   issuer issuer: String,
   authorization_endpoint authorization_endpoint: String,
@@ -62,10 +65,12 @@ pub fn new_config(
   userinfo_endpoint userinfo_endpoint: String,
   scopes_supported scopes_supported: List(String),
 ) -> Result(OidcConfig, AuthError(e)) {
-  use _ <- result.try(provider_support.require_https(issuer))
-  use _ <- result.try(provider_support.require_https(authorization_endpoint))
-  use _ <- result.try(provider_support.require_https(token_endpoint))
-  use _ <- result.try(provider_support.require_https(userinfo_endpoint))
+  use _ <- result.try(provider_support.require_public_https(issuer))
+  use _ <- result.try(provider_support.require_public_https(
+    authorization_endpoint,
+  ))
+  use _ <- result.try(provider_support.require_public_https(token_endpoint))
+  use _ <- result.try(provider_support.require_public_https(userinfo_endpoint))
 
   Ok(OidcConfig(
     issuer: issuer,
@@ -156,7 +161,8 @@ pub fn fetch_configuration(
 /// `/.well-known/openid-configuration` between the host and issuer path.
 pub fn discovery_url(issuer_url: String) -> Result(String, AuthError(e)) {
   // Security: preserve issuer validation before constructing the fetch URL.
-  use _ <- result.try(provider_support.require_https(issuer_url))
+  // The issuer is provider-controlled, so reject loopback/internal hosts.
+  use _ <- result.try(provider_support.require_public_https(issuer_url))
 
   use issuer <- result.try(
     uri.parse(issuer_url)
