@@ -50,22 +50,47 @@ The strategy uses Microsoft Graph `/me` for profile data and keeps
 
 ## Tenant behavior
 
-The built-in strategy uses Microsoft Entra ID's `/common` tenant:
+By default, `vestibule_microsoft.strategy()` uses Microsoft Entra ID's `/common`
+tenant:
 
 ```text
 https://login.microsoftonline.com/common/oauth2/v2.0
 ```
 
 This allows both personal Microsoft accounts and work/school accounts from any
-tenant that can consent to your app. It is convenient for general sign-in, but it
-does not restrict authentication to one organization.
+tenant that can consent to your app, and it performs **no** tenant validation. It
+is convenient for general sign-in, but it does **not** restrict authentication to
+one organization. Use it only for explicitly multi-tenant apps.
 
-For tenant-restricted apps, use one of these alternatives:
+### Restricting to a single tenant
 
-- Build an OIDC strategy from tenant-specific endpoints, such as
-  `https://login.microsoftonline.com/<tenant-id>/v2.0`.
-- Write a small custom strategy that uses the same Microsoft Graph `/me` parsing
-  but replaces `/common` with your tenant ID or tenant domain.
+For single-organization apps, use `strategy_for_tenant`:
+
+```gleam
+import vestibule_microsoft
+
+// Pass your tenant's directory (tenant) GUID:
+let strategy =
+  vestibule_microsoft.strategy_for_tenant("72f988bf-86f1-41af-91ab-2d7cd011db47")
+```
+
+This:
+
+- targets the tenant-specific authority endpoints
+  (`https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/...`), so Microsoft
+  only issues tokens for that tenant; and
+- requests the `openid` scope and verifies that the `tid` (tenant id) claim in
+  the returned ID token equals the configured tenant (case-insensitive), failing
+  authentication when the ID token is missing or was issued by a different
+  tenant.
+
+Pass the tenant **GUID** rather than a verified domain
+(e.g. `contoso.onmicrosoft.com`): the `tid` claim is always a GUID, so domain
+values cannot be matched and would reject otherwise-valid logins.
+
+If you need lower-level control, `verify_tenant(expected_tenant, id_token)` and
+`id_token_tenant(id_token)` expose the tenant-claim checks directly.
+
 
 ## Extra authorization parameters
 
