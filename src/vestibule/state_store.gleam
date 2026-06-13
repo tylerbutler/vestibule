@@ -139,17 +139,6 @@ pub fn consume(
   }
 }
 
-/// Retrieve and consume a CSRF state and code verifier by session ID.
-///
-/// Alias for `consume`. Returns `Error(Nil)` if not found, expired, or already
-/// consumed.
-pub fn retrieve(
-  table: StateStore,
-  session_id: String,
-) -> Result(#(String, String), Nil) {
-  consume(table, session_id)
-}
-
 /// Look up a CSRF state and code verifier by session ID without consuming it.
 ///
 /// Expired sessions are treated as missing and removed from the store.

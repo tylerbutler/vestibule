@@ -81,7 +81,7 @@ pub fn request_phase_unknown_provider_returns_404_test() {
 pub fn request_phase_success_sets_signed_cookie_and_redirects_test() {
   let req = request.new() |> request.set_path("/auth/test")
   let store = state_store.init_named("test_mist_request_success")
-  let reg =
+  let assert Ok(reg) =
     registry.new()
     |> registry.register(test_strategy(), test_config())
 
@@ -104,7 +104,7 @@ pub fn request_phase_allows_secure_cookie_opt_out_test() {
     request.new()
     |> request.set_path("/auth/test")
   let store = state_store.init_named("test_mist_request_secure_cookie_opt_out")
-  let reg =
+  let assert Ok(reg) =
     registry.new()
     |> registry.register(test_strategy(), test_config())
   let options = vestibule_mist.Options(..test_options(), secure_cookie: False)
@@ -135,7 +135,7 @@ pub fn callback_unknown_provider_test() {
 pub fn callback_missing_session_cookie_test() {
   let req = request.new()
   let store = state_store.init_named("test_mist_cb_missing_cookie")
-  let reg =
+  let assert Ok(reg) =
     registry.new()
     |> registry.register(test_strategy(), test_config())
 
@@ -155,7 +155,7 @@ pub fn callback_tampered_cookie_fails_as_missing_test() {
     request.new()
     |> request.set_cookie("vestibule_session", "not-a-valid-signed-token")
   let store = state_store.init_named("test_mist_cb_tampered_cookie")
-  let reg =
+  let assert Ok(reg) =
     registry.new()
     |> registry.register(test_strategy(), test_config())
 
@@ -178,7 +178,7 @@ pub fn callback_wrong_secret_fails_as_missing_test() {
   let req =
     request.new()
     |> request.set_cookie("vestibule_session", token)
-  let reg =
+  let assert Ok(reg) =
     registry.new()
     |> registry.register(test_strategy(), test_config())
 
@@ -200,7 +200,7 @@ pub fn callback_missing_state_does_not_consume_session_test() {
   let req =
     request.new()
     |> request.set_cookie("vestibule_session", token)
-  let reg =
+  let assert Ok(reg) =
     registry.new()
     |> registry.register(test_strategy(), test_config())
 
@@ -235,7 +235,7 @@ pub fn callback_unknown_session_returns_expired_test() {
   let req =
     request.new()
     |> request.set_cookie("vestibule_session", token)
-  let reg =
+  let assert Ok(reg) =
     registry.new()
     |> registry.register(test_strategy(), test_config())
 
@@ -257,7 +257,7 @@ pub fn callback_auth_result_preserves_provider_error_details_test() {
   let req =
     request.new()
     |> request.set_cookie("vestibule_session", token)
-  let reg =
+  let assert Ok(reg) =
     registry.new()
     |> registry.register(leaky_error_strategy(), test_config())
 
@@ -287,7 +287,7 @@ pub fn callback_custom_cookie_name_is_honored_test() {
   let req =
     request.new()
     |> request.set_cookie("custom_session", token)
-  let reg =
+  let assert Ok(reg) =
     registry.new()
     |> registry.register(test_strategy(), test_config())
 

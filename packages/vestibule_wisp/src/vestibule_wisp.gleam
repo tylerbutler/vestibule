@@ -256,7 +256,7 @@ pub fn callback_phase_auth_result_with_options(
   state_store: StateStore,
   options: Options,
 ) -> Result(Auth, CallbackError(e)) {
-  use _ <- result.try(
+  use strategy_config <- result.try(
     transport_flow.ensure_callback_provider(reg, provider)
     |> result.map_error(map_callback_flow_error),
   )
@@ -268,7 +268,12 @@ pub fn callback_phase_auth_result_with_options(
     |> result.map_error(fn(_) { MissingSessionCookie }),
   )
 
-  transport_flow.finish_callback(reg, provider, state_store, params, session_id)
+  transport_flow.finish_callback(
+    strategy_config,
+    state_store,
+    params,
+    session_id,
+  )
   |> result.map_error(map_callback_flow_error)
 }
 

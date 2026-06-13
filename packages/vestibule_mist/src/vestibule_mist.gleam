@@ -108,11 +108,8 @@ pub fn request_phase(
     )
   {
     Error(transport_flow.UnknownProvider(_)) -> not_found_response()
-    Error(transport_flow.AuthFailed(err)) -> error_response(err)
-    Error(transport_flow.StoreFailed(_)) ->
-      error_response(error.ConfigError(
-        reason: "Failed to store OAuth session state",
-      ))
+    Error(transport_flow.AuthFailed(_)) -> generic_error_response()
+    Error(transport_flow.StoreFailed(_)) -> generic_error_response()
     Ok(#(url, session_id)) -> {
       let token = signed_cookie.sign(session_id, options.secret_key_base)
       let attrs =
@@ -211,7 +208,7 @@ pub fn callback_phase_auth_result_with_params(
   store: StateStore,
   options: Options,
 ) -> Result(Auth, CallbackError(e)) {
-  use _ <- result.try(
+  use strategy_config <- result.try(
     transport_flow.ensure_callback_provider(reg, provider)
     |> result.map_error(map_callback_flow_error),
   )
@@ -222,7 +219,7 @@ pub fn callback_phase_auth_result_with_params(
     options.secret_key_base,
   ))
 
-  transport_flow.finish_callback(reg, provider, store, params, session_id)
+  transport_flow.finish_callback(strategy_config, store, params, session_id)
   |> result.map_error(map_callback_flow_error)
 }
 
@@ -284,15 +281,10 @@ fn map_callback_flow_error(
 fn callback_error_response(err: CallbackError(e)) -> Response(ResponseData) {
   case err {
     UnknownProvider(_) -> not_found_response()
-    MissingOrInvalidSessionCookie ->
-      error_response(error.ConfigError(reason: "Missing session cookie"))
-    SessionUnavailable ->
-      error_response(error.ConfigError(
-        reason: "Session expired or already used",
-      ))
-    InvalidCallbackParams ->
-      error_response(error.ConfigError(reason: "Invalid callback parameters"))
-    AuthFailed(err) -> error_response(err)
+    MissingOrInvalidSessionCookie -> generic_error_response()
+    SessionUnavailable -> generic_error_response()
+    InvalidCallbackParams -> generic_error_response()
+    AuthFailed(_) -> generic_error_response()
   }
 }
 
@@ -308,7 +300,7 @@ fn not_found_response() -> Response(ResponseData) {
   |> response.set_body(mist.Bytes(bytes_tree.from_string("Not Found")))
 }
 
-fn error_response(_err: error.AuthError(e)) -> Response(ResponseData) {
+fn generic_error_response() -> Response(ResponseData) {
   let body =
     "<html>
 <head><title>Authentication Error</title></head>
