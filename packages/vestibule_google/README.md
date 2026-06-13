@@ -25,6 +25,29 @@ let cfg =
 
 Google userinfo only populates `UserInfo.email` when `email_verified` is true.
 
+## Hosted-domain (Workspace) enforcement
+
+`strategy()` does **not** restrict sign-in to a Google Workspace domain. Setting
+`hd` via `config.with_extra_params([#("hd", "corp.example")])` only pre-selects
+the account picker — it is a UI hint and **must not** be relied on for
+authorization, because a user can still authenticate with an account outside
+that domain.
+
+To actually restrict sign-in to a single Workspace domain, use
+`strategy_for_hosted_domain`:
+
+```gleam
+let strategy = vestibule_google.strategy_for_hosted_domain("corp.example")
+```
+
+This validates Google's `hd` (hosted-domain) claim from the userinfo response.
+Authentication fails with `error.UserInfoFailed` when the claim is missing
+(e.g. a consumer `gmail.com` account) or does not match `"corp.example"`. The
+validated domain is surfaced under the `"hd"` key of `UserResult`'s `extra`
+dict. The domain is also added to the authorization URL as an account-picker
+hint, but enforcement always happens server-side when the userinfo response is
+validated.
+
 ## Default scopes
 
 `openid email profile`. Override with `config.with_scopes`.
