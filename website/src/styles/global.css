@@ -158,14 +158,11 @@ a:hover {
 }
 
 .brand-mark {
-  display: grid;
   width: 2.25rem;
   height: 2.25rem;
-  place-items: center;
   border-radius: var(--radius-sm);
-  background: var(--primary);
-  color: oklch(1 0 0);
-  font-weight: 800;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .brand strong,
