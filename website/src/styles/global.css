@@ -158,9 +158,8 @@ a:hover {
 }
 
 .brand-mark {
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: var(--radius-sm);
+  width: 3rem;
+  height: 3rem;
   object-fit: contain;
   flex-shrink: 0;
 }
