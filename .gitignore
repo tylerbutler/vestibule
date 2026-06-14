@@ -12,6 +12,8 @@ erl_crash.dump
 
 # Node.js (if using JavaScript target)
 node_modules/
+website/.astro/
+website/dist/
 
 # IDE
 .idea/

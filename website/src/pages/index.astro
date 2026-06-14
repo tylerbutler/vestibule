@@ -1,0 +1,106 @@
+---
+import DocsLayout from "../layouts/DocsLayout.astro";
+import { packageDocs } from "../data/packages";
+
+const primaryPackages = packageDocs.slice(0, 3);
+const providerPackages = packageDocs.slice(3);
+const directFlow = `let assert Ok(auth_request) = vestibule.authorize_url(strategy, cfg)
+// Store auth_request.state and auth_request.code_verifier.
+// Redirect to auth_request.url.
+
+let assert Ok(auth) =
+  vestibule.handle_callback(
+    strategy,
+    cfg,
+    params,
+    expected_state,
+    code_verifier,
+  )`;
+---
+
+<DocsLayout
+  title="Vestibule"
+  description="Strategy-based OAuth2 authentication for Gleam."
+  section="Overview"
+>
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="eyeless">Strategy-based OAuth2 authentication for Gleam</p>
+      <h1>Bring users through the secure threshold.</h1>
+      <p class="lead">
+        Vestibule gives Gleam applications a consistent request/callback flow,
+        normalized auth results, PKCE, CSRF state, provider strategies, and Wisp
+        or Mist middleware without hiding the security responsibilities your app
+        still owns.
+      </p>
+      <div class="hero-actions">
+        <a class="button primary" href="/docs/quick-start">Start the quick start</a>
+        <a class="button secondary" href="/docs/packages">Compare packages</a>
+      </div>
+    </div>
+    <aside class="threshold-panel" aria-label="Vestibule flow summary">
+      <div class="flow-step">
+        <strong>1. Request</strong>
+        <span>Generate URL, state, and PKCE verifier.</span>
+      </div>
+      <div class="flow-step">
+        <strong>2. Store</strong>
+        <span>Bind state and verifier to the user's server session.</span>
+      </div>
+      <div class="flow-step">
+        <strong>3. Callback</strong>
+        <span>Validate state, exchange code, fetch normalized user info.</span>
+      </div>
+    </aside>
+  </section>
+
+  <section class="content-grid split">
+    <div>
+      <h2>Start with the integration shape.</h2>
+      <p>
+        Use core APIs when you want direct control, Wisp or Mist middleware when
+        you want routing helpers, and provider packages when your app needs
+        Google, Microsoft, or Apple.
+      </p>
+    </div>
+    <pre class="code-card"><code>{directFlow}</code></pre>
+  </section>
+
+  <section>
+    <div class="section-heading">
+      <h2>Packages by job</h2>
+      <p>Pick the package by the responsibility it should own in your app.</p>
+    </div>
+    <div class="package-river">
+      {primaryPackages.map((pkg) => (
+        <a class="package-row" href={`/docs/packages/${pkg.slug}`}>
+          <span>
+            <strong>{pkg.name}</strong>
+            <small>{pkg.kind}</small>
+          </span>
+          <span>{pkg.summary}</span>
+        </a>
+      ))}
+    </div>
+    <div class="provider-strip" aria-label="Provider strategies">
+      {providerPackages.map((pkg) => (
+        <a href={`/docs/packages/${pkg.slug}`}>{pkg.name.replace("vestibule_", "")}</a>
+      ))}
+    </div>
+  </section>
+
+  <section class="security-callout">
+    <div>
+      <h2>Secure defaults, explicit boundaries.</h2>
+      <p>
+        Vestibule creates strong state tokens, applies PKCE, validates callback
+        state before surfacing provider details, and verifies the provider-specific
+        data it owns. Your application still stores transient callback data,
+        protects bearer credentials, and decides how users map to accounts.
+      </p>
+    </div>
+    <a class="text-link" href="/docs/quick-start#security-responsibilities">
+      Review caller responsibilities
+    </a>
+  </section>
+</DocsLayout>
