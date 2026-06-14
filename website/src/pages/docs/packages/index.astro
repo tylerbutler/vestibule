@@ -53,20 +53,34 @@ const core = packageDocs.find((pkg) => pkg.slug === "core");
         <h2>Provider strategies</h2>
         <p>Provider packages normalize profile data while preserving provider-specific security behavior.</p>
       </div>
-      <div class="provider-table" role="table" aria-label="Provider package comparison">
-        <div role="row" class="provider-table-head">
-          <span role="columnheader">Package</span>
-          <span role="columnheader">Default scopes</span>
-          <span role="columnheader">Important behavior</span>
-        </div>
-        {providers.map((pkg) => (
-          <a role="row" class="provider-table-row" href={`/docs/packages/${pkg.slug}`}>
-            <span role="cell"><strong>{pkg.name}</strong></span>
-            <span role="cell">{pkg.defaultScopes || "Provider-owned"}</span>
-            <span role="cell">{pkg.highlights[0]}</span>
-          </a>
-        ))}
-      </div>
+      <table class="provider-table">
+        <caption class="visually-hidden">Provider package comparison</caption>
+        <thead>
+          <tr>
+            <th scope="col">Package</th>
+            <th scope="col">Default scopes</th>
+            <th scope="col">Important behavior</th>
+          </tr>
+        </thead>
+        <tbody>
+          {providers.map((pkg) => (
+            <tr>
+              <th scope="row">
+                <span class="provider-cell-label" aria-hidden="true">Package</span>
+                <a href={`/docs/packages/${pkg.slug}`}><strong>{pkg.name}</strong></a>
+              </th>
+              <td>
+                <span class="provider-cell-label" aria-hidden="true">Default scopes</span>
+                {pkg.defaultScopes || "Provider-owned"}
+              </td>
+              <td>
+                <span class="provider-cell-label" aria-hidden="true">Important behavior</span>
+                {pkg.highlights[0]}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </section>
   </article>
 </DocsLayout>

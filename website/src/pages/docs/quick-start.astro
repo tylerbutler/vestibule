@@ -2,8 +2,10 @@
 import { Code } from "astro:components";
 import DocsLayout from "../../layouts/DocsLayout.astro";
 
-const installCode = `gleam add vestibule
+const middlewareInstallCode = `gleam add vestibule
 gleam add vestibule_wisp`;
+
+const coreInstallCode = `gleam add vestibule`;
 
 const coreCode = `import gleam/dict
 import vestibule
@@ -84,48 +86,70 @@ case wisp.path_segments(req), req.method {
     <header class="doc-hero">
       <h1>Quick start</h1>
       <p>
-        Add GitHub sign-in first, then move to the Wisp or Mist middleware when
-        you want request and callback routing handled for you.
+        Choose the path you are shipping. Middleware is the shortest route for a
+        Wisp or Mist app; core direct use is for custom transports and storage.
       </p>
     </header>
 
-    <section class="step-list" aria-label="Quick start steps">
-      <div class="step-item">
-        <span class="step-number">1</span>
-        <div>
-          <h2>Install the packages</h2>
+    <section class="quick-paths" aria-label="Quick start paths">
+      <details class="path-panel" open>
+        <summary>
+          <span>
+            <span class="path-label">Recommended for web apps</span>
+            <strong>Let middleware own the OAuth routes</strong>
+            <small>Use this when Wisp or Mist already handles requests.</small>
+          </span>
+        </summary>
+        <div class="path-body">
+          <h2>Install the middleware stack</h2>
           <p>
             GitHub support is built into the core package. Add the Wisp middleware
             if you want the higher-level request/callback helpers.
           </p>
-          <Code code={installCode} lang="sh" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
-        </div>
-      </div>
+          <Code code={middlewareInstallCode} lang="sh" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
 
-      <div class="step-item">
-        <span class="step-number">2</span>
-        <div>
-          <h2>Run the two-phase flow directly</h2>
+          <h2>Route request and callback phases</h2>
+          <p>
+            Initialize the state store once. The middleware creates the auth
+            request, stores one-time state, and returns normalized user info when
+            the callback succeeds.
+          </p>
+          <Code code={wispCode} lang="gleam" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
+
+          <p class="scope-note">
+            <strong>Using Mist?</strong> The route shape is the same; use
+            <a href="/docs/packages/mist">vestibule_mist</a> for plain Mist
+            handlers.
+          </p>
+        </div>
+      </details>
+
+      <details class="path-panel">
+        <summary>
+          <span>
+            <span class="path-label">For custom transports</span>
+            <strong>Run the two-phase flow directly</strong>
+            <small>Use this when your app owns routing, sessions, and callback storage.</small>
+          </span>
+        </summary>
+        <div class="path-body">
+          <h2>Install core</h2>
           <p>
             Core Vestibule gives you the authorization URL, state, and PKCE
             verifier, then handles the callback once your app supplies the stored
             state and verifier.
           </p>
+          <Code code={coreInstallCode} lang="sh" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
+
+          <h2>Handle request and callback yourself</h2>
+          <p>
+            Store <code>auth_request.state</code> and
+            <code>auth_request.code_verifier</code> before redirecting, then pass
+            the stored values back during callback validation.
+          </p>
           <Code code={coreCode} lang="gleam" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
         </div>
-      </div>
-
-      <div class="step-item">
-        <span class="step-number">3</span>
-        <div>
-          <h2>Use Wisp middleware when routing should be handled</h2>
-          <p>
-            The middleware stores one-time state entries in the shared state store
-            and exposes default responses plus structured callback errors.
-          </p>
-          <Code code={wispCode} lang="gleam" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
-        </div>
-      </div>
+      </details>
     </section>
 
     <section id="security-responsibilities" class="security-callout">

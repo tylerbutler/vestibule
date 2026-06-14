@@ -16,13 +16,23 @@ const isActive = (href: string) => {
   const normalized = href.replace(/\/$/, "") || "/";
   return currentPath === normalized;
 };
+
+const currentLink = navGroups
+  .flatMap((group) => group.links)
+  .find((link) => isActive(link.href));
+
+const currentGroup = navGroups.find((group) =>
+  group.links.some((link) => isActive(link.href))
+);
+const showBreadcrumbs = currentPath !== "/";
+const breadcrumbLabel = currentLink?.label || title;
 ---
 
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" content={description} />
     <link rel="icon" type="image/png" href="/icon.png" />
     <title>{pageTitle}</title>
@@ -49,6 +59,7 @@ const isActive = (href: string) => {
         </span>
       </a>
       <div class="header-actions">
+        <a class="header-link" href="/docs/search">Search</a>
         <a class="header-link" href="https://hex.pm/packages/vestibule">Hex</a>
         <a class="header-link" href="https://github.com/tylerbutler/vestibule">GitHub</a>
         <button class="theme-toggle" type="button" data-theme-toggle>
@@ -80,7 +91,7 @@ const isActive = (href: string) => {
 
       <main id="main-content" class="content-shell">
         <details class="mobile-nav">
-          <summary>Docs menu</summary>
+          <summary>Docs menu{currentLink ? `: ${currentLink.label}` : ""}</summary>
           <nav aria-label="Mobile documentation navigation">
             {navGroups.map((group) => (
               <section class="nav-group">
@@ -99,7 +110,19 @@ const isActive = (href: string) => {
           </nav>
         </details>
 
-        <div class="content-meta">{section}</div>
+        {showBreadcrumbs && (
+          <nav class="breadcrumbs" aria-label="Breadcrumb">
+            <a href="/">Overview</a>
+            {currentGroup && (
+              <>
+                <span aria-hidden="true">/</span>
+                <span>{currentGroup.title}</span>
+              </>
+            )}
+            <span aria-hidden="true">/</span>
+            <span aria-current="page">{breadcrumbLabel}</span>
+          </nav>
+        )}
         <slot />
       </main>
     </div>
@@ -129,6 +152,90 @@ const isActive = (href: string) => {
         for (const button of buttons) {
           button.addEventListener("click", () => {
             applyTheme(root.dataset.theme === "dark" ? "light" : "dark");
+          });
+        }
+      })();
+
+      (() => {
+        const codeBlocks = Array.from(document.querySelectorAll("main pre"));
+        if (codeBlocks.length === 0) return;
+
+        const status = document.createElement("div");
+        status.className = "visually-hidden";
+        status.setAttribute("aria-live", "polite");
+        document.body.append(status);
+
+        const fallbackCopy = (text) =>
+          new Promise((resolve, reject) => {
+            const textarea = document.createElement("textarea");
+            textarea.value = text;
+            textarea.setAttribute("readonly", "");
+            textarea.style.position = "fixed";
+            textarea.style.insetBlockStart = "0";
+            textarea.style.insetInlineStart = "0";
+            textarea.style.opacity = "0";
+            document.body.append(textarea);
+            textarea.select();
+
+            try {
+              const copied = document.execCommand("copy");
+              textarea.remove();
+              copied ? resolve() : reject(new Error("Copy command returned false"));
+            } catch (error) {
+              textarea.remove();
+              reject(error);
+            }
+          });
+
+        const writeClipboard = (text) => {
+          if (navigator.clipboard && window.isSecureContext) {
+            return navigator.clipboard.writeText(text);
+          }
+
+          return fallbackCopy(text);
+        };
+
+        for (const block of codeBlocks) {
+          if (block.parentElement?.classList.contains("code-copy")) continue;
+
+          const wrapper = document.createElement("div");
+          wrapper.className = "code-copy";
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "code-copy-button";
+          button.textContent = "Copy";
+          button.setAttribute("aria-label", "Copy code block");
+
+          block.before(wrapper);
+          wrapper.append(button, block);
+
+          button.addEventListener("click", async () => {
+            const text = block.textContent || "";
+
+            if (text.trim().length === 0) {
+              button.textContent = "Empty";
+              status.textContent = "Code block is empty.";
+              window.setTimeout(() => {
+                button.textContent = "Copy";
+              }, 1800);
+              return;
+            }
+
+            button.disabled = true;
+
+            try {
+              await writeClipboard(text);
+              button.textContent = "Copied";
+              status.textContent = "Code copied.";
+            } catch (error) {
+              button.textContent = "Failed";
+              status.textContent = "Copy failed. Select the code manually.";
+            } finally {
+              window.setTimeout(() => {
+                button.textContent = "Copy";
+                button.disabled = false;
+              }, 1800);
+            }
           });
         }
       })();

@@ -3,7 +3,8 @@ export const navGroups = [
     title: "Start",
     links: [
       { href: "/", label: "Overview" },
-      { href: "/docs/quick-start", label: "Quick start" }
+      { href: "/docs/quick-start", label: "Quick start" },
+      { href: "/docs/search", label: "Search docs" }
     ]
   },
   {

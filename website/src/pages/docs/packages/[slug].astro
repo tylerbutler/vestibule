@@ -12,6 +12,8 @@ export function getStaticPaths() {
 
 type Props = { pkg: PackageDoc };
 const { pkg } = Astro.props;
+const hexUrl = `https://hex.pm/packages/${pkg.name}`;
+const docsUrl = `https://hexdocs.pm/${pkg.name}`;
 ---
 
 <DocsLayout
@@ -37,6 +39,10 @@ const { pkg } = Astro.props;
       <div class="install-card">
         <h2>Install</h2>
         <Code code={pkg.install.join("\n")} lang="sh" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
+        <nav class="resource-links" aria-label={`${pkg.name} package resources`}>
+          <a href={hexUrl}>Hex package</a>
+          <a href={docsUrl}>API docs</a>
+        </nav>
       </div>
     </section>
 
