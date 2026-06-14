@@ -1,0 +1,72 @@
+---
+import DocsLayout from "../../../layouts/DocsLayout.astro";
+import { packageDocs } from "../../../data/packages";
+
+const middleware = packageDocs.filter((pkg) => pkg.kind.includes("middleware"));
+const providers = packageDocs.filter((pkg) => pkg.kind.includes("Provider"));
+const core = packageDocs.find((pkg) => pkg.slug === "core");
+---
+
+<DocsLayout
+  title="Package overview"
+  description="Choose the right Vestibule package for a Gleam OAuth integration."
+  section="Packages"
+>
+  <article class="doc-page">
+    <header class="doc-hero">
+      <h1>Package overview</h1>
+      <p>
+        Vestibule is split by responsibility: core flow, transport middleware,
+        and provider strategy packages.
+      </p>
+    </header>
+
+    {core && (
+      <section class="package-feature">
+        <div>
+          <span class="chip">Core</span>
+          <h2>{core.name}</h2>
+          <p>{core.summary}</p>
+        </div>
+        <a class="button primary" href={`/docs/packages/${core.slug}`}>Read core docs</a>
+      </section>
+    )}
+
+    <section>
+      <div class="section-heading">
+        <h2>Middleware packages</h2>
+        <p>Choose by your server routing layer.</p>
+      </div>
+      <div class="compare-list">
+        {middleware.map((pkg) => (
+          <a class="compare-item" href={`/docs/packages/${pkg.slug}`}>
+            <span class="chip">{pkg.kind}</span>
+            <strong>{pkg.name}</strong>
+            <span>{pkg.useWhen}</span>
+          </a>
+        ))}
+      </div>
+    </section>
+
+    <section>
+      <div class="section-heading">
+        <h2>Provider strategies</h2>
+        <p>Provider packages normalize profile data while preserving provider-specific security behavior.</p>
+      </div>
+      <div class="provider-table" role="table" aria-label="Provider package comparison">
+        <div role="row" class="provider-table-head">
+          <span role="columnheader">Package</span>
+          <span role="columnheader">Default scopes</span>
+          <span role="columnheader">Important behavior</span>
+        </div>
+        {providers.map((pkg) => (
+          <a role="row" class="provider-table-row" href={`/docs/packages/${pkg.slug}`}>
+            <span role="cell"><strong>{pkg.name}</strong></span>
+            <span role="cell">{pkg.defaultScopes || "Provider-owned"}</span>
+            <span role="cell">{pkg.highlights[0]}</span>
+          </a>
+        ))}
+      </div>
+    </section>
+  </article>
+</DocsLayout>

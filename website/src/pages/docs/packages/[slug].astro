@@ -1,0 +1,74 @@
+---
+import DocsLayout from "../../../layouts/DocsLayout.astro";
+import { packageDocs, type PackageDoc } from "../../../data/packages";
+
+export function getStaticPaths() {
+  return packageDocs.map((pkg) => ({
+    params: { slug: pkg.slug },
+    props: { pkg }
+  }));
+}
+
+type Props = { pkg: PackageDoc };
+const { pkg } = Astro.props;
+---
+
+<DocsLayout
+  title={pkg.name}
+  description={pkg.summary}
+  section="Packages"
+>
+  <article class="doc-page">
+    <header class="doc-hero package-hero">
+      <span class="chip">{pkg.kind}</span>
+      <h1>{pkg.name}</h1>
+      <p>{pkg.summary}</p>
+    </header>
+
+    <section class="content-grid split">
+      <div>
+        <h2>When to use it</h2>
+        <p>{pkg.useWhen}</p>
+        {pkg.defaultScopes && (
+          <p class="scope-note"><strong>Default scopes:</strong> {pkg.defaultScopes}</p>
+        )}
+      </div>
+      <div class="install-card">
+        <h2>Install</h2>
+        <pre><code>{pkg.install.join("\n")}</code></pre>
+      </div>
+    </section>
+
+    <section>
+      <h2>Setup shape</h2>
+      <ol class="setup-list">
+        {pkg.setup.map((item) => <li>{item}</li>)}
+      </ol>
+    </section>
+
+    <section>
+      <h2>Usage</h2>
+      <pre><code>{pkg.code}</code></pre>
+    </section>
+
+    <section class="content-grid">
+      <div>
+        <h2>What Vestibule handles</h2>
+        <ul class="check-list">
+          {pkg.highlights.map((item) => <li>{item}</li>)}
+        </ul>
+      </div>
+      <div>
+        <h2>Notes to keep explicit</h2>
+        <ul class="check-list warning">
+          {pkg.notes.map((item) => <li>{item}</li>)}
+        </ul>
+      </div>
+    </section>
+
+    <nav class="next-links" aria-label="Package navigation">
+      <a href="/docs/packages">Back to package overview</a>
+      <a href="/docs/guides/custom-strategy">Write a custom strategy</a>
+    </nav>
+  </article>
+</DocsLayout>

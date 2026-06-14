@@ -1,0 +1,16 @@
+{
+  "name": "vestibule-website",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@7.33.6",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "devDependencies": {
+    "astro": "^5.0.0",
+    "typescript": "^5.9.3"
+  }
+}

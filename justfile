@@ -141,6 +141,18 @@ docs:
         ( cd "$dir" && gleam docs build )
     done
 
+# Install documentation website dependencies
+website-deps:
+    cd website && pnpm install
+
+# Start the Astro documentation website
+website-dev:
+    cd website && pnpm dev
+
+# Build the Astro documentation website
+website-build:
+    cd website && pnpm build
+
 # === CHANGELOG ===
 
 # Create a new changelog entry (interactive project selection)

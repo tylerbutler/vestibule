@@ -1,0 +1,136 @@
+---
+import { navGroups } from "../data/navigation";
+import "../styles/global.css";
+
+type Props = {
+  title: string;
+  description: string;
+  section?: string;
+};
+
+const { title, description, section = "Docs" } = Astro.props;
+const pageTitle = title === "Vestibule" ? "Vestibule" : `${title} - Vestibule`;
+const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
+
+const isActive = (href: string) => {
+  const normalized = href.replace(/\/$/, "") || "/";
+  return currentPath === normalized;
+};
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <title>{pageTitle}</title>
+    <script is:inline>
+      (() => {
+        const storageKey = "vestibule-docs-theme";
+        const root = document.documentElement;
+        const stored = localStorage.getItem(storageKey);
+        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const theme = stored || (prefersDark ? "dark" : "light");
+        root.dataset.theme = theme;
+        root.style.colorScheme = theme;
+      })();
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Vestibule documentation home">
+        <span class="brand-mark" aria-hidden="true">V</span>
+        <span>
+          <strong>Vestibule</strong>
+          <small>OAuth2 for Gleam</small>
+        </span>
+      </a>
+      <div class="header-actions">
+        <a class="header-link" href="https://hex.pm/packages/vestibule">Hex</a>
+        <a class="header-link" href="https://github.com/tylerbutler/vestibule">GitHub</a>
+        <button class="theme-toggle" type="button" data-theme-toggle>
+          <span aria-hidden="true" data-theme-icon>◐</span>
+          <span data-theme-label>Theme</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="docs-frame">
+      <aside class="sidebar" aria-label="Documentation navigation">
+        <nav>
+          {navGroups.map((group) => (
+            <section class="nav-group">
+              <h2>{group.title}</h2>
+              <ul>
+                {group.links.map((link) => (
+                  <li>
+                    <a href={link.href} aria-current={isActive(link.href) ? "page" : undefined}>
+                      {link.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </nav>
+      </aside>
+
+      <main id="main-content" class="content-shell">
+        <details class="mobile-nav">
+          <summary>Docs menu</summary>
+          <nav aria-label="Mobile documentation navigation">
+            {navGroups.map((group) => (
+              <section class="nav-group">
+                <h2>{group.title}</h2>
+                <ul>
+                  {group.links.map((link) => (
+                    <li>
+                      <a href={link.href} aria-current={isActive(link.href) ? "page" : undefined}>
+                        {link.label}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </nav>
+        </details>
+
+        <div class="content-meta">{section}</div>
+        <slot />
+      </main>
+    </div>
+
+    <script is:inline>
+      (() => {
+        const storageKey = "vestibule-docs-theme";
+        const root = document.documentElement;
+        const buttons = Array.from(document.querySelectorAll("[data-theme-toggle]"));
+
+        const applyTheme = (theme) => {
+          root.dataset.theme = theme;
+          root.style.colorScheme = theme;
+          localStorage.setItem(storageKey, theme);
+          const next = theme === "dark" ? "light" : "dark";
+          for (const button of buttons) {
+            button.setAttribute("aria-label", `Switch to ${next} mode`);
+            const label = button.querySelector("[data-theme-label]");
+            const icon = button.querySelector("[data-theme-icon]");
+            if (label) label.textContent = theme === "dark" ? "Dark" : "Light";
+            if (icon) icon.textContent = theme === "dark" ? "●" : "○";
+          }
+        };
+
+        applyTheme(root.dataset.theme || "light");
+
+        for (const button of buttons) {
+          button.addEventListener("click", () => {
+            applyTheme(root.dataset.theme === "dark" ? "light" : "dark");
+          });
+        }
+      })();
+    </script>
+  </body>
+</html>
