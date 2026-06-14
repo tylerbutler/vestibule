@@ -86,33 +86,27 @@ case wisp.path_segments(req), req.method {
     <header class="doc-hero">
       <h1>Quick start</h1>
       <p>
-        Choose the path you are shipping. Middleware is the shortest route for a
-        Wisp or Mist app; core direct use is for custom transports and storage.
+        For Wisp or Mist apps, let middleware own the OAuth request and callback
+        routes. Use core directly only when your app owns transport and session
+        storage.
       </p>
     </header>
 
-    <section class="quick-paths" aria-label="Quick start paths">
-      <details class="path-panel" open>
-        <summary>
-          <span>
-            <span class="path-label">Recommended for web apps</span>
-            <strong>Let middleware own the OAuth routes</strong>
-            <small>Use this when Wisp or Mist already handles requests.</small>
-          </span>
-        </summary>
+    <section id="middleware-path" class="quick-paths" aria-label="Recommended quick start path">
+      <div class="primary-path">
         <div class="path-body">
-          <h2>Install the middleware stack</h2>
+          <span class="path-label">Recommended path</span>
+          <h2>Use middleware for the auth routes</h2>
           <p>
-            GitHub support is built into the core package. Add the Wisp middleware
-            if you want the higher-level request/callback helpers.
+            Add core plus the middleware for your server layer. GitHub support is
+            built into core; provider packages add Google, Microsoft, or Apple.
           </p>
           <Code code={middlewareInstallCode} lang="sh" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
 
           <h2>Route request and callback phases</h2>
           <p>
-            Initialize the state store once. The middleware creates the auth
-            request, stores one-time state, and returns normalized user info when
-            the callback succeeds.
+            Register strategies once, initialize the state store once, then pass
+            request and callback routes to the middleware.
           </p>
           <Code code={wispCode} lang="gleam" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
 
@@ -122,30 +116,29 @@ case wisp.path_segments(req), req.method {
             handlers.
           </p>
         </div>
-      </details>
+      </div>
 
-      <details class="path-panel">
+      <details id="core-path" class="path-panel">
         <summary>
           <span>
-            <span class="path-label">For custom transports</span>
-            <strong>Run the two-phase flow directly</strong>
+            <span class="path-label">Advanced path</span>
+            <strong>Need direct core control?</strong>
             <small>Use this when your app owns routing, sessions, and callback storage.</small>
           </span>
         </summary>
         <div class="path-body">
-          <h2>Install core</h2>
           <p>
-            Core Vestibule gives you the authorization URL, state, and PKCE
-            verifier, then handles the callback once your app supplies the stored
-            state and verifier.
+            Core gives you the authorization URL, state, and PKCE verifier, then
+            validates the callback after your app supplies the stored values.
           </p>
           <Code code={coreInstallCode} lang="sh" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
 
-          <h2>Handle request and callback yourself</h2>
+          <h2>Handle the two phases yourself</h2>
           <p>
             Store <code>auth_request.state</code> and
-            <code>auth_request.code_verifier</code> before redirecting, then pass
-            the stored values back during callback validation.
+            <code>auth_request.code_verifier</code> before redirecting. Pass the
+            stored values back during callback validation and delete them after
+            success.
           </p>
           <Code code={coreCode} lang="gleam" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
         </div>
@@ -154,11 +147,10 @@ case wisp.path_segments(req), req.method {
 
     <section id="security-responsibilities" class="security-callout">
       <div>
-        <h2>Caller responsibilities</h2>
+        <h2>Before shipping</h2>
         <p>
-          Store <code>state</code> and <code>code_verifier</code> server-side,
-          bind them to the user's session, expire them quickly, reject missing or
-          mismatched callbacks, and delete both after a successful callback.
+          Keep OAuth callback data server-side, short-lived, and bound to the
+          user's session. Reject missing or mismatched callbacks.
         </p>
       </div>
       <ul class="check-list">
@@ -167,10 +159,8 @@ case wisp.path_segments(req), req.method {
         <li>Cookie-secret rotation invalidates in-flight OAuth flows.</li>
       </ul>
     </section>
-
     <nav class="next-links" aria-label="Next documentation links">
       <a href="/docs/packages">Compare packages</a>
-      <a href="/docs/guides/custom-strategy">Write a custom strategy</a>
     </nav>
   </article>
 </DocsLayout>

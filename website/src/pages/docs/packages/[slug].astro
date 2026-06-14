@@ -20,6 +20,13 @@ const docsUrl = `https://hexdocs.pm/${pkg.name}`;
   title={pkg.name}
   description={pkg.summary}
   section="Packages"
+  toc={[
+    { href: "#when-to-use", label: "When to use it" },
+    { href: "#install", label: "Install" },
+    { href: "#setup", label: "Setup shape" },
+    { href: "#usage", label: "Usage" },
+    { href: "#handling", label: "Handling notes" }
+  ]}
 >
   <article class="doc-page">
     <header class="doc-hero package-hero">
@@ -29,14 +36,14 @@ const docsUrl = `https://hexdocs.pm/${pkg.name}`;
     </header>
 
     <section class="content-grid split">
-      <div>
+      <div id="when-to-use">
         <h2>When to use it</h2>
         <p>{pkg.useWhen}</p>
         {pkg.defaultScopes && (
           <p class="scope-note"><strong>Default scopes:</strong> {pkg.defaultScopes}</p>
         )}
       </div>
-      <div class="install-card">
+      <div id="install" class="install-card">
         <h2>Install</h2>
         <Code code={pkg.install.join("\n")} lang="sh" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
         <nav class="resource-links" aria-label={`${pkg.name} package resources`}>
@@ -46,19 +53,19 @@ const docsUrl = `https://hexdocs.pm/${pkg.name}`;
       </div>
     </section>
 
-    <section>
+    <section id="setup">
       <h2>Setup shape</h2>
       <ol class="setup-list">
         {pkg.setup.map((item) => <li>{item}</li>)}
       </ol>
     </section>
 
-    <section>
+    <section id="usage">
       <h2>Usage</h2>
       <Code code={pkg.code} lang="gleam" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
     </section>
 
-    <section class="content-grid">
+    <section id="handling" class="content-grid">
       <div>
         <h2>What Vestibule handles</h2>
         <ul class="check-list">

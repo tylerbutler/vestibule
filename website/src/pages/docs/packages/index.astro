@@ -11,6 +11,11 @@ const core = packageDocs.find((pkg) => pkg.slug === "core");
   title="Package overview"
   description="Choose the right Vestibule package for a Gleam OAuth integration."
   section="Packages"
+  toc={[
+    { href: "#core-package", label: "Core package" },
+    { href: "#middleware-packages", label: "Middleware packages" },
+    { href: "#provider-strategies", label: "Provider strategies" }
+  ]}
 >
   <article class="doc-page">
     <header class="doc-hero">
@@ -22,7 +27,7 @@ const core = packageDocs.find((pkg) => pkg.slug === "core");
     </header>
 
     {core && (
-      <section class="package-feature">
+      <section id="core-package" class="package-feature">
         <div>
           <span class="chip">Core</span>
           <h2>{core.name}</h2>
@@ -32,7 +37,7 @@ const core = packageDocs.find((pkg) => pkg.slug === "core");
       </section>
     )}
 
-    <section>
+    <section id="middleware-packages">
       <div class="section-heading">
         <h2>Middleware packages</h2>
         <p>Choose by your server routing layer.</p>
@@ -48,7 +53,7 @@ const core = packageDocs.find((pkg) => pkg.slug === "core");
       </div>
     </section>
 
-    <section>
+    <section id="provider-strategies">
       <div class="section-heading">
         <h2>Provider strategies</h2>
         <p>Provider packages normalize profile data while preserving provider-specific security behavior.</p>
@@ -57,23 +62,23 @@ const core = packageDocs.find((pkg) => pkg.slug === "core");
         <caption class="visually-hidden">Provider package comparison</caption>
         <thead>
           <tr>
-            <th scope="col">Package</th>
-            <th scope="col">Default scopes</th>
-            <th scope="col">Important behavior</th>
+            <th id="provider-package" scope="col">Package</th>
+            <th id="provider-scopes" scope="col">Default scopes</th>
+            <th id="provider-behavior" scope="col">Important behavior</th>
           </tr>
         </thead>
         <tbody>
           {providers.map((pkg) => (
             <tr>
-              <th scope="row">
+              <th id={`provider-${pkg.slug}-package`} scope="row" headers="provider-package">
                 <span class="provider-cell-label" aria-hidden="true">Package</span>
                 <a href={`/docs/packages/${pkg.slug}`}><strong>{pkg.name}</strong></a>
               </th>
-              <td>
+              <td headers={`provider-${pkg.slug}-package provider-scopes`}>
                 <span class="provider-cell-label" aria-hidden="true">Default scopes</span>
                 {pkg.defaultScopes || "Provider-owned"}
               </td>
-              <td>
+              <td headers={`provider-${pkg.slug}-package provider-behavior`}>
                 <span class="provider-cell-label" aria-hidden="true">Important behavior</span>
                 {pkg.highlights[0]}
               </td>

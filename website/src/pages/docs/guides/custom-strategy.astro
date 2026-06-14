@@ -59,12 +59,60 @@ gleam_http = ">= 4.3.0 and < 5.0.0"
 gleam_httpc = ">= 5.0.0 and < 6.0.0"
 gleam_json = ">= 3.1.0 and < 4.0.0"
 glow_auth = ">= 1.0.1 and < 2.0.0"`;
+
+const exchangeAndFetch = `fn do_exchange_code(
+  cfg: Config,
+  code: String,
+  code_verifier: Option(String),
+) -> Result(strategy.ExchangeResult, AuthError(e)) {
+  // Build and send the provider token request, then parse credentials.
+  use body <- result.try(post_token_request(cfg, code, code_verifier))
+  provider_support.parse_oauth_token_response(
+    body,
+    provider_support.OptionalScope(" "),
+  )
+  |> result.map(strategy.exchange_result)
+}
+
+fn do_fetch_user(
+  _cfg: Config,
+  exchange: strategy.ExchangeResult,
+) -> Result(strategy.UserResult, AuthError(e)) {
+  use auth_header <- result.try(
+    strategy.authorization_header(strategy.exchange_credentials(exchange)),
+  )
+  use #(uid, info) <- result.try(provider_support.fetch_json_with_auth(
+    "https://id.twitch.tv/oauth2/userinfo",
+    auth_header,
+    parse_user_response,
+    "Twitch userinfo",
+  ))
+
+  Ok(strategy.user_result(uid: uid, info: info, extra: dict.new()))
+}`;
+
+const strategyValue = `pub fn strategy() -> Strategy(e) {
+  strategy.new(
+    provider: "twitch",
+    default_scopes: ["user:read:email"],
+    authorize_url: do_authorize_url,
+    exchange_code: do_exchange_code,
+    refresh_token: do_refresh_token,
+    fetch_user: do_fetch_user,
+  )
+}`;
 ---
 
 <DocsLayout
   title="Writing a custom strategy"
   description="Build a Vestibule OAuth2 provider strategy from scratch."
   section="Extend"
+  toc={[
+    { href: "#core-boundary", label: "Core boundary" },
+    { href: "#strategy-type", label: "Strategy type" },
+    { href: "#authoring-steps", label: "Authoring steps" },
+    { href: "#authoring-checklist", label: "Checklist" }
+  ]}
 >
   <article class="doc-page">
     <header class="doc-hero">
@@ -76,7 +124,7 @@ glow_auth = ">= 1.0.1 and < 2.0.0"`;
       </p>
     </header>
 
-    <section class="security-callout">
+    <section id="core-boundary" class="security-callout">
       <div>
         <h2>What the core handles</h2>
         <p>
@@ -92,7 +140,7 @@ glow_auth = ">= 1.0.1 and < 2.0.0"`;
       </ul>
     </section>
 
-    <section>
+    <section id="strategy-type">
       <h2>The Strategy type</h2>
       <p>
         The provider name, default scopes, and four functions define the full
@@ -101,7 +149,7 @@ glow_auth = ">= 1.0.1 and < 2.0.0"`;
       <Code code={strategyType} lang="gleam" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
     </section>
 
-    <section class="step-list">
+    <section id="authoring-steps" class="step-list">
       <div class="step-item">
         <span class="step-number">1</span>
         <div>
@@ -137,6 +185,7 @@ glow_auth = ">= 1.0.1 and < 2.0.0"`;
             credentials and artifacts to fetch a stable provider UID and
             normalized <code>UserInfo</code>.
           </p>
+          <Code code={exchangeAndFetch} lang="gleam" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
         </div>
       </div>
 
@@ -150,11 +199,12 @@ glow_auth = ">= 1.0.1 and < 2.0.0"`;
             variants, or <code>Strategy(YourError)</code> when it exposes custom
             domain-specific errors.
           </p>
+          <Code code={strategyValue} lang="gleam" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
         </div>
       </div>
     </section>
 
-    <section>
+    <section id="authoring-checklist">
       <h2>Authoring checklist</h2>
       <ul class="check-list">
         <li>Use provider_support helpers before copying built-in internals.</li>

@@ -49,6 +49,10 @@ const entries = Array.from(
   title="Search docs"
   description="Search Vestibule documentation, package guides, and API references."
   section="Search"
+  toc={[
+    { href: "#docs-search", label: "Search field" },
+    { href: "#search-results", label: "Results" }
+  ]}
 >
   <article class="doc-page search-page" data-search-page>
     <header class="doc-hero">
@@ -61,29 +65,40 @@ const entries = Array.from(
 
     <form class="search-form" role="search">
       <label for="docs-search">Search documentation</label>
-      <input
-        id="docs-search"
-        type="search"
-        autocomplete="off"
-        spellcheck="false"
-        placeholder="Try state, PKCE, callback errors, hosted domains"
-        aria-describedby="docs-search-hint"
-        data-search-input
-      />
+      <div class="search-field-row">
+        <input
+          id="docs-search"
+          type="search"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="Try state, PKCE, callback errors, hosted domains"
+          aria-describedby="docs-search-hint"
+          data-search-input
+        />
+        <button class="search-reset" type="reset" data-search-reset disabled>Clear</button>
+      </div>
       <p id="docs-search-hint">
         Search covers docs pages, provider packages, OAuth concepts, and HexDocs
         API references.
       </p>
+      <div class="search-suggestions" aria-label="Common searches">
+        <span>Common:</span>
+        <a href="/docs/search?q=state">state</a>
+        <a href="/docs/search?q=PKCE">PKCE</a>
+        <a href="/docs/search?q=callback%20errors">callback errors</a>
+        <a href="/docs/search?q=hosted%20domains">hosted domains</a>
+      </div>
     </form>
 
     <p class="search-count" aria-live="polite" data-search-count>
       {entries.length} results
     </p>
     <p class="scope-note" hidden data-search-empty>
-      No matching docs found. Try a provider name, package name, or OAuth term.
+      No matching docs found. Clear the search or try a provider name, package
+      name, or OAuth term.
     </p>
 
-    <ul class="search-results" data-search-results>
+    <ul id="search-results" class="search-results" data-search-results>
       {entries.map((entry) => (
         <li
           class="search-result"
@@ -99,6 +114,7 @@ const entries = Array.from(
             <span class="chip">{entry.category}</span>
             <strong>{entry.title}</strong>
             <span>{entry.description}</span>
+            {entry.external && <span class="result-meta">HexDocs reference</span>}
           </a>
         </li>
       ))}
@@ -111,11 +127,21 @@ const entries = Array.from(
       if (!page) return;
 
       const input = page.querySelector("[data-search-input]");
+      const form = page.querySelector(".search-form");
+      const reset = page.querySelector("[data-search-reset]");
       const count = page.querySelector("[data-search-count]");
       const empty = page.querySelector("[data-search-empty]");
       const items = Array.from(page.querySelectorAll("[data-search-item]"));
 
-      if (!(input instanceof HTMLInputElement) || !count || !empty) return;
+      if (
+        !(input instanceof HTMLInputElement) ||
+        !(reset instanceof HTMLButtonElement) ||
+        !count ||
+        !empty
+      ) return;
+
+      const initialQuery = new URLSearchParams(window.location.search).get("q");
+      if (initialQuery) input.value = initialQuery;
 
       const normalized = (value) =>
         value
@@ -136,9 +162,11 @@ const entries = Array.from(
 
         count.textContent = `${visible} result${visible === 1 ? "" : "s"}`;
         empty.hidden = visible > 0;
+        reset.disabled = input.value.trim().length === 0;
       };
 
       input.addEventListener("input", render);
+      form?.addEventListener("reset", () => window.requestAnimationFrame(render));
       render();
     })();
   </script>

@@ -6,9 +6,13 @@ type Props = {
   title: string;
   description: string;
   section?: string;
+  toc?: Array<{
+    href: string;
+    label: string;
+  }>;
 };
 
-const { title, description, section = "Docs" } = Astro.props;
+const { title, description, section = "Docs", toc = [] } = Astro.props;
 const pageTitle = title === "Vestibule" ? "Vestibule" : `${title} - Vestibule`;
 const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
 
@@ -26,6 +30,7 @@ const currentGroup = navGroups.find((group) =>
 );
 const showBreadcrumbs = currentPath !== "/";
 const breadcrumbLabel = currentLink?.label || title;
+const hasToc = toc.length > 0;
 ---
 
 <!doctype html>
@@ -123,6 +128,16 @@ const breadcrumbLabel = currentLink?.label || title;
             <span aria-current="page">{breadcrumbLabel}</span>
           </nav>
         )}
+        {hasToc && (
+          <nav class="page-toc" aria-label="On this page">
+            <span>On this page</span>
+            <ol>
+              {toc.map((item) => (
+                <li><a href={item.href}>{item.label}</a></li>
+              ))}
+            </ol>
+          </nav>
+        )}
         <slot />
       </main>
     </div>
@@ -214,26 +229,32 @@ const breadcrumbLabel = currentLink?.label || title;
 
             if (text.trim().length === 0) {
               button.textContent = "Empty";
+              button.dataset.copyState = "notice";
               status.textContent = "Code block is empty.";
               window.setTimeout(() => {
                 button.textContent = "Copy";
+                delete button.dataset.copyState;
               }, 1800);
               return;
             }
 
             button.disabled = true;
+            button.dataset.copyState = "loading";
 
             try {
               await writeClipboard(text);
               button.textContent = "Copied";
+              button.dataset.copyState = "success";
               status.textContent = "Code copied.";
             } catch (error) {
               button.textContent = "Failed";
+              button.dataset.copyState = "error";
               status.textContent = "Copy failed. Select the code manually.";
             } finally {
               window.setTimeout(() => {
                 button.textContent = "Copy";
                 button.disabled = false;
+                delete button.dataset.copyState;
               }, 1800);
             }
           });
