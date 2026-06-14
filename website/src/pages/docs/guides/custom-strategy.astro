@@ -1,4 +1,5 @@
 ---
+import { Code } from "astro:components";
 import DocsLayout from "../../../layouts/DocsLayout.astro";
 
 const strategyType = `pub type Strategy(e) {
@@ -97,7 +98,7 @@ glow_auth = ">= 1.0.1 and < 2.0.0"`;
         The provider name, default scopes, and four functions define the full
         contract. The custom error type flows through <code>AuthError(e)</code>.
       </p>
-      <pre><code>{strategyType}</code></pre>
+      <Code code={strategyType} lang="gleam" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
     </section>
 
     <section class="step-list">
@@ -110,7 +111,7 @@ glow_auth = ">= 1.0.1 and < 2.0.0"`;
             strategy package that depends on Vestibule and the same OAuth helpers
             used by the built-in strategies.
           </p>
-          <pre><code>{packageToml}</code></pre>
+          <Code code={packageToml} lang="toml" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
         </div>
       </div>
 
@@ -122,7 +123,7 @@ glow_auth = ">= 1.0.1 and < 2.0.0"`;
             The function receives the already-resolved scopes and state value.
             Return the provider URL; Vestibule appends the PKCE challenge.
           </p>
-          <pre><code>{authorizeUrl}</code></pre>
+          <Code code={authorizeUrl} lang="gleam" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
         </div>
       </div>
 

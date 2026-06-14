@@ -462,6 +462,21 @@ pre {
   color: var(--ink);
 }
 
+/* Shiki outputs background-color as an inline style; override with site tokens */
+pre.astro-code {
+  background-color: var(--code-bg) !important;
+}
+
+.install-card pre.astro-code {
+  background-color: var(--bg) !important;
+}
+
+/* Dark mode: switch all token colors to the dark theme values Shiki embeds */
+[data-theme="dark"] pre.astro-code,
+[data-theme="dark"] pre.astro-code span {
+  color: var(--shiki-dark) !important;
+}
+
 code {
   font-family: var(--font-mono);
   font-size: 0.92em;

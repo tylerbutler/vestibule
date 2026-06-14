@@ -1,4 +1,5 @@
 ---
+import { Code } from "astro:components";
 import DocsLayout from "../layouts/DocsLayout.astro";
 import { packageDocs } from "../data/packages";
 
@@ -63,7 +64,7 @@ let assert Ok(auth) =
         Google, Microsoft, or Apple.
       </p>
     </div>
-    <pre class="code-card"><code>{directFlow}</code></pre>
+    <Code code={directFlow} lang="gleam" class="code-card" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
   </section>
 
   <section>

@@ -1,4 +1,5 @@
 ---
+import { Code } from "astro:components";
 import DocsLayout from "../../layouts/DocsLayout.astro";
 
 const installCode = `gleam add vestibule
@@ -97,7 +98,7 @@ case wisp.path_segments(req), req.method {
             GitHub support is built into the core package. Add the Wisp middleware
             if you want the higher-level request/callback helpers.
           </p>
-          <pre><code>{installCode}</code></pre>
+          <Code code={installCode} lang="sh" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
         </div>
       </div>
 
@@ -110,7 +111,7 @@ case wisp.path_segments(req), req.method {
             verifier, then handles the callback once your app supplies the stored
             state and verifier.
           </p>
-          <pre><code>{coreCode}</code></pre>
+          <Code code={coreCode} lang="gleam" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
         </div>
       </div>
 
@@ -122,7 +123,7 @@ case wisp.path_segments(req), req.method {
             The middleware stores one-time state entries in the shared state store
             and exposes default responses plus structured callback errors.
           </p>
-          <pre><code>{wispCode}</code></pre>
+          <Code code={wispCode} lang="gleam" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
         </div>
       </div>
     </section>
