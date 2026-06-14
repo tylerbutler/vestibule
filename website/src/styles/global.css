@@ -232,6 +232,7 @@ a:hover {
 
 .content-shell {
   width: min(100%, 72rem);
+  overflow-x: clip;
   padding: var(--space-6) clamp(var(--space-4), 5vw, var(--space-10)) var(--space-16);
 }
 
@@ -604,7 +605,7 @@ pre code {
 
 .step-item {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: var(--space-4);
   align-items: start;
 }
