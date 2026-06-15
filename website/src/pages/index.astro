@@ -1,10 +1,41 @@
 ---
 import { Code } from "astro:components";
+import { siApple, siGithub, siGoogle } from "simple-icons";
 import DocsLayout from "../layouts/DocsLayout.astro";
 import { packageDocs } from "../data/packages";
 
 const primaryPackages = packageDocs.slice(0, 3);
-const providerPackages = packageDocs.slice(3);
+const supportedProviders = [
+  {
+    name: "GitHub",
+    packageName: "vestibule",
+    href: "/docs/packages/core",
+    note: "Built into the core package.",
+    icon: siGithub
+  },
+  {
+    name: "Google",
+    packageName: "vestibule_google",
+    href: "/docs/packages/google",
+    note: "OpenID Connect, email, profile, and hosted-domain helpers.",
+    icon: siGoogle,
+    color: `#${siGoogle.hex}`
+  },
+  {
+    name: "Microsoft",
+    packageName: "vestibule_microsoft",
+    href: "/docs/packages/microsoft",
+    note: "Microsoft Graph /me plus tenant-specific sign-in helpers.",
+    icon: "microsoft"
+  },
+  {
+    name: "Apple",
+    packageName: "vestibule_apple",
+    href: "/docs/packages/apple",
+    note: "Sign in with Apple, JWKS-backed ID token verification, and form_post.",
+    icon: siApple
+  }
+];
 const directFlow = `let assert Ok(auth_request) = vestibule.authorize_url(strategy, cfg)
 // Store auth_request.state and auth_request.code_verifier.
 // Redirect to auth_request.url.
@@ -70,11 +101,50 @@ let assert Ok(auth) =
       <h2>Start with the integration shape.</h2>
       <p>
         Use core APIs when you want direct control, Wisp or Mist middleware when
-        you want routing helpers, and provider packages when your app needs
-        Google, Microsoft, or Apple.
+        you want routing helpers, GitHub in core, and provider packages when your
+        app needs Google, Microsoft, or Apple.
       </p>
     </div>
     <Code code={directFlow} lang="gleam" class="code-card" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
+  </section>
+
+  <section aria-labelledby="supported-providers-heading">
+    <div class="section-heading">
+      <h2 id="supported-providers-heading">Supported providers</h2>
+      <p>
+        Start with GitHub from core, then add Google, Microsoft, or Apple when
+        your app needs those provider-specific flows.
+      </p>
+    </div>
+    <div class="provider-ledger" aria-label="Supported OAuth providers">
+      {supportedProviders.map((provider) => (
+        <a
+          class="provider-link"
+          href={provider.href}
+          style={provider.color ? `--provider-color: ${provider.color}` : undefined}
+        >
+          <span class:list={["provider-mark", { "provider-mark-microsoft": provider.icon === "microsoft" }]} aria-hidden="true">
+            {provider.icon === "microsoft" ? (
+              <span class="microsoft-window">
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+              </span>
+            ) : (
+              <svg viewBox="0 0 24 24" role="img" focusable="false">
+                <path d={provider.icon.path}></path>
+              </svg>
+            )}
+          </span>
+          <span class="provider-copy">
+            <strong>{provider.name}</strong>
+            <small>{provider.packageName}</small>
+          </span>
+          <span>{provider.note}</span>
+        </a>
+      ))}
+    </div>
   </section>
 
   <section>
@@ -91,11 +161,6 @@ let assert Ok(auth) =
           </span>
           <span>{pkg.summary}</span>
         </a>
-      ))}
-    </div>
-    <div class="provider-strip" aria-label="Provider strategies">
-      {providerPackages.map((pkg) => (
-        <a href={`/docs/packages/${pkg.slug}`}>{pkg.name.replace("vestibule_", "")}</a>
       ))}
     </div>
   </section>

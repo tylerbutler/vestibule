@@ -17,7 +17,7 @@ const pageEntries: SearchEntry[] = navGroups.flatMap((group) =>
     title: link.label,
     href: link.href,
     category: group.title,
-    description: `Open ${link.label.toLowerCase()} documentation.`,
+    description: `Open the ${link.label} page.`,
     terms: `${group.title} ${link.label}`
   }))
 );
@@ -35,7 +35,7 @@ const packageEntries: SearchEntry[] = packageDocs.flatMap((pkg) => [
     href: `https://hexdocs.pm/${pkg.name}`,
     category: "API reference",
     description: `Open the HexDocs API reference for ${pkg.name}.`,
-    terms: `${pkg.name} hexdocs api reference modules functions types`,
+    terms: `${pkg.name} HexDocs API reference modules functions types`,
     external: true
   }
 ]);

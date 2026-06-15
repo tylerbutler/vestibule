@@ -11,6 +11,7 @@
   },
   "devDependencies": {
     "astro": "^5.0.0",
+    "simple-icons": "^16.23.0",
     "typescript": "^5.9.3"
   }
 }

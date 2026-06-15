@@ -2,10 +2,12 @@ lockfileVersion: 5.4
 
 specifiers:
   astro: ^5.0.0
+  simple-icons: ^16.23.0
   typescript: ^5.9.3
 
 devDependencies:
   astro: 5.18.2_typescript@5.9.3
+  simple-icons: 16.23.0
   typescript: 5.9.3
 
 packages:
@@ -2681,6 +2683,11 @@ packages:
       '@shikijs/types': 3.23.0
       '@shikijs/vscode-textmate': 10.0.2
       '@types/hast': 3.0.4
+    dev: true
+
+  /simple-icons/16.23.0:
+    resolution: {integrity: sha512-08MaTpxj9zGYUIe38tfELYkaHiGE1YgbrbXmTBf+GPxi5mEqLSORQqOXrP0QKPdaFuzEDSmW5o4xkbLlFhmdCw==}
+    engines: {node: '>=0.12.18'}
     dev: true
 
   /sisteransi/1.0.5:

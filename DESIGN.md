@@ -193,6 +193,10 @@ Vestibule should be flat by default. Depth comes from tonal layering, soft borde
 
 Use a two-column key/value layout for provider, UID, name, email, and nickname. Keys use label typography in `muted`; values use body typography in `ink`. Long provider IDs should wrap, not overflow.
 
+### Supported Provider Ledger
+
+Use a restrained row/list treatment for supported OAuth providers. Brand marks may appear as compact identifiers beside GitHub, Google, Microsoft, Apple, or future providers, but they should not turn the surface into a rainbow OAuth button grid. The provider name, package name, and behavior note carry the meaning; icons are supplemental.
+
 ## 6. Do's and Don'ts
 
 ### Do:
