@@ -79,7 +79,13 @@ const hasToc = toc.length > 0;
         <a class="header-link" href="/docs/search">Search</a>
         <a class="header-link" href="https://hex.pm/packages/vestibule">Hex</a>
         <a class="header-link" href="https://github.com/tylerbutler/vestibule">GitHub</a>
-        <button class="theme-toggle" type="button" data-theme-toggle>
+        <button
+          class="theme-toggle"
+          type="button"
+          aria-label="Dark mode is off. Switch to dark mode."
+          aria-pressed="false"
+          data-theme-toggle
+        >
           <span aria-hidden="true" data-theme-icon>◐</span>
           <span data-theme-label>Theme</span>
         </button>
@@ -175,13 +181,19 @@ const hasToc = toc.length > 0;
           root.dataset.theme = theme;
           root.style.colorScheme = theme;
           if (persist) storeTheme(theme);
-          const next = theme === "dark" ? "light" : "dark";
+          const darkModeOn = theme === "dark";
           for (const button of buttons) {
-            button.setAttribute("aria-label", `Switch to ${next} mode`);
+            button.setAttribute(
+              "aria-label",
+              darkModeOn
+                ? "Dark mode is on. Switch to light mode."
+                : "Dark mode is off. Switch to dark mode."
+            );
+            button.setAttribute("aria-pressed", String(darkModeOn));
             const label = button.querySelector("[data-theme-label]");
             const icon = button.querySelector("[data-theme-icon]");
-            if (label) label.textContent = theme === "dark" ? "Dark" : "Light";
-            if (icon) icon.textContent = theme === "dark" ? "●" : "○";
+            if (label) label.textContent = `Theme: ${theme}`;
+            if (icon) icon.textContent = darkModeOn ? "●" : "○";
           }
         };
 
@@ -233,7 +245,26 @@ const hasToc = toc.length > 0;
           return fallbackCopy(text);
         };
 
-        for (const block of codeBlocks) {
+        const headingTextForBlock = (block) => {
+          let node = block;
+          while (node && node !== document.body) {
+            let sibling = node.previousElementSibling;
+            while (sibling) {
+              if (sibling.matches("h1, h2, h3")) return sibling.textContent?.trim();
+              const headings = Array.from(sibling.querySelectorAll("h1, h2, h3"));
+              const heading = headings.at(-1);
+              if (heading) return heading.textContent?.trim();
+              sibling = sibling.previousElementSibling;
+            }
+
+            node = node.parentElement;
+            if (node?.matches("main")) break;
+          }
+
+          return null;
+        };
+
+        for (const [index, block] of codeBlocks.entries()) {
           if (block.parentElement?.classList.contains("code-copy")) continue;
 
           const wrapper = document.createElement("div");
@@ -241,8 +272,12 @@ const hasToc = toc.length > 0;
           const button = document.createElement("button");
           button.type = "button";
           button.className = "code-copy-button";
-          button.textContent = "Copy";
-          button.setAttribute("aria-label", "Copy code block");
+          button.textContent = "Copy code";
+
+          const heading = headingTextForBlock(block);
+          const fallbackLabel = `code block ${index + 1}`;
+          const codeLabel = heading ? `code from ${heading}` : fallbackLabel;
+          button.setAttribute("aria-label", `Copy ${codeLabel}`);
 
           block.before(wrapper);
           wrapper.append(button, block);
@@ -251,11 +286,11 @@ const hasToc = toc.length > 0;
             const text = block.textContent || "";
 
             if (text.trim().length === 0) {
-              button.textContent = "Empty";
+              button.textContent = "Nothing to copy";
               button.dataset.copyState = "notice";
               status.textContent = "Code block is empty.";
               window.setTimeout(() => {
-                button.textContent = "Copy";
+                button.textContent = "Copy code";
                 delete button.dataset.copyState;
               }, 1800);
               return;
@@ -268,14 +303,14 @@ const hasToc = toc.length > 0;
               await writeClipboard(text);
               button.textContent = "Copied";
               button.dataset.copyState = "success";
-              status.textContent = "Code copied.";
+              status.textContent = `Copied ${codeLabel}.`;
             } catch (error) {
-              button.textContent = "Failed";
+              button.textContent = "Copy failed";
               button.dataset.copyState = "error";
               status.textContent = "Copy failed. Select the code manually.";
             } finally {
               window.setTimeout(() => {
-                button.textContent = "Copy";
+                button.textContent = "Copy code";
                 button.disabled = false;
                 delete button.dataset.copyState;
               }, 1800);

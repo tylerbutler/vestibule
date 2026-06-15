@@ -35,18 +35,18 @@ const entries = await getSearchEntries();
           aria-describedby="docs-search-hint"
           data-search-input
         />
-        <button class="search-reset" type="reset" data-search-reset disabled>Clear</button>
+        <button class="search-reset" type="reset" data-search-reset disabled>Clear search</button>
       </div>
       <p id="docs-search-hint">
         Search covers docs pages, provider packages, OAuth concepts, and HexDocs
         API references.
       </p>
       <div class="search-suggestions" aria-label="Common searches">
-        <span>Common:</span>
-        <a href="/docs/search?q=state">state</a>
-        <a href="/docs/search?q=PKCE">PKCE</a>
-        <a href="/docs/search?q=callback%20errors">callback errors</a>
-        <a href="/docs/search?q=hosted%20domains">hosted domains</a>
+        <span>Common searches:</span>
+        <a href="/docs/search?q=state" aria-label="Search docs for state">state</a>
+        <a href="/docs/search?q=PKCE" aria-label="Search docs for PKCE">PKCE</a>
+        <a href="/docs/search?q=callback%20errors" aria-label="Search docs for callback errors">callback errors</a>
+        <a href="/docs/search?q=hosted%20domains" aria-label="Search docs for hosted domains">hosted domains</a>
       </div>
     </form>
 
