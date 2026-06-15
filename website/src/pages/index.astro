@@ -40,18 +40,45 @@ let assert Ok(auth) =
       </div>
     </div>
     <aside class="threshold-panel" aria-label="Vestibule flow summary">
-      <div class="flow-step">
-        <strong>1. Request</strong>
-        <span>Generate URL, state, and PKCE verifier.</span>
+      <div class="threshold-brand">
+        <span class="threshold-logo-frame" aria-hidden="true">
+          <img
+            class="threshold-logo"
+            src="/logo.png"
+            alt=""
+            width="1024"
+            height="1024"
+            decoding="async"
+          />
+        </span>
+        <div>
+          <strong>OAuth threshold</strong>
+          <span>One maintained boundary between provider redirects and your app session.</span>
+        </div>
       </div>
-      <div class="flow-step">
-        <strong>2. Store</strong>
-        <span>Bind state and verifier to the user's server session.</span>
-      </div>
-      <div class="flow-step">
-        <strong>3. Callback</strong>
-        <span>Validate state, exchange code, fetch normalized user info.</span>
-      </div>
+      <ol class="flow-steps" aria-label="OAuth flow checkpoints">
+        <li class="flow-step">
+          <span class="flow-index">1</span>
+          <div>
+            <strong>Request</strong>
+            <span>Generate URL, state, and PKCE verifier.</span>
+          </div>
+        </li>
+        <li class="flow-step">
+          <span class="flow-index">2</span>
+          <div>
+            <strong>Store</strong>
+            <span>Bind state and verifier to the user's server session.</span>
+          </div>
+        </li>
+        <li class="flow-step">
+          <span class="flow-index">3</span>
+          <div>
+            <strong>Callback</strong>
+            <span>Validate state, exchange code, fetch normalized user info.</span>
+          </div>
+        </li>
+      </ol>
     </aside>
   </section>
 
