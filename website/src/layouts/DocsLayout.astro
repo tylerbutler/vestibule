@@ -1,5 +1,5 @@
 ---
-import { navGroups } from "../data/navigation";
+import { getNavigation } from "../data/content";
 import "../styles/global.css";
 
 type Props = {
@@ -13,6 +13,7 @@ type Props = {
 };
 
 const { title, description, section = "Docs", toc = [] } = Astro.props;
+const navGroups = await getNavigation();
 const pageTitle = title === "Vestibule" ? "Vestibule" : `${title} - Vestibule`;
 const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
 

@@ -2,36 +2,44 @@
 import { Code } from "astro:components";
 import { siApple, siGithub, siGoogle } from "simple-icons";
 import DocsLayout from "../layouts/DocsLayout.astro";
-import { packageDocs } from "../data/packages";
+import { getPackageEntries, packageHref, packageSlug } from "../data/content";
 
-const primaryPackages = packageDocs.slice(0, 3);
+const packageEntries = await getPackageEntries();
+const primaryPackages = packageEntries.slice(0, 3);
+const packageBySlug = new Map(packageEntries.map((entry) => [packageSlug(entry), entry]));
+const hrefForPackage = (slug: string) => {
+  const entry = packageBySlug.get(slug);
+  return entry ? packageHref(entry) : `/docs/packages/${slug}`;
+};
+const nameForPackage = (slug: string, fallback: string) =>
+  packageBySlug.get(slug)?.data.name || fallback;
 const supportedProviders = [
   {
     name: "GitHub",
-    packageName: "vestibule",
-    href: "/docs/packages/core",
+    packageName: nameForPackage("core", "vestibule"),
+    href: hrefForPackage("core"),
     note: "Built into the core package.",
     icon: siGithub
   },
   {
     name: "Google",
-    packageName: "vestibule_google",
-    href: "/docs/packages/google",
+    packageName: nameForPackage("google", "vestibule_google"),
+    href: hrefForPackage("google"),
     note: "OpenID Connect, email, profile, and hosted-domain helpers.",
     icon: siGoogle,
     color: `#${siGoogle.hex}`
   },
   {
     name: "Microsoft",
-    packageName: "vestibule_microsoft",
-    href: "/docs/packages/microsoft",
+    packageName: nameForPackage("microsoft", "vestibule_microsoft"),
+    href: hrefForPackage("microsoft"),
     note: "Microsoft Graph /me plus tenant-specific sign-in helpers.",
     icon: "microsoft"
   },
   {
     name: "Apple",
-    packageName: "vestibule_apple",
-    href: "/docs/packages/apple",
+    packageName: nameForPackage("apple", "vestibule_apple"),
+    href: hrefForPackage("apple"),
     note: "Sign in with Apple, JWKS-backed ID token verification, and form_post.",
     icon: siApple
   }
@@ -154,12 +162,12 @@ let assert Ok(auth) =
     </div>
     <div class="package-river">
       {primaryPackages.map((pkg) => (
-        <a class="package-row" href={`/docs/packages/${pkg.slug}`}>
+        <a class="package-row" href={packageHref(pkg)}>
           <span>
-            <strong>{pkg.name}</strong>
-            <small>{pkg.kind}</small>
+            <strong>{pkg.data.name}</strong>
+            <small>{pkg.data.kind}</small>
           </span>
-          <span>{pkg.summary}</span>
+          <span>{pkg.data.summary}</span>
         </a>
       ))}
     </div>

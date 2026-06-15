@@ -1,48 +1,8 @@
 ---
 import DocsLayout from "../../layouts/DocsLayout.astro";
-import { navGroups } from "../../data/navigation";
-import { packageDocs } from "../../data/packages";
+import { getSearchEntries } from "../../data/content";
 
-type SearchEntry = {
-  title: string;
-  href: string;
-  category: string;
-  description: string;
-  terms: string;
-  external?: boolean;
-};
-
-const pageEntries: SearchEntry[] = navGroups.flatMap((group) =>
-  group.links.map((link) => ({
-    title: link.label,
-    href: link.href,
-    category: group.title,
-    description: `Open the ${link.label} page.`,
-    terms: `${group.title} ${link.label}`
-  }))
-);
-
-const packageEntries: SearchEntry[] = packageDocs.flatMap((pkg) => [
-  {
-    title: `${pkg.name} package`,
-    href: `/docs/packages/${pkg.slug}`,
-    category: pkg.kind,
-    description: pkg.summary,
-    terms: `${pkg.name} ${pkg.kind} ${pkg.summary} ${pkg.useWhen} ${pkg.defaultScopes || ""} ${pkg.highlights.join(" ")} ${pkg.notes.join(" ")}`
-  },
-  {
-    title: `${pkg.name} API docs`,
-    href: `https://hexdocs.pm/${pkg.name}`,
-    category: "API reference",
-    description: `Open the HexDocs API reference for ${pkg.name}.`,
-    terms: `${pkg.name} HexDocs API reference modules functions types`,
-    external: true
-  }
-]);
-
-const entries = Array.from(
-  new Map([...pageEntries, ...packageEntries].map((entry) => [entry.href, entry])).values()
-);
+const entries = await getSearchEntries();
 ---
 
 <DocsLayout

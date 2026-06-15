@@ -1,10 +1,11 @@
 ---
 import DocsLayout from "../../../layouts/DocsLayout.astro";
-import { packageDocs } from "../../../data/packages";
+import { getPackageEntries, packageHref, packageSlug } from "../../../data/content";
 
-const middleware = packageDocs.filter((pkg) => pkg.kind.includes("middleware"));
-const providers = packageDocs.filter((pkg) => pkg.kind.includes("Provider"));
-const core = packageDocs.find((pkg) => pkg.slug === "core");
+const packages = await getPackageEntries();
+const middleware = packages.filter((pkg) => pkg.data.kind.includes("middleware"));
+const providers = packages.filter((pkg) => pkg.data.kind.includes("Provider"));
+const core = packages.find((pkg) => packageSlug(pkg) === "core");
 ---
 
 <DocsLayout
@@ -30,10 +31,10 @@ const core = packageDocs.find((pkg) => pkg.slug === "core");
       <section id="core-package" class="package-feature">
         <div>
           <span class="chip">Core</span>
-          <h2>{core.name}</h2>
-          <p>{core.summary}</p>
+          <h2>{core.data.name}</h2>
+          <p>{core.data.summary}</p>
         </div>
-        <a class="button primary" href={`/docs/packages/${core.slug}`}>Read core docs</a>
+        <a class="button primary" href={packageHref(core)}>Read core docs</a>
       </section>
     )}
 
@@ -44,10 +45,10 @@ const core = packageDocs.find((pkg) => pkg.slug === "core");
       </div>
       <div class="compare-list">
         {middleware.map((pkg) => (
-          <a class="compare-item" href={`/docs/packages/${pkg.slug}`}>
-            <span class="chip">{pkg.kind}</span>
-            <strong>{pkg.name}</strong>
-            <span>{pkg.useWhen}</span>
+          <a class="compare-item" href={packageHref(pkg)}>
+            <span class="chip">{pkg.data.kind}</span>
+            <strong>{pkg.data.name}</strong>
+            <span>{pkg.data.useWhen}</span>
           </a>
         ))}
       </div>
@@ -70,17 +71,17 @@ const core = packageDocs.find((pkg) => pkg.slug === "core");
         <tbody>
           {providers.map((pkg) => (
             <tr>
-              <th id={`provider-${pkg.slug}-package`} scope="row" headers="provider-package">
+              <th id={`provider-${packageSlug(pkg)}-package`} scope="row" headers="provider-package">
                 <span class="provider-cell-label" aria-hidden="true">Package</span>
-                <a href={`/docs/packages/${pkg.slug}`}><strong>{pkg.name}</strong></a>
+                <a href={packageHref(pkg)}><strong>{pkg.data.name}</strong></a>
               </th>
-              <td headers={`provider-${pkg.slug}-package provider-scopes`}>
+              <td headers={`provider-${packageSlug(pkg)}-package provider-scopes`}>
                 <span class="provider-cell-label" aria-hidden="true">Default scopes</span>
-                {pkg.defaultScopes || "Provider-owned"}
+                {pkg.data.defaultScopes || "Provider-owned"}
               </td>
-              <td headers={`provider-${pkg.slug}-package provider-behavior`}>
+              <td headers={`provider-${packageSlug(pkg)}-package provider-behavior`}>
                 <span class="provider-cell-label" aria-hidden="true">Important behavior</span>
-                {pkg.highlights[0]}
+                {pkg.data.highlights[0]}
               </td>
             </tr>
           ))}
