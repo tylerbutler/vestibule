@@ -38,47 +38,30 @@ let assert Ok(auth) =
         <a class="button primary" href="/docs/quick-start">Add sign-in</a>
         <a class="button secondary" href="/docs/packages">Compare packages</a>
       </div>
-    </div>
-    <aside class="threshold-panel" aria-label="Vestibule flow summary">
-      <div class="threshold-brand">
-        <span class="threshold-logo-frame" aria-hidden="true">
-          <img
-            class="threshold-logo"
-            src="/logo.png"
-            alt=""
-            width="1024"
-            height="1024"
-            decoding="async"
-          />
-        </span>
-        <div>
-          <strong>OAuth threshold</strong>
-          <span>One maintained boundary between provider redirects and your app session.</span>
-        </div>
-      </div>
-      <ol class="flow-steps" aria-label="OAuth flow checkpoints">
-        <li class="flow-step">
-          <span class="flow-index">1</span>
-          <div>
-            <strong>Request</strong>
-            <span>Generate URL, state, and PKCE verifier.</span>
-          </div>
+      <ol class="hero-flow" aria-label="OAuth flow checkpoints">
+        <li>
+          <strong>Request</strong>
+          <span>URL, state, PKCE verifier</span>
         </li>
-        <li class="flow-step">
-          <span class="flow-index">2</span>
-          <div>
-            <strong>Store</strong>
-            <span>Bind state and verifier to the user's server session.</span>
-          </div>
+        <li>
+          <strong>Store</strong>
+          <span>Bind transient callback data</span>
         </li>
-        <li class="flow-step">
-          <span class="flow-index">3</span>
-          <div>
-            <strong>Callback</strong>
-            <span>Validate state, exchange code, fetch normalized user info.</span>
-          </div>
+        <li>
+          <strong>Callback</strong>
+          <span>Validate and normalize user info</span>
         </li>
       </ol>
+    </div>
+    <aside class="hero-logo" aria-label="Vestibule logo">
+      <img
+        src="/logo.png"
+        alt="Vestibule"
+        width="1024"
+        height="1024"
+        decoding="async"
+        fetchpriority="high"
+      />
     </aside>
   </section>
 
