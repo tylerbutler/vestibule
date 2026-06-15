@@ -45,9 +45,20 @@ const hasToc = toc.length > 0;
       (() => {
         const storageKey = "vestibule-docs-theme";
         const root = document.documentElement;
-        const stored = localStorage.getItem(storageKey);
-        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        const theme = stored || (prefersDark ? "dark" : "light");
+        const themeFromValue = (value) => value === "dark" || value === "light" ? value : null;
+        const storedTheme = () => {
+          try {
+            return themeFromValue(window.localStorage.getItem(storageKey));
+          } catch (error) {
+            if (!(error instanceof DOMException)) throw error;
+            return null;
+          }
+        };
+        const preferredTheme = () => {
+          const query = "(prefers-color-scheme: dark)";
+          return window.matchMedia?.(query)?.matches ? "dark" : "light";
+        };
+        const theme = storedTheme() || preferredTheme();
         root.dataset.theme = theme;
         root.style.colorScheme = theme;
       })();
@@ -147,11 +158,22 @@ const hasToc = toc.length > 0;
         const storageKey = "vestibule-docs-theme";
         const root = document.documentElement;
         const buttons = Array.from(document.querySelectorAll("[data-theme-toggle]"));
+        const themeFromValue = (value) => value === "dark" || value === "light" ? value : null;
+        const currentTheme = () => themeFromValue(root.dataset.theme) || "light";
+        const storeTheme = (theme) => {
+          try {
+            window.localStorage.setItem(storageKey, theme);
+          } catch (error) {
+            if (!(error instanceof DOMException)) throw error;
+            root.dataset.themeStorage = "unavailable";
+          }
+        };
 
-        const applyTheme = (theme) => {
+        const applyTheme = (theme, { persist } = { persist: true }) => {
+          theme = themeFromValue(theme) || "light";
           root.dataset.theme = theme;
           root.style.colorScheme = theme;
-          localStorage.setItem(storageKey, theme);
+          if (persist) storeTheme(theme);
           const next = theme === "dark" ? "light" : "dark";
           for (const button of buttons) {
             button.setAttribute("aria-label", `Switch to ${next} mode`);
@@ -162,11 +184,11 @@ const hasToc = toc.length > 0;
           }
         };
 
-        applyTheme(root.dataset.theme || "light");
+        applyTheme(currentTheme(), { persist: false });
 
         for (const button of buttons) {
           button.addEventListener("click", () => {
-            applyTheme(root.dataset.theme === "dark" ? "light" : "dark");
+            applyTheme(currentTheme() === "dark" ? "light" : "dark");
           });
         }
       })();

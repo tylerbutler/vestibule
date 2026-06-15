@@ -35,6 +35,25 @@
   --radius-lg: 0.875rem;
   --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --text-caption: 0.8125rem;
+  --text-label: 0.875rem;
+  --text-body: 1rem;
+  --text-lead: 1.125rem;
+  --text-title: 1.125rem;
+  --text-headline: 1.5rem;
+  --text-page-title: 2.25rem;
+  --text-hero: 2.75rem;
+  --line-display: 1.06;
+  --line-heading: 1.18;
+  --line-title: 1.3;
+  --line-body: 1.6;
+  --line-compact: 1.45;
+  --tracking-display: -0.025em;
+  --tracking-heading: -0.018em;
+  --tracking-title: -0.01em;
+  --weight-normal: 400;
+  --weight-semibold: 650;
+  --weight-bold: 700;
 }
 
 :root[data-theme="dark"] {
@@ -59,6 +78,7 @@
   --shadow: 0 6px 12px oklch(0 0 0 / 0.24);
   --focus-ring: var(--yellow);
   --focus-halo: color-mix(in oklch, var(--primary) 52%, transparent);
+  --line-body: 1.64;
 }
 
 * {
@@ -69,8 +89,9 @@ html {
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-sans);
-  font-size: 16px;
+  font-size: 100%;
   font-kerning: normal;
+  font-optical-sizing: auto;
   scroll-padding-top: 5.5rem;
   scroll-behavior: smooth;
 }
@@ -80,7 +101,8 @@ body {
   min-width: 320px;
   background: var(--bg);
   color: var(--ink);
-  line-height: 1.6;
+  font-size: var(--text-body);
+  line-height: var(--line-body);
   overflow-wrap: break-word;
 }
 
@@ -157,14 +179,14 @@ svg {
 .skip-link {
   position: fixed;
   z-index: 10;
-  inset-block-start: var(--space-4);
-  inset-inline-start: var(--space-4);
+  inset-block-start: calc(var(--space-4) + env(safe-area-inset-top));
+  inset-inline-start: calc(var(--space-4) + env(safe-area-inset-left));
   transform: translateY(-150%);
   border-radius: var(--radius-sm);
   background: var(--yellow);
   color: oklch(0.2 0.035 300);
   padding: var(--space-2) var(--space-3);
-  font-weight: 700;
+  font-weight: var(--weight-bold);
 }
 
 .skip-link:focus {
@@ -192,6 +214,8 @@ svg {
   border-bottom: 1px solid var(--border);
   background: color-mix(in oklch, var(--bg) 92%, transparent);
   padding: var(--space-3) clamp(var(--space-4), 3vw, var(--space-8));
+  padding-inline-start: calc(clamp(var(--space-4), 3vw, var(--space-8)) + env(safe-area-inset-left));
+  padding-inline-end: calc(clamp(var(--space-4), 3vw, var(--space-8)) + env(safe-area-inset-right));
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
 }
@@ -232,12 +256,12 @@ svg {
 }
 
 .brand strong {
-  line-height: 1.1;
+  line-height: var(--line-display);
 }
 
 .brand small {
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: var(--text-caption);
 }
 
 .header-actions {
@@ -262,8 +286,8 @@ svg {
 .next-links a {
   min-height: 2.75rem;
   border-radius: var(--radius-sm);
-  font-size: 0.875rem;
-  font-weight: 700;
+  font-size: var(--text-label);
+  font-weight: var(--weight-semibold);
 }
 
 .header-link {
@@ -348,6 +372,8 @@ svg {
   width: min(100%, 72rem);
   overflow-x: clip;
   padding: var(--space-6) clamp(var(--space-4), 5vw, var(--space-10)) var(--space-16);
+  padding-inline-start: calc(clamp(var(--space-4), 5vw, var(--space-10)) + env(safe-area-inset-left));
+  padding-inline-end: calc(clamp(var(--space-4), 5vw, var(--space-10)) + env(safe-area-inset-right));
 }
 
 .mobile-nav {
@@ -360,7 +386,7 @@ svg {
 .mobile-nav summary {
   cursor: pointer;
   padding: var(--space-4);
-  font-weight: 700;
+  font-weight: var(--weight-semibold);
 }
 
 .mobile-nav nav {
@@ -374,9 +400,9 @@ svg {
 .nav-group h2 {
   margin: 0 0 var(--space-2);
   color: var(--muted);
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-semibold);
+  line-height: var(--line-title);
 }
 
 .nav-group ul {
@@ -402,13 +428,13 @@ svg {
 }
 
 .nav-group a[aria-current="page"] {
-  font-weight: 700;
+  font-weight: var(--weight-semibold);
 }
 
 .intro-label {
   color: var(--accent-ink);
-  font-size: 0.875rem;
-  font-weight: 800;
+  font-size: var(--text-label);
+  font-weight: var(--weight-semibold);
 }
 
 .intro-label {
@@ -422,7 +448,7 @@ svg {
   align-items: center;
   margin-bottom: var(--space-6);
   color: var(--muted);
-  font-size: 0.875rem;
+  font-size: var(--text-label);
 }
 
 .breadcrumbs a {
@@ -436,7 +462,7 @@ svg {
 
 .breadcrumbs span[aria-current="page"] {
   color: var(--accent-ink);
-  font-weight: 800;
+  font-weight: var(--weight-semibold);
 }
 
 .page-toc {
@@ -451,7 +477,7 @@ svg {
 
 .page-toc > span {
   color: var(--ink);
-  font-weight: 800;
+  font-weight: var(--weight-semibold);
 }
 
 .page-toc ol {
@@ -503,37 +529,42 @@ h1,
 h2,
 h3 {
   color: var(--ink);
-  line-height: 1.12;
   overflow-wrap: break-word;
   text-wrap: balance;
 }
 
 h1 {
-  max-width: 12ch;
+  max-width: 13ch;
   margin: 0;
-  font-size: clamp(2.35rem, 7vw, 4.9rem);
-  letter-spacing: -0.035em;
+  font-size: var(--text-hero);
+  font-weight: var(--weight-bold);
+  line-height: var(--line-display);
+  letter-spacing: var(--tracking-display);
 }
 
 .doc-hero h1 {
   max-width: 16ch;
-  font-size: clamp(2.1rem, 5vw, 3.65rem);
+  font-size: var(--text-page-title);
 }
 
 h2 {
   margin: 0 0 var(--space-3);
-  font-size: clamp(1.35rem, 3vw, 2rem);
-  letter-spacing: -0.025em;
+  font-size: var(--text-headline);
+  font-weight: var(--weight-semibold);
+  line-height: var(--line-heading);
+  letter-spacing: var(--tracking-heading);
 }
 
 h3 {
   margin: 0 0 var(--space-2);
-  font-size: 1.125rem;
-  letter-spacing: -0.01em;
+  font-size: var(--text-title);
+  font-weight: var(--weight-semibold);
+  line-height: var(--line-title);
+  letter-spacing: var(--tracking-title);
 }
 
 p {
-  max-width: 68ch;
+  max-width: 66ch;
   margin: 0 0 var(--space-4);
   color: var(--muted);
   overflow-wrap: break-word;
@@ -541,9 +572,9 @@ p {
 
 .lead,
 .doc-hero p {
-  max-width: 62ch;
-  font-size: 1.125rem;
-  line-height: 1.65;
+  max-width: 64ch;
+  font-size: var(--text-lead);
+  line-height: var(--line-body);
 }
 
 .hero-actions,
@@ -637,13 +668,13 @@ pre {
 
 .hero-flow strong {
   color: var(--ink);
-  line-height: 1.3;
+  line-height: var(--line-title);
 }
 
 .hero-flow span {
   color: var(--muted);
-  font-size: 0.9375rem;
-  line-height: 1.45;
+  font-size: var(--text-label);
+  line-height: var(--line-compact);
 }
 
 .content-grid {
@@ -681,13 +712,14 @@ pre.astro-code {
 
 code {
   font-family: var(--font-mono);
-  font-size: 0.875rem;
+  font-size: var(--text-label);
+  font-variant-ligatures: none;
 }
 
 pre code {
   display: block;
   min-width: min-content;
-  line-height: 1.65;
+  line-height: var(--line-body);
   white-space: pre;
 }
 
@@ -696,22 +728,22 @@ pre code {
 }
 
 .code-copy pre {
-  padding-block-start: var(--space-10);
+  padding-block-start: calc(var(--space-12) + var(--space-2));
 }
 
 .code-copy-button {
   position: absolute;
   inset-block-start: var(--space-2);
   inset-inline-end: var(--space-2);
-  min-height: 2rem;
+  min-height: 2.75rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg);
   color: var(--ink);
   cursor: pointer;
   padding: 0 var(--space-3);
-  font-size: 0.8125rem;
-  font-weight: 800;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-semibold);
 }
 
 .code-copy-button:hover {
@@ -780,8 +812,8 @@ pre code {
 .package-row small,
 .chip {
   color: var(--accent-ink);
-  font-size: 0.8125rem;
-  font-weight: 800;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-semibold);
 }
 
 .package-row small {
@@ -809,7 +841,7 @@ pre code {
 }
 
 .provider-strip a {
-  font-weight: 700;
+  font-weight: var(--weight-semibold);
 }
 
 .provider-strip a:hover {
@@ -830,11 +862,11 @@ pre code {
 }
 
 .text-link {
-  font-weight: 800;
+  font-weight: var(--weight-semibold);
 }
 
 .doc-page {
-  max-width: 72ch;
+  max-width: 70ch;
 }
 
 .doc-page section + section {
@@ -880,8 +912,8 @@ pre code {
   background: var(--primary-soft);
   color: var(--primary-soft-ink);
   padding: var(--space-1) var(--space-2);
-  font-size: 0.8125rem;
-  font-weight: 800;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-semibold);
   white-space: nowrap;
 }
 
@@ -900,23 +932,25 @@ pre code {
 
 .path-panel strong {
   color: var(--ink);
-  font-size: 1.125rem;
-  line-height: 1.3;
+  font-size: var(--text-title);
+  font-weight: var(--weight-semibold);
+  line-height: var(--line-title);
 }
 
 .path-panel small {
   margin-top: var(--space-1);
   color: var(--muted);
-  font-size: 1rem;
-  line-height: 1.5;
+  font-size: var(--text-body);
+  line-height: var(--line-compact);
 }
 
 .path-label {
   display: block;
   margin-bottom: var(--space-2);
   color: var(--accent-ink);
-  font-size: 0.8125rem;
-  font-weight: 800;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-semibold);
+  line-height: var(--line-title);
 }
 
 .path-body {
@@ -925,7 +959,7 @@ pre code {
 
 .path-body h2 {
   margin-top: var(--space-6);
-  font-size: 1.125rem;
+  font-size: var(--text-title);
 }
 
 .path-body h2:first-child {
@@ -944,7 +978,7 @@ pre code {
 
 .search-form label {
   color: var(--ink);
-  font-weight: 800;
+  font-weight: var(--weight-semibold);
 }
 
 .search-field-row {
@@ -960,7 +994,7 @@ pre code {
   background: var(--bg);
   color: var(--ink);
   padding: 0 var(--space-4);
-  font-size: 1rem;
+  font-size: var(--text-body);
 }
 
 .search-form input::placeholder {
@@ -1000,13 +1034,13 @@ pre code {
   gap: var(--space-2);
   align-items: center;
   color: var(--muted);
-  font-size: 0.875rem;
+  font-size: var(--text-label);
 }
 
 .search-suggestions a {
   display: inline-flex;
   align-items: center;
-  min-height: 2.25rem;
+  min-height: 2.75rem;
   background: var(--primary-soft);
   color: var(--primary-soft-ink);
   padding: 0 var(--space-3);
@@ -1055,8 +1089,8 @@ pre code {
 
 .result-meta {
   color: var(--accent-ink);
-  font-size: 0.8125rem;
-  font-weight: 800;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-semibold);
 }
 
 .step-list,
@@ -1081,7 +1115,8 @@ pre code {
   border-radius: var(--radius-sm);
   background: var(--yellow);
   color: oklch(0.2 0.035 300);
-  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-semibold);
 }
 
 .setup-list {
@@ -1108,8 +1143,9 @@ pre code {
   border-radius: var(--radius-sm);
   background: var(--primary-soft);
   color: var(--primary-soft-ink);
-  font-size: 0.8125rem;
-  font-weight: 800;
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-semibold);
 }
 
 .check-list {
@@ -1222,7 +1258,7 @@ pre code {
 }
 
 .provider-table tbody th {
-  font-weight: 800;
+  font-weight: var(--weight-semibold);
 }
 
 .provider-table tbody td {
@@ -1259,11 +1295,18 @@ pre code {
 
 .provider-cell-label {
   color: var(--muted);
-  font-size: 0.8125rem;
-  font-weight: 800;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-semibold);
 }
 
 @media (pointer: coarse) {
+  .nav-group a,
+  .page-toc a {
+    display: flex;
+    min-height: 2.75rem;
+    align-items: center;
+  }
+
   .provider-table a {
     min-height: 2.75rem;
     margin-inline: calc(var(--space-2) * -1);
@@ -1302,7 +1345,7 @@ pre code {
 
 .install-card h2 {
   margin-bottom: var(--space-3);
-  font-size: 1.125rem;
+  font-size: var(--text-title);
 }
 
 .install-card pre {
@@ -1312,7 +1355,7 @@ pre code {
 }
 
 .install-card .code-copy pre {
-  padding-block-start: var(--space-10);
+  padding-block-start: calc(var(--space-12) + var(--space-2));
 }
 
 .resource-links {
@@ -1327,8 +1370,8 @@ pre code {
   background: var(--primary-soft);
   color: var(--primary-soft-ink);
   padding: var(--space-2) var(--space-3);
-  font-size: 0.875rem;
-  font-weight: 800;
+  font-size: var(--text-label);
+  font-weight: var(--weight-semibold);
   text-decoration: none;
 }
 
@@ -1393,8 +1436,8 @@ pre code {
     color: var(--muted);
     clip: auto;
     clip-path: none;
-    font-size: 0.875rem;
-    font-weight: 800;
+    font-size: var(--text-label);
+    font-weight: var(--weight-semibold);
     white-space: normal;
   }
 
@@ -1437,6 +1480,10 @@ pre code {
 }
 
 @media (min-width: 58rem) {
+  :root {
+    --text-hero: 3.25rem;
+  }
+
   .content-grid.split {
     grid-template-columns: minmax(0, 1fr) minmax(20rem, 0.72fr);
   }
