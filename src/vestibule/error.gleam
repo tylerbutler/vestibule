@@ -28,20 +28,3 @@ pub type AuthError(e) {
   /// Provider-specific custom error.
   Custom(e)
 }
-
-/// Map the custom error type, leaving standard variants unchanged.
-pub fn map_custom(error: AuthError(a), f: fn(a) -> b) -> AuthError(b) {
-  case error {
-    StateMismatch -> StateMismatch
-    MissingCallbackParam(name:) -> MissingCallbackParam(name:)
-    CodeExchangeFailed(reason:) -> CodeExchangeFailed(reason:)
-    UserInfoFailed(reason:) -> UserInfoFailed(reason:)
-    ProviderError(code:, description:, uri:) ->
-      ProviderError(code:, description:, uri:)
-    HttpError(status:, body:) -> HttpError(status:, body:)
-    DecodeError(context:, reason:) -> DecodeError(context:, reason:)
-    NetworkError(reason:) -> NetworkError(reason:)
-    ConfigError(reason:) -> ConfigError(reason:)
-    Custom(e) -> Custom(f(e))
-  }
-}

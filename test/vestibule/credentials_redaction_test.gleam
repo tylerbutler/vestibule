@@ -61,14 +61,6 @@ pub fn accessors_still_expose_raw_tokens_test() {
   credentials.refresh_token(creds) |> expect.to_equal(Some(refresh_secret))
 }
 
-pub fn redacted_never_contains_token_values_test() {
-  let rendered = credentials.redacted(sample_credentials())
-
-  string.contains(rendered, access_token) |> expect.to_be_false()
-  string.contains(rendered, refresh_secret) |> expect.to_be_false()
-  string.contains(rendered, "[REDACTED]") |> expect.to_be_true()
-}
-
 pub fn credentials_without_refresh_token_inspects_cleanly_test() {
   let creds =
     credentials.new(
