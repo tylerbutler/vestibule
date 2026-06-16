@@ -78,13 +78,13 @@ fn test_strategy() -> Strategy(e) {
 
 /// Security: empty state values must always be rejected.
 pub fn state_validate_rejects_both_empty_test() {
-  state.validate("", "")
+  state.validate(received: "", expected: "")
   |> expect.to_equal(Error(error.StateMismatch))
 }
 
 /// Security: whitespace-only state values must be rejected.
 pub fn state_validate_rejects_whitespace_only_test() {
-  state.validate("   ", "   ")
+  state.validate(received: "   ", expected: "   ")
   |> expect.to_equal(Error(error.StateMismatch))
 }
 
@@ -125,7 +125,7 @@ pub fn state_validate_rejects_near_miss_test() {
   // Flip the last character
   let prefix = string.drop_end(s, 1)
   let tampered = prefix <> "X"
-  state.validate(tampered, s)
+  state.validate(received: tampered, expected: s)
   |> expect.to_equal(Error(error.StateMismatch))
 }
 
@@ -133,7 +133,7 @@ pub fn state_validate_rejects_near_miss_test() {
 pub fn state_validate_rejects_swapped_values_test() {
   let a = state.generate()
   let b = state.generate()
-  state.validate(a, b)
+  state.validate(received: a, expected: b)
   |> expect.to_equal(Error(error.StateMismatch))
 }
 
@@ -188,8 +188,13 @@ pub fn pkce_different_verifiers_produce_different_challenges_test() {
 /// No code path should produce a URL without code_challenge.
 pub fn authorize_url_always_includes_pkce_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "https://localhost/cb")
-  let assert Ok(auth_req) = vestibule.authorize_url(strat, conf)
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "https://localhost/cb",
+    )
+  let assert Ok(auth_req) = vestibule.authorize_url(strat, cfg: conf)
   let url = authorization_request.url(auth_req)
   { string.contains(url, "code_challenge=") } |> expect.to_be_true()
   { string.contains(url, "code_challenge_method=S256") } |> expect.to_be_true()
@@ -198,9 +203,14 @@ pub fn authorize_url_always_includes_pkce_test() {
 /// Security: authorize_url state and verifier must differ on each call.
 pub fn authorize_url_produces_fresh_state_and_verifier_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "https://localhost/cb")
-  let assert Ok(req1) = vestibule.authorize_url(strat, conf)
-  let assert Ok(req2) = vestibule.authorize_url(strat, conf)
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "https://localhost/cb",
+    )
+  let assert Ok(req1) = vestibule.authorize_url(strat, cfg: conf)
+  let assert Ok(req2) = vestibule.authorize_url(strat, cfg: conf)
   { authorization_request.state(req1) != authorization_request.state(req2) }
   |> expect.to_be_true()
   {
@@ -218,27 +228,60 @@ pub fn authorize_url_produces_fresh_state_and_verifier_test() {
 /// server-side operations (code exchange, user fetch).
 pub fn callback_rejects_state_mismatch_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "https://localhost/cb")
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "https://localhost/cb",
+    )
   let params =
     dict.from_list([#("code", "valid_code"), #("state", "attacker_state")])
-  vestibule.handle_callback(strat, conf, params, "real_state", "verifier")
+  vestibule.handle_callback(
+    strat,
+    cfg: conf,
+    callback_params: params,
+    expected_state: "real_state",
+    code_verifier: "verifier",
+  )
   |> expect.to_equal(Error(error.StateMismatch))
 }
 
 /// Security: missing state parameter must be rejected.
 pub fn callback_rejects_missing_state_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "https://localhost/cb")
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "https://localhost/cb",
+    )
   let params = dict.from_list([#("code", "valid_code")])
-  vestibule.handle_callback(strat, conf, params, "expected", "verifier")
+  vestibule.handle_callback(
+    strat,
+    cfg: conf,
+    callback_params: params,
+    expected_state: "expected",
+    code_verifier: "verifier",
+  )
   |> expect.to_equal(Error(error.MissingCallbackParam("state")))
 }
 
 /// Security: empty callback params must be rejected.
 pub fn callback_rejects_empty_params_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "https://localhost/cb")
-  vestibule.handle_callback(strat, conf, dict.new(), "expected", "verifier")
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "https://localhost/cb",
+    )
+  vestibule.handle_callback(
+    strat,
+    cfg: conf,
+    callback_params: dict.new(),
+    expected_state: "expected",
+    code_verifier: "verifier",
+  )
   |> expect.to_equal(Error(error.MissingCallbackParam("state")))
 }
 
@@ -247,7 +290,12 @@ pub fn callback_rejects_empty_params_test() {
 /// the library should propagate the ProviderError, not a generic message.
 pub fn callback_detects_provider_error_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "https://localhost/cb")
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "https://localhost/cb",
+    )
   let state_val = "matching_state"
   let params =
     dict.from_list([
@@ -255,7 +303,13 @@ pub fn callback_detects_provider_error_test() {
       #("error", "access_denied"),
       #("error_description", "User denied access"),
     ])
-  vestibule.handle_callback(strat, conf, params, state_val, "verifier")
+  vestibule.handle_callback(
+    strat,
+    cfg: conf,
+    callback_params: params,
+    expected_state: state_val,
+    code_verifier: "verifier",
+  )
   |> expect.to_be_error()
   |> expect.to_equal(error.ProviderError(
     code: "access_denied",
@@ -266,7 +320,12 @@ pub fn callback_detects_provider_error_test() {
 
 pub fn callback_preserves_provider_error_uri_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "https://localhost/cb")
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "https://localhost/cb",
+    )
   let state_val = "matching_state"
   let params =
     dict.from_list([
@@ -275,7 +334,13 @@ pub fn callback_preserves_provider_error_uri_test() {
       #("error_description", "User denied access"),
       #("error_uri", "https://example.com/access-denied"),
     ])
-  vestibule.handle_callback(strat, conf, params, state_val, "verifier")
+  vestibule.handle_callback(
+    strat,
+    cfg: conf,
+    callback_params: params,
+    expected_state: state_val,
+    code_verifier: "verifier",
+  )
   |> expect.to_be_error()
   |> expect.to_equal(error.ProviderError(
     code: "access_denied",
@@ -287,21 +352,37 @@ pub fn callback_preserves_provider_error_uri_test() {
 /// Security: state validation must happen before provider errors are surfaced.
 pub fn callback_rejects_provider_error_when_state_mismatch_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "https://localhost/cb")
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "https://localhost/cb",
+    )
   let params =
     dict.from_list([
       #("state", "attacker_state"),
       #("error", "access_denied"),
       #("error_description", "User denied access"),
     ])
-  vestibule.handle_callback(strat, conf, params, "expected_state", "verifier")
+  vestibule.handle_callback(
+    strat,
+    cfg: conf,
+    callback_params: params,
+    expected_state: "expected_state",
+    code_verifier: "verifier",
+  )
   |> expect.to_equal(Error(error.StateMismatch))
 }
 
 /// Security: extra unexpected parameters should not cause crashes.
 pub fn callback_ignores_extra_params_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "https://localhost/cb")
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "https://localhost/cb",
+    )
   let state_val = "test_state"
   let params =
     dict.from_list([
@@ -311,7 +392,13 @@ pub fn callback_ignores_extra_params_test() {
       #("another", "<script>alert(1)</script>"),
     ])
   let result =
-    vestibule.handle_callback(strat, conf, params, state_val, "verifier")
+    vestibule.handle_callback(
+      strat,
+      cfg: conf,
+      callback_params: params,
+      expected_state: state_val,
+      code_verifier: "verifier",
+    )
   let _ = result |> expect.to_be_ok()
   Nil
 }
@@ -468,10 +555,10 @@ pub fn oidc_rejects_unverified_email_test() {
 /// Security: null bytes in state parameter must not bypass validation.
 pub fn state_validate_handles_null_bytes_test() {
   let _ =
-    state.validate("abc\u{0000}def", "abc\u{0000}def")
+    state.validate(received: "abc\u{0000}def", expected: "abc\u{0000}def")
     |> expect.to_be_ok()
 
-  state.validate("abc\u{0000}def", "abcXdef")
+  state.validate(received: "abc\u{0000}def", expected: "abcXdef")
   |> expect.to_equal(Error(error.StateMismatch))
 }
 
@@ -481,7 +568,7 @@ pub fn state_validate_handles_null_bytes_test() {
 pub fn state_validate_is_byte_level_comparison_test() {
   // These are the same visual character but different byte sequences
   // e-acute: U+00E9 (single codepoint) vs e + combining acute U+0065 U+0301
-  state.validate("\u{00E9}", "e\u{0301}")
+  state.validate(received: "\u{00E9}", expected: "e\u{0301}")
   |> expect.to_equal(Error(error.StateMismatch))
 }
 
@@ -489,10 +576,10 @@ pub fn state_validate_is_byte_level_comparison_test() {
 pub fn state_validate_handles_long_values_test() {
   let long = string.repeat("a", 10_000)
   let _ =
-    state.validate(long, long)
+    state.validate(received: long, expected: long)
     |> expect.to_be_ok()
 
-  state.validate(long, long <> "x")
+  state.validate(received: long, expected: long <> "x")
   |> expect.to_equal(Error(error.StateMismatch))
 }
 

@@ -8,6 +8,7 @@
 //// image-URL scheme allowlist below is custom because no escaping library
 //// validates URL schemes.
 
+import gleam/bool
 import gleam/option.{type Option, None, Some}
 import gleam/string
 import houdini
@@ -20,8 +21,9 @@ import houdini
 /// Returns the attribute-escaped URL when safe, or `None` when the scheme is
 /// not allowlisted.
 pub fn safe_image_url(url: String) -> Option(String) {
-  case string.starts_with(string.lowercase(url), "https://") {
-    True -> Some(houdini.escape(url))
-    False -> None
-  }
+  use <- bool.guard(
+    when: !string.starts_with(string.lowercase(url), "https://"),
+    return: None,
+  )
+  Some(houdini.escape(url))
 }

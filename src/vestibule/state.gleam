@@ -3,6 +3,7 @@
 //// must be echoed back unchanged on the callback.
 
 import gleam/bit_array
+import gleam/bool
 import gleam/crypto
 import gleam/string
 
@@ -18,19 +19,18 @@ pub fn generate() -> String {
 /// Validate a received state parameter against the expected value.
 /// Uses constant-time comparison to prevent timing attacks.
 pub fn validate(
-  received: String,
-  expected: String,
+  received received: String,
+  expected expected: String,
 ) -> Result(Nil, AuthError(e)) {
-  case is_blank(received) || is_blank(expected) {
-    True -> Error(StateMismatch)
-    False -> {
-      let received_bits = <<received:utf8>>
-      let expected_bits = <<expected:utf8>>
-      case crypto.secure_compare(received_bits, expected_bits) {
-        True -> Ok(Nil)
-        False -> Error(StateMismatch)
-      }
-    }
+  use <- bool.guard(
+    when: is_blank(received) || is_blank(expected),
+    return: Error(StateMismatch),
+  )
+  let received_bits = <<received:utf8>>
+  let expected_bits = <<expected:utf8>>
+  case crypto.secure_compare(received_bits, expected_bits) {
+    True -> Ok(Nil)
+    False -> Error(StateMismatch)
   }
 }
 

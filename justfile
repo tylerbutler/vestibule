@@ -119,8 +119,30 @@ check:
         ( cd "$dir" && gleam check )
     done
 
-# Backwards-compatible alias for static checks
-lint: check
+# Lint all packages with glinter
+lint:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for pkg in {{ packages }}; do
+        dir="packages/$pkg"
+        if [ "$pkg" = "." ]; then dir="."; fi
+        echo "==> $pkg: linting"
+        ( cd "$dir" && gleam run -m glinter )
+    done
+    echo "==> example: linting"
+    ( cd example && gleam run -m glinter )
+
+# Lint a single package: just lint-pkg vestibule_google
+lint-pkg pkg:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ "{{ pkg }}" = "." ]; then
+        gleam run -m glinter
+    elif [ "{{ pkg }}" = "example" ]; then
+        cd example && gleam run -m glinter
+    else
+        cd packages/{{ pkg }} && gleam run -m glinter
+    fi
 
 # === EXAMPLE APP ===
 
@@ -198,8 +220,8 @@ build-pkg pkg:
 
 # === CI ===
 
-# Run all CI checks (format, check, test, build strict)
-ci: format-check check test build-strict
+# Run all CI checks (format, lint, check, test, build strict)
+ci: format-check lint check test build-strict
 
 # Alias for PR checks
 alias pr := ci

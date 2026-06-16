@@ -11,7 +11,10 @@ import gleam/result
 /// Sign `payload` with `secret_key_base` using HMAC-SHA256 and return a
 /// URL-safe token (`protected.payload.signature`) suitable for use as a
 /// cookie value.
-pub fn sign(payload: String, secret_key_base: BitArray) -> String {
+pub fn sign(
+  payload payload: String,
+  secret_key_base secret_key_base: BitArray,
+) -> String {
   crypto.sign_message(
     bit_array.from_string(payload),
     secret_key_base,
@@ -22,7 +25,10 @@ pub fn sign(payload: String, secret_key_base: BitArray) -> String {
 /// Verify a token previously produced by `sign/2`. Returns the original
 /// payload string, or `Error(Nil)` if the token is malformed, the
 /// signature does not match, or the payload is not valid UTF-8.
-pub fn verify(token: String, secret_key_base: BitArray) -> Result(String, Nil) {
+pub fn verify(
+  token token: String,
+  secret_key_base secret_key_base: BitArray,
+) -> Result(String, Nil) {
   use payload_bits <- result.try(crypto.verify_signed_message(
     token,
     secret_key_base,

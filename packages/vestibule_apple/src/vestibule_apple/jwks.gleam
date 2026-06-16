@@ -68,7 +68,8 @@ pub fn get_keys(cache: JwksCache) -> Result(List(VerifyKey), AuthError(e)) {
     Ok(keys) -> Ok(keys)
     Error(_) -> {
       use keys <- result.try(fetch_keys())
-      let _ = uset.insert(into: cache.table, key: cache_key, value: keys)
+      let _inserted =
+        uset.insert(into: cache.table, key: cache_key, value: keys)
       Ok(keys)
     }
   }
@@ -77,7 +78,7 @@ pub fn get_keys(cache: JwksCache) -> Result(List(VerifyKey), AuthError(e)) {
 /// Force refresh the cached keys from Apple's endpoint.
 pub fn refresh_keys(cache: JwksCache) -> Result(List(VerifyKey), AuthError(e)) {
   use keys <- result.try(fetch_keys())
-  let _ = uset.insert(into: cache.table, key: cache_key, value: keys)
+  let _inserted = uset.insert(into: cache.table, key: cache_key, value: keys)
   Ok(keys)
 }
 

@@ -77,10 +77,11 @@ pub fn try_init_named(name: String) -> Result(StateStore, StateStoreError) {
 /// Store a CSRF state value and PKCE code verifier, returning a session ID.
 pub fn store(
   table: StateStore,
-  state: String,
-  code_verifier: String,
+  state state: String,
+  code_verifier code_verifier: String,
 ) -> String {
-  let assert Ok(session_id) = try_store(table, state, code_verifier)
+  let assert Ok(session_id) =
+    try_store(table, state: state, code_verifier: code_verifier)
     as "vestibule failed to store OAuth session state"
   session_id
 }
@@ -88,19 +89,24 @@ pub fn store(
 /// Try to store a CSRF state value and PKCE code verifier, returning a session ID.
 pub fn try_store(
   table: StateStore,
-  state: String,
-  code_verifier: String,
+  state state: String,
+  code_verifier code_verifier: String,
 ) -> Result(String, StateStoreError) {
-  try_store_with_ttl(table, state, code_verifier, default_ttl_seconds)
+  try_store_with_ttl(
+    table,
+    state: state,
+    code_verifier: code_verifier,
+    ttl_seconds: default_ttl_seconds,
+  )
 }
 
 /// Try to store a CSRF state value and PKCE verifier with a TTL, returning a
 /// session ID.
 pub fn try_store_with_ttl(
   table: StateStore,
-  state: String,
-  code_verifier: String,
-  ttl_seconds: Int,
+  state state: String,
+  code_verifier code_verifier: String,
+  ttl_seconds ttl_seconds: Int,
 ) -> Result(String, StateStoreError) {
   use _ <- result.try(
     cleanup_expired(table.table, timestamp.system_time())
@@ -151,8 +157,8 @@ pub fn peek(
       case validate_session(session) {
         Ok(value) -> Ok(value)
         Error(Nil) -> {
-          let _ = delete_key(table.table, session_id)
-          let _ = cleanup_expired(table.table, timestamp.system_time())
+          let _deleted = delete_key(table.table, session_id)
+          let _cleaned = cleanup_expired(table.table, timestamp.system_time())
           Error(Nil)
         }
       }

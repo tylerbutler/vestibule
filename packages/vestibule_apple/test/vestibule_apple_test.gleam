@@ -122,9 +122,19 @@ pub fn parse_token_response_error_without_description_test() {
 
 pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
   let strat = vestibule_apple.strategy(test_apple_cache("invalid_redirect"))
-  let conf = config.new("client-id", "secret", "not a uri")
+  let conf =
+    config.new(
+      client_id: "client-id",
+      client_secret: "secret",
+      redirect_uri: "not a uri",
+    )
   let _ =
-    strategy.build_authorize_url(strat, conf, ["name", "email"], "state")
+    strategy.build_authorize_url(
+      strat,
+      cfg: conf,
+      scopes: ["name", "email"],
+      state: "state",
+    )
     |> expect.to_be_error()
   Nil
 }

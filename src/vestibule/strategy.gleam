@@ -160,9 +160,9 @@ pub fn default_scopes(strat: Strategy(e)) -> List(String) {
 /// Build the provider's authorization URL.
 pub fn build_authorize_url(
   strat: Strategy(e),
-  cfg: Config,
-  scopes: List(String),
-  state: String,
+  cfg cfg: Config,
+  scopes scopes: List(String),
+  state state: String,
 ) -> Result(String, AuthError(e)) {
   strat.authorize_url(cfg, scopes, state)
 }
@@ -172,9 +172,9 @@ pub fn build_authorize_url(
 /// authorization request.
 pub fn exchange_code(
   strat: Strategy(e),
-  cfg: Config,
-  code: String,
-  code_verifier: Option(String),
+  cfg cfg: Config,
+  code code: String,
+  code_verifier code_verifier: Option(String),
 ) -> Result(ExchangeResult, AuthError(e)) {
   strat.exchange_code(cfg, code, code_verifier)
 }
@@ -182,8 +182,8 @@ pub fn exchange_code(
 /// Refresh credentials using a refresh token.
 pub fn refresh_token(
   strat: Strategy(e),
-  cfg: Config,
-  refresh_tok: String,
+  cfg cfg: Config,
+  refresh_tok refresh_tok: String,
 ) -> Result(credentials.Credentials, AuthError(e)) {
   strat.refresh_token(cfg, refresh_tok)
 }
@@ -191,8 +191,8 @@ pub fn refresh_token(
 /// Fetch user info using the obtained exchange result.
 pub fn fetch_user(
   strat: Strategy(e),
-  cfg: Config,
-  exchange: ExchangeResult,
+  cfg cfg: Config,
+  exchange exchange: ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
   strat.fetch_user(cfg, exchange)
 }
