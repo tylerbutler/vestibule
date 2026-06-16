@@ -30,24 +30,24 @@ pub type CallbackFlowError(e) {
 /// Generate an authorization URL and store the expected state/verifier.
 pub fn start_authorization(
   provider_registry: Registry(e),
-  provider: String,
-  store: StateStore,
-  ttl_seconds: Int,
+  provider provider: String,
+  store store: StateStore,
+  ttl_seconds ttl_seconds: Int,
 ) -> Result(#(String, String), RequestFlowError(e)) {
   use #(strategy, config) <- result.try(
-    registry.get(provider_registry, provider)
+    registry.get(provider_registry, provider: provider)
     |> result.map_error(fn(_) { UnknownProvider(provider) }),
   )
   use auth_request <- result.try(
-    vestibule.authorize_url(strategy, config)
+    vestibule.authorize_url(strategy, cfg: config)
     |> result.map_error(AuthFailed),
   )
   use session_id <- result.try(
     state_store.try_store_with_ttl(
       store,
-      authorization_request.state(auth_request),
-      authorization_request.code_verifier(auth_request),
-      ttl_seconds,
+      state: authorization_request.state(auth_request),
+      code_verifier: authorization_request.code_verifier(auth_request),
+      ttl_seconds: ttl_seconds,
     )
     |> result.map_error(StoreFailed),
   )
@@ -66,7 +66,7 @@ pub fn ensure_callback_provider(
   provider_registry: Registry(e),
   provider: String,
 ) -> Result(#(Strategy(e), Config), CallbackFlowError(e)) {
-  registry.get(provider_registry, provider)
+  registry.get(provider_registry, provider: provider)
   |> result.map_error(fn(_) { CallbackUnknownProvider(provider) })
 }
 
@@ -76,9 +76,9 @@ pub fn ensure_callback_provider(
 /// reuse the provider lookup instead of querying the registry again.
 pub fn finish_callback(
   strategy_config: #(Strategy(e), Config),
-  store: StateStore,
-  params: Dict(String, String),
-  session_id: String,
+  store store: StateStore,
+  params params: Dict(String, String),
+  session_id session_id: String,
 ) -> Result(Auth, CallbackFlowError(e)) {
   let #(strategy, config) = strategy_config
 
@@ -95,7 +95,7 @@ pub fn finish_callback(
   )
 
   use _ <- result.try(
-    state.validate(received_state, expected_state)
+    state.validate(received: received_state, expected: expected_state)
     |> result.map_error(CallbackAuthFailed),
   )
 
@@ -106,10 +106,10 @@ pub fn finish_callback(
 
   vestibule.handle_callback(
     strategy,
-    config,
-    params,
-    expected_state,
-    code_verifier,
+    cfg: config,
+    callback_params: params,
+    expected_state: expected_state,
+    code_verifier: code_verifier,
   )
   |> result.map_error(CallbackAuthFailed)
 }

@@ -96,9 +96,19 @@ pub fn parse_emails_no_verified_primary_test() {
 
 pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
   let strat = vestibule_github.strategy()
-  let conf = config.new("client-id", "secret", "not a uri")
+  let conf =
+    config.new(
+      client_id: "client-id",
+      client_secret: "secret",
+      redirect_uri: "not a uri",
+    )
   let _ =
-    strategy.build_authorize_url(strat, conf, ["user:email"], "state")
+    strategy.build_authorize_url(
+      strat,
+      cfg: conf,
+      scopes: ["user:email"],
+      state: "state",
+    )
     |> expect.to_be_error()
   Nil
 }
@@ -106,9 +116,18 @@ pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
 pub fn authorize_url_includes_extra_params_test() {
   let strat = vestibule_github.strategy()
   let assert Ok(conf) =
-    config.new("client-id", "secret", "http://localhost/callback")
+    config.new(
+      client_id: "client-id",
+      client_secret: "secret",
+      redirect_uri: "http://localhost/callback",
+    )
     |> config.with_extra_params([#("allow_signup", "false")])
   let assert Ok(url) =
-    strategy.build_authorize_url(strat, conf, ["user:email"], "state")
+    strategy.build_authorize_url(
+      strat,
+      cfg: conf,
+      scopes: ["user:email"],
+      state: "state",
+    )
   { string.contains(url, "allow_signup=false") } |> expect.to_be_true()
 }

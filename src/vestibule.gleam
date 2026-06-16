@@ -34,7 +34,7 @@ import vestibule/strategy.{type Strategy}
 /// check it before calling `handle_callback`.
 pub fn authorize_url(
   strat: Strategy(e),
-  cfg: Config,
+  cfg cfg: Config,
 ) -> Result(AuthorizationRequest, AuthError(e)) {
   let csrf_state = state.generate()
   let code_verifier = pkce.generate_verifier()
@@ -45,9 +45,9 @@ pub fn authorize_url(
   }
   use base_url <- result.try(strategy.build_authorize_url(
     strat,
-    cfg,
-    scopes,
-    csrf_state,
+    cfg: cfg,
+    scopes: scopes,
+    state: csrf_state,
   ))
   let url = append_pkce_params(base_url, code_challenge)
   Ok(authorization_request.new(
@@ -72,10 +72,10 @@ pub fn authorize_url(
 /// before calling this function.
 pub fn handle_callback(
   strat: Strategy(e),
-  cfg: Config,
-  callback_params: Dict(String, String),
-  expected_state: String,
-  code_verifier: String,
+  cfg cfg: Config,
+  callback_params callback_params: Dict(String, String),
+  expected_state expected_state: String,
+  code_verifier code_verifier: String,
 ) -> Result(Auth, AuthError(e)) {
   // Extract state (needed for CSRF validation)
   use received_state <- result.try(
@@ -84,7 +84,10 @@ pub fn handle_callback(
   )
 
   // Validate state before surfacing any provider response details.
-  use _ <- result.try(state.validate(received_state, expected_state))
+  use _ <- result.try(state.validate(
+    received: received_state,
+    expected: expected_state,
+  ))
 
   // Check for provider errors before requiring code
   use _ <- result.try(check_provider_error(callback_params))
@@ -98,13 +101,17 @@ pub fn handle_callback(
   // Exchange code for credentials and provider-specific artifacts, passing the PKCE verifier
   use exchange <- result.try(strategy.exchange_code(
     strat,
-    cfg,
-    code,
-    option.Some(code_verifier),
+    cfg: cfg,
+    code: code,
+    code_verifier: option.Some(code_verifier),
   ))
 
   // Fetch user info
-  use user <- result.try(strategy.fetch_user(strat, cfg, exchange))
+  use user <- result.try(strategy.fetch_user(
+    strat,
+    cfg: cfg,
+    exchange: exchange,
+  ))
 
   // Assemble the Auth result
   Ok(Auth(
@@ -121,10 +128,10 @@ pub fn handle_callback(
 /// Delegates to the provider strategy so refresh semantics remain provider-owned.
 pub fn refresh_token(
   strat: Strategy(e),
-  cfg: Config,
-  refresh_tok: String,
+  cfg cfg: Config,
+  refresh_tok refresh_tok: String,
 ) -> Result(Credentials, AuthError(e)) {
-  strategy.refresh_token(strat, cfg, refresh_tok)
+  strategy.refresh_token(strat, cfg: cfg, refresh_tok: refresh_tok)
 }
 
 /// Check callback params for a provider error response.

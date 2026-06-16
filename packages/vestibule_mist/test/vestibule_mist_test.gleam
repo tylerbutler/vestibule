@@ -21,8 +21,9 @@ pub fn main() -> Nil {
 
 pub fn signed_cookie_round_trip_test() {
   let secret = test_secret()
-  let token = signed_cookie.sign("session-id-123", secret)
-  signed_cookie.verify(token, secret)
+  let token =
+    signed_cookie.sign(payload: "session-id-123", secret_key_base: secret)
+  signed_cookie.verify(token: token, secret_key_base: secret)
   |> expect.to_be_ok()
   |> expect.to_equal("session-id-123")
 }
@@ -30,20 +31,25 @@ pub fn signed_cookie_round_trip_test() {
 pub fn signed_cookie_verify_with_wrong_secret_fails_test() {
   let secret = test_secret()
   let other = <<"different-key-also-32-bytes-long":utf8>>
-  let token = signed_cookie.sign("session-id-123", secret)
-  signed_cookie.verify(token, other)
+  let token =
+    signed_cookie.sign(payload: "session-id-123", secret_key_base: secret)
+  signed_cookie.verify(token: token, secret_key_base: other)
   |> expect.to_be_error()
 }
 
 pub fn signed_cookie_verify_with_tampered_token_fails_test() {
   let secret = test_secret()
-  let token = signed_cookie.sign("session-id-123", secret)
-  signed_cookie.verify(token <> "x", secret)
+  let token =
+    signed_cookie.sign(payload: "session-id-123", secret_key_base: secret)
+  signed_cookie.verify(token: token <> "x", secret_key_base: secret)
   |> expect.to_be_error()
 }
 
 pub fn signed_cookie_verify_malformed_token_fails_test() {
-  signed_cookie.verify("not-a-valid-token", test_secret())
+  signed_cookie.verify(
+    token: "not-a-valid-token",
+    secret_key_base: test_secret(),
+  )
   |> expect.to_be_error()
 }
 
@@ -83,7 +89,7 @@ pub fn request_phase_success_sets_signed_cookie_and_redirects_test() {
   let store = state_store.init_named("test_mist_request_success")
   let assert Ok(reg) =
     registry.new()
-    |> registry.register(test_strategy(), test_config())
+    |> registry.register(strategy: test_strategy(), config: test_config())
 
   let resp =
     vestibule_mist.request_phase(req, reg, "test", store, test_options())
@@ -106,7 +112,7 @@ pub fn request_phase_allows_secure_cookie_opt_out_test() {
   let store = state_store.init_named("test_mist_request_secure_cookie_opt_out")
   let assert Ok(reg) =
     registry.new()
-    |> registry.register(test_strategy(), test_config())
+    |> registry.register(strategy: test_strategy(), config: test_config())
   let options = vestibule_mist.Options(..test_options(), secure_cookie: False)
 
   let resp = vestibule_mist.request_phase(req, reg, "test", store, options)
@@ -137,7 +143,7 @@ pub fn callback_missing_session_cookie_test() {
   let store = state_store.init_named("test_mist_cb_missing_cookie")
   let assert Ok(reg) =
     registry.new()
-    |> registry.register(test_strategy(), test_config())
+    |> registry.register(strategy: test_strategy(), config: test_config())
 
   vestibule_mist.callback_phase_auth_result_with_params(
     req,
@@ -157,7 +163,7 @@ pub fn callback_tampered_cookie_fails_as_missing_test() {
   let store = state_store.init_named("test_mist_cb_tampered_cookie")
   let assert Ok(reg) =
     registry.new()
-    |> registry.register(test_strategy(), test_config())
+    |> registry.register(strategy: test_strategy(), config: test_config())
 
   vestibule_mist.callback_phase_auth_result_with_params(
     req,
@@ -172,15 +178,17 @@ pub fn callback_tampered_cookie_fails_as_missing_test() {
 
 pub fn callback_wrong_secret_fails_as_missing_test() {
   let store = state_store.init_named("test_mist_cb_wrong_secret")
-  let session_id = state_store.store(store, "state", "verifier")
+  let session_id =
+    state_store.store(store, state: "state", code_verifier: "verifier")
   let other_secret = <<"some-other-secret-key-base!!!!!!":utf8>>
-  let token = signed_cookie.sign(session_id, other_secret)
+  let token =
+    signed_cookie.sign(payload: session_id, secret_key_base: other_secret)
   let req =
     request.new()
     |> request.set_cookie("vestibule_session", token)
   let assert Ok(reg) =
     registry.new()
-    |> registry.register(test_strategy(), test_config())
+    |> registry.register(strategy: test_strategy(), config: test_config())
 
   vestibule_mist.callback_phase_auth_result_with_params(
     req,
@@ -195,14 +203,16 @@ pub fn callback_wrong_secret_fails_as_missing_test() {
 
 pub fn callback_missing_state_does_not_consume_session_test() {
   let store = state_store.init_named("test_mist_cb_missing_state_reusable")
-  let session_id = state_store.store(store, "state", "verifier")
-  let token = signed_cookie.sign(session_id, test_secret())
+  let session_id =
+    state_store.store(store, state: "state", code_verifier: "verifier")
+  let token =
+    signed_cookie.sign(payload: session_id, secret_key_base: test_secret())
   let req =
     request.new()
     |> request.set_cookie("vestibule_session", token)
   let assert Ok(reg) =
     registry.new()
-    |> registry.register(test_strategy(), test_config())
+    |> registry.register(strategy: test_strategy(), config: test_config())
 
   vestibule_mist.callback_phase_auth_result_with_params(
     req,
@@ -231,13 +241,17 @@ pub fn callback_missing_state_does_not_consume_session_test() {
 
 pub fn callback_unknown_session_returns_expired_test() {
   let store = state_store.init_named("test_mist_cb_unknown_session")
-  let token = signed_cookie.sign("nonexistent-session", test_secret())
+  let token =
+    signed_cookie.sign(
+      payload: "nonexistent-session",
+      secret_key_base: test_secret(),
+    )
   let req =
     request.new()
     |> request.set_cookie("vestibule_session", token)
   let assert Ok(reg) =
     registry.new()
-    |> registry.register(test_strategy(), test_config())
+    |> registry.register(strategy: test_strategy(), config: test_config())
 
   vestibule_mist.callback_phase_auth_result_with_params(
     req,
@@ -252,14 +266,19 @@ pub fn callback_unknown_session_returns_expired_test() {
 
 pub fn callback_auth_result_preserves_provider_error_details_test() {
   let store = state_store.init_named("test_mist_cb_structured_error_details")
-  let session_id = state_store.store(store, "state", "verifier")
-  let token = signed_cookie.sign(session_id, test_secret())
+  let session_id =
+    state_store.store(store, state: "state", code_verifier: "verifier")
+  let token =
+    signed_cookie.sign(payload: session_id, secret_key_base: test_secret())
   let req =
     request.new()
     |> request.set_cookie("vestibule_session", token)
   let assert Ok(reg) =
     registry.new()
-    |> registry.register(leaky_error_strategy(), test_config())
+    |> registry.register(
+      strategy: leaky_error_strategy(),
+      config: test_config(),
+    )
 
   vestibule_mist.callback_phase_auth_result_with_params(
     req,
@@ -282,14 +301,16 @@ pub fn callback_auth_result_preserves_provider_error_details_test() {
 
 pub fn callback_custom_cookie_name_is_honored_test() {
   let store = state_store.init_named("test_mist_cb_custom_cookie_name")
-  let session_id = state_store.store(store, "state", "verifier")
-  let token = signed_cookie.sign(session_id, test_secret())
+  let session_id =
+    state_store.store(store, state: "state", code_verifier: "verifier")
+  let token =
+    signed_cookie.sign(payload: session_id, secret_key_base: test_secret())
   let req =
     request.new()
     |> request.set_cookie("custom_session", token)
   let assert Ok(reg) =
     registry.new()
-    |> registry.register(test_strategy(), test_config())
+    |> registry.register(strategy: test_strategy(), config: test_config())
 
   vestibule_mist.callback_phase_auth_result_with_params(
     req,
@@ -366,7 +387,11 @@ fn leaky_error_strategy() -> Strategy(e) {
 }
 
 fn test_config() -> config.Config {
-  config.new("client_id", "client_secret", "https://example.com/callback")
+  config.new(
+    client_id: "client_id",
+    client_secret: "client_secret",
+    redirect_uri: "https://example.com/callback",
+  )
 }
 
 fn find_header(

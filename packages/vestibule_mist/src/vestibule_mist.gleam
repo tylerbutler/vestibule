@@ -102,16 +102,20 @@ pub fn request_phase(
   case
     transport_flow.start_authorization(
       reg,
-      provider,
-      store,
-      options.session_ttl_seconds,
+      provider: provider,
+      store: store,
+      ttl_seconds: options.session_ttl_seconds,
     )
   {
     Error(transport_flow.UnknownProvider(_)) -> not_found_response()
     Error(transport_flow.AuthFailed(_)) -> generic_error_response()
     Error(transport_flow.StoreFailed(_)) -> generic_error_response()
     Ok(#(url, session_id)) -> {
-      let token = signed_cookie.sign(session_id, options.secret_key_base)
+      let token =
+        signed_cookie.sign(
+          payload: session_id,
+          secret_key_base: options.secret_key_base,
+        )
       let attrs =
         cookie.Attributes(
           max_age: option.Some(options.session_ttl_seconds),
@@ -145,7 +149,15 @@ pub fn callback_phase(
   options: Options,
   on_success: fn(Auth) -> Response(ResponseData),
 ) -> Response(ResponseData) {
-  case callback_phase_auth_result(req, reg, provider, store, options) {
+  case
+    callback_phase_auth_result(
+      req,
+      reg: reg,
+      provider: provider,
+      store: store,
+      options: options,
+    )
+  {
     Ok(auth) -> on_success(auth)
     Error(err) -> callback_error_response(err)
   }
@@ -158,12 +170,18 @@ pub fn callback_phase(
 /// success value or generated error response yourself.
 pub fn callback_phase_result(
   req: Request(Connection),
-  reg: Registry(e),
-  provider: String,
-  store: StateStore,
-  options: Options,
+  reg reg: Registry(e),
+  provider provider: String,
+  store store: StateStore,
+  options options: Options,
 ) -> Result(Auth, Response(ResponseData)) {
-  callback_phase_auth_result(req, reg, provider, store, options)
+  callback_phase_auth_result(
+    req,
+    reg: reg,
+    provider: provider,
+    store: store,
+    options: options,
+  )
   |> result.map_error(callback_error_response)
 }
 
@@ -178,19 +196,19 @@ pub fn callback_phase_result(
 /// valid in-flight login.
 pub fn callback_phase_auth_result(
   req: Request(Connection),
-  reg: Registry(e),
-  provider: String,
-  store: StateStore,
-  options: Options,
+  reg reg: Registry(e),
+  provider provider: String,
+  store store: StateStore,
+  options options: Options,
 ) -> Result(Auth, CallbackError(e)) {
   use params <- result.try(get_callback_params(req))
   callback_phase_auth_result_with_params(
     req,
-    params,
-    reg,
-    provider,
-    store,
-    options,
+    params: params,
+    reg: reg,
+    provider: provider,
+    store: store,
+    options: options,
   )
 }
 
@@ -202,11 +220,11 @@ pub fn callback_phase_auth_result(
 /// `Request(BitArray)` or any other body.
 pub fn callback_phase_auth_result_with_params(
   req: Request(body),
-  params: dict.Dict(String, String),
-  reg: Registry(e),
-  provider: String,
-  store: StateStore,
-  options: Options,
+  params params: dict.Dict(String, String),
+  reg reg: Registry(e),
+  provider provider: String,
+  store store: StateStore,
+  options options: Options,
 ) -> Result(Auth, CallbackError(e)) {
   use strategy_config <- result.try(
     transport_flow.ensure_callback_provider(reg, provider)
@@ -219,7 +237,12 @@ pub fn callback_phase_auth_result_with_params(
     options.secret_key_base,
   ))
 
-  transport_flow.finish_callback(strategy_config, store, params, session_id)
+  transport_flow.finish_callback(
+    strategy_config,
+    store: store,
+    params: params,
+    session_id: session_id,
+  )
   |> result.map_error(map_callback_flow_error)
 }
 
@@ -232,7 +255,7 @@ fn get_signed_cookie(
   case list.key_find(cookies, cookie_name) {
     Error(Nil) -> Error(MissingOrInvalidSessionCookie)
     Ok(token) ->
-      signed_cookie.verify(token, secret_key_base)
+      signed_cookie.verify(token: token, secret_key_base: secret_key_base)
       |> result.map_error(fn(_) { MissingOrInvalidSessionCookie })
   }
 }

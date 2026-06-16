@@ -88,28 +88,34 @@ pub fn is_host_bound_cookie_name(name: String) -> Bool {
 /// Returns 404 if the provider is not registered.
 pub fn request_phase(
   req: Request,
-  reg: Registry(e),
-  provider: String,
-  state_store: StateStore,
+  reg reg: Registry(e),
+  provider provider: String,
+  state_store state_store: StateStore,
 ) -> Response {
-  request_phase_with_options(req, reg, provider, state_store, default_options())
+  request_phase_with_options(
+    req,
+    reg: reg,
+    provider: provider,
+    state_store: state_store,
+    options: default_options(),
+  )
 }
 
 /// Phase 1: Redirect user to the OAuth provider using custom middleware
 /// options.
 pub fn request_phase_with_options(
   req: Request,
-  reg: Registry(e),
-  provider: String,
-  state_store: StateStore,
-  options: Options,
+  reg reg: Registry(e),
+  provider provider: String,
+  state_store state_store: StateStore,
+  options options: Options,
 ) -> Response {
   case
     transport_flow.start_authorization(
       reg,
-      provider,
-      state_store,
-      options.session_ttl_seconds,
+      provider: provider,
+      store: state_store,
+      ttl_seconds: options.session_ttl_seconds,
     )
   {
     Error(transport_flow.UnknownProvider(_)) -> wisp.not_found()
@@ -143,37 +149,37 @@ pub fn request_phase_with_options(
 /// Returns 404 if the provider is not registered.
 pub fn callback_phase(
   req: Request,
-  reg: Registry(e),
-  provider: String,
-  state_store: StateStore,
-  on_success: fn(Auth) -> Response,
+  reg reg: Registry(e),
+  provider provider: String,
+  state_store state_store: StateStore,
+  on_success on_success: fn(Auth) -> Response,
 ) -> Response {
   callback_phase_with_options(
     req,
-    reg,
-    provider,
-    state_store,
-    on_success,
-    default_options(),
+    reg: reg,
+    provider: provider,
+    state_store: state_store,
+    on_success: on_success,
+    options: default_options(),
   )
 }
 
 /// Phase 2: Handle the OAuth callback using custom middleware options.
 pub fn callback_phase_with_options(
   req: Request,
-  reg: Registry(e),
-  provider: String,
-  state_store: StateStore,
-  on_success: fn(Auth) -> Response,
-  options: Options,
+  reg reg: Registry(e),
+  provider provider: String,
+  state_store state_store: StateStore,
+  on_success on_success: fn(Auth) -> Response,
+  options options: Options,
 ) -> Response {
   case
     callback_phase_auth_result_with_options(
       req,
-      reg,
-      provider,
-      state_store,
-      options,
+      reg: reg,
+      provider: provider,
+      state_store: state_store,
+      options: options,
     )
   {
     Ok(auth) -> on_success(auth)
@@ -191,16 +197,16 @@ pub fn callback_phase_with_options(
 /// success value or generated error response yourself.
 pub fn callback_phase_result(
   req: Request,
-  reg: Registry(e),
-  provider: String,
-  state_store: StateStore,
+  reg reg: Registry(e),
+  provider provider: String,
+  state_store state_store: StateStore,
 ) -> Result(Auth, Response) {
   callback_phase_result_with_options(
     req,
-    reg,
-    provider,
-    state_store,
-    default_options(),
+    reg: reg,
+    provider: provider,
+    state_store: state_store,
+    options: default_options(),
   )
 }
 
@@ -208,17 +214,17 @@ pub fn callback_phase_result(
 /// options.
 pub fn callback_phase_result_with_options(
   req: Request,
-  reg: Registry(e),
-  provider: String,
-  state_store: StateStore,
-  options: Options,
+  reg reg: Registry(e),
+  provider provider: String,
+  state_store state_store: StateStore,
+  options options: Options,
 ) -> Result(Auth, Response) {
   callback_phase_auth_result_with_options(
     req,
-    reg,
-    provider,
-    state_store,
-    options,
+    reg: reg,
+    provider: provider,
+    state_store: state_store,
+    options: options,
   )
   |> result.map_error(callback_error_response)
 }
@@ -230,16 +236,16 @@ pub fn callback_phase_result_with_options(
 /// parameter, and provider authentication failures without parsing responses.
 pub fn callback_phase_auth_result(
   req: Request,
-  reg: Registry(e),
-  provider: String,
-  state_store: StateStore,
+  reg reg: Registry(e),
+  provider provider: String,
+  state_store state_store: StateStore,
 ) -> Result(Auth, CallbackError(e)) {
   callback_phase_auth_result_with_options(
     req,
-    reg,
-    provider,
-    state_store,
-    default_options(),
+    reg: reg,
+    provider: provider,
+    state_store: state_store,
+    options: default_options(),
   )
 }
 
@@ -251,10 +257,10 @@ pub fn callback_phase_auth_result(
 /// valid in-flight login.
 pub fn callback_phase_auth_result_with_options(
   req: Request,
-  reg: Registry(e),
-  provider: String,
-  state_store: StateStore,
-  options: Options,
+  reg reg: Registry(e),
+  provider provider: String,
+  state_store state_store: StateStore,
+  options options: Options,
 ) -> Result(Auth, CallbackError(e)) {
   use strategy_config <- result.try(
     transport_flow.ensure_callback_provider(reg, provider)
@@ -270,9 +276,9 @@ pub fn callback_phase_auth_result_with_options(
 
   transport_flow.finish_callback(
     strategy_config,
-    state_store,
-    params,
-    session_id,
+    store: state_store,
+    params: params,
+    session_id: session_id,
   )
   |> result.map_error(map_callback_flow_error)
 }
@@ -286,26 +292,20 @@ fn get_callback_params(
   let query_params = wisp.get_query(req)
   case req.method {
     http.Post -> {
-      case wisp.read_body_bits(req) {
-        Ok(body_bits) -> {
-          case bit_array.to_string(body_bits) {
-            Ok(body_string) -> {
-              case uri.parse_query(body_string) {
-                Ok(body_params) -> {
-                  // Merge: body params take precedence over query params
-                  Ok(dict.merge(
-                    dict.from_list(query_params),
-                    dict.from_list(body_params),
-                  ))
-                }
-                Error(_) -> Error(InvalidCallbackParams)
-              }
-            }
-            Error(_) -> Error(InvalidCallbackParams)
-          }
-        }
-        Error(_) -> Error(InvalidCallbackParams)
-      }
+      use body_bits <- result.try(
+        wisp.read_body_bits(req)
+        |> result.replace_error(InvalidCallbackParams),
+      )
+      use body_string <- result.try(
+        bit_array.to_string(body_bits)
+        |> result.replace_error(InvalidCallbackParams),
+      )
+      use body_params <- result.try(
+        uri.parse_query(body_string)
+        |> result.replace_error(InvalidCallbackParams),
+      )
+      // Merge: body params take precedence over query params
+      Ok(dict.merge(dict.from_list(query_params), dict.from_list(body_params)))
     }
     _ -> Ok(dict.from_list(query_params))
   }

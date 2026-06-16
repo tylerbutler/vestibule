@@ -40,8 +40,8 @@ pub fn new() -> Registry(e) {
 /// genuinely need to overwrite an entry should use `register_or_replace`.
 pub fn register(
   registry: Registry(e),
-  strategy: Strategy(e),
-  config: Config,
+  strategy strategy: Strategy(e),
+  config config: Config,
 ) -> Result(Registry(e), RegistryError) {
   let name = strategy.provider(strategy)
   case dict.has_key(registry.providers, name) {
@@ -63,8 +63,8 @@ pub fn register(
 /// overwrites a previously registered provider.
 pub fn register_or_replace(
   registry: Registry(e),
-  strategy: Strategy(e),
-  config: Config,
+  strategy strategy: Strategy(e),
+  config config: Config,
 ) -> Registry(e) {
   Registry(
     providers: dict.insert(registry.providers, strategy.provider(strategy), #(
@@ -77,7 +77,7 @@ pub fn register_or_replace(
 /// Look up a provider by name.
 pub fn get(
   registry: Registry(e),
-  provider: String,
+  provider provider: String,
 ) -> Result(#(Strategy(e), Config), Nil) {
   dict.get(registry.providers, provider)
 }

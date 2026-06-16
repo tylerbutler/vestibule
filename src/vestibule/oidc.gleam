@@ -15,6 +15,7 @@
 //// let strategy = oidc.strategy_from_config(config, "my-provider")
 //// ```
 
+import gleam/bool
 import gleam/dict
 import gleam/dynamic/decode
 import gleam/http
@@ -120,17 +121,17 @@ pub fn fetch_configuration(
 ) -> Result(OidcConfig, AuthError(e)) {
   use discovery_url <- result.try(discovery_url(issuer_url))
 
-  use r <- result.try(
+  use req <- result.try(
     request.to(discovery_url)
     |> result.map_error(fn(_) {
       error.ConfigError(reason: "Invalid discovery URL: " <> discovery_url)
     }),
   )
-  let r =
-    r
+  let req =
+    req
     |> request.set_header("accept", "application/json")
 
-  case httpc.send(r) {
+  case httpc.send(req) {
     Ok(response) -> {
       use body <- result.try(provider_support.check_response_status(response))
       use config <- result.try(parse_discovery_document(body))
@@ -364,10 +365,8 @@ pub fn parse_userinfo_response(
 // --- Internal helpers ---
 
 fn strip_trailing_slash(url: String) -> String {
-  case string.ends_with(url, "/") {
-    True -> string.drop_end(url, 1)
-    False -> url
-  }
+  use <- bool.guard(when: !string.ends_with(url, "/"), return: url)
+  string.drop_end(url, 1)
 }
 
 fn extract_hostname(url: String) -> String {
@@ -441,7 +440,7 @@ fn build_exchange_code_fn(
     }
     let body = uri.query_to_string(params)
 
-    use r <- result.try(
+    use req <- result.try(
       request.to(token_endpoint)
       |> result.map_error(fn(_) {
         error.ConfigError(
@@ -449,14 +448,14 @@ fn build_exchange_code_fn(
         )
       }),
     )
-    let r =
-      r
+    let req =
+      req
       |> request.set_method(http.Post)
       |> request.set_header("content-type", "application/x-www-form-urlencoded")
       |> request.set_header("accept", "application/json")
       |> request.set_body(body)
 
-    case httpc.send(r) {
+    case httpc.send(req) {
       Ok(response) -> {
         use body <- result.try(provider_support.check_response_status(response))
         parse_token_response(body)
@@ -506,7 +505,7 @@ fn build_refresh_token_fn(
         #("client_secret", config.client_secret(cfg)),
       ])
 
-    use r <- result.try(
+    use req <- result.try(
       request.to(token_endpoint)
       |> result.map_error(fn(_) {
         error.ConfigError(
@@ -514,14 +513,14 @@ fn build_refresh_token_fn(
         )
       }),
     )
-    let r =
-      r
+    let req =
+      req
       |> request.set_method(http.Post)
       |> request.set_header("content-type", "application/x-www-form-urlencoded")
       |> request.set_header("accept", "application/json")
       |> request.set_body(body)
 
-    case httpc.send(r) {
+    case httpc.send(req) {
       Ok(response) -> {
         use body <- result.try(provider_support.check_response_status(response))
         parse_token_response(body)

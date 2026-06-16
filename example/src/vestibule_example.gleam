@@ -15,7 +15,7 @@ import vestibule_google
 import vestibule_microsoft
 import vestibule/state_store
 
-pub fn main() {
+pub fn main() -> Nil {
   let port =
     envoy.get("PORT")
     |> result.try(int.parse)
@@ -37,8 +37,12 @@ pub fn main() {
       let assert Ok(reg) =
         registry.register(
           reg,
-          vestibule_github.strategy(),
-          config.new(id, secret, callback_base <> "/auth/github/callback"),
+          strategy: vestibule_github.strategy(),
+          config: config.new(
+            client_id: id,
+            client_secret: secret,
+            redirect_uri: callback_base <> "/auth/github/callback",
+          ),
         )
       reg
     }
@@ -54,8 +58,12 @@ pub fn main() {
       let assert Ok(reg) =
         registry.register(
           reg,
-          vestibule_microsoft.strategy(),
-          config.new(id, secret, callback_base <> "/auth/microsoft/callback"),
+          strategy: vestibule_microsoft.strategy(),
+          config: config.new(
+            client_id: id,
+            client_secret: secret,
+            redirect_uri: callback_base <> "/auth/microsoft/callback",
+          ),
         )
       reg
     }
@@ -71,8 +79,12 @@ pub fn main() {
       let assert Ok(reg) =
         registry.register(
           reg,
-          vestibule_google.strategy(),
-          config.new(id, secret, callback_base <> "/auth/google/callback"),
+          strategy: vestibule_google.strategy(),
+          config: config.new(
+            client_id: id,
+            client_secret: secret,
+            redirect_uri: callback_base <> "/auth/google/callback",
+          ),
         )
       reg
     }
