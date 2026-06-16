@@ -1,0 +1,4 @@
+project: vestibule_github
+kind: Added
+body: Added the GitHub OAuth strategy package, exposing vestibule_github.strategy and GitHub parsing helpers.
+time: 2026-06-15T20:38:49.540231503-07:00

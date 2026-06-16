@@ -7,6 +7,7 @@ install:
   - gleam add vestibule
   - gleam add vestibule_mist
   - gleam add mist
+  - gleam add vestibule_github
   - gleam add vestibule_google
 useWhen: Use Mist middleware when you run directly on Mist and want the same auth ergonomics without Wisp.
 setup:

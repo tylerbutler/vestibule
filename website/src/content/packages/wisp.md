@@ -8,6 +8,7 @@ install:
   - gleam add vestibule_wisp
   - gleam add wisp
   - gleam add mist
+  - gleam add vestibule_github
   - gleam add vestibule_google
 useWhen: Use Wisp middleware when your app already routes requests with Wisp and you want the request and callback phases handled for you.
 setup:
@@ -25,14 +26,14 @@ code: |
   import wisp
   import vestibule/config
   import vestibule/registry
-  import vestibule/strategy/github
   import vestibule/state_store
   import vestibule_wisp
+  import vestibule_github
 
   let assert Ok(reg) =
     registry.new()
     |> registry.register(
-      github.strategy(),
+      vestibule_github.strategy(),
       config.new(
         "client_id",
         "client_secret",

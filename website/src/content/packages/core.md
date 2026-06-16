@@ -1,12 +1,12 @@
 ---
 name: vestibule
-navLabel: Core + GitHub
+navLabel: Core
 kind: Core package
-summary: Core types, two-phase OAuth2 flow, PKCE, CSRF state, token refresh, OIDC discovery, shared state store, and built-in GitHub strategy.
+summary: Core types, two-phase OAuth2 flow, PKCE, CSRF state, token refresh, OIDC discovery, and shared state store.
 install:
   - gleam add vestibule
+  - gleam add vestibule_github
 useWhen: Use the core package when you want direct control over request and callback phases, or when you are building your own transport integration.
-defaultScopes: "GitHub uses user:email by default."
 setup:
   - Register a provider application and copy its client ID and secret.
   - Create a config with the provider redirect URI.
@@ -16,14 +16,14 @@ highlights:
   - PKCE is appended to every authorization URL.
   - State validation happens before provider error details are surfaced.
   - Strategies are values, not behaviours or macros.
-  - GitHub support ships in the core package.
+  - Provider strategies live in focused companion packages.
 code: |
   import gleam/dict
   import vestibule
   import vestibule/config
-  import vestibule/strategy/github
+  import vestibule_github
 
-  let strategy = github.strategy()
+  let strategy = vestibule_github.strategy()
   let cfg =
     config.new(
       "client_id",

@@ -18,7 +18,7 @@ body:
     minLength: 1
 kinds:
     - label: Breaking
-      auto: major
+      auto: minor
     - label: Added
       auto: minor
     - label: Changed
@@ -65,6 +65,13 @@ projects:
       changelog: packages/vestibule_google/CHANGELOG.md
       replacements:
           - path: packages/vestibule_google/gleam.toml
+            find: 'version = ".*"'
+            replace: 'version = "{{.VersionNoPrefix}}"'
+    - label: vestibule_github
+      key: vestibule_github
+      changelog: packages/vestibule_github/CHANGELOG.md
+      replacements:
+          - path: packages/vestibule_github/gleam.toml
             find: 'version = ".*"'
             replace: 'version = "{{.VersionNoPrefix}}"'
     - label: vestibule_microsoft

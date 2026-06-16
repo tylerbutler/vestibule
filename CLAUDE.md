@@ -48,6 +48,7 @@ src/
     └── internal/                     # Private implementation
 packages/
 ├── vestibule_apple/                  # Apple Sign In strategy
+├── vestibule_github/                 # GitHub OAuth strategy
 ├── vestibule_google/                 # Google OAuth strategy
 ├── vestibule_microsoft/              # Microsoft OAuth strategy
 ├── vestibule_wisp/                   # Wisp middleware
@@ -163,7 +164,7 @@ See `.commitlintrc.json` for configuration.
 ## Changelog
 
 Managed with [changie](https://changie.dev/) using the **projects** feature for multi-package support:
-- **`.changie.yaml`**: Configures 6 projects (vestibule + 5 add-on packages) with `projectsVersionSeparator: "-"`
+- **`.changie.yaml`**: Configures 7 projects (vestibule + 6 add-on packages) with `projectsVersionSeparator: "-"`
 - Each package has its own `CHANGELOG.md` (root for vestibule, `packages/<pkg>/CHANGELOG.md` for sub-packages)
 - Fragments go in `.changes/unreleased/`, prefixed by project name
 - Per-project version files stored in `.changes/<project>/v*.md`

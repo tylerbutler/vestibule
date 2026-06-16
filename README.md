@@ -18,24 +18,25 @@ The name "vestibule" refers to an entrance hall — the transitional space betwe
 
 ## Quick Start
 
-Add vestibule to your project. If you're using the Wisp middleware, add
-`vestibule_wisp` too:
+Add vestibule and a provider package to your project. If you're using the Wisp
+middleware, add `vestibule_wisp` too:
 
 ```sh
 gleam add vestibule
+gleam add vestibule_github
 gleam add vestibule_wisp
 ```
 
-GitHub support is built into the core package, so you can start with the
+GitHub support is provided by `vestibule_github`, so you can start with the
 two-phase flow directly:
 
 ```gleam
 import gleam/dict
 import vestibule
 import vestibule/config
-import vestibule/strategy/github
+import vestibule_github
 
-let strategy = github.strategy()
+let strategy = vestibule_github.strategy()
 let cfg =
   config.new(
     "client_id",
@@ -80,15 +81,15 @@ import gleam/http
 import wisp
 import vestibule/config
 import vestibule/registry
-import vestibule/strategy/github
 import vestibule_wisp
 import vestibule/state_store
+import vestibule_github
 
 // Initialize once at startup
 let assert Ok(reg) =
   registry.new()
   |> registry.register(
-    github.strategy(),
+    vestibule_github.strategy(),
     config.new(
       "client_id",
       "client_secret",
@@ -164,11 +165,10 @@ structured cookie/session errors are named `MissingOrInvalidSessionCookie` and
 | `vestibule` | Core types, two-phase OAuth2 flow, PKCE, token refresh, shared state store | `gleam add vestibule` |
 | `vestibule_wisp` | Wisp middleware for request/callback routing | `gleam add vestibule_wisp` |
 | `vestibule_mist` | Mist middleware for request/callback routing | `gleam add vestibule_mist` |
+| `vestibule_github` | GitHub OAuth strategy | `gleam add vestibule_github` |
 | `vestibule_google` | Google OAuth strategy | `gleam add vestibule_google` |
 | `vestibule_microsoft` | Microsoft OAuth strategy | `gleam add vestibule_microsoft` |
 | `vestibule_apple` | Apple Sign In strategy | `gleam add vestibule_apple` |
-
-GitHub is included in the core `vestibule` package.
 
 ## How It Works
 
@@ -186,7 +186,7 @@ Use a registry to support multiple providers in one app:
 ```gleam
 let assert Ok(reg) =
   registry.new()
-  |> registry.register(github.strategy(), github_cfg)
+  |> registry.register(vestibule_github.strategy(), github_cfg)
 let assert Ok(reg) =
   reg
   |> registry.register(vestibule_google.strategy(), google_cfg)
