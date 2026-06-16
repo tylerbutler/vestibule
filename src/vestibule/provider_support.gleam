@@ -1,5 +1,6 @@
 //// Stable helpers for OAuth provider implementations.
 
+import gleam/bool
 import gleam/dynamic/decode
 import gleam/http/request
 import gleam/http/response.{type Response}
@@ -20,21 +21,19 @@ import vestibule/credentials
 pub fn check_response_status(
   response: Response(String),
 ) -> Result(String, AuthError(e)) {
-  case response.status >= 200 && response.status < 300 {
-    True -> Ok(response.body)
-    False ->
-      Error(error.HttpError(
-        status: response.status,
-        body: safe_error_body(response.body),
-      ))
-  }
+  use <- bool.guard(
+    when: response.status < 200 || response.status >= 300,
+    return: Error(error.HttpError(
+      status: response.status,
+      body: safe_error_body(response.body),
+    )),
+  )
+  Ok(response.body)
 }
 
 fn safe_error_body(body: String) -> String {
-  case string.length(body) > 120 {
-    True -> string.slice(body, 0, 120)
-    False -> body
-  }
+  use <- bool.guard(when: string.length(body) <= 120, return: body)
+  string.slice(body, 0, 120)
 }
 
 /// Validate that a URL uses HTTPS.
@@ -133,10 +132,11 @@ fn is_non_public_host(host: String) -> Bool {
 }
 
 fn strip_ipv6_brackets(host: String) -> String {
-  case string.starts_with(host, "[") && string.ends_with(host, "]") {
-    True -> string.slice(host, 1, string.length(host) - 2)
-    False -> host
-  }
+  use <- bool.guard(
+    when: !{ string.starts_with(host, "[") && string.ends_with(host, "]") },
+    return: host,
+  )
+  string.slice(host, 1, string.length(host) - 2)
 }
 
 fn is_blocked_hostname(host: String) -> Bool {
@@ -186,24 +186,21 @@ fn is_non_public_ipv4(octets: #(Int, Int, Int, Int)) -> Bool {
 }
 
 fn is_non_public_ipv6(host: String) -> Bool {
-  case string.contains(host, ":") {
-    // Not an IPv6 literal; an ordinary DNS hostname we cannot classify here.
-    False -> False
-    True ->
-      // Loopback and unspecified
-      host == "::1"
-      || host == "::"
-      // Unique local addresses fc00::/7 (fc.. / fd..)
-      || string.starts_with(host, "fc")
-      || string.starts_with(host, "fd")
-      // Link-local fe80::/10 (fe8.. / fe9.. / fea.. / feb..)
-      || string.starts_with(host, "fe8")
-      || string.starts_with(host, "fe9")
-      || string.starts_with(host, "fea")
-      || string.starts_with(host, "feb")
-      // IPv4-mapped / IPv4-compatible addresses embedding a non-public IPv4
-      || embeds_non_public_ipv4(host)
-  }
+  // Not an IPv6 literal; an ordinary DNS hostname we cannot classify here.
+  use <- bool.guard(when: !string.contains(host, ":"), return: False)
+  // Loopback and unspecified
+  host == "::1"
+  || host == "::"
+  // Unique local addresses fc00::/7 (fc.. / fd..)
+  || string.starts_with(host, "fc")
+  || string.starts_with(host, "fd")
+  // Link-local fe80::/10 (fe8.. / fe9.. / fea.. / feb..)
+  || string.starts_with(host, "fe8")
+  || string.starts_with(host, "fe9")
+  || string.starts_with(host, "fea")
+  || string.starts_with(host, "feb")
+  // IPv4-mapped / IPv4-compatible addresses embedding a non-public IPv4
+  || embeds_non_public_ipv4(host)
 }
 
 fn embeds_non_public_ipv4(host: String) -> Bool {

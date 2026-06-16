@@ -17,3 +17,33 @@ gleam_time = ">= 1.7.0 and < 2.0.0"
 
 [dev-dependencies]
 startest = ">= 0.8.0 and < 1.0.0"
+glinter = ">= 2.19.0 and < 3.0.0"
+
+[tools.glinter]
+# Strict lint: any warning fails the build. glinter only supports this
+# globally (no per-rule error severity), so label_possible is turned off
+# below to keep intentional unlabelled subject/pipe first-args from failing.
+warnings_as_errors = true
+
+[tools.glinter.rules]
+# Argument labels are encouraged but not enforced: many functions intentionally
+# leave their subject/pipe-receiver first arg unlabelled.
+label_possible = "off"
+# Public library API: these functions are part of vestibule's published surface
+# and are intentionally exported for external consumers, even when unused within
+# the monorepo.
+unused_exports = "off"
+# Deliberate crash-on-startup pattern: init/store-style functions assert on
+# known-good values during one-time VM setup. Result-returning try_* variants are
+# provided for callers that need to handle failure.
+assert_ok_pattern = "off"
+# By design, low-level errors (uri.parse, request.to, httpc — often Nil/opaque)
+# are mapped into descriptive domain AuthError variants; the source errors carry
+# no additional context worth wrapping.
+error_context_lost = "off"
+# Intentional best-effort / fallback control flow (e.g. URL parse fallbacks)
+# where discarding the error is the desired behavior.
+thrown_away_error = "off"
+# Private @external FFI declarations return String reasons that are immediately
+# mapped to the typed StateStoreError; the stringly-typed boundary is internal.
+stringly_typed_error = "off"
