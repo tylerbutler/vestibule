@@ -39,7 +39,7 @@ check "workspace has no package excludes" \
     not_contains workspace.toml "exclude = ["
 
 check "justfile uses an explicit topological package list" \
-    contains justfile 'packages := ". vestibule_apple vestibule_google vestibule_microsoft vestibule_wisp vestibule_mist"'
+    contains justfile 'packages := ". vestibule_apple vestibule_github vestibule_google vestibule_microsoft vestibule_wisp vestibule_mist"'
 check "justfile loops over packages for deps" \
     matches justfile 'for pkg in \{\{ packages \}\}; do[[:space:]]*$'
 check "justfile no longer delegates package checks to scripts" \
@@ -90,6 +90,7 @@ check "publish rewrites vestibule path dependency" \
 for path in \
     gleam.toml \
     packages/vestibule_apple/gleam.toml \
+    packages/vestibule_github/gleam.toml \
     packages/vestibule_google/gleam.toml \
     packages/vestibule_microsoft/gleam.toml \
     packages/vestibule_wisp/gleam.toml \

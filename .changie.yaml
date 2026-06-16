@@ -67,6 +67,13 @@ projects:
           - path: packages/vestibule_google/gleam.toml
             find: 'version = ".*"'
             replace: 'version = "{{.VersionNoPrefix}}"'
+    - label: vestibule_github
+      key: vestibule_github
+      changelog: packages/vestibule_github/CHANGELOG.md
+      replacements:
+          - path: packages/vestibule_github/gleam.toml
+            find: 'version = ".*"'
+            replace: 'version = "{{.VersionNoPrefix}}"'
     - label: vestibule_microsoft
       key: vestibule_microsoft
       changelog: packages/vestibule_microsoft/CHANGELOG.md
