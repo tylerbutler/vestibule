@@ -110,9 +110,19 @@ pub fn parse_user_response_minimal_test() {
 
 pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
   let strat = vestibule_google.strategy()
-  let conf = config.new("client-id", "secret", "not a uri")
+  let conf =
+    config.new(
+      client_id: "client-id",
+      client_secret: "secret",
+      redirect_uri: "not a uri",
+    )
   let _ =
-    strategy.build_authorize_url(strat, conf, ["openid"], "state")
+    strategy.build_authorize_url(
+      strat,
+      cfg: conf,
+      scopes: ["openid"],
+      state: "state",
+    )
     |> expect.to_be_error()
   Nil
 }
@@ -120,10 +130,19 @@ pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
 pub fn authorize_url_includes_extra_params_test() {
   let strat = vestibule_google.strategy()
   let assert Ok(conf) =
-    config.new("client-id", "secret", "http://localhost/callback")
+    config.new(
+      client_id: "client-id",
+      client_secret: "secret",
+      redirect_uri: "http://localhost/callback",
+    )
     |> config.with_extra_params([#("prompt", "consent")])
   let assert Ok(url) =
-    strategy.build_authorize_url(strat, conf, ["openid"], "state")
+    strategy.build_authorize_url(
+      strat,
+      cfg: conf,
+      scopes: ["openid"],
+      state: "state",
+    )
   { string.contains(url, "prompt=consent") } |> expect.to_be_true()
 }
 
@@ -148,8 +167,8 @@ pub fn parse_user_response_with_hd_absent_test() {
 
 pub fn validate_hosted_domain_match_test() {
   vestibule_google.validate_hosted_domain(
-    Some("corp.example"),
-    Some("corp.example"),
+    required: Some("corp.example"),
+    returned: Some("corp.example"),
   )
   |> expect.to_be_ok()
   |> expect.to_equal(Some("corp.example"))
@@ -157,8 +176,8 @@ pub fn validate_hosted_domain_match_test() {
 
 pub fn validate_hosted_domain_mismatch_fails_test() {
   vestibule_google.validate_hosted_domain(
-    Some("corp.example"),
-    Some("evil.com"),
+    required: Some("corp.example"),
+    returned: Some("evil.com"),
   )
   |> expect.to_be_error()
   |> fn(err) {
@@ -170,7 +189,10 @@ pub fn validate_hosted_domain_mismatch_fails_test() {
 }
 
 pub fn validate_hosted_domain_missing_claim_fails_test() {
-  vestibule_google.validate_hosted_domain(Some("corp.example"), None)
+  vestibule_google.validate_hosted_domain(
+    required: Some("corp.example"),
+    returned: None,
+  )
   |> expect.to_be_error()
   |> fn(err) {
     case err {
@@ -181,19 +203,32 @@ pub fn validate_hosted_domain_missing_claim_fails_test() {
 }
 
 pub fn validate_hosted_domain_not_required_passes_through_test() {
-  vestibule_google.validate_hosted_domain(None, Some("corp.example"))
+  vestibule_google.validate_hosted_domain(
+    required: None,
+    returned: Some("corp.example"),
+  )
   |> expect.to_be_ok()
   |> expect.to_equal(Some("corp.example"))
 
-  vestibule_google.validate_hosted_domain(None, None)
+  vestibule_google.validate_hosted_domain(required: None, returned: None)
   |> expect.to_be_ok()
   |> expect.to_equal(None)
 }
 
 pub fn strategy_for_hosted_domain_authorize_url_includes_hd_hint_test() {
   let strat = vestibule_google.strategy_for_hosted_domain("corp.example")
-  let conf = config.new("client-id", "secret", "http://localhost/callback")
+  let conf =
+    config.new(
+      client_id: "client-id",
+      client_secret: "secret",
+      redirect_uri: "http://localhost/callback",
+    )
   let assert Ok(url) =
-    strategy.build_authorize_url(strat, conf, ["openid"], "state")
+    strategy.build_authorize_url(
+      strat,
+      cfg: conf,
+      scopes: ["openid"],
+      state: "state",
+    )
   { string.contains(url, "hd=corp.example") } |> expect.to_be_true()
 }

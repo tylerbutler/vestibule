@@ -36,7 +36,7 @@ pub fn callback_phase_auth_result_missing_session_cookie_test() {
   let store = state_store.init_named("test_callback_missing_session_cookie")
   let assert Ok(reg) =
     registry.new()
-    |> registry.register(test_strategy(), test_config())
+    |> registry.register(strategy: test_strategy(), config: test_config())
 
   vestibule_wisp.callback_phase_auth_result(req, reg, "test", store)
   |> expect.to_equal(Error(vestibule_wisp.MissingSessionCookie))
@@ -70,7 +70,7 @@ pub fn request_phase_sets_host_bound_cookie_test() {
   let store = state_store.init_named("test_request_phase_host_bound_cookie")
   let assert Ok(reg) =
     registry.new()
-    |> registry.register(test_strategy(), test_config())
+    |> registry.register(strategy: test_strategy(), config: test_config())
   let req = simulate.request(http.Get, "/auth/test")
 
   let response = vestibule_wisp.request_phase(req, reg, "test", store)
@@ -89,13 +89,14 @@ pub fn request_phase_sets_host_bound_cookie_test() {
 
 pub fn callback_phase_auth_result_with_options_uses_cookie_name_test() {
   let store = state_store.init_named("test_callback_custom_cookie_name")
-  let session_id = state_store.store(store, "state", "verifier")
+  let session_id =
+    state_store.store(store, state: "state", code_verifier: "verifier")
   let req =
     simulate.request(http.Get, "/auth/test/callback?state=state&code=code")
     |> simulate.cookie("vestibule_session", session_id, wisp.Signed)
   let assert Ok(reg) =
     registry.new()
-    |> registry.register(test_strategy(), test_config())
+    |> registry.register(strategy: test_strategy(), config: test_config())
 
   vestibule_wisp.callback_phase_auth_result_with_options(
     req,
@@ -112,14 +113,15 @@ pub fn callback_phase_auth_result_with_options_uses_cookie_name_test() {
 
 pub fn callback_phase_auth_result_malformed_post_body_returns_invalid_params_test() {
   let store = state_store.init_named("test_callback_malformed_post_body")
-  let session_id = state_store.store(store, "state", "verifier")
+  let session_id =
+    state_store.store(store, state: "state", code_verifier: "verifier")
   let req =
     simulate.request(http.Post, "/auth/test/callback?state=state&code=code")
     |> simulate.bit_array_body(<<255>>)
     |> simulate.cookie("__Host-vestibule_session", session_id, wisp.Signed)
   let assert Ok(reg) =
     registry.new()
-    |> registry.register(test_strategy(), test_config())
+    |> registry.register(strategy: test_strategy(), config: test_config())
 
   vestibule_wisp.callback_phase_auth_result(req, reg, "test", store)
   |> expect.to_equal(Error(vestibule_wisp.InvalidCallbackParams))
@@ -127,7 +129,8 @@ pub fn callback_phase_auth_result_malformed_post_body_returns_invalid_params_tes
 
 pub fn callback_phase_auth_result_missing_state_does_not_consume_session_test() {
   let store = state_store.init_named("test_callback_missing_state_reusable")
-  let session_id = state_store.store(store, "state", "verifier")
+  let session_id =
+    state_store.store(store, state: "state", code_verifier: "verifier")
   let req_missing_state =
     simulate.request(http.Get, "/auth/test/callback?code=code")
     |> simulate.cookie("__Host-vestibule_session", session_id, wisp.Signed)
@@ -136,7 +139,7 @@ pub fn callback_phase_auth_result_missing_state_does_not_consume_session_test() 
     |> simulate.cookie("__Host-vestibule_session", session_id, wisp.Signed)
   let assert Ok(reg) =
     registry.new()
-    |> registry.register(test_strategy(), test_config())
+    |> registry.register(strategy: test_strategy(), config: test_config())
 
   vestibule_wisp.callback_phase_auth_result(
     req_missing_state,
@@ -193,23 +196,35 @@ fn leaky_error_strategy() -> Strategy(e) {
 }
 
 fn test_config() -> config.Config {
-  config.new("client_id", "client_secret", "https://example.com/callback")
+  config.new(
+    client_id: "client_id",
+    client_secret: "client_secret",
+    redirect_uri: "https://example.com/callback",
+  )
 }
 
 pub fn callback_phase_default_error_response_does_not_render_provider_details_test() {
   let store = state_store.init_named("test_callback_generic_error_html")
-  let session_id = state_store.store(store, "state", "verifier")
+  let session_id =
+    state_store.store(store, state: "state", code_verifier: "verifier")
   let req =
     simulate.request(http.Get, "/auth/test/callback?state=state&code=code")
     |> simulate.cookie("__Host-vestibule_session", session_id, wisp.Signed)
   let assert Ok(reg) =
     registry.new()
-    |> registry.register(leaky_error_strategy(), test_config())
+    |> registry.register(
+      strategy: leaky_error_strategy(),
+      config: test_config(),
+    )
 
   let response =
-    vestibule_wisp.callback_phase(req, reg, "test", store, fn(_auth) {
-      wisp.html_response("success", 200)
-    })
+    vestibule_wisp.callback_phase(
+      req,
+      reg: reg,
+      provider: "test",
+      state_store: store,
+      on_success: fn(_auth) { wisp.html_response("success", 200) },
+    )
 
   response.status |> expect.to_equal(400)
   let body = case response.body {
@@ -224,13 +239,17 @@ pub fn callback_phase_default_error_response_does_not_render_provider_details_te
 
 pub fn callback_phase_auth_result_preserves_provider_error_details_test() {
   let store = state_store.init_named("test_callback_structured_error_details")
-  let session_id = state_store.store(store, "state", "verifier")
+  let session_id =
+    state_store.store(store, state: "state", code_verifier: "verifier")
   let req =
     simulate.request(http.Get, "/auth/test/callback?state=state&code=code")
     |> simulate.cookie("__Host-vestibule_session", session_id, wisp.Signed)
   let assert Ok(reg) =
     registry.new()
-    |> registry.register(leaky_error_strategy(), test_config())
+    |> registry.register(
+      strategy: leaky_error_strategy(),
+      config: test_config(),
+    )
 
   vestibule_wisp.callback_phase_auth_result(req, reg, "test", store)
   |> expect.to_equal(

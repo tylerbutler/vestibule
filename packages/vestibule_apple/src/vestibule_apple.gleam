@@ -202,9 +202,9 @@ fn id_token_artifacts(
 ///
 /// Returns the user's `sub` (uid) and `UserInfo` on success.
 pub fn verify_id_token(
-  jwt: String,
-  keys: List(VerifyKey),
-  client_id: String,
+  jwt jwt: String,
+  keys keys: List(VerifyKey),
+  client_id client_id: String,
 ) -> Result(#(String, user_info.UserInfo), AuthError(e)) {
   let claims = [
     claim.issuer("https://appleid.apple.com", []),
@@ -429,9 +429,9 @@ fn do_fetch_user(
   )
   use keys <- result.try(jwks.get_keys(apple.jwks))
   use #(uid, info) <- result.try(verify_id_token(
-    id_token,
-    keys,
-    config.client_id(cfg),
+    jwt: id_token,
+    keys: keys,
+    client_id: config.client_id(cfg),
   ))
   Ok(strategy.user_result(uid: uid, info: info, extra: dict.new()))
 }

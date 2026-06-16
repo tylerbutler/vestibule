@@ -19,9 +19,9 @@ pub opaque type Config {
 
 /// Create a new config with the required fields and empty defaults.
 pub fn new(
-  client_id: String,
-  client_secret: String,
-  redirect_uri: String,
+  client_id client_id: String,
+  client_secret client_secret: String,
+  redirect_uri redirect_uri: String,
 ) -> Config {
   Config(
     client_id: client_id,

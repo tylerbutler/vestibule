@@ -48,9 +48,9 @@ pub fn verify_id_token_rejects_wrong_key_test() {
 
   let result =
     vestibule_apple.verify_id_token(
-      token,
-      [verify_key.derived(legit_key)],
-      "com.example.app",
+      jwt: token,
+      keys: [verify_key.derived(legit_key)],
+      client_id: "com.example.app",
     )
   let _ = result |> expect.to_be_error()
   Nil
@@ -80,9 +80,9 @@ pub fn verify_id_token_accepts_correct_key_test() {
 
   let result =
     vestibule_apple.verify_id_token(
-      token,
-      [verify_key.derived(key)],
-      "com.example.app",
+      jwt: token,
+      keys: [verify_key.derived(key)],
+      client_id: "com.example.app",
     )
   let assert Ok(#(uid, info)) = result
   uid |> expect.to_equal("user-123")
@@ -109,9 +109,9 @@ pub fn verify_id_token_rejects_wrong_issuer_test() {
 
   let result =
     vestibule_apple.verify_id_token(
-      token,
-      [verify_key.derived(key)],
-      "com.example.app",
+      jwt: token,
+      keys: [verify_key.derived(key)],
+      client_id: "com.example.app",
     )
   let _ = result |> expect.to_be_error()
   Nil
@@ -137,9 +137,9 @@ pub fn verify_id_token_rejects_wrong_audience_test() {
 
   let result =
     vestibule_apple.verify_id_token(
-      token,
-      [verify_key.derived(key)],
-      "com.example.app",
+      jwt: token,
+      keys: [verify_key.derived(key)],
+      client_id: "com.example.app",
     )
   let _ = result |> expect.to_be_error()
   Nil
@@ -155,9 +155,9 @@ pub fn verify_id_token_rejects_forged_jwt_test() {
 
   let result =
     vestibule_apple.verify_id_token(
-      forged_jwt,
-      [verify_key.derived(key)],
-      "com.example.app",
+      jwt: forged_jwt,
+      keys: [verify_key.derived(key)],
+      client_id: "com.example.app",
     )
   let _ = result |> expect.to_be_error()
   Nil
@@ -187,9 +187,9 @@ pub fn verify_id_token_unverified_email_not_returned_test() {
 
   let assert Ok(#(_, info)) =
     vestibule_apple.verify_id_token(
-      token,
-      [verify_key.derived(key)],
-      "com.example.app",
+      jwt: token,
+      keys: [verify_key.derived(key)],
+      client_id: "com.example.app",
     )
   info.email |> expect.to_equal(None)
   info.nickname |> expect.to_equal(Some("user@example.com"))

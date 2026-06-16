@@ -343,7 +343,10 @@ fn enforce_tenant(
     None -> Ok(Nil)
     Some(tenant) -> {
       use id_token <- result.try(exchange_id_token(exchange))
-      use _ <- result.try(verify_tenant(tenant, id_token))
+      use _ <- result.try(verify_tenant(
+        expected_tenant: tenant,
+        id_token: id_token,
+      ))
       Ok(Nil)
     }
   }
@@ -359,16 +362,12 @@ fn exchange_id_token(
         Ok(token) -> Ok(token)
         Error(_) ->
           Error(error.UserInfoFailed(
-            reason: "Microsoft tenant enforcement requires an ID token, "
-            <> "but the token response did not include one. Ensure the "
-            <> "`openid` scope is requested.",
+            reason: "Microsoft tenant enforcement requires an ID token, but the token response did not include one. Ensure the `openid` scope is requested.",
           ))
       }
     Error(_) ->
       Error(error.UserInfoFailed(
-        reason: "Microsoft tenant enforcement requires an ID token, but the "
-        <> "token response did not include one. Ensure the `openid` scope is "
-        <> "requested.",
+        reason: "Microsoft tenant enforcement requires an ID token, but the token response did not include one. Ensure the `openid` scope is requested.",
       ))
   }
 }
@@ -385,8 +384,8 @@ fn exchange_id_token(
 /// Microsoft's token endpoint over TLS, so its payload is trusted without a
 /// separate JWKS signature check (OpenID Connect Core 1.0, section 3.1.3.7).
 pub fn verify_tenant(
-  expected_tenant: String,
-  id_token: String,
+  expected_tenant expected_tenant: String,
+  id_token id_token: String,
 ) -> Result(String, AuthError(e)) {
   use tid <- result.try(id_token_tenant(id_token))
   case string.lowercase(tid) == string.lowercase(expected_tenant) {
@@ -447,8 +446,7 @@ fn decode_jwt_payload(id_token: String) -> Result(String, AuthError(e)) {
       }
     _ ->
       Error(error.UserInfoFailed(
-        reason: "Malformed Microsoft ID token: expected a JWT with a payload "
-        <> "segment",
+        reason: "Malformed Microsoft ID token: expected a JWT with a payload segment",
       ))
   }
 }

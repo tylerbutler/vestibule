@@ -156,8 +156,8 @@ pub fn parse_user_response_with_hd(
 /// exactly, otherwise authentication fails with `error.UserInfoFailed`. This
 /// is the enforcement primitive behind `strategy_for_hosted_domain`.
 pub fn validate_hosted_domain(
-  required: Option(String),
-  returned: Option(String),
+  required required: Option(String),
+  returned returned: Option(String),
 ) -> Result(Option(String), AuthError(e)) {
   case required, returned {
     None, _ -> Ok(returned)
@@ -326,8 +326,8 @@ fn fetch_user_enforcing(
     ),
   )
   use validated_hd <- result.try(validate_hosted_domain(
-    required_hd,
-    returned_hd,
+    required: required_hd,
+    returned: returned_hd,
   ))
   let extra = case validated_hd {
     Some(domain) -> dict.from_list([#("hd", dynamic.string(domain))])
