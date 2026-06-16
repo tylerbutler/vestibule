@@ -5,9 +5,7 @@
 //// > Treat them like passwords — never log them, never include them in
 //// > error reports, and store them encrypted at rest.
 
-import gleam/int
-import gleam/option.{type Option, None, Some}
-import gleam/string
+import gleam/option.{type Option}
 import vestibule/internal/secret.{type Secret}
 
 /// OAuth credentials from the provider.
@@ -70,25 +68,4 @@ pub fn expires_in(credentials: Credentials) -> Option(Int) {
 /// Return the scopes granted by the provider.
 pub fn scopes(credentials: Credentials) -> List(String) {
   credentials.scopes
-}
-
-/// Return a human-readable representation that never includes token values.
-pub fn redacted(credentials: Credentials) -> String {
-  let refresh = case credentials.refresh_token {
-    Some(_) -> "present"
-    None -> "absent"
-  }
-  let expires = case credentials.expires_in {
-    Some(seconds) -> int.to_string(seconds)
-    None -> "unknown"
-  }
-  "Credentials(token: [REDACTED], refresh_token: "
-  <> refresh
-  <> ", token_type: "
-  <> credentials.token_type
-  <> ", expires_in: "
-  <> expires
-  <> ", scopes: ["
-  <> string.join(credentials.scopes, ", ")
-  <> "])"
 }
