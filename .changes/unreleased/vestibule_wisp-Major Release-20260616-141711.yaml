@@ -1,4 +1,0 @@
-project: vestibule_wisp
-kind: Major Release
-body: First stable 1.0 release. The public API is now considered stable and follows semantic versioning.
-time: 2026-06-16T14:17:16.000000+00:00

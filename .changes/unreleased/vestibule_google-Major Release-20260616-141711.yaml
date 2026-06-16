@@ -1,4 +1,0 @@
-project: vestibule_google
-kind: Major Release
-body: First stable 1.0 release. The public API is now considered stable and follows semantic versioning.
-time: 2026-06-16T14:17:13.000000+00:00
