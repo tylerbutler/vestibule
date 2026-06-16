@@ -6,6 +6,7 @@ gleam = ">= 1.7.0"
 [dependencies]
 vestibule = { path = ".." }
 vestibule_wisp = { path = "../packages/vestibule_wisp" }
+vestibule_github = { path = "../packages/vestibule_github" }
 vestibule_microsoft = { path = "../packages/vestibule_microsoft" }
 vestibule_google = { path = "../packages/vestibule_google" }
 wisp = ">= 2.2.0 and < 3.0.0"

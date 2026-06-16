@@ -18,11 +18,10 @@ export const packageDocs: PackageDoc[] = [
     name: "vestibule",
     kind: "Core package",
     summary:
-      "Core types, two-phase OAuth2 flow, PKCE, CSRF state, token refresh, OIDC discovery, shared state store, and built-in GitHub strategy.",
-    install: ["gleam add vestibule"],
+      "Core types, two-phase OAuth2 flow, PKCE, CSRF state, token refresh, OIDC discovery, and shared state store.",
+    install: ["gleam add vestibule", "gleam add vestibule_github"],
     useWhen:
       "Use the core package when you want direct control over request and callback phases, or when you are building your own transport integration.",
-    defaultScopes: "GitHub uses user:email by default.",
     setup: [
       "Register a provider application and copy its client ID and secret.",
       "Create a config with the provider redirect URI.",
@@ -33,14 +32,14 @@ export const packageDocs: PackageDoc[] = [
       "PKCE is appended to every authorization URL.",
       "State validation happens before provider error details are surfaced.",
       "Strategies are values, not behaviours or macros.",
-      "GitHub support ships in the core package."
+      "Provider strategies live in focused companion packages."
     ],
     code: `import gleam/dict
 import vestibule
 import vestibule/config
-import vestibule/strategy/github
+import vestibule_github
 
-let strategy = github.strategy()
+let strategy = vestibule_github.strategy()
 let cfg =
   config.new(
     "client_id",
@@ -83,6 +82,7 @@ let assert Ok(auth) =
       "gleam add vestibule_wisp",
       "gleam add wisp",
       "gleam add mist",
+      "gleam add vestibule_github",
       "gleam add vestibule_google"
     ],
     useWhen:
@@ -103,14 +103,14 @@ let assert Ok(auth) =
 import wisp
 import vestibule/config
 import vestibule/registry
-import vestibule/strategy/github
 import vestibule/state_store
 import vestibule_wisp
+import vestibule_github
 
 let assert Ok(reg) =
   registry.new()
   |> registry.register(
-    github.strategy(),
+    vestibule_github.strategy(),
     config.new(
       "client_id",
       "client_secret",
@@ -146,6 +146,7 @@ case wisp.path_segments(req), req.method {
       "gleam add vestibule",
       "gleam add vestibule_mist",
       "gleam add mist",
+      "gleam add vestibule_github",
       "gleam add vestibule_google"
     ],
     useWhen:
@@ -188,6 +189,43 @@ fn handle_request(req: Request(Connection)) -> Response(ResponseData) {
     notes: [
       "Set secure_cookie: False only for local HTTP development.",
       "Changing the cookie secret invalidates in-flight OAuth callbacks."
+    ]
+  },
+  {
+    slug: "github",
+    name: "vestibule_github",
+    kind: "Provider strategy",
+    summary:
+      "GitHub OAuth strategy with normalized profile data and verified-primary-email lookup.",
+    install: ["gleam add vestibule_github"],
+    useWhen:
+      "Use GitHub when users sign in with GitHub accounts and your app needs profile data plus the user's verified primary email when available.",
+    defaultScopes: "user:email",
+    setup: [
+      "Create a GitHub OAuth App.",
+      "Set the Authorization callback URL exactly for development and production.",
+      "Copy the Client ID and generate a client secret.",
+      "Request user:email when you need private verified primary email lookup."
+    ],
+    highlights: [
+      "Requests user:email by default.",
+      "Token scopes are parsed from GitHub's comma-separated scope response.",
+      "UserInfo.email is populated from the verified primary email endpoint when available.",
+      "The GitHub profile URL is exposed under the html_url key in UserInfo.urls."
+    ],
+    code: `import vestibule/config
+import vestibule_github
+
+let strategy = vestibule_github.strategy()
+let cfg =
+  config.new(
+    "github-client-id",
+    "github-client-secret",
+    "http://localhost:8000/auth/github/callback",
+  )`,
+    notes: [
+      "GitHub may omit public email from /user; the strategy performs a best-effort /user/emails lookup.",
+      "If the email lookup fails, authentication can still succeed with UserInfo.email set to None."
     ]
   },
   {

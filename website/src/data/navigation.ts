@@ -10,9 +10,10 @@ export const navGroups = [
     title: "Packages",
     links: [
       { href: "/docs/packages", label: "Package overview" },
-      { href: "/docs/packages/core", label: "Core + GitHub" },
+      { href: "/docs/packages/core", label: "Core" },
       { href: "/docs/packages/wisp", label: "Wisp middleware" },
       { href: "/docs/packages/mist", label: "Mist middleware" },
+      { href: "/docs/packages/github", label: "GitHub strategy" },
       { href: "/docs/packages/google", label: "Google strategy" },
       { href: "/docs/packages/microsoft", label: "Microsoft strategy" },
       { href: "/docs/packages/apple", label: "Apple strategy" }

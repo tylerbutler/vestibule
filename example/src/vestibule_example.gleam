@@ -10,7 +10,7 @@ import wisp/wisp_mist
 import router.{Context}
 import vestibule/config
 import vestibule/registry
-import vestibule/strategy/github
+import vestibule_github
 import vestibule_google
 import vestibule_microsoft
 import vestibule/state_store
@@ -37,7 +37,7 @@ pub fn main() {
       let assert Ok(reg) =
         registry.register(
           reg,
-          github.strategy(),
+          vestibule_github.strategy(),
           config.new(id, secret, callback_base <> "/auth/github/callback"),
         )
       reg
