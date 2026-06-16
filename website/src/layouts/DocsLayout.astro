@@ -40,7 +40,7 @@ const hasToc = toc.length > 0;
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" content={description} />
-    <link rel="icon" type="image/png" href="/icon.png" />
+    <link rel="icon" type="image/webp" href="/icon-96.webp" />
     <title>{pageTitle}</title>
     <script is:inline>
       (() => {
@@ -69,13 +69,28 @@ const hasToc = toc.length > 0;
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <header class="site-header">
       <a class="brand" href="/" aria-label="Vestibule documentation home">
-        <img class="brand-mark" src="/icon.png" alt="" aria-hidden="true" />
+        <img
+          class="brand-mark"
+          src="/icon-96.webp"
+          alt=""
+          width="96"
+          height="92"
+          aria-hidden="true"
+        />
         <span>
           <strong>Vestibule</strong>
           <small>OAuth2 for Gleam</small>
         </span>
       </a>
       <div class="header-actions">
+        <details class="header-resources">
+          <summary>Links</summary>
+          <nav aria-label="Site links">
+            <a href="/docs/search">Search</a>
+            <a href="https://hex.pm/packages/vestibule">Hex</a>
+            <a href="https://github.com/tylerbutler/vestibule">GitHub</a>
+          </nav>
+        </details>
         <a class="header-link" href="/docs/search">Search</a>
         <a class="header-link" href="https://hex.pm/packages/vestibule">Hex</a>
         <a class="header-link" href="https://github.com/tylerbutler/vestibule">GitHub</a>
