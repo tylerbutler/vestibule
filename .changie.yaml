@@ -17,8 +17,10 @@ body:
     block: true
     minLength: 1
 kinds:
+    - label: Major Release
+      auto: major
     - label: Breaking
-      auto: minor
+      auto: major
     - label: Added
       auto: minor
     - label: Changed
