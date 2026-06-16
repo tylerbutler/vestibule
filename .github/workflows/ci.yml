@@ -27,6 +27,7 @@ jobs:
     uses: tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@1761c18aa4583d74916e1a53f2a106d1d70d72a8 # ratchet:tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@main
     with:
       cache: true
+      tools: just
       run-deps: true
       custom-command: gleam run -m glinter
 
