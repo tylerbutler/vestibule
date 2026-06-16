@@ -1,14 +1,19 @@
 ---
-import { navGroups } from "../data/navigation";
+import { getNavigation } from "../data/content";
 import "../styles/global.css";
 
 type Props = {
   title: string;
   description: string;
   section?: string;
+  toc?: Array<{
+    href: string;
+    label: string;
+  }>;
 };
 
-const { title, description, section = "Docs" } = Astro.props;
+const { title, description, section = "Docs", toc = [] } = Astro.props;
+const navGroups = await getNavigation();
 const pageTitle = title === "Vestibule" ? "Vestibule" : `${title} - Vestibule`;
 const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
 
@@ -16,22 +21,45 @@ const isActive = (href: string) => {
   const normalized = href.replace(/\/$/, "") || "/";
   return currentPath === normalized;
 };
+
+const currentLink = navGroups
+  .flatMap((group) => group.links)
+  .find((link) => isActive(link.href));
+
+const currentGroup = navGroups.find((group) =>
+  group.links.some((link) => isActive(link.href))
+);
+const showBreadcrumbs = currentPath !== "/";
+const breadcrumbLabel = currentLink?.label || title;
+const hasToc = toc.length > 0;
 ---
 
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" content={description} />
+    <link rel="icon" type="image/webp" href="/icon-96.webp" />
     <title>{pageTitle}</title>
     <script is:inline>
       (() => {
         const storageKey = "vestibule-docs-theme";
         const root = document.documentElement;
-        const stored = localStorage.getItem(storageKey);
-        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        const theme = stored || (prefersDark ? "dark" : "light");
+        const themeFromValue = (value) => value === "dark" || value === "light" ? value : null;
+        const storedTheme = () => {
+          try {
+            return themeFromValue(window.localStorage.getItem(storageKey));
+          } catch (error) {
+            if (!(error instanceof DOMException)) throw error;
+            return null;
+          }
+        };
+        const preferredTheme = () => {
+          const query = "(prefers-color-scheme: dark)";
+          return window.matchMedia?.(query)?.matches ? "dark" : "light";
+        };
+        const theme = storedTheme() || preferredTheme();
         root.dataset.theme = theme;
         root.style.colorScheme = theme;
       })();
@@ -41,16 +69,38 @@ const isActive = (href: string) => {
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <header class="site-header">
       <a class="brand" href="/" aria-label="Vestibule documentation home">
-        <span class="brand-mark" aria-hidden="true">V</span>
+        <img
+          class="brand-mark"
+          src="/icon-96.webp"
+          alt=""
+          width="96"
+          height="92"
+          aria-hidden="true"
+        />
         <span>
           <strong>Vestibule</strong>
           <small>OAuth2 for Gleam</small>
         </span>
       </a>
       <div class="header-actions">
+        <details class="header-resources">
+          <summary>Links</summary>
+          <nav aria-label="Site links">
+            <a href="/docs/search">Search</a>
+            <a href="https://hex.pm/packages/vestibule">Hex</a>
+            <a href="https://github.com/tylerbutler/vestibule">GitHub</a>
+          </nav>
+        </details>
+        <a class="header-link" href="/docs/search">Search</a>
         <a class="header-link" href="https://hex.pm/packages/vestibule">Hex</a>
         <a class="header-link" href="https://github.com/tylerbutler/vestibule">GitHub</a>
-        <button class="theme-toggle" type="button" data-theme-toggle>
+        <button
+          class="theme-toggle"
+          type="button"
+          aria-label="Dark mode is off. Switch to dark mode."
+          aria-pressed="false"
+          data-theme-toggle
+        >
           <span aria-hidden="true" data-theme-icon>◐</span>
           <span data-theme-label>Theme</span>
         </button>
@@ -79,7 +129,7 @@ const isActive = (href: string) => {
 
       <main id="main-content" class="content-shell">
         <details class="mobile-nav">
-          <summary>Docs menu</summary>
+          <summary>Docs menu{currentLink ? `: ${currentLink.label}` : ""}</summary>
           <nav aria-label="Mobile documentation navigation">
             {navGroups.map((group) => (
               <section class="nav-group">
@@ -98,7 +148,29 @@ const isActive = (href: string) => {
           </nav>
         </details>
 
-        <div class="content-meta">{section}</div>
+        {showBreadcrumbs && (
+          <nav class="breadcrumbs" aria-label="Breadcrumb">
+            <a href="/">Overview</a>
+            {currentGroup && (
+              <>
+                <span aria-hidden="true">/</span>
+                <span>{currentGroup.title}</span>
+              </>
+            )}
+            <span aria-hidden="true">/</span>
+            <span aria-current="page">{breadcrumbLabel}</span>
+          </nav>
+        )}
+        {hasToc && (
+          <nav class="page-toc" aria-label="On this page">
+            <span>On this page</span>
+            <ol>
+              {toc.map((item) => (
+                <li><a href={item.href}>{item.label}</a></li>
+              ))}
+            </ol>
+          </nav>
+        )}
         <slot />
       </main>
     </div>
@@ -108,26 +180,156 @@ const isActive = (href: string) => {
         const storageKey = "vestibule-docs-theme";
         const root = document.documentElement;
         const buttons = Array.from(document.querySelectorAll("[data-theme-toggle]"));
-
-        const applyTheme = (theme) => {
-          root.dataset.theme = theme;
-          root.style.colorScheme = theme;
-          localStorage.setItem(storageKey, theme);
-          const next = theme === "dark" ? "light" : "dark";
-          for (const button of buttons) {
-            button.setAttribute("aria-label", `Switch to ${next} mode`);
-            const label = button.querySelector("[data-theme-label]");
-            const icon = button.querySelector("[data-theme-icon]");
-            if (label) label.textContent = theme === "dark" ? "Dark" : "Light";
-            if (icon) icon.textContent = theme === "dark" ? "●" : "○";
+        const themeFromValue = (value) => value === "dark" || value === "light" ? value : null;
+        const currentTheme = () => themeFromValue(root.dataset.theme) || "light";
+        const storeTheme = (theme) => {
+          try {
+            window.localStorage.setItem(storageKey, theme);
+          } catch (error) {
+            if (!(error instanceof DOMException)) throw error;
+            root.dataset.themeStorage = "unavailable";
           }
         };
 
-        applyTheme(root.dataset.theme || "light");
+        const applyTheme = (theme, { persist } = { persist: true }) => {
+          theme = themeFromValue(theme) || "light";
+          root.dataset.theme = theme;
+          root.style.colorScheme = theme;
+          if (persist) storeTheme(theme);
+          const darkModeOn = theme === "dark";
+          for (const button of buttons) {
+            button.setAttribute(
+              "aria-label",
+              darkModeOn
+                ? "Dark mode is on. Switch to light mode."
+                : "Dark mode is off. Switch to dark mode."
+            );
+            button.setAttribute("aria-pressed", String(darkModeOn));
+            const label = button.querySelector("[data-theme-label]");
+            const icon = button.querySelector("[data-theme-icon]");
+            if (label) label.textContent = `Theme: ${theme}`;
+            if (icon) icon.textContent = darkModeOn ? "●" : "○";
+          }
+        };
+
+        applyTheme(currentTheme(), { persist: false });
 
         for (const button of buttons) {
           button.addEventListener("click", () => {
-            applyTheme(root.dataset.theme === "dark" ? "light" : "dark");
+            applyTheme(currentTheme() === "dark" ? "light" : "dark");
+          });
+        }
+      })();
+
+      (() => {
+        const codeBlocks = Array.from(document.querySelectorAll("main pre"));
+        if (codeBlocks.length === 0) return;
+
+        const status = document.createElement("div");
+        status.className = "visually-hidden";
+        status.setAttribute("aria-live", "polite");
+        document.body.append(status);
+
+        const fallbackCopy = (text) =>
+          new Promise((resolve, reject) => {
+            const textarea = document.createElement("textarea");
+            textarea.value = text;
+            textarea.setAttribute("readonly", "");
+            textarea.style.position = "fixed";
+            textarea.style.insetBlockStart = "0";
+            textarea.style.insetInlineStart = "0";
+            textarea.style.opacity = "0";
+            document.body.append(textarea);
+            textarea.select();
+
+            try {
+              const copied = document.execCommand("copy");
+              textarea.remove();
+              copied ? resolve() : reject(new Error("Copy command returned false"));
+            } catch (error) {
+              textarea.remove();
+              reject(error);
+            }
+          });
+
+        const writeClipboard = (text) => {
+          if (navigator.clipboard && window.isSecureContext) {
+            return navigator.clipboard.writeText(text);
+          }
+
+          return fallbackCopy(text);
+        };
+
+        const headingTextForBlock = (block) => {
+          let node = block;
+          while (node && node !== document.body) {
+            let sibling = node.previousElementSibling;
+            while (sibling) {
+              if (sibling.matches("h1, h2, h3")) return sibling.textContent?.trim();
+              const headings = Array.from(sibling.querySelectorAll("h1, h2, h3"));
+              const heading = headings.at(-1);
+              if (heading) return heading.textContent?.trim();
+              sibling = sibling.previousElementSibling;
+            }
+
+            node = node.parentElement;
+            if (node?.matches("main")) break;
+          }
+
+          return null;
+        };
+
+        for (const [index, block] of codeBlocks.entries()) {
+          if (block.parentElement?.classList.contains("code-copy")) continue;
+
+          const wrapper = document.createElement("div");
+          wrapper.className = "code-copy";
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "code-copy-button";
+          button.textContent = "Copy code";
+
+          const heading = headingTextForBlock(block);
+          const fallbackLabel = `code block ${index + 1}`;
+          const codeLabel = heading ? `code from ${heading}` : fallbackLabel;
+          button.setAttribute("aria-label", `Copy ${codeLabel}`);
+
+          block.before(wrapper);
+          wrapper.append(button, block);
+
+          button.addEventListener("click", async () => {
+            const text = block.textContent || "";
+
+            if (text.trim().length === 0) {
+              button.textContent = "Nothing to copy";
+              button.dataset.copyState = "notice";
+              status.textContent = "Code block is empty.";
+              window.setTimeout(() => {
+                button.textContent = "Copy code";
+                delete button.dataset.copyState;
+              }, 1800);
+              return;
+            }
+
+            button.disabled = true;
+            button.dataset.copyState = "loading";
+
+            try {
+              await writeClipboard(text);
+              button.textContent = "Copied";
+              button.dataset.copyState = "success";
+              status.textContent = `Copied ${codeLabel}.`;
+            } catch (error) {
+              button.textContent = "Copy failed";
+              button.dataset.copyState = "error";
+              status.textContent = "Copy failed. Select the code manually.";
+            } finally {
+              window.setTimeout(() => {
+                button.textContent = "Copy code";
+                button.disabled = false;
+                delete button.dataset.copyState;
+              }, 1800);
+            }
           });
         }
       })();

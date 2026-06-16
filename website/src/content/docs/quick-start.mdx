@@ -1,0 +1,169 @@
+---
+title: Quick start
+description: Add Vestibule to a Gleam app and wire the OAuth request and callback phases.
+nav:
+  group: Start
+  groupOrder: 0
+  order: 10
+  label: Quick start
+toc: true
+searchTerms:
+  - middleware
+  - wisp
+  - mist
+  - state
+  - PKCE
+  - callback
+  - security responsibilities
+---
+
+import CodeBlock from "../../components/CodeBlock.astro";
+
+export const middlewareInstallCode = `gleam add vestibule
+gleam add vestibule_github
+gleam add vestibule_wisp`;
+
+export const coreInstallCode = `gleam add vestibule
+gleam add vestibule_github`;
+
+export const coreCode = `import gleam/dict
+import vestibule
+import vestibule/config
+import vestibule_github
+
+let strategy = vestibule_github.strategy()
+let cfg =
+  config.new(
+    "client_id",
+    "client_secret",
+    "http://localhost:8000/auth/github/callback",
+  )
+
+let assert Ok(auth_request) = vestibule.authorize_url(strategy, cfg)
+// Store auth_request.state and auth_request.code_verifier server-side,
+// bound to this user's session, with an expiration time.
+// Redirect user to auth_request.url.
+
+let params =
+  dict.from_list([
+    #("state", "state from callback"),
+    #("code", "authorization code from callback"),
+  ])
+
+let assert Ok(auth) =
+  vestibule.handle_callback(
+    strategy,
+    cfg,
+    params,
+    "expected state from session",
+    "code verifier from session",
+  )
+// Delete the stored state and code_verifier after success.`;
+
+export const wispCode = `import gleam/http
+import wisp
+import vestibule/config
+import vestibule/registry
+import vestibule/state_store
+import vestibule_wisp
+import vestibule_github
+
+let assert Ok(reg) =
+  registry.new()
+  |> registry.register(
+    vestibule_github.strategy(),
+    config.new(
+      "client_id",
+      "client_secret",
+      "http://localhost:8000/auth/github/callback",
+    ),
+  )
+
+let store = state_store.init()
+
+case wisp.path_segments(req), req.method {
+  ["auth", provider], http.Get ->
+    vestibule_wisp.request_phase(req, reg, provider, store)
+
+  ["auth", provider, "callback"], http.Get
+  | ["auth", provider, "callback"], http.Post ->
+    vestibule_wisp.callback_phase(req, reg, provider, store, fn(auth) {
+      wisp.redirect("/dashboard")
+    })
+
+  _, _ ->
+    wisp.not_found()
+}`;
+
+<section id="middleware-path" className="quick-paths" aria-label="Recommended quick start path">
+  <div className="primary-path">
+    <div className="path-body">
+      <span className="path-label">Recommended path</span>
+      <h2>Use middleware for the auth routes</h2>
+      <p>
+        Add core plus the middleware for your server layer. GitHub support is
+        provided by vestibule_github; provider packages add Google, Microsoft,
+        or Apple.
+      </p>
+      <CodeBlock code={middlewareInstallCode} lang="sh" />
+
+      <h2>Route request and callback phases</h2>
+      <p>
+        Register strategies once, initialize the state store once, then pass
+        request and callback routes to the middleware.
+      </p>
+      <CodeBlock code={wispCode} lang="gleam" />
+
+      <p className="scope-note">
+        <strong>Using Mist?</strong> The route shape is the same; use{" "}
+        <a href="/docs/packages/mist">vestibule_mist</a> for plain Mist
+        handlers.
+      </p>
+    </div>
+  </div>
+
+  <details id="core-path" className="path-panel">
+    <summary>
+      <span>
+        <span className="path-label">Advanced path</span>
+        <strong>Need direct core control?</strong>
+        <small>Use this when your app owns routing, sessions, and callback storage.</small>
+      </span>
+    </summary>
+    <div className="path-body">
+      <p>
+        Core gives you the authorization URL, state, and PKCE verifier, then
+        validates the callback after your app supplies the stored values.
+      </p>
+      <CodeBlock code={coreInstallCode} lang="sh" />
+
+      <h2>Handle the two phases yourself</h2>
+      <p>
+        Store <code>auth_request.state</code> and
+        <code>auth_request.code_verifier</code> before redirecting. Pass the
+        stored values back during callback validation and delete them after
+        success.
+      </p>
+      <CodeBlock code={coreCode} lang="gleam" />
+    </div>
+  </details>
+</section>
+
+<section id="security-responsibilities" className="security-callout">
+  <div>
+    <h2>Before shipping</h2>
+    <p>
+      Keep OAuth callback data server-side, short-lived, and bound to the
+      user's session. Reject missing or mismatched callbacks.
+    </p>
+  </div>
+  <ul className="check-list">
+    <li>Production redirect URIs must use HTTPS.</li>
+    <li>Bearer tokens should be redacted from logs and error reports.</li>
+    <li>Cookie-secret rotation invalidates in-flight OAuth flows.</li>
+  </ul>
+</section>
+
+<nav className="next-links" aria-label="Next documentation links">
+  <a href="/docs/packages">Compare packages</a>
+</nav>

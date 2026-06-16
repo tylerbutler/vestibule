@@ -17,7 +17,7 @@ typography:
     fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
     fontSize: "2.25rem"
     fontWeight: 700
-    lineHeight: 1.05
+    lineHeight: 1.06
     letterSpacing: "-0.025em"
   headline:
     fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
@@ -133,7 +133,8 @@ The palette is restrained product purple with yellow used as a deliberate signal
 **Character:** One native sans family is the right fit for this product register: familiar, fast, and unshowy. Code blocks may use monospace, but labels, buttons, tables, and headings should stay in the same sans vocabulary.
 
 ### Hierarchy
-- **Display** (700, 2.25rem, 1.05 line-height): Product and example-page headings. Keep letter spacing no tighter than -0.025em.
+- **Display** (700, 2.25rem, 1.06 line-height): Documentation page headings and example-page headings. Keep letter spacing no tighter than -0.025em.
+- **Hero Display** (700, 2.75rem; 3.25rem at wide viewports, 1.06 line-height): Overview-page only. Use a fixed breakpoint step, not fluid `clamp()`, so the product documentation remains spatially predictable.
 - **Headline** (650, 1.5rem, 1.2 line-height): Section headings in docs, demo pages, and settings-like surfaces.
 - **Title** (650, 1.125rem, 1.3 line-height): Cards, form groups, and table section titles.
 - **Body** (400, 1rem, 1.6 line-height): Documentation prose, helper text, and explanatory UI copy. Cap long prose at 65-75ch.
@@ -142,6 +143,8 @@ The palette is restrained product purple with yellow used as a deliberate signal
 ### Named Rules
 
 **The Native Tool Rule.** Product UI should feel like a reliable developer tool, not a poster. Avoid decorative display fonts, oversized clamp headings, and novelty type treatments.
+
+**The Fixed Scale Rule.** Use fixed `rem` sizes for product documentation. Breakpoint steps are allowed for the overview hero, but fluid type should not drive docs-page hierarchy.
 
 **The Security Copy Rule.** Authentication guidance must stay legible at normal reading size. Never shrink security caveats into fine print.
 
@@ -163,6 +166,7 @@ Vestibule should be flat by default. Depth comes from tonal layering, soft borde
 - **Primary:** Filled `brand-purple` with white text, label typography, and 12px 18px padding.
 - **Hover / Focus:** Hover shifts to `brand-purple-hover`; focus uses a 3px `threshold-yellow` outline offset by 2px.
 - **Secondary / Ghost:** Yellow secondary buttons use `threshold-yellow` with `ink` text. Ghost buttons are text-first with a transparent background and purple hover surface.
+- **Touch:** Interactive buttons and compact links must keep a 44px minimum hit area on coarse-pointer devices, even when their visual style stays compact.
 
 ### Chips
 - **Style:** Provider and state chips use `brand-purple-soft` with `brand-purple` text, 6px radius, and compact 6px 10px padding.
@@ -182,10 +186,16 @@ Vestibule should be flat by default. Depth comes from tonal layering, soft borde
 
 ### Navigation
 - **Style, typography, default/hover/active states, mobile treatment.** Navigation should be text-first and compact. Active states use `brand-purple`; hover states use `brand-purple-soft`. On narrow screens, collapse into a simple stacked list or native disclosure pattern rather than a custom animated menu.
+- **Safe areas:** Layout chrome and page gutters account for `viewport-fit=cover` safe-area insets so phone notches and rounded corners never cover navigation or content.
+- **Theme persistence:** Theme controls must work when browser storage is blocked. Persist the choice when possible; otherwise keep the selected theme for the current page without breaking navigation or reading.
 
 ### Authentication Result Panel
 
 Use a two-column key/value layout for provider, UID, name, email, and nickname. Keys use label typography in `muted`; values use body typography in `ink`. Long provider IDs should wrap, not overflow.
+
+### Supported Provider Ledger
+
+Use a restrained row/list treatment for supported OAuth providers. Brand marks may appear as compact identifiers beside GitHub, Google, Microsoft, Apple, or future providers, but they should not turn the surface into a rainbow OAuth button grid. The provider name, package name, and behavior note carry the meaning; icons are supplemental.
 
 ## 6. Do's and Don'ts
 

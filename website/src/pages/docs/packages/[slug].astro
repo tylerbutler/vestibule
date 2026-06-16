@@ -1,67 +1,90 @@
 ---
+import { Code } from "astro:components";
+import type { CollectionEntry } from "astro:content";
 import DocsLayout from "../../../layouts/DocsLayout.astro";
-import { packageDocs, type PackageDoc } from "../../../data/packages";
+import {
+  getPackageEntries,
+  packageDocsUrl,
+  packageHexUrl,
+  packageSlug
+} from "../../../data/content";
 
-export function getStaticPaths() {
-  return packageDocs.map((pkg) => ({
-    params: { slug: pkg.slug },
+export async function getStaticPaths() {
+  const packages = await getPackageEntries();
+
+  return packages.map((pkg) => ({
+    params: { slug: packageSlug(pkg) },
     props: { pkg }
   }));
 }
 
-type Props = { pkg: PackageDoc };
+type Props = { pkg: CollectionEntry<"packages"> };
 const { pkg } = Astro.props;
+const { data } = pkg;
+const hexUrl = packageHexUrl(pkg);
+const docsUrl = packageDocsUrl(pkg);
 ---
 
 <DocsLayout
-  title={pkg.name}
-  description={pkg.summary}
+  title={data.name}
+  description={data.summary}
   section="Packages"
+  toc={[
+    { href: "#when-to-use", label: "When to use it" },
+    { href: "#install", label: "Install" },
+    { href: "#setup", label: "Setup shape" },
+    { href: "#usage", label: "Usage" },
+    { href: "#handling", label: "Handling notes" }
+  ]}
 >
   <article class="doc-page">
     <header class="doc-hero package-hero">
-      <span class="chip">{pkg.kind}</span>
-      <h1>{pkg.name}</h1>
-      <p>{pkg.summary}</p>
+      <span class="chip">{data.kind}</span>
+      <h1>{data.name}</h1>
+      <p>{data.summary}</p>
     </header>
 
     <section class="content-grid split">
-      <div>
+      <div id="when-to-use">
         <h2>When to use it</h2>
-        <p>{pkg.useWhen}</p>
-        {pkg.defaultScopes && (
-          <p class="scope-note"><strong>Default scopes:</strong> {pkg.defaultScopes}</p>
+        <p>{data.useWhen}</p>
+        {data.defaultScopes && (
+          <p class="scope-note"><strong>Default scopes:</strong> {data.defaultScopes}</p>
         )}
       </div>
-      <div class="install-card">
+      <div id="install" class="install-card">
         <h2>Install</h2>
-        <pre><code>{pkg.install.join("\n")}</code></pre>
+        <Code code={data.install.join("\n")} lang="sh" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
+        <nav class="resource-links" aria-label={`${data.name} package resources`}>
+          <a href={hexUrl}>Hex package</a>
+          <a href={docsUrl}>API docs</a>
+        </nav>
       </div>
     </section>
 
-    <section>
+    <section id="setup">
       <h2>Setup shape</h2>
       <ol class="setup-list">
-        {pkg.setup.map((item) => <li>{item}</li>)}
+        {data.setup.map((item) => <li>{item}</li>)}
       </ol>
     </section>
 
-    <section>
+    <section id="usage">
       <h2>Usage</h2>
-      <pre><code>{pkg.code}</code></pre>
+      <Code code={data.code} lang="gleam" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
     </section>
 
-    <section class="content-grid">
+    <section id="handling" class="content-grid">
       <div>
         <h2>What Vestibule handles</h2>
         <ul class="check-list">
-          {pkg.highlights.map((item) => <li>{item}</li>)}
+          {data.highlights.map((item) => <li>{item}</li>)}
         </ul>
       </div>
       <div>
         <h2>Notes to keep explicit</h2>
         <ul class="check-list warning">
-          {pkg.notes.map((item) => <li>{item}</li>)}
+          {data.notes.map((item) => <li>{item}</li>)}
         </ul>
       </div>
     </section>

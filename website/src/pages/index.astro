@@ -1,9 +1,49 @@
 ---
+import { Code } from "astro:components";
+import { siApple, siGithub, siGoogle } from "simple-icons";
 import DocsLayout from "../layouts/DocsLayout.astro";
-import { packageDocs } from "../data/packages";
+import { getPackageEntries, packageHref, packageSlug } from "../data/content";
 
-const primaryPackages = packageDocs.slice(0, 3);
-const providerPackages = packageDocs.slice(3);
+const packageEntries = await getPackageEntries();
+const primaryPackages = packageEntries.slice(0, 3);
+const packageBySlug = new Map(packageEntries.map((entry) => [packageSlug(entry), entry]));
+const hrefForPackage = (slug: string) => {
+  const entry = packageBySlug.get(slug);
+  return entry ? packageHref(entry) : `/docs/packages/${slug}`;
+};
+const nameForPackage = (slug: string, fallback: string) =>
+  packageBySlug.get(slug)?.data.name || fallback;
+const supportedProviders = [
+  {
+    name: "GitHub",
+    packageName: nameForPackage("core", "vestibule"),
+    href: hrefForPackage("core"),
+    note: "Built into the core package.",
+    icon: siGithub
+  },
+  {
+    name: "Google",
+    packageName: nameForPackage("google", "vestibule_google"),
+    href: hrefForPackage("google"),
+    note: "OpenID Connect, email, profile, and hosted-domain helpers.",
+    icon: siGoogle,
+    color: `#${siGoogle.hex}`
+  },
+  {
+    name: "Microsoft",
+    packageName: nameForPackage("microsoft", "vestibule_microsoft"),
+    href: hrefForPackage("microsoft"),
+    note: "Microsoft Graph /me plus tenant-specific sign-in helpers.",
+    icon: "microsoft"
+  },
+  {
+    name: "Apple",
+    packageName: nameForPackage("apple", "vestibule_apple"),
+    href: hrefForPackage("apple"),
+    note: "Sign in with Apple, JWKS-backed ID token verification, and form_post.",
+    icon: siApple
+  }
+];
 const directFlow = `let assert Ok(auth_request) = vestibule.authorize_url(strategy, cfg)
 // Store auth_request.state and auth_request.code_verifier.
 // Redirect to auth_request.url.
@@ -25,8 +65,8 @@ let assert Ok(auth) =
 >
   <section class="hero">
     <div class="hero-copy">
-      <p class="eyeless">Strategy-based OAuth2 authentication for Gleam</p>
-      <h1>Bring users through the secure threshold.</h1>
+      <p class="intro-label">Strategy-based OAuth2 authentication for Gleam</p>
+      <h1>OAuth sign-in for Gleam apps, without the guesswork.</h1>
       <p class="lead">
         Vestibule gives Gleam applications a consistent request/callback flow,
         normalized auth results, PKCE, CSRF state, provider strategies, and Wisp
@@ -34,24 +74,34 @@ let assert Ok(auth) =
         still owns.
       </p>
       <div class="hero-actions">
-        <a class="button primary" href="/docs/quick-start">Start the quick start</a>
+        <a class="button primary" href="/docs/quick-start">Add sign-in</a>
         <a class="button secondary" href="/docs/packages">Compare packages</a>
       </div>
+      <ol class="hero-flow" aria-label="OAuth flow checkpoints">
+        <li>
+          <strong>Request</strong>
+          <span>URL, state, PKCE verifier</span>
+        </li>
+        <li>
+          <strong>Store</strong>
+          <span>Bind transient callback data</span>
+        </li>
+        <li>
+          <strong>Callback</strong>
+          <span>Validate and normalize user info</span>
+        </li>
+      </ol>
     </div>
-    <aside class="threshold-panel" aria-label="Vestibule flow summary">
-      <div class="flow-step">
-        <strong>1. Request</strong>
-        <span>Generate URL, state, and PKCE verifier.</span>
-      </div>
-      <div class="flow-step">
-        <strong>2. Store</strong>
-        <span>Bind state and verifier to the user's server session.</span>
-      </div>
-      <div class="flow-step">
-        <strong>3. Callback</strong>
-        <span>Validate state, exchange code, fetch normalized user info.</span>
-      </div>
-    </aside>
+    <div class="hero-logo" aria-hidden="true">
+      <img
+        src="/logo.webp"
+        alt=""
+        width="451"
+        height="453"
+        decoding="async"
+        fetchpriority="high"
+      />
+    </div>
   </section>
 
   <section class="content-grid split">
@@ -59,11 +109,50 @@ let assert Ok(auth) =
       <h2>Start with the integration shape.</h2>
       <p>
         Use core APIs when you want direct control, Wisp or Mist middleware when
-        you want routing helpers, and provider packages when your app needs
-        Google, Microsoft, or Apple.
+        you want routing helpers, GitHub in core, and provider packages when your
+        app needs Google, Microsoft, or Apple.
       </p>
     </div>
-    <pre class="code-card"><code>{directFlow}</code></pre>
+    <Code code={directFlow} lang="gleam" class="code-card" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
+  </section>
+
+  <section aria-labelledby="supported-providers-heading">
+    <div class="section-heading">
+      <h2 id="supported-providers-heading">Supported providers</h2>
+      <p>
+        Start with GitHub from core, then add Google, Microsoft, or Apple when
+        your app needs those provider-specific flows.
+      </p>
+    </div>
+    <div class="provider-ledger" aria-label="Supported OAuth providers">
+      {supportedProviders.map((provider) => (
+        <a
+          class="provider-link"
+          href={provider.href}
+          style={provider.color ? `--provider-color: ${provider.color}` : undefined}
+        >
+          <span class:list={["provider-mark", { "provider-mark-microsoft": provider.icon === "microsoft" }]} aria-hidden="true">
+            {provider.icon === "microsoft" ? (
+              <span class="microsoft-window">
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+              </span>
+            ) : (
+              <svg viewBox="0 0 24 24" role="img" focusable="false">
+                <path d={provider.icon.path}></path>
+              </svg>
+            )}
+          </span>
+          <span class="provider-copy">
+            <strong>{provider.name}</strong>
+            <small>{provider.packageName}</small>
+          </span>
+          <span>{provider.note}</span>
+        </a>
+      ))}
+    </div>
   </section>
 
   <section>
@@ -73,18 +162,13 @@ let assert Ok(auth) =
     </div>
     <div class="package-river">
       {primaryPackages.map((pkg) => (
-        <a class="package-row" href={`/docs/packages/${pkg.slug}`}>
+        <a class="package-row" href={packageHref(pkg)}>
           <span>
-            <strong>{pkg.name}</strong>
-            <small>{pkg.kind}</small>
+            <strong>{pkg.data.name}</strong>
+            <small>{pkg.data.kind}</small>
           </span>
-          <span>{pkg.summary}</span>
+          <span>{pkg.data.summary}</span>
         </a>
-      ))}
-    </div>
-    <div class="provider-strip" aria-label="Provider strategies">
-      {providerPackages.map((pkg) => (
-        <a href={`/docs/packages/${pkg.slug}`}>{pkg.name.replace("vestibule_", "")}</a>
       ))}
     </div>
   </section>
