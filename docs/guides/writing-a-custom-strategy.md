@@ -53,15 +53,15 @@ Your strategy is responsible for:
 Here is the full type definition from `vestibule/strategy.gleam`:
 
 ```gleam
-pub type UserResult {
+pub opaque type UserResult {
   UserResult(uid: String, info: UserInfo, extra: Dict(String, Dynamic))
 }
 
-pub type ExchangeResult {
+pub opaque type ExchangeResult {
   ExchangeResult(credentials: Credentials, artifacts: Dict(String, Dynamic))
 }
 
-pub type Strategy(e) {
+pub opaque type Strategy(e) {
   Strategy(
     /// Human-readable provider name (e.g., "github", "google").
     provider: String,
@@ -82,6 +82,8 @@ pub type Strategy(e) {
   )
 }
 ```
+
+`UserResult`, `ExchangeResult`, and `Strategy(e)` are **opaque** -- you cannot build them with record syntax or read their fields directly from outside `vestibule/strategy`. Construct them with the helper functions (`strategy.new`, `strategy.user_result`, `strategy.exchange_result`, and `strategy.exchange_result_with_artifacts`) and read them with the accessors (`strategy.exchange_credentials`, `strategy.exchange_artifacts`, `strategy.user_result_uid`, `strategy.user_result_info`, and `strategy.user_result_extra`). The examples below use these helpers throughout.
 
 ### Field-by-field breakdown
 
@@ -131,8 +133,6 @@ pub fn strategy() -> Strategy(TwitchError) {
   // ...
 }
 ```
-
-The `error.map_custom` function can convert between custom error types if you need to unify strategies with different error types.
 
 ## Step-by-Step: Building a Strategy
 
@@ -190,10 +190,10 @@ import glow_auth/token_request
 import glow_auth/uri/uri_builder
 
 import vestibule/config.{type Config}
-import vestibule/credentials.{type Credentials, Credentials}
+import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/provider_support
-import vestibule/strategy.{type Strategy, type UserResult, Strategy, UserResult}
+import vestibule/strategy.{type Strategy, type UserResult}
 import vestibule/user_info.{type UserInfo}
 
 fn do_authorize_url(
@@ -394,7 +394,7 @@ fn do_fetch_user(
   cfg: Config,
   exchange: strategy.ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
-  let creds = exchange.credentials
+  let creds = strategy.exchange_credentials(exchange)
   use auth_header <- result.try(strategy.authorization_header(creds))
   use user_req <- result.try(
     request.to("https://api.twitch.tv/helix/users")
@@ -411,7 +411,7 @@ fn do_fetch_user(
     Ok(response) -> {
       use body <- result.try(provider_support.check_response_status(response))
       use #(uid, info) <- result.try(parse_user_response(body))
-      Ok(UserResult(uid: uid, info: info, extra: dict.new()))
+      Ok(strategy.user_result(uid: uid, info: info, extra: dict.new()))
     }
     Error(_) ->
       Error(error.NetworkError(
@@ -499,7 +499,7 @@ Now create the public `strategy()` constructor that assembles all the pieces:
 ```gleam
 /// Create a Twitch authentication strategy.
 pub fn strategy() -> Strategy(e) {
-  Strategy(
+  strategy.new(
     provider: "twitch",
     default_scopes: ["user:read:email"],
     authorize_url: do_authorize_url,
@@ -592,7 +592,7 @@ fn do_fetch_user(
   cfg: Config,
   exchange: strategy.ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
-  let creds = exchange.credentials
+  let creds = strategy.exchange_credentials(exchange)
 
   // Primary request
   use resp <- result.try(fetch_profile(cfg, creds))
@@ -614,7 +614,7 @@ fn do_fetch_user(
     None -> info
   }
 
-  Ok(UserResult(uid: uid, info: final_info, extra: dict.new()))
+  Ok(strategy.user_result(uid: uid, info: final_info, extra: dict.new()))
 }
 ```
 
