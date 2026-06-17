@@ -7,6 +7,7 @@ import vestibule/credentials
 import vestibule/error
 import vestibule/oidc
 import vestibule/strategy
+import vestibule/user_info
 
 // --- OidcConfig construction ---
 
@@ -376,12 +377,14 @@ pub fn parse_userinfo_response_full_test() {
   let result = oidc.parse_userinfo_response(json)
   let assert Ok(#(uid, info)) = result
   uid |> expect.to_equal("user-id-123")
-  info.name |> expect.to_equal(Some("Jane Doe"))
-  info.email |> expect.to_equal(Some("jane@example.com"))
-  info.nickname |> expect.to_equal(Some("janedoe"))
-  info.image |> expect.to_equal(Some("https://example.com/jane.jpg"))
-  info.description |> expect.to_equal(None)
-  info.urls |> expect.to_equal(dict.new())
+  info |> user_info.name() |> expect.to_equal(Some("Jane Doe"))
+  info |> user_info.email() |> expect.to_equal(Some("jane@example.com"))
+  info |> user_info.nickname() |> expect.to_equal(Some("janedoe"))
+  info
+  |> user_info.image()
+  |> expect.to_equal(Some("https://example.com/jane.jpg"))
+  info |> user_info.description() |> expect.to_equal(None)
+  info |> user_info.urls() |> expect.to_equal(dict.new())
 }
 
 pub fn parse_userinfo_response_minimal_test() {
@@ -389,10 +392,10 @@ pub fn parse_userinfo_response_minimal_test() {
   let result = oidc.parse_userinfo_response(json)
   let assert Ok(#(uid, info)) = result
   uid |> expect.to_equal("minimal-user")
-  info.name |> expect.to_equal(None)
-  info.email |> expect.to_equal(None)
-  info.nickname |> expect.to_equal(None)
-  info.image |> expect.to_equal(None)
+  info |> user_info.name() |> expect.to_equal(None)
+  info |> user_info.email() |> expect.to_equal(None)
+  info |> user_info.nickname() |> expect.to_equal(None)
+  info |> user_info.image() |> expect.to_equal(None)
 }
 
 pub fn parse_userinfo_response_invalid_json_test() {
@@ -415,7 +418,7 @@ pub fn parse_userinfo_response_unverified_email_test() {
     "{\"sub\":\"user-id-123\",\"email\":\"jane@example.com\",\"email_verified\":false}"
   let result = oidc.parse_userinfo_response(json)
   let assert Ok(#(_, info)) = result
-  info.email |> expect.to_equal(None)
+  info |> user_info.email() |> expect.to_equal(None)
 }
 
 // --- filter_default_scopes ---

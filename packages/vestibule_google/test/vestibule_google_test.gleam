@@ -6,6 +6,7 @@ import vestibule/config
 import vestibule/credentials
 import vestibule/error
 import vestibule/strategy
+import vestibule/user_info
 import vestibule_google
 
 pub fn main() -> Nil {
@@ -82,30 +83,30 @@ pub fn parse_user_response_full_test() {
     "{\"sub\":\"1234567890\",\"name\":\"Jane Doe\",\"given_name\":\"Jane\",\"family_name\":\"Doe\",\"picture\":\"https://lh3.googleusercontent.com/photo.jpg\",\"email\":\"jane@example.com\",\"email_verified\":true}"
   let assert Ok(#(uid, info)) = vestibule_google.parse_user_response(body)
   uid |> expect.to_equal("1234567890")
-  info.name |> expect.to_equal(Some("Jane Doe"))
-  info.email |> expect.to_equal(Some("jane@example.com"))
-  info.nickname |> expect.to_equal(Some("jane@example.com"))
-  info.image
+  user_info.name(info) |> expect.to_equal(Some("Jane Doe"))
+  user_info.email(info) |> expect.to_equal(Some("jane@example.com"))
+  user_info.nickname(info) |> expect.to_equal(Some("jane@example.com"))
+  user_info.image(info)
   |> expect.to_equal(Some("https://lh3.googleusercontent.com/photo.jpg"))
-  info.description |> expect.to_equal(None)
+  user_info.description(info) |> expect.to_equal(None)
 }
 
 pub fn parse_user_response_unverified_email_test() {
   let body =
     "{\"sub\":\"999\",\"name\":\"Test\",\"email\":\"unverified@example.com\",\"email_verified\":false}"
   let assert Ok(#(_uid, info)) = vestibule_google.parse_user_response(body)
-  info.email |> expect.to_equal(None)
-  info.nickname |> expect.to_equal(Some("unverified@example.com"))
+  user_info.email(info) |> expect.to_equal(None)
+  user_info.nickname(info) |> expect.to_equal(Some("unverified@example.com"))
 }
 
 pub fn parse_user_response_minimal_test() {
   let body = "{\"sub\":\"abc-123\"}"
   let assert Ok(#(uid, info)) = vestibule_google.parse_user_response(body)
   uid |> expect.to_equal("abc-123")
-  info.name |> expect.to_equal(None)
-  info.email |> expect.to_equal(None)
-  info.nickname |> expect.to_equal(None)
-  info.image |> expect.to_equal(None)
+  user_info.name(info) |> expect.to_equal(None)
+  user_info.email(info) |> expect.to_equal(None)
+  user_info.nickname(info) |> expect.to_equal(None)
+  user_info.image(info) |> expect.to_equal(None)
 }
 
 pub fn authorize_url_invalid_redirect_uri_returns_error_test() {

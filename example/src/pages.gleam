@@ -6,6 +6,7 @@ import wisp
 
 import html
 import vestibule/auth.{type Auth}
+import vestibule/user_info
 
 /// Landing page with dynamic provider buttons.
 pub fn landing(providers: List(String)) -> wisp.Response {
@@ -37,13 +38,14 @@ fn capitalize(s: String) -> String {
 }
 
 /// Success page showing authenticated user info.
-pub fn success(auth: Auth) -> wisp.Response {
-  let name = houdini.escape(option_or(auth.info.name, "—"))
-  let email = houdini.escape(option_or(auth.info.email, "—"))
-  let nickname = houdini.escape(option_or(auth.info.nickname, "—"))
-  let provider = houdini.escape(auth.provider)
-  let uid = houdini.escape(auth.uid)
-  let image_html = case auth.info.image {
+pub fn success(result: Auth) -> wisp.Response {
+  let info = auth.info(result)
+  let name = houdini.escape(option_or(user_info.name(info), "—"))
+  let email = houdini.escape(option_or(user_info.email(info), "—"))
+  let nickname = houdini.escape(option_or(user_info.nickname(info), "—"))
+  let provider = houdini.escape(auth.provider(result))
+  let uid = houdini.escape(auth.uid(result))
+  let image_html = case user_info.image(info) {
     Some(url) ->
       case html.safe_image_url(url) {
         Some(safe_url) ->

@@ -20,7 +20,11 @@ highlights:
 code: |
   import gleam/dict
   import vestibule
+  import vestibule/auth
+  import vestibule/authorization_request
   import vestibule/config
+  import vestibule/credentials
+  import vestibule/user_info
   import vestibule_github
 
   let strategy = vestibule_github.strategy()
@@ -32,8 +36,9 @@ code: |
     )
 
   let assert Ok(auth_request) = vestibule.authorize_url(strategy, cfg)
-  // Store auth_request.state and auth_request.code_verifier server-side.
-  // Redirect the user to auth_request.url.
+  // Store authorization_request.state(auth_request) and
+  // authorization_request.code_verifier(auth_request) server-side.
+  // Redirect the user to authorization_request.url(auth_request).
 
   let params =
     dict.from_list([
@@ -41,7 +46,7 @@ code: |
       #("code", "authorization code from callback"),
     ])
 
-  let assert Ok(auth) =
+  let assert Ok(result) =
     vestibule.handle_callback(
       strategy,
       cfg,
@@ -49,6 +54,14 @@ code: |
       "expected state from session",
       "code verifier from session",
     )
+
+  let uid = auth.uid(result)
+  let email = user_info.email(auth.info(result))
+  let token = credentials.token(auth.credentials(result))
+
+  _ = uid
+  _ = email
+  _ = token
 notes:
   - Production redirect URIs and OIDC issuers must use HTTPS.
   - Redact Auth and Credentials values in logs; bearer tokens are secrets.

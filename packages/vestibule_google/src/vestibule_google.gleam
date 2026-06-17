@@ -129,14 +129,11 @@ pub fn parse_user_response_with_hd(
     }
     decode.success(#(
       sub,
-      user_info.UserInfo(
-        name: name,
-        email: verified_email,
-        nickname: email,
-        image: picture,
-        description: None,
-        urls: dict.new(),
-      ),
+      user_info.new()
+        |> user_info.with_name(name)
+        |> user_info.with_email(verified_email)
+        |> user_info.with_nickname(email)
+        |> user_info.with_image(picture),
       hd,
     ))
   }

@@ -6,6 +6,7 @@ import startest/expect
 import vestibule/config
 import vestibule/credentials
 import vestibule/strategy
+import vestibule/user_info
 import vestibule_microsoft
 
 pub fn main() -> Nil {
@@ -178,32 +179,32 @@ pub fn parse_user_response_full_test() {
     "{\"id\":\"87d349ed-44d7-43e1-9a83-5f2406dee5bd\",\"displayName\":\"Adele Vance\",\"mail\":\"AdeleV@contoso.com\",\"userPrincipalName\":\"AdeleV@contoso.com\",\"jobTitle\":\"Retail Manager\"}"
   let assert Ok(#(uid, info)) = vestibule_microsoft.parse_user_response(body)
   uid |> expect.to_equal("87d349ed-44d7-43e1-9a83-5f2406dee5bd")
-  info.name |> expect.to_equal(Some("Adele Vance"))
-  info.email |> expect.to_equal(Some("AdeleV@contoso.com"))
-  info.nickname |> expect.to_equal(Some("AdeleV@contoso.com"))
-  info.description |> expect.to_equal(Some("Retail Manager"))
+  user_info.name(info) |> expect.to_equal(Some("Adele Vance"))
+  user_info.email(info) |> expect.to_equal(Some("AdeleV@contoso.com"))
+  user_info.nickname(info) |> expect.to_equal(Some("AdeleV@contoso.com"))
+  user_info.description(info) |> expect.to_equal(Some("Retail Manager"))
   // Microsoft Graph doesn't provide a direct image URL
-  info.image |> expect.to_equal(None)
+  user_info.image(info) |> expect.to_equal(None)
 }
 
 pub fn parse_user_response_minimal_test() {
   let body = "{\"id\":\"abc-123\",\"userPrincipalName\":\"user@example.com\"}"
   let assert Ok(#(uid, info)) = vestibule_microsoft.parse_user_response(body)
   uid |> expect.to_equal("abc-123")
-  info.name |> expect.to_equal(None)
+  user_info.name(info) |> expect.to_equal(None)
   // UPN is not a verified email, so email should be None
-  info.email |> expect.to_equal(None)
-  info.nickname |> expect.to_equal(Some("user@example.com"))
-  info.description |> expect.to_equal(None)
+  user_info.email(info) |> expect.to_equal(None)
+  user_info.nickname(info) |> expect.to_equal(Some("user@example.com"))
+  user_info.description(info) |> expect.to_equal(None)
   // No gravatar when no verified email
-  info.image |> expect.to_equal(None)
+  user_info.image(info) |> expect.to_equal(None)
 }
 
 pub fn parse_user_response_mail_preferred_over_upn_test() {
   let body =
     "{\"id\":\"abc\",\"mail\":\"real@example.com\",\"userPrincipalName\":\"upn@example.com\"}"
   let assert Ok(#(_uid, info)) = vestibule_microsoft.parse_user_response(body)
-  info.email |> expect.to_equal(Some("real@example.com"))
+  user_info.email(info) |> expect.to_equal(Some("real@example.com"))
 }
 
 pub fn authorize_url_invalid_redirect_uri_returns_error_test() {

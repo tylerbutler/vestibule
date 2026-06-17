@@ -1,0 +1,4 @@
+project: vestibule
+kind: Breaking
+body: '`Auth` and `UserInfo` are now opaque. Construct them with `auth.new` and `user_info.new`/`user_info.with_*`, and read fields with module accessors.'
+time: 2026-06-16T22:31:54-07:00

@@ -342,14 +342,11 @@ pub fn parse_userinfo_response(
     }
     decode.success(#(
       sub,
-      user_info.UserInfo(
-        name: name,
-        email: verified_email,
-        nickname: preferred_username,
-        image: picture,
-        description: None,
-        urls: dict.new(),
-      ),
+      user_info.new()
+        |> user_info.with_name(name)
+        |> user_info.with_email(verified_email)
+        |> user_info.with_nickname(preferred_username)
+        |> user_info.with_image(picture),
     ))
   }
   case json.parse(body, decoder) {

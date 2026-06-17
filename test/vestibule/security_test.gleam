@@ -17,7 +17,7 @@ import vestibule/pkce
 import vestibule/provider_support
 import vestibule/state
 import vestibule/strategy.{type Strategy}
-import vestibule/user_info.{UserInfo}
+import vestibule/user_info
 
 // ---------------------------------------------------------------------------
 // Helper: test strategy that captures inputs for verification
@@ -58,14 +58,7 @@ fn test_strategy() -> Strategy(e) {
     fetch_user: fn(_config, _exchange) {
       Ok(strategy.user_result(
         uid: "uid",
-        info: UserInfo(
-          name: None,
-          email: None,
-          nickname: None,
-          image: None,
-          description: None,
-          urls: dict.new(),
-        ),
+        info: user_info.new(),
         extra: dict.new(),
       ))
     },
@@ -531,7 +524,8 @@ pub fn oidc_userinfo_handles_xss_in_name_test() {
   let assert Ok(#(_, info)) = result
   // The XSS payload is stored as a plain string; escaping is the
   // responsibility of the presentation layer.
-  info.name
+  info
+  |> user_info.name()
   |> expect.to_equal(Some("<script>alert(1)</script>"))
 }
 
@@ -545,7 +539,9 @@ pub fn oidc_rejects_unverified_email_test() {
     "{\"sub\":\"user-1\",\"email\":\"unverified@example.com\",\"email_verified\":false}"
   let result = oidc.parse_userinfo_response(json)
   let assert Ok(#(_, info)) = result
-  info.email |> expect.to_equal(None)
+  info
+  |> user_info.email()
+  |> expect.to_equal(None)
 }
 
 // ===========================================================================

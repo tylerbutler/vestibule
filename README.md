@@ -33,7 +33,11 @@ two-phase flow directly:
 ```gleam
 import gleam/dict
 import vestibule
+import vestibule/auth
+import vestibule/authorization_request
 import vestibule/config
+import vestibule/credentials
+import vestibule/user_info
 import vestibule_github
 
 let strategy = vestibule_github.strategy()
@@ -46,9 +50,10 @@ let cfg =
 
 // Phase 1: Generate authorization URL and redirect user
 let assert Ok(auth_request) = vestibule.authorize_url(strategy, cfg)
-// Store auth_request.state and auth_request.code_verifier server-side,
+// Store authorization_request.state(auth_request) and
+// authorization_request.code_verifier(auth_request) server-side,
 // bound to this user's session, with an expiration time.
-// Redirect user to auth_request.url
+// Redirect user to authorization_request.url(auth_request)
 
 // Phase 2: Handle the callback
 let params =
@@ -57,7 +62,7 @@ let params =
     #("code", "authorization code from callback"),
   ])
 
-let assert Ok(auth) =
+let assert Ok(result) =
   vestibule.handle_callback(
     strategy,
     cfg,
@@ -66,7 +71,8 @@ let assert Ok(auth) =
     "code verifier from session",
   )
 // Delete the stored state and code verifier after a successful callback.
-// auth.uid, auth.info.email, credentials.token(auth.credentials)
+// auth.uid(result), user_info.email(auth.info(result)),
+// credentials.token(auth.credentials(result))
 ```
 
 Store `state` and the PKCE `code_verifier` on the server, bound to the user's
@@ -79,10 +85,12 @@ Or use the `vestibule_wisp` middleware for a higher-level API:
 ```gleam
 import gleam/http
 import wisp
+import vestibule/auth
 import vestibule/config
 import vestibule/registry
 import vestibule_wisp
 import vestibule/state_store
+import vestibule/user_info
 import vestibule_github
 
 // Initialize once at startup
@@ -106,8 +114,9 @@ case wisp.path_segments(req), req.method {
   ["auth", provider, "callback"], http.Get
   | ["auth", provider, "callback"], http.Post
   ->
-    vestibule_wisp.callback_phase(req, reg, provider, store, fn(auth) {
-      // auth.uid, auth.info.name, auth.info.email
+    vestibule_wisp.callback_phase(req, reg, provider, store, fn(result) {
+      // auth.uid(result), user_info.name(auth.info(result)),
+      // user_info.email(auth.info(result))
       wisp.redirect("/dashboard")
     })
   _, _ -> wisp.not_found()

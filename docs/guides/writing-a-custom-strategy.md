@@ -437,16 +437,13 @@ pub fn parse_user_response(
     )
     decode.success(#(
       id,
-      UserInfo(
-        name: display_name,
-        email: email,
-        nickname: Some(login),
-        image: profile_image_url,
-        description: description,
-        urls: dict.from_list([
-          #("twitch_url", "https://twitch.tv/" <> login),
-        ]),
-      ),
+      user_info.new()
+      |> user_info.with_name(display_name)
+      |> user_info.with_email(email)
+      |> user_info.with_nickname(Some(login))
+      |> user_info.with_image(profile_image_url)
+      |> user_info.with_description(description)
+      |> user_info.with_url("twitch_url", "https://twitch.tv/" <> login),
     ))
   }
   let decoder = {
@@ -456,14 +453,7 @@ pub fn parse_user_response(
       [] ->
         decode.success(#(
           "",
-          UserInfo(
-            name: None,
-            email: None,
-            nickname: None,
-            image: None,
-            description: None,
-            urls: dict.new(),
-          ),
+          user_info.new(),
         ))
     }
   }
@@ -501,6 +491,7 @@ Usage from an application:
 
 ```gleam
 import vestibule
+import vestibule/authorization_request
 import vestibule/config
 import vestibule_twitch
 
@@ -513,8 +504,9 @@ pub fn start_auth() {
     )
   let strategy = vestibule_twitch.strategy()
   let assert Ok(auth_request) = vestibule.authorize_url(strategy, twitch_config)
-  // Store auth_request.state and auth_request.code_verifier in session
-  // Redirect user to auth_request.url
+  // Store authorization_request.state(auth_request) and
+  // authorization_request.code_verifier(auth_request) in session
+  // Redirect user to authorization_request.url(auth_request)
 }
 ```
 
@@ -597,7 +589,7 @@ fn do_fetch_user(
   }
 
   let final_info = case email {
-    Some(_) -> UserInfo(..info, email: email)
+    Some(_) -> user_info.with_email(info, email)
     None -> info
   }
 
@@ -798,15 +790,15 @@ pub fn parse_user_response_full_test() {
     "{\"data\":[{\"id\":\"44322889\",\"login\":\"dallas\",\"display_name\":\"dallas\",\"profile_image_url\":\"https://static-cdn.jtvnw.net/jtv_user_pictures/dallas-profile.png\",\"description\":\"Just a chill streamer\",\"email\":\"dallas@example.com\"}]}"
   let assert Ok(#(uid, info)) = vestibule_twitch.parse_user_response(body)
   uid |> expect.to_equal("44322889")
-  info.name |> expect.to_equal(Some("dallas"))
-  info.nickname |> expect.to_equal(Some("dallas"))
-  info.email |> expect.to_equal(Some("dallas@example.com"))
-  info.image
+  user_info.name(info) |> expect.to_equal(Some("dallas"))
+  user_info.nickname(info) |> expect.to_equal(Some("dallas"))
+  user_info.email(info) |> expect.to_equal(Some("dallas@example.com"))
+  user_info.image(info)
   |> expect.to_equal(
     Some("https://static-cdn.jtvnw.net/jtv_user_pictures/dallas-profile.png"),
   )
-  info.description |> expect.to_equal(Some("Just a chill streamer"))
-  info.urls
+  user_info.description(info) |> expect.to_equal(Some("Just a chill streamer"))
+  user_info.urls(info)
   |> expect.to_equal(dict.from_list([#("twitch_url", "https://twitch.tv/dallas")]))
 }
 
@@ -815,9 +807,9 @@ pub fn parse_user_response_minimal_test() {
     "{\"data\":[{\"id\":\"12345\",\"login\":\"testuser\"}]}"
   let assert Ok(#(uid, info)) = vestibule_twitch.parse_user_response(body)
   uid |> expect.to_equal("12345")
-  info.name |> expect.to_equal(None)
-  info.email |> expect.to_equal(None)
-  info.nickname |> expect.to_equal(Some("testuser"))
+  user_info.name(info) |> expect.to_equal(None)
+  user_info.email(info) |> expect.to_equal(None)
+  user_info.nickname(info) |> expect.to_equal(Some("testuser"))
 }
 ```
 
