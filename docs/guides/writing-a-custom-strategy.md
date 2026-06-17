@@ -4,6 +4,19 @@ This guide walks through building a vestibule strategy from scratch. By the end,
 
 ## Overview
 
+### Public provider SDK
+
+Custom provider packages should build against the root package's provider SDK:
+`vestibule/strategy` and `vestibule/provider_support`. The application-facing
+modules such as `vestibule/config`, `vestibule/credentials`,
+`vestibule/error`, and `vestibule/user_info` are also part of the stable root
+surface because strategies exchange those types with applications.
+
+Do not import `vestibule/state`, `vestibule/pkce`, or
+`vestibule/transport_flow` from custom strategy packages. `state` and `pkce` are
+internal OAuth primitives, and `transport_flow` is shared middleware plumbing
+whose final public shape is tracked in issue #85.
+
 ### What is a strategy?
 
 A strategy is a Gleam record containing four functions and some metadata. There are no behaviours, traits, or interfaces involved -- just a value of type `Strategy(e)` that you construct and pass to vestibule's core functions.

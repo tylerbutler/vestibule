@@ -274,30 +274,42 @@ common attacks, but a few responsibilities remain with the consuming app.
 
 ## API Notes
 
-The 1.0 API intentionally keeps provider behavior explicit:
+The root package has two intended public surfaces for 1.0.
 
-- `Credentials.expires_at` was replaced with `Credentials.expires_in`. The value
-  is the provider's relative `expires_in` duration in seconds, not an absolute
-  timestamp.
-- OIDC configuration is opaque and validated. Create it with `oidc.new_config`
-  or `oidc.discover` instead of constructing records directly.
-- `config.with_extra_params` returns `Result(Config, AuthError(e))` and rejects
-  reserved authorization parameters.
-- `Strategy.exchange_code` returns `ExchangeResult(credentials, artifacts)`.
-  Use `strategy.exchange_result(credentials)` for providers with no exchange
-  artifacts. `Strategy.fetch_user(Config, ExchangeResult)` receives both the
-  standard credentials and any provider-specific token response artifacts.
-- Provider-support helpers are public for custom strategy authors. Prefer
-  helpers such as `provider_support.parse_redirect_uri`,
-  `provider_support.check_response_status`, and
-  `strategy.authorization_header`, and `strategy.append_code_verifier` over
-  copying built-in strategy internals.
-- Supported parsers such as `provider_support.parse_oauth_token_response`,
-  `oidc.parse_token_response`, and `github.parse_token_response` are public API
-  for strategy authors.
-- Wisp exposes structured callback errors through
-  `vestibule_wisp.callback_phase_auth_result` for apps that need more control
-  than the default HTML error page.
+**Application API** modules are for apps that run OAuth flows directly or through
+the middleware packages:
+
+- `vestibule`
+- `vestibule/auth`
+- `vestibule/authorization_request`
+- `vestibule/config`
+- `vestibule/credentials`
+- `vestibule/error`
+- `vestibule/oidc`
+- `vestibule/registry`
+- `vestibule/state_store`
+- `vestibule/user_info`
+
+**Provider SDK** modules are for packages that implement custom OAuth or OIDC
+provider strategies:
+
+- `vestibule/strategy`
+- `vestibule/provider_support`
+
+`Strategy.exchange_code` returns `ExchangeResult(credentials, artifacts)`. Use
+`strategy.exchange_result(credentials)` for providers with no exchange artifacts.
+`Strategy.fetch_user(Config, ExchangeResult)` receives both the standard
+credentials and any provider-specific token response artifacts.
+
+Prefer provider SDK helpers such as `provider_support.parse_redirect_uri`,
+`provider_support.check_response_status`,
+`provider_support.parse_oauth_token_response`,
+`strategy.authorization_header`, and `strategy.append_code_verifier` over
+copying built-in strategy internals.
+
+`vestibule/transport_flow` remains visible for now because the shipped Wisp and
+Mist middleware packages share it. It is not a finalized transport SDK; issue #85
+tracks whether to hide it or promote it with a stable shape.
 
 ## Writing a Custom Strategy
 

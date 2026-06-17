@@ -5,7 +5,12 @@ licences = ["MIT"]
 repository = { type = "github", user = "tylerbutler", repo = "vestibule" }
 gleam = ">= 1.7.0"
 
-internal_modules = ["vestibule/internal", "vestibule/internal/*"]
+internal_modules = [
+  "vestibule/internal",
+  "vestibule/internal/*",
+  "vestibule/state",
+  "vestibule/pkce",
+]
 
 [dependencies]
 gleam_stdlib = ">= 0.48.0 and < 2.0.0"
