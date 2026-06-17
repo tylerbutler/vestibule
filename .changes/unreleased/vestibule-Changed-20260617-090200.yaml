@@ -1,0 +1,4 @@
+project: vestibule
+kind: Changed
+body: 'Renamed the public `vestibule.authorize_url` function to `vestibule.create_authorization_request` to reflect that it generates CSRF state and PKCE parameters and returns a full `AuthorizationRequest`, not just a URL. This is a breaking rename with no compatibility alias (pre-1.0); update call sites accordingly.'
+time: 2026-06-17T09:02:00.000000000-07:00

@@ -39,7 +39,7 @@ pub fn start_authorization(
     |> result.map_error(fn(_) { UnknownProvider(provider) }),
   )
   use auth_request <- result.try(
-    vestibule.authorize_url(strategy, cfg: config)
+    vestibule.create_authorization_request(strategy, cfg: config)
     |> result.map_error(AuthFailed),
   )
   use session_id <- result.try(

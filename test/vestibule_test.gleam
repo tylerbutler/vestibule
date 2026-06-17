@@ -153,7 +153,7 @@ fn fragment_strategy() -> Strategy(e) {
   )
 }
 
-pub fn authorize_url_returns_authorization_request_test() {
+pub fn create_authorization_request_returns_authorization_request_test() {
   let strat = test_strategy()
   let conf =
     config.new(
@@ -161,7 +161,7 @@ pub fn authorize_url_returns_authorization_request_test() {
       client_secret: "secret",
       redirect_uri: "http://localhost/cb",
     )
-  let assert Ok(req) = vestibule.authorize_url(strat, cfg: conf)
+  let assert Ok(req) = vestibule.create_authorization_request(strat, cfg: conf)
   let url = authorization_request.url(req)
   let state = authorization_request.state(req)
   let verifier = authorization_request.code_verifier(req)
@@ -176,14 +176,15 @@ pub fn authorize_url_returns_authorization_request_test() {
   { string.contains(url, "code_challenge_method=S256") } |> expect.to_be_true()
 }
 
-pub fn authorize_url_appends_pkce_before_url_fragment_test() {
+pub fn create_authorization_request_appends_pkce_before_url_fragment_test() {
   let conf =
     config.new(
       client_id: "id",
       client_secret: "secret",
       redirect_uri: "http://localhost/cb",
     )
-  let assert Ok(req) = vestibule.authorize_url(fragment_strategy(), cfg: conf)
+  let assert Ok(req) =
+    vestibule.create_authorization_request(fragment_strategy(), cfg: conf)
   let url = authorization_request.url(req)
 
   { string.contains(url, "&existing=1&code_challenge=") }
@@ -192,7 +193,7 @@ pub fn authorize_url_appends_pkce_before_url_fragment_test() {
   |> expect.to_be_true()
 }
 
-pub fn authorize_url_uses_config_scopes_when_present_test() {
+pub fn create_authorization_request_uses_config_scopes_when_present_test() {
   let strat = test_strategy()
   let conf =
     config.new(
@@ -201,13 +202,13 @@ pub fn authorize_url_uses_config_scopes_when_present_test() {
       redirect_uri: "http://localhost/cb",
     )
     |> config.with_scopes(["custom_scope"])
-  let assert Ok(req) = vestibule.authorize_url(strat, cfg: conf)
+  let assert Ok(req) = vestibule.create_authorization_request(strat, cfg: conf)
   let url = authorization_request.url(req)
   { string.contains(url, "custom_scope") } |> expect.to_be_true()
   { string.contains(url, "default_scope") } |> expect.to_be_false()
 }
 
-pub fn authorize_url_uses_default_scopes_when_config_empty_test() {
+pub fn create_authorization_request_uses_default_scopes_when_config_empty_test() {
   let strat = test_strategy()
   let conf =
     config.new(
@@ -215,7 +216,7 @@ pub fn authorize_url_uses_default_scopes_when_config_empty_test() {
       client_secret: "secret",
       redirect_uri: "http://localhost/cb",
     )
-  let assert Ok(req) = vestibule.authorize_url(strat, cfg: conf)
+  let assert Ok(req) = vestibule.create_authorization_request(strat, cfg: conf)
   let url = authorization_request.url(req)
   { string.contains(url, "default_scope") } |> expect.to_be_true()
 }
