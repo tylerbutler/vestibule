@@ -186,7 +186,7 @@ pub fn pkce_different_verifiers_produce_different_challenges_test() {
 
 /// Security: authorization URL must always include PKCE params.
 /// No code path should produce a URL without code_challenge.
-pub fn authorize_url_always_includes_pkce_test() {
+pub fn create_authorization_request_always_includes_pkce_test() {
   let strat = test_strategy()
   let conf =
     config.new(
@@ -194,14 +194,15 @@ pub fn authorize_url_always_includes_pkce_test() {
       client_secret: "secret",
       redirect_uri: "https://localhost/cb",
     )
-  let assert Ok(auth_req) = vestibule.authorize_url(strat, cfg: conf)
+  let assert Ok(auth_req) =
+    vestibule.create_authorization_request(strat, cfg: conf)
   let url = authorization_request.url(auth_req)
   { string.contains(url, "code_challenge=") } |> expect.to_be_true()
   { string.contains(url, "code_challenge_method=S256") } |> expect.to_be_true()
 }
 
-/// Security: authorize_url state and verifier must differ on each call.
-pub fn authorize_url_produces_fresh_state_and_verifier_test() {
+/// Security: create_authorization_request state and verifier must differ on each call.
+pub fn create_authorization_request_produces_fresh_state_and_verifier_test() {
   let strat = test_strategy()
   let conf =
     config.new(
@@ -209,8 +210,8 @@ pub fn authorize_url_produces_fresh_state_and_verifier_test() {
       client_secret: "secret",
       redirect_uri: "https://localhost/cb",
     )
-  let assert Ok(req1) = vestibule.authorize_url(strat, cfg: conf)
-  let assert Ok(req2) = vestibule.authorize_url(strat, cfg: conf)
+  let assert Ok(req1) = vestibule.create_authorization_request(strat, cfg: conf)
+  let assert Ok(req2) = vestibule.create_authorization_request(strat, cfg: conf)
   { authorization_request.state(req1) != authorization_request.state(req2) }
   |> expect.to_be_true()
   {

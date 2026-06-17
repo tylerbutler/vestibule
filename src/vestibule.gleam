@@ -32,7 +32,7 @@ import vestibule/strategy.{type Strategy}
 /// not enforce expiration. If you need time-based expiration, store a
 /// timestamp alongside the state when saving it to your session and
 /// check it before calling `handle_callback`.
-pub fn authorize_url(
+pub fn create_authorization_request(
   strat: Strategy(e),
   cfg cfg: Config,
 ) -> Result(AuthorizationRequest, AuthError(e)) {

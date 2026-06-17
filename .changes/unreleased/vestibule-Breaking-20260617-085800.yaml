@@ -1,0 +1,4 @@
+project: vestibule
+kind: Breaking
+body: Renamed `vestibule.authorize_url` to `vestibule.create_authorization_request`. The function generates CSRF state and a PKCE verifier in addition to building the URL, so the new name reflects that it starts an authorization request whose state and verifier must be persisted. The old name has been removed (no deprecated alias).
+time: 2026-06-17T08:58:00.000000-07:00

@@ -27,7 +27,7 @@ Each strategy tells vestibule how to talk to a specific OAuth2 provider: how to 
 
 Vestibule authenticates users in two phases:
 
-1. **Request phase** -- Your application calls `vestibule.authorize_url(strategy, config)`. Vestibule generates a CSRF state token and PKCE code verifier, calls your strategy's `authorize_url` function to build the provider-specific URL, then appends the PKCE `code_challenge` parameter. You get back an `AuthorizationRequest` containing the URL, state, and code verifier. Store the state and code verifier in the user's session, then redirect them to the URL.
+1. **Request phase** -- Your application calls `vestibule.create_authorization_request(strategy, config)`. Vestibule generates a CSRF state token and PKCE code verifier, calls your strategy's `authorize_url` function to build the provider-specific URL, then appends the PKCE `code_challenge` parameter. You get back an `AuthorizationRequest` containing the URL, state, and code verifier. Store the state and code verifier in the user's session, then redirect them to the URL.
 
 2. **Callback phase** -- The provider redirects the user back to your application with a `code` and `state` parameter. Your application calls `vestibule.handle_callback(strategy, config, params, expected_state, code_verifier)`. Vestibule validates the CSRF state, calls your strategy's `exchange_code` function (passing the PKCE code verifier), then calls your strategy's `fetch_user` function with the config and `ExchangeResult`. You get back an `Auth` record with the user's UID, normalized info, provider extras, and OAuth credentials.
 
@@ -525,7 +525,7 @@ pub fn start_auth() {
       "http://localhost:8080/auth/twitch/callback",
     )
   let strategy = vestibule_twitch.strategy()
-  let assert Ok(auth_request) = vestibule.authorize_url(strategy, twitch_config)
+  let assert Ok(auth_request) = vestibule.create_authorization_request(strategy, twitch_config)
   // Store auth_request.state and auth_request.code_verifier in session
   // Redirect user to auth_request.url
 }
