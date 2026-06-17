@@ -45,7 +45,7 @@ let cfg =
   )
 
 // Phase 1: Generate authorization URL and redirect user
-let assert Ok(auth_request) = vestibule.authorize_url(strategy, cfg)
+let assert Ok(auth_request) = vestibule.create_authorization_request(strategy, cfg)
 // Store auth_request.state and auth_request.code_verifier server-side,
 // bound to this user's session, with an expiration time.
 // Redirect user to auth_request.url
