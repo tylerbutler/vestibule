@@ -47,7 +47,7 @@ let cfg =
   )
 
 // Phase 1: Generate authorization URL and redirect user
-let assert Ok(auth_request) = vestibule.authorize_url(strategy, cfg)
+let assert Ok(auth_request) = vestibule.create_authorization_request(strategy, cfg)
 // Store auth_request.state and auth_request.code_verifier server-side,
 // bound to this user's session, with an expiration time.
 // Redirect user to auth_request.url
@@ -299,10 +299,14 @@ provider strategies:
 - `vestibule/strategy`
 - `vestibule/provider_support`
 
-`Strategy.exchange_code` returns `ExchangeResult(credentials, artifacts)`. Use
-`strategy.exchange_result(credentials)` for providers with no exchange artifacts.
-`Strategy.fetch_user(Config, ExchangeResult)` receives both the standard
-credentials and any provider-specific token response artifacts.
+`strategy.exchange_code` returns an opaque `ExchangeResult` carrying the OAuth
+credentials plus any provider-specific artifacts. Build one with
+`strategy.exchange_result(credentials)` for providers with no exchange
+artifacts, or `strategy.exchange_result_with_artifacts(credentials, artifacts)`
+otherwise, and read it back with `strategy.exchange_credentials` and
+`strategy.exchange_artifacts`. `strategy.fetch_user(Config, ExchangeResult)`
+receives both the standard credentials and any provider-specific token response
+artifacts.
 
 Prefer provider SDK helpers such as `provider_support.parse_redirect_uri`,
 `provider_support.check_response_status`,

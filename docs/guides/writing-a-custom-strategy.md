@@ -27,7 +27,7 @@ Each strategy tells vestibule how to talk to a specific OAuth2 provider: how to 
 
 Vestibule authenticates users in two phases:
 
-1. **Request phase** -- Your application calls `vestibule.authorize_url(strategy, config)`. Vestibule generates a CSRF state token and PKCE code verifier, calls your strategy's `authorize_url` function to build the provider-specific URL, then appends the PKCE `code_challenge` parameter. You get back an `AuthorizationRequest` containing the URL, state, and code verifier. Store the state and code verifier in the user's session, then redirect them to the URL.
+1. **Request phase** -- Your application calls `vestibule.create_authorization_request(strategy, config)`. Vestibule generates a CSRF state token and PKCE code verifier, calls your strategy's `authorize_url` function to build the provider-specific URL, then appends the PKCE `code_challenge` parameter. You get back an `AuthorizationRequest` containing the URL, state, and code verifier. Store the state and code verifier in the user's session, then redirect them to the URL.
 
 2. **Callback phase** -- The provider redirects the user back to your application with a `code` and `state` parameter. Your application calls `vestibule.handle_callback(strategy, config, params, expected_state, code_verifier)`. Vestibule validates the CSRF state, calls your strategy's `exchange_code` function (passing the PKCE code verifier), then calls your strategy's `fetch_user` function with the config and `ExchangeResult`. You get back an `Auth` record with the user's UID, normalized info, provider extras, and OAuth credentials.
 
@@ -50,37 +50,58 @@ Your strategy is responsible for:
 
 ## The Strategy Type
 
-Here is the full type definition from `vestibule/strategy.gleam`:
+Here are the type definitions from `vestibule/strategy.gleam`. `UserResult`,
+`ExchangeResult`, and `Strategy(e)` are **opaque** -- you cannot construct them
+with a record literal or read their fields directly. Instead, build them with
+the `strategy.*` constructor functions and read them with the `strategy.*`
+accessors shown below.
 
 ```gleam
-pub type UserResult {
+pub opaque type UserResult {
   UserResult(uid: String, info: UserInfo, extra: Dict(String, Dynamic))
 }
 
-pub type ExchangeResult {
+pub opaque type ExchangeResult {
   ExchangeResult(credentials: Credentials, artifacts: Dict(String, Dynamic))
 }
 
-pub type Strategy(e) {
+pub opaque type Strategy(e) {
   Strategy(
-    /// Human-readable provider name (e.g., "github", "google").
     provider: String,
-    /// Default scopes for this provider.
     default_scopes: List(String),
-    /// Build the authorization URL to redirect the user to.
-    /// Parameters: config, scopes, state.
     authorize_url: fn(Config, List(String), String) ->
       Result(String, AuthError(e)),
-    /// Exchange an authorization code for credentials.
-    /// The third parameter is an optional PKCE code verifier.
     exchange_code: fn(Config, String, Option(String)) ->
       Result(ExchangeResult, AuthError(e)),
-    /// Refresh credentials using a provider-specific refresh token request.
     refresh_token: fn(Config, String) -> Result(Credentials, AuthError(e)),
-    /// Fetch user info using the obtained credentials and artifacts.
     fetch_user: fn(Config, ExchangeResult) -> Result(UserResult, AuthError(e)),
   )
 }
+```
+
+Because the types are opaque, use these helpers instead of record syntax:
+
+```gleam
+// Build a Strategy (instead of the Strategy(...) record constructor):
+strategy.new(
+  provider: "twitch",
+  default_scopes: ["user:read:email"],
+  authorize_url: do_authorize_url,
+  exchange_code: do_exchange_code,
+  refresh_token: do_refresh_token,
+  fetch_user: do_fetch_user,
+)
+
+// Build a UserResult:
+strategy.user_result(uid: uid, info: info, extra: dict.new())
+
+// Build an ExchangeResult (with or without provider-specific artifacts):
+strategy.exchange_result(credentials)
+strategy.exchange_result_with_artifacts(credentials, artifacts)
+
+// Read an ExchangeResult inside fetch_user:
+strategy.exchange_credentials(exchange)  // -> Credentials
+strategy.exchange_artifacts(exchange)    // -> Dict(String, Dynamic)
 ```
 
 ### Field-by-field breakdown
@@ -95,7 +116,7 @@ pub type Strategy(e) {
 
 **`refresh_token: fn(Config, String) -> Result(Credentials, AuthError(e))`** -- Given the config and a refresh token string, POST to the provider's token endpoint and return updated `Credentials`. Providers differ on refresh-token rotation, scopes, and error formats, so refresh stays strategy-owned.
 
-**`fetch_user: fn(Config, ExchangeResult) -> Result(UserResult, AuthError(e))`** -- Given the config and successful exchange result, fetch the provider's user info API and return `UserResult(uid, info, extra)`. The exchange result contains standard credentials and any token response artifacts your provider needs while resolving the user. The UID should be the provider's stable unique identifier for the user (e.g., a numeric ID or a `sub` claim). Use `extra: dict.new()` when the provider has no extra data to expose.
+**`fetch_user: fn(Config, ExchangeResult) -> Result(UserResult, AuthError(e))`** -- Given the config and successful exchange result, fetch the provider's user info API and return a `UserResult` built with `strategy.user_result(uid:, info:, extra:)`. The exchange result contains standard credentials and any token response artifacts your provider needs while resolving the user (read them with `strategy.exchange_credentials` and `strategy.exchange_artifacts`). The UID should be the provider's stable unique identifier for the user (e.g., a numeric ID or a `sub` claim). Use `extra: dict.new()` when the provider has no extra data to expose.
 
 ### The generic error type
 
@@ -132,7 +153,10 @@ pub fn strategy() -> Strategy(TwitchError) {
 }
 ```
 
-The `error.map_custom` function can convert between custom error types if you need to unify strategies with different error types.
+If you need to combine strategies that use different custom error types, map the
+inner error yourself when constructing the `Custom` variant (for example, with
+`result.map_error`) -- vestibule does not ship a built-in error-conversion
+helper.
 
 ## Step-by-Step: Building a Strategy
 
@@ -190,11 +214,11 @@ import glow_auth/token_request
 import glow_auth/uri/uri_builder
 
 import vestibule/config.{type Config}
-import vestibule/credentials.{type Credentials, Credentials}
+import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/provider_support
-import vestibule/strategy.{type Strategy, type UserResult, Strategy, UserResult}
-import vestibule/user_info.{type UserInfo}
+import vestibule/strategy.{type Strategy, type UserResult}
+import vestibule/user_info.{type UserInfo, UserInfo}
 
 fn do_authorize_url(
   cfg: Config,
@@ -394,7 +418,7 @@ fn do_fetch_user(
   cfg: Config,
   exchange: strategy.ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
-  let creds = exchange.credentials
+  let creds = strategy.exchange_credentials(exchange)
   use auth_header <- result.try(strategy.authorization_header(creds))
   use user_req <- result.try(
     request.to("https://api.twitch.tv/helix/users")
@@ -411,7 +435,7 @@ fn do_fetch_user(
     Ok(response) -> {
       use body <- result.try(provider_support.check_response_status(response))
       use #(uid, info) <- result.try(parse_user_response(body))
-      Ok(UserResult(uid: uid, info: info, extra: dict.new()))
+      Ok(strategy.user_result(uid: uid, info: info, extra: dict.new()))
     }
     Error(_) ->
       Error(error.NetworkError(
@@ -499,7 +523,7 @@ Now create the public `strategy()` constructor that assembles all the pieces:
 ```gleam
 /// Create a Twitch authentication strategy.
 pub fn strategy() -> Strategy(e) {
-  Strategy(
+  strategy.new(
     provider: "twitch",
     default_scopes: ["user:read:email"],
     authorize_url: do_authorize_url,
@@ -525,7 +549,7 @@ pub fn start_auth() {
       "http://localhost:8080/auth/twitch/callback",
     )
   let strategy = vestibule_twitch.strategy()
-  let assert Ok(auth_request) = vestibule.authorize_url(strategy, twitch_config)
+  let assert Ok(auth_request) = vestibule.create_authorization_request(strategy, twitch_config)
   // Store auth_request.state and auth_request.code_verifier in session
   // Redirect user to auth_request.url
 }
@@ -592,7 +616,7 @@ fn do_fetch_user(
   cfg: Config,
   exchange: strategy.ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
-  let creds = exchange.credentials
+  let creds = strategy.exchange_credentials(exchange)
 
   // Primary request
   use resp <- result.try(fetch_profile(cfg, creds))
@@ -614,7 +638,7 @@ fn do_fetch_user(
     None -> info
   }
 
-  Ok(UserResult(uid: uid, info: final_info, extra: dict.new()))
+  Ok(strategy.user_result(uid: uid, info: final_info, extra: dict.new()))
 }
 ```
 
