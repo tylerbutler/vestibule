@@ -1,6 +1,6 @@
 ---
-import { Code } from "astro:components";
 import type { CollectionEntry } from "astro:content";
+import CodeBlock from "../../../components/CodeBlock.astro";
 import DocsLayout from "../../../layouts/DocsLayout.astro";
 import {
   getPackageEntries,
@@ -32,9 +32,9 @@ const docsUrl = packageDocsUrl(pkg);
   toc={[
     { href: "#when-to-use", label: "When to use it" },
     { href: "#install", label: "Install" },
-    { href: "#setup", label: "Setup shape" },
+    { href: "#setup", label: "Setup" },
     { href: "#usage", label: "Usage" },
-    { href: "#handling", label: "Handling notes" }
+    { href: "#handling", label: "Responsibilities" }
   ]}
 >
   <article class="doc-page">
@@ -54,7 +54,7 @@ const docsUrl = packageDocsUrl(pkg);
       </div>
       <div id="install" class="install-card">
         <h2>Install</h2>
-        <Code code={data.install.join("\n")} lang="sh" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
+        <CodeBlock code={data.install.join("\n")} lang="sh" />
         <nav class="resource-links" aria-label={`${data.name} package resources`}>
           <a href={hexUrl}>Hex package</a>
           <a href={docsUrl}>API docs</a>
@@ -63,7 +63,7 @@ const docsUrl = packageDocsUrl(pkg);
     </section>
 
     <section id="setup">
-      <h2>Setup shape</h2>
+      <h2>Setup</h2>
       <ol class="setup-list">
         {data.setup.map((item) => <li>{item}</li>)}
       </ol>
@@ -71,7 +71,7 @@ const docsUrl = packageDocsUrl(pkg);
 
     <section id="usage">
       <h2>Usage</h2>
-      <Code code={data.code} lang="gleam" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
+      <CodeBlock code={data.code} lang="gleam" />
     </section>
 
     <section id="handling" class="content-grid">
@@ -82,7 +82,7 @@ const docsUrl = packageDocsUrl(pkg);
         </ul>
       </div>
       <div>
-        <h2>Notes to keep explicit</h2>
+        <h2>What you handle</h2>
         <ul class="check-list warning">
           {data.notes.map((item) => <li>{item}</li>)}
         </ul>

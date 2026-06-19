@@ -1,6 +1,6 @@
 ---
-import { Code } from "astro:components";
 import { siApple, siGithub, siGoogle } from "simple-icons";
+import CodeBlock from "../components/CodeBlock.astro";
 import DocsLayout from "../layouts/DocsLayout.astro";
 import { getPackageEntries, packageHref, packageSlug } from "../data/content";
 
@@ -44,18 +44,27 @@ const supportedProviders = [
     icon: siApple
   }
 ];
-const directFlow = `let assert Ok(auth_request) = vestibule.create_authorization_request(strategy, cfg)
-// Store auth_request.state and auth_request.code_verifier.
-// Redirect to auth_request.url.
+const directFlow = `// Request phase: failure here means misconfiguration, so assert is fine.
+let assert Ok(auth_request) =
+  vestibule.create_authorization_request(strategy, cfg)
+// Store auth_request.state and auth_request.code_verifier, then
+// redirect to auth_request.url.
 
-let assert Ok(auth) =
+// Callback phase: state can mismatch and providers can reject the
+// user, so handle both branches instead of asserting.
+case
   vestibule.handle_callback(
     strategy,
     cfg,
     params,
     expected_state,
     code_verifier,
-  )`;
+  )
+{
+  Ok(auth) -> sign_in(auth)
+  Error(error.StateMismatch) -> restart_sign_in()
+  Error(reason) -> show_auth_error(reason)
+}`;
 ---
 
 <DocsLayout
@@ -113,7 +122,7 @@ let assert Ok(auth) =
         app needs Google, Microsoft, or Apple.
       </p>
     </div>
-    <Code code={directFlow} lang="gleam" class="code-card" themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }} />
+    <CodeBlock code={directFlow} lang="gleam" class="code-card" />
   </section>
 
   <section aria-labelledby="supported-providers-heading">
