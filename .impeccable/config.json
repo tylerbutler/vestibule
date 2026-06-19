@@ -1,0 +1,38 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-color",
+        "value": "#f25022",
+        "reason": "Microsoft brand-square color; legitimate provider identity, not palette drift",
+        "createdAt": "2026-06-19T00:19:09.657Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#7fba00",
+        "reason": "Microsoft brand-square color; legitimate provider identity, not palette drift",
+        "createdAt": "2026-06-19T00:19:09.778Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#00a4ef",
+        "reason": "Microsoft brand-square color; legitimate provider identity, not palette drift",
+        "createdAt": "2026-06-19T00:19:09.885Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#ffb900",
+        "reason": "Microsoft brand-square color; legitimate provider identity, not palette drift",
+        "createdAt": "2026-06-19T00:19:09.992Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "oklch(0 0 0 / 0.5)",
+        "reason": "Modal overlay shadow; documented in DESIGN.md Elevation as intentional top-layer depth",
+        "createdAt": "2026-06-19T00:19:10.107Z"
+      }
+    ]
+  }
+}

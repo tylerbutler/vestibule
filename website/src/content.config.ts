@@ -10,13 +10,18 @@ const navSchema = z.object({
   hidden: z.boolean().default(false)
 });
 
+const tocEntrySchema = z.object({
+  href: z.string(),
+  label: z.string()
+});
+
 const docs = defineCollection({
   loader: glob({ base: "./src/content/docs", pattern: "**/*.{md,mdx}" }),
   schema: z.object({
     title: z.string(),
     description: z.string(),
     nav: navSchema,
-    toc: z.boolean().default(true),
+    toc: z.union([z.boolean(), z.array(tocEntrySchema)]).default(true),
     searchTerms: z.array(z.string()).default([])
   })
 });

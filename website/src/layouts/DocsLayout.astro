@@ -1,5 +1,5 @@
 ---
-import { getNavigation } from "../data/content";
+import { getNavigation, getSearchEntries } from "../data/content";
 import "../styles/global.css";
 
 type Props = {
@@ -14,6 +14,7 @@ type Props = {
 
 const { title, description, section = "Docs", toc = [] } = Astro.props;
 const navGroups = await getNavigation();
+const searchEntries = await getSearchEntries();
 const pageTitle = title === "Vestibule" ? "Vestibule" : `${title} - Vestibule`;
 const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
 
@@ -86,12 +87,12 @@ const hasToc = toc.length > 0;
         <details class="header-resources">
           <summary>Links</summary>
           <nav aria-label="Site links">
-            <a href="/docs/search">Search</a>
+            <a href="/docs/search" data-search-trigger>Search</a>
             <a href="https://hex.pm/packages/vestibule">Hex</a>
             <a href="https://github.com/tylerbutler/vestibule">GitHub</a>
           </nav>
         </details>
-        <a class="header-link" href="/docs/search">Search</a>
+        <a class="header-link" href="/docs/search" data-search-trigger data-search-hint>Search</a>
         <a class="header-link" href="https://hex.pm/packages/vestibule">Hex</a>
         <a class="header-link" href="https://github.com/tylerbutler/vestibule">GitHub</a>
         <button
@@ -174,6 +175,69 @@ const hasToc = toc.length > 0;
         <slot />
       </main>
     </div>
+
+    <dialog class="cmd-palette" data-cmd-palette aria-label="Search documentation">
+      <div class="cmd-palette-inner">
+        <div class="cmd-search-row">
+          <svg class="cmd-search-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              d="M21 21l-4.3-4.3M11 19a8 8 0 100-16 8 8 0 000 16z"
+            ></path>
+          </svg>
+          <input
+            type="search"
+            class="cmd-input"
+            role="combobox"
+            aria-expanded="true"
+            aria-controls="cmd-results"
+            aria-label="Search documentation"
+            aria-autocomplete="list"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="Try state, PKCE, callback errors, hosted domains"
+            data-cmd-input
+          />
+          <kbd class="cmd-esc-hint" aria-hidden="true">esc</kbd>
+        </div>
+
+        <ul id="cmd-results" class="cmd-results" role="listbox" aria-label="Search results" data-cmd-results>
+          {searchEntries.map((entry, index) => (
+            <li
+              id={`cmd-opt-${index}`}
+              class="cmd-result"
+              role="option"
+              aria-selected="false"
+              data-cmd-item
+              data-cmd-href={entry.href}
+              data-cmd-external={entry.external ? "true" : undefined}
+              data-cmd-text={`${entry.title} ${entry.category} ${entry.description} ${entry.terms}`.toLocaleLowerCase()}
+            >
+              <span class="chip">{entry.category}</span>
+              <span class="cmd-result-main">
+                <strong>{entry.title}</strong>
+                <span>{entry.description}</span>
+              </span>
+              {entry.external && <span class="result-meta">HexDocs ↗</span>}
+            </li>
+          ))}
+        </ul>
+
+        <p class="cmd-empty" hidden data-cmd-empty>
+          No matching docs — try a provider name, package name, or OAuth term.
+        </p>
+
+        <footer class="cmd-footer">
+          <span class="cmd-hint-keys"><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+          <span class="cmd-hint-keys"><kbd>↵</kbd> open</span>
+          <span class="cmd-hint-keys"><kbd>esc</kbd> close</span>
+          <span class="cmd-count" aria-live="polite" data-cmd-count></span>
+        </footer>
+      </div>
+    </dialog>
 
     <script is:inline>
       (() => {
@@ -332,6 +396,156 @@ const hasToc = toc.length > 0;
             }
           });
         }
+      })();
+    </script>
+
+    <script is:inline>
+      (() => {
+        const dialog = document.querySelector("[data-cmd-palette]");
+        if (!(dialog instanceof HTMLDialogElement) || typeof dialog.showModal !== "function") return;
+
+        const input = dialog.querySelector("[data-cmd-input]");
+        const list = dialog.querySelector("[data-cmd-results]");
+        const empty = dialog.querySelector("[data-cmd-empty]");
+        const count = dialog.querySelector("[data-cmd-count]");
+        if (!(input instanceof HTMLInputElement) || !list || !empty || !count) return;
+
+        const items = Array.from(dialog.querySelectorAll("[data-cmd-item]"));
+        const triggers = Array.from(document.querySelectorAll("[data-search-trigger]"));
+        let visible = items.slice();
+        let activeIndex = -1;
+        let activeEl = null;
+
+        const isMac = /mac|iphone|ipad|ipod/i.test(navigator.platform || navigator.userAgent || "");
+
+        // Progressive-enhancement hint: only show the shortcut when JS is live.
+        for (const trigger of document.querySelectorAll("[data-search-hint]")) {
+          const hint = document.createElement("kbd");
+          hint.className = "cmd-trigger-hint";
+          hint.setAttribute("aria-hidden", "true");
+          hint.textContent = isMac ? "\u2318K" : "Ctrl K";
+          trigger.append(hint);
+        }
+
+        const normalized = (value) =>
+          value
+            .toLocaleLowerCase()
+            .normalize("NFKD")
+            .replace(/[\u0300-\u036f]/g, "");
+
+        const setActive = (index) => {
+          if (activeEl) activeEl.setAttribute("aria-selected", "false");
+          activeIndex = index;
+          activeEl = index >= 0 ? visible[index] || null : null;
+          if (!activeEl) {
+            input.removeAttribute("aria-activedescendant");
+            return;
+          }
+          activeEl.setAttribute("aria-selected", "true");
+          input.setAttribute("aria-activedescendant", activeEl.id);
+          activeEl.scrollIntoView({ block: "nearest" });
+        };
+
+        const filter = () => {
+          const terms = normalized(input.value).trim().split(/\s+/).filter(Boolean);
+          visible = [];
+          for (const item of items) {
+            const text = normalized(item.dataset.cmdText || "");
+            const match = terms.every((term) => text.includes(term));
+            item.hidden = !match;
+            if (match) visible.push(item);
+          }
+          const n = visible.length;
+          count.textContent = `${n} result${n === 1 ? "" : "s"}`;
+          empty.hidden = n > 0;
+          list.hidden = n === 0;
+          setActive(n > 0 ? 0 : -1);
+        };
+
+        const openResult = (item) => {
+          if (!item) return;
+          const href = item.dataset.cmdHref;
+          if (!href) return;
+          close();
+          if (item.dataset.cmdExternal === "true") {
+            window.open(href, "_blank", "noopener,noreferrer");
+          } else {
+            window.location.assign(href);
+          }
+        };
+
+        const open = () => {
+          if (dialog.open) return;
+          input.value = "";
+          filter();
+          dialog.showModal();
+          input.focus();
+        };
+
+        const close = () => {
+          if (dialog.open) dialog.close();
+        };
+
+        for (const trigger of triggers) {
+          trigger.addEventListener("click", (event) => {
+            event.preventDefault();
+            open();
+          });
+        }
+
+        document.addEventListener("keydown", (event) => {
+          if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+            event.preventDefault();
+            dialog.open ? close() : open();
+            return;
+          }
+          if (event.key === "/" && !dialog.open && !event.metaKey && !event.ctrlKey && !event.altKey) {
+            const target = event.target;
+            const tag = target instanceof HTMLElement ? target.tagName : "";
+            const editable = target instanceof HTMLElement && target.isContentEditable;
+            if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || editable) return;
+            event.preventDefault();
+            open();
+          }
+        });
+
+        input.addEventListener("input", filter);
+
+        input.addEventListener("keydown", (event) => {
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            if (visible.length) setActive((activeIndex + 1) % visible.length);
+          } else if (event.key === "ArrowUp") {
+            event.preventDefault();
+            if (visible.length) setActive((activeIndex - 1 + visible.length) % visible.length);
+          } else if (event.key === "Enter") {
+            event.preventDefault();
+            openResult(visible[activeIndex]);
+          } else if (event.key === "Home") {
+            if (visible.length) { event.preventDefault(); setActive(0); }
+          } else if (event.key === "End") {
+            if (visible.length) { event.preventDefault(); setActive(visible.length - 1); }
+          }
+        });
+
+        list.addEventListener("click", (event) => {
+          const target = event.target;
+          const item = target instanceof Element ? target.closest("[data-cmd-item]") : null;
+          if (item) openResult(item);
+        });
+
+        list.addEventListener("pointermove", (event) => {
+          const target = event.target;
+          const item = target instanceof Element ? target.closest("[data-cmd-item]") : null;
+          if (!item) return;
+          const i = visible.indexOf(item);
+          if (i >= 0 && i !== activeIndex) setActive(i);
+        });
+
+        // Click on the backdrop (the dialog element itself) closes it.
+        dialog.addEventListener("click", (event) => {
+          if (event.target === dialog) close();
+        });
       })();
     </script>
   </body>

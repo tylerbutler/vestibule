@@ -6,7 +6,13 @@ nav:
   groupOrder: 0
   order: 10
   label: Quick start
-toc: true
+toc:
+  - href: "#middleware-path"
+    label: Set up the routes
+  - href: "#callback-failure"
+    label: When the callback fails
+  - href: "#security-responsibilities"
+    label: Before shipping
 searchTerms:
   - middleware
   - wisp
@@ -29,6 +35,7 @@ gleam add vestibule_github`;
 export const coreCode = `import gleam/dict
 import vestibule
 import vestibule/config
+import vestibule/error
 import vestibule_github
 
 let strategy = vestibule_github.strategy()
@@ -50,7 +57,9 @@ let params =
     #("code", "authorization code from callback"),
   ])
 
-let assert Ok(auth) =
+// Validate the callback. Never assert here: state can mismatch and
+// providers can reject the user.
+case
   vestibule.handle_callback(
     strategy,
     cfg,
@@ -58,7 +67,17 @@ let assert Ok(auth) =
     "expected state from session",
     "code verifier from session",
   )
-// Delete the stored state and code_verifier after success.`;
+{
+  Ok(auth) -> {
+    // Delete the stored state and code_verifier, then map auth.uid
+    // to an account and start a session.
+    sign_in(auth)
+  }
+  // Possible CSRF or a stale tab: discard and restart the flow.
+  Error(error.StateMismatch) -> restart_sign_in()
+  // Provider, code-exchange, network, or decode failure.
+  Error(reason) -> show_auth_error(reason)
+}`;
 
 export const wispCode = `import gleam/http
 import wisp
@@ -87,12 +106,42 @@ case wisp.path_segments(req), req.method {
 
   ["auth", provider, "callback"], http.Get
   | ["auth", provider, "callback"], http.Post ->
-    vestibule_wisp.callback_phase(req, reg, provider, store, fn(auth) {
-      wisp.redirect("/dashboard")
-    })
+    case vestibule_wisp.callback_phase_auth_result(req, reg, provider, store) {
+      // auth.uid identifies the user: map it to an account, then
+      // start your own session.
+      Ok(auth) -> start_session(auth)
+
+      // Benign: a stale tab, back button, or already-used callback.
+      Error(vestibule_wisp.SessionExpired) ->
+        wisp.redirect("/login?error=expired")
+
+      // Everything else (forged state, provider rejection, bad params).
+      Error(_) ->
+        wisp.redirect("/login?error=auth")
+    }
 
   _, _ ->
     wisp.not_found()
+}`;
+
+export const callbackFailureCode = `import vestibule
+import vestibule/error
+
+case vestibule.handle_callback(strategy, cfg, params, expected_state, verifier) {
+  Ok(auth) -> sign_in(auth)
+
+  // Wrong state: treat as hostile. Log server-side, restart the flow.
+  Error(error.StateMismatch) -> restart_sign_in()
+
+  // The user denied consent at the provider.
+  Error(error.ProviderError(code: "access_denied", ..)) -> back_to_login()
+
+  // Transient upstream failures are worth a retry prompt.
+  Error(error.NetworkError(_)) | Error(error.CodeExchangeFailed(_)) ->
+    offer_retry()
+
+  // Catch-all: show a generic message, keep the detail in your logs.
+  Error(reason) -> show_auth_error(reason)
 }`;
 
 <section id="middleware-path" className="quick-paths" aria-label="Recommended quick start path">
@@ -147,6 +196,45 @@ case wisp.path_segments(req), req.method {
       <CodeBlock code={coreCode} lang="gleam" />
     </div>
   </details>
+</section>
+
+<section id="callback-failure">
+  <h2>When the callback fails</h2>
+  <p>
+    Most callback failures are benign — a stale tab, the back button, or a
+    re-used link. Some are hostile, like a forged <code>state</code>. Vestibule
+    returns a typed error for both so you can respond safely instead of crashing
+    the request.
+  </p>
+
+  <CodeBlock code={callbackFailureCode} lang="gleam" />
+
+  <div className="content-grid">
+    <div>
+      <h3>Why a callback fails</h3>
+      <ul className="check-list">
+        <li><strong>StateMismatch</strong> — wrong or missing state; possible CSRF.</li>
+        <li><strong>ProviderError</strong> — the provider rejected the request (e.g. denied consent).</li>
+        <li><strong>MissingCallbackParam</strong> — the provider omitted a required value.</li>
+        <li><strong>NetworkError / CodeExchangeFailed</strong> — a transient upstream problem.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>How to respond</h3>
+      <ul className="check-list warning">
+        <li>Discard the stored state and verifier on every failure, then restart the flow.</li>
+        <li>Show users a generic "sign-in failed, try again" message.</li>
+        <li>Keep the specific error in your server logs, never in the response.</li>
+        <li>Offer a retry for transient errors; do not retry a state mismatch.</li>
+      </ul>
+    </div>
+  </div>
+
+  <p className="scope-note">
+    <strong>Do not leak the error.</strong> The <code>reason</code> can name
+    internal details; log it server-side and return a generic message to the
+    browser.
+  </p>
 </section>
 
 <section id="security-responsibilities" className="security-callout">

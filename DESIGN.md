@@ -61,8 +61,11 @@ components:
     backgroundColor: "{colors.brand-purple-hover}"
     textColor: "{colors.background}"
   button-secondary:
-    backgroundColor: "{colors.threshold-yellow}"
+    backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
+    border: "1px solid {colors.border}"
+    borderColorHover: "{colors.brand-purple}"
+    backgroundColorHover: "{colors.brand-purple-soft}"
     typography: "{typography.label}"
     rounded: "{rounded.sm}"
     padding: "12px 18px"
@@ -106,7 +109,7 @@ The palette is restrained product purple with yellow used as a deliberate signal
 - **Soft Vestibule Purple** (`brand-purple-soft`): A pale purple support surface for provider chips, selected rows, and informational callouts that need brand continuity without visual weight.
 
 ### Secondary
-- **Threshold Yellow** (`threshold-yellow`): The logo-derived signal accent. Use sparingly for secondary CTAs, warning-adjacent guidance, focus halos, and "next step" highlights. Pair with `ink`, not white, so the accent stays readable.
+- **Threshold Yellow** (`threshold-yellow`): The logo-derived signal accent. Use sparingly for focus halos, step numbers, warning-adjacent guidance, and "next step" highlights — never as a button or surface fill (see the Checkpoint Light Rule). Pair with `ink`, not white, so the accent stays readable.
 
 ### Neutral
 - **White Background** (`background`): The default canvas. Do not warm-tint the whole page; the warmth comes from yellow, not the body background.
@@ -154,6 +157,7 @@ Vestibule should be flat by default. Depth comes from tonal layering, soft borde
 
 ### Shadow Vocabulary
 - **Interactive Lift** (`0 6px 12px oklch(0.200 0.035 300 / 0.10)`): Optional hover lift for a primary CTA or provider button on a marketing-adjacent demo surface. Do not combine it with a decorative 1px border unless the border is structural and the blur stays small.
+- **Modal Overlay** (light `0 24px 64px oklch(0.200 0.035 300 / 0.28)`, dark `0 24px 64px oklch(0 0 0 / 0.5)`): Reserved for top-layer surfaces that float above a dimmed backdrop — the command palette and any future `<dialog>`. This is the one place a broad shadow is intentional, because the element is detached from the page and needs to read as lifted; it stays off resting surfaces.
 
 ### Named Rules
 
@@ -165,7 +169,7 @@ Vestibule should be flat by default. Depth comes from tonal layering, soft borde
 - **Shape:** Crisp, modest rounding (6px). No pill buttons unless the control is a compact chip.
 - **Primary:** Filled `brand-purple` with white text, label typography, and 12px 18px padding.
 - **Hover / Focus:** Hover shifts to `brand-purple-hover`; focus uses a 3px `threshold-yellow` outline offset by 2px.
-- **Secondary / Ghost:** Yellow secondary buttons use `threshold-yellow` with `ink` text. Ghost buttons are text-first with a transparent background and purple hover surface.
+- **Secondary / Ghost:** Secondary buttons are a neutral outline — `surface` background, `ink` text, 1px `border` — that shifts to a `brand-purple` border over a `brand-purple-soft` surface on hover. Ghost buttons are text-first with a transparent background and purple hover surface. Yellow is never a button fill; it stays a signal accent.
 - **Touch:** Interactive buttons and compact links must keep a 44px minimum hit area on coarse-pointer devices, even when their visual style stays compact.
 
 ### Chips
