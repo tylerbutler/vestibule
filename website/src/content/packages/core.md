@@ -21,6 +21,7 @@ code: |
   import gleam/dict
   import vestibule
   import vestibule/config
+  import vestibule/error
   import vestibule_github
 
   let strategy = vestibule_github.strategy()
@@ -41,7 +42,9 @@ code: |
       #("code", "authorization code from callback"),
     ])
 
-  let assert Ok(auth) =
+  // Validate the callback. State can mismatch and providers can reject
+  // the user, so handle the error instead of asserting.
+  case
     vestibule.handle_callback(
       strategy,
       cfg,
@@ -49,6 +52,11 @@ code: |
       "expected state from session",
       "code verifier from session",
     )
+  {
+    Ok(auth) -> sign_in(auth)
+    Error(error.StateMismatch) -> restart_sign_in()
+    Error(reason) -> show_auth_error(reason)
+  }
 notes:
   - Production redirect URIs and OIDC issuers must use HTTPS.
   - Redact Auth and Credentials values in logs; bearer tokens are secrets.
