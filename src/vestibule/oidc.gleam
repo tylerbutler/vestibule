@@ -31,6 +31,7 @@ import gleam/uri
 import vestibule/config
 import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
+import vestibule/internal/logger
 import vestibule/provider_support
 import vestibule/strategy.{type Strategy, type UserResult}
 import vestibule/user_info
@@ -133,7 +134,13 @@ pub fn fetch_configuration(
 
   case httpc.send(req) {
     Ok(response) -> {
-      use body <- result.try(provider_support.check_response_status(response))
+      use body <- result.try(
+        provider_support.check_response_status_for_endpoint(
+          response,
+          provider_name: "oidc",
+          endpoint: "discovery",
+        ),
+      )
       use config <- result.try(parse_discovery_document(body))
       // Security: validate issuer matches per OIDC Discovery spec
       let normalized_issuer = strip_trailing_slash(issuer_url)
@@ -291,10 +298,50 @@ pub fn filter_default_scopes(scopes_supported: List(String)) -> List(String) {
 /// Supported parsing helper for custom OIDC strategy authors. Handles both
 /// success and error responses.
 pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
-  provider_support.parse_oauth_token_response(
-    body,
-    provider_support.OptionalScope(separator: " "),
-  )
+  let result =
+    provider_support.parse_oauth_token_response(
+      body,
+      provider_support.OptionalScope(separator: " "),
+    )
+  case result {
+    Ok(creds) -> {
+      logger.new(
+        level: logger.Debug,
+        event: "vestibule.provider.token_parse.success",
+        phase: "provider_request",
+        outcome: "success",
+        provider: Some("oidc"),
+        fields: [
+          logger.field("endpoint", "token"),
+          logger.bool_field(
+            "has_refresh_token",
+            option.is_some(credentials.refresh_token(creds)),
+          ),
+          logger.int_field(
+            "scope_count",
+            list.length(credentials.scopes(creds)),
+          ),
+        ],
+      )
+      |> logger.emit()
+      Ok(creds)
+    }
+    Error(err) -> {
+      logger.new(
+        level: logger.Warning,
+        event: "vestibule.provider.token_parse.failure",
+        phase: "provider_request",
+        outcome: "failure",
+        provider: Some("oidc"),
+        fields: [
+          logger.field("endpoint", "token"),
+          logger.field("error_category", logger.auth_error_category(err)),
+        ],
+      )
+      |> logger.emit()
+      Error(err)
+    }
+  }
 }
 
 /// Parse a standard OIDC userinfo response into a uid and UserInfo.
@@ -457,7 +504,13 @@ fn build_exchange_code_fn(
 
     case httpc.send(req) {
       Ok(response) -> {
-        use body <- result.try(provider_support.check_response_status(response))
+        use body <- result.try(
+          provider_support.check_response_status_for_endpoint(
+            response,
+            provider_name: "oidc",
+            endpoint: "token",
+          ),
+        )
         parse_token_response(body)
         |> result.map(strategy.exchange_result)
       }
@@ -522,7 +575,13 @@ fn build_refresh_token_fn(
 
     case httpc.send(req) {
       Ok(response) -> {
-        use body <- result.try(provider_support.check_response_status(response))
+        use body <- result.try(
+          provider_support.check_response_status_for_endpoint(
+            response,
+            provider_name: "oidc",
+            endpoint: "refresh",
+          ),
+        )
         parse_token_response(body)
       }
       Error(_) ->

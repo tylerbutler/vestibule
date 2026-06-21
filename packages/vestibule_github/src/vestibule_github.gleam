@@ -19,6 +19,7 @@ import glow_auth/uri/uri_builder
 import vestibule/config.{type Config}
 import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
+import vestibule/internal/logger
 import vestibule/provider_support
 import vestibule/strategy.{type Strategy, type UserResult}
 import vestibule/user_info.{type UserInfo}
@@ -38,10 +39,57 @@ pub fn strategy() -> Strategy(e) {
 /// Parse a GitHub token exchange response into Credentials.
 /// Supported parsing helper for GitHub strategy integrations.
 pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
-  provider_support.parse_oauth_token_response(
-    body,
-    provider_support.RequiredScope(separator: ","),
-  )
+  do_parse_token_response(body, "token")
+}
+
+fn do_parse_token_response(
+  body: String,
+  endpoint: String,
+) -> Result(Credentials, AuthError(e)) {
+  let result =
+    provider_support.parse_oauth_token_response(
+      body,
+      provider_support.RequiredScope(separator: ","),
+    )
+  case result {
+    Ok(creds) -> {
+      logger.new(
+        level: logger.Debug,
+        event: "vestibule.provider.token_parse.success",
+        phase: "provider_request",
+        outcome: "success",
+        provider: option.Some("github"),
+        fields: [
+          logger.field("endpoint", endpoint),
+          logger.bool_field(
+            "has_refresh_token",
+            option.is_some(credentials.refresh_token(creds)),
+          ),
+          logger.int_field(
+            "scope_count",
+            list.length(credentials.scopes(creds)),
+          ),
+        ],
+      )
+      |> logger.emit()
+      Ok(creds)
+    }
+    Error(err) -> {
+      logger.new(
+        level: logger.Warning,
+        event: "vestibule.provider.token_parse.failure",
+        phase: "provider_request",
+        outcome: "failure",
+        provider: option.Some("github"),
+        fields: [
+          logger.field("endpoint", endpoint),
+          logger.field("error_category", logger.auth_error_category(err)),
+        ],
+      )
+      |> logger.emit()
+      Error(err)
+    }
+  }
 }
 
 /// Parse a GitHub /user API response into a uid and UserInfo.
@@ -189,16 +237,44 @@ fn do_exchange_code(
     |> request.set_header("accept", "application/json")
   let req = strategy.append_code_verifier(req, code_verifier)
 
+  logger.new(
+    level: logger.Debug,
+    event: "vestibule.provider.request.start",
+    phase: "provider_request",
+    outcome: "start",
+    provider: option.Some("github"),
+    fields: [logger.field("endpoint", "token")],
+  )
+  |> logger.emit()
   case httpc.send(req) {
     Ok(response) -> {
-      use body <- result.try(provider_support.check_response_status(response))
+      use body <- result.try(
+        provider_support.check_response_status_for_endpoint(
+          response,
+          provider_name: "github",
+          endpoint: "token",
+        ),
+      )
       parse_token_response(body)
       |> result.map(strategy.exchange_result)
     }
-    Error(_) ->
+    Error(_) -> {
+      logger.new(
+        level: logger.Error,
+        event: "vestibule.provider.request.failure",
+        phase: "provider_request",
+        outcome: "failure",
+        provider: option.Some("github"),
+        fields: [
+          logger.field("endpoint", "token"),
+          logger.field("error_category", "network_error"),
+        ],
+      )
+      |> logger.emit()
       Error(error.NetworkError(
         reason: "Failed to connect to GitHub token endpoint",
       ))
+    }
   }
 }
 
@@ -226,15 +302,43 @@ fn do_refresh_token(
     )
     |> request.set_header("accept", "application/json")
 
+  logger.new(
+    level: logger.Debug,
+    event: "vestibule.provider.request.start",
+    phase: "provider_request",
+    outcome: "start",
+    provider: option.Some("github"),
+    fields: [logger.field("endpoint", "refresh")],
+  )
+  |> logger.emit()
   case httpc.send(req) {
     Ok(response) -> {
-      use body <- result.try(provider_support.check_response_status(response))
-      parse_token_response(body)
+      use body <- result.try(
+        provider_support.check_response_status_for_endpoint(
+          response,
+          provider_name: "github",
+          endpoint: "refresh",
+        ),
+      )
+      do_parse_token_response(body, "refresh")
     }
-    Error(_) ->
+    Error(_) -> {
+      logger.new(
+        level: logger.Error,
+        event: "vestibule.provider.request.failure",
+        phase: "provider_request",
+        outcome: "failure",
+        provider: option.Some("github"),
+        fields: [
+          logger.field("endpoint", "refresh"),
+          logger.field("error_category", "network_error"),
+        ],
+      )
+      |> logger.emit()
       Error(error.NetworkError(
         reason: "Failed to connect to GitHub token endpoint",
       ))
+    }
   }
 }
 
@@ -259,13 +363,40 @@ fn do_fetch_user(
     |> request.set_header("accept", "application/json")
     |> request.set_header("user-agent", "vestibule-gleam")
 
-  use resp <- result.try(
-    httpc.send(user_req)
-    |> result.map_error(fn(_) {
-      error.NetworkError(reason: "Failed to fetch GitHub user info")
-    }),
+  logger.new(
+    level: logger.Debug,
+    event: "vestibule.provider.request.start",
+    phase: "provider_request",
+    outcome: "start",
+    provider: option.Some("github"),
+    fields: [logger.field("endpoint", "user_info")],
   )
-  use user_body <- result.try(provider_support.check_response_status(resp))
+  |> logger.emit()
+  use resp <- result.try(case httpc.send(user_req) {
+    Ok(r) -> Ok(r)
+    Error(_) -> {
+      logger.new(
+        level: logger.Error,
+        event: "vestibule.provider.request.failure",
+        phase: "provider_request",
+        outcome: "failure",
+        provider: option.Some("github"),
+        fields: [
+          logger.field("endpoint", "user_info"),
+          logger.field("error_category", "network_error"),
+        ],
+      )
+      |> logger.emit()
+      Error(error.NetworkError(reason: "Failed to fetch GitHub user info"))
+    }
+  })
+  use user_body <- result.try(
+    provider_support.check_response_status_for_endpoint(
+      resp,
+      provider_name: "github",
+      endpoint: "user_info",
+    ),
+  )
   use #(uid, info) <- result.try(parse_user_response(user_body))
 
   // Fetch verified primary email (best-effort — don't fail if this errors)
@@ -276,11 +407,39 @@ fn do_fetch_user(
         |> request.set_header("authorization", auth_header)
         |> request.set_header("accept", "application/json")
         |> request.set_header("user-agent", "vestibule-gleam")
+      logger.new(
+        level: logger.Debug,
+        event: "vestibule.provider.request.start",
+        phase: "provider_request",
+        outcome: "start",
+        provider: option.Some("github"),
+        fields: [logger.field("endpoint", "user_email")],
+      )
+      |> logger.emit()
       case httpc.send(email_req) {
-        Ok(response) if response.status >= 200 && response.status < 300 ->
-          parse_primary_email(response.body)
-        Ok(_) -> None
-        Error(_) -> None
+        Ok(response) ->
+          provider_support.check_response_status_for_endpoint(
+            response,
+            provider_name: "github",
+            endpoint: "user_email",
+          )
+          |> result.map(parse_primary_email)
+          |> result.unwrap(None)
+        Error(_) -> {
+          logger.new(
+            level: logger.Error,
+            event: "vestibule.provider.request.failure",
+            phase: "provider_request",
+            outcome: "failure",
+            provider: option.Some("github"),
+            fields: [
+              logger.field("endpoint", "user_email"),
+              logger.field("error_category", "network_error"),
+            ],
+          )
+          |> logger.emit()
+          None
+        }
       }
     }
     Error(_) -> None

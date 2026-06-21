@@ -9,6 +9,7 @@
 import gleam/bit_array
 import gleam/dict
 import gleam/http
+import gleam/option
 import gleam/result
 import gleam/string
 import gleam/uri
@@ -16,6 +17,7 @@ import wisp.{type Request, type Response}
 
 import vestibule/auth.{type Auth}
 import vestibule/error
+import vestibule/internal/logger
 import vestibule/registry.{type Registry}
 import vestibule/state_store.{type StateStore}
 import vestibule/transport_flow
@@ -110,6 +112,16 @@ pub fn request_phase_with_options(
   state_store state_store: StateStore,
   options options: Options,
 ) -> Response {
+  logger.emit(
+    logger.new(
+      level: logger.Debug,
+      event: "vestibule.adapter.request.start",
+      phase: "request",
+      outcome: "start",
+      provider: option.Some(provider),
+      fields: [logger.field("transport", "wisp")],
+    ),
+  )
   case
     transport_flow.start_authorization(
       reg,
@@ -118,13 +130,67 @@ pub fn request_phase_with_options(
       ttl_seconds: options.session_ttl_seconds,
     )
   {
-    Error(transport_flow.UnknownProvider(_)) -> wisp.not_found()
-    Error(transport_flow.AuthFailed(err)) -> error_response(err)
-    Error(transport_flow.StoreFailed(_)) ->
+    Error(transport_flow.UnknownProvider(_)) -> {
+      logger.emit(
+        logger.new(
+          level: logger.Warning,
+          event: "vestibule.adapter.request.failure",
+          phase: "request",
+          outcome: "failure",
+          provider: option.Some(provider),
+          fields: [
+            logger.field("transport", "wisp"),
+            logger.field("error_category", "unknown_provider"),
+          ],
+        ),
+      )
+      wisp.not_found()
+    }
+    Error(transport_flow.AuthFailed(err)) -> {
+      logger.emit(
+        logger.new(
+          level: logger.Warning,
+          event: "vestibule.adapter.request.failure",
+          phase: "request",
+          outcome: "failure",
+          provider: option.Some(provider),
+          fields: [
+            logger.field("transport", "wisp"),
+            logger.field("error_category", logger.auth_error_category(err)),
+          ],
+        ),
+      )
+      error_response(err)
+    }
+    Error(transport_flow.StoreFailed(_)) -> {
+      logger.emit(
+        logger.new(
+          level: logger.Error,
+          event: "vestibule.adapter.request.failure",
+          phase: "request",
+          outcome: "failure",
+          provider: option.Some(provider),
+          fields: [
+            logger.field("transport", "wisp"),
+            logger.field("error_category", "state_store_failed"),
+          ],
+        ),
+      )
       error_response(error.ConfigError(
         reason: "Failed to store OAuth session state",
       ))
-    Ok(#(url, session_id)) ->
+    }
+    Ok(#(url, session_id)) -> {
+      logger.emit(
+        logger.new(
+          level: logger.Info,
+          event: "vestibule.adapter.request.success",
+          phase: "request",
+          outcome: "success",
+          provider: option.Some(provider),
+          fields: [logger.field("transport", "wisp")],
+        ),
+      )
       wisp.redirect(url)
       |> wisp.set_cookie(
         req,
@@ -133,6 +199,7 @@ pub fn request_phase_with_options(
         wisp.Signed,
         options.session_ttl_seconds,
       )
+    }
   }
 }
 
@@ -219,14 +286,18 @@ pub fn callback_phase_result_with_options(
   state_store state_store: StateStore,
   options options: Options,
 ) -> Result(Auth, Response) {
-  callback_phase_auth_result_with_options(
-    req,
-    reg: reg,
-    provider: provider,
-    state_store: state_store,
-    options: options,
-  )
-  |> result.map_error(callback_error_response)
+  case
+    callback_phase_auth_result_with_options(
+      req,
+      reg: reg,
+      provider: provider,
+      state_store: state_store,
+      options: options,
+    )
+  {
+    Ok(auth) -> Ok(auth)
+    Error(err) -> Error(callback_error_response(err))
+  }
 }
 
 /// Phase 2 (structured Result variant): Handle the OAuth callback and return
@@ -262,25 +333,52 @@ pub fn callback_phase_auth_result_with_options(
   state_store state_store: StateStore,
   options options: Options,
 ) -> Result(Auth, CallbackError(e)) {
-  use strategy_config <- result.try(
-    transport_flow.ensure_callback_provider(reg, provider)
-    |> result.map_error(map_callback_flow_error),
+  logger.emit(
+    logger.new(
+      level: logger.Debug,
+      event: "vestibule.adapter.callback.start",
+      phase: "callback",
+      outcome: "start",
+      provider: option.Some(provider),
+      fields: [logger.field("transport", "wisp")],
+    ),
   )
+  let outcome = {
+    use strategy_config <- result.try(
+      transport_flow.ensure_callback_provider(reg, provider)
+      |> result.map_error(map_callback_flow_error),
+    )
 
-  use params <- result.try(get_callback_params(req))
+    use params <- result.try(get_callback_params(req))
 
-  use session_id <- result.try(
-    wisp.get_cookie(req, options.cookie_name, wisp.Signed)
-    |> result.map_error(fn(_) { MissingSessionCookie }),
-  )
+    use session_id <- result.try(
+      wisp.get_cookie(req, options.cookie_name, wisp.Signed)
+      |> result.map_error(fn(_) { MissingSessionCookie }),
+    )
 
-  transport_flow.finish_callback(
-    strategy_config,
-    store: state_store,
-    params: params,
-    session_id: session_id,
-  )
-  |> result.map_error(map_callback_flow_error)
+    transport_flow.finish_callback(
+      strategy_config,
+      store: state_store,
+      params: params,
+      session_id: session_id,
+    )
+    |> result.map_error(map_callback_flow_error)
+  }
+  case outcome {
+    Ok(_) ->
+      logger.emit(
+        logger.new(
+          level: logger.Info,
+          event: "vestibule.adapter.callback.success",
+          phase: "callback",
+          outcome: "success",
+          provider: option.Some(provider),
+          fields: [logger.field("transport", "wisp")],
+        ),
+      )
+    Error(err) -> log_callback_error(provider, err)
+  }
+  outcome
 }
 
 /// Extract callback parameters from either query string (GET) or
@@ -320,6 +418,29 @@ fn map_callback_flow_error(
     transport_flow.CallbackSessionUnavailable -> SessionExpired
     transport_flow.CallbackAuthFailed(err) -> AuthFailed(err)
   }
+}
+
+fn log_callback_error(provider: String, err: CallbackError(e)) -> Nil {
+  let category = case err {
+    UnknownProvider(_) -> "unknown_provider"
+    MissingSessionCookie -> "missing_session_cookie"
+    SessionExpired -> "session_expired"
+    InvalidCallbackParams -> "invalid_callback_params"
+    AuthFailed(auth_err) -> logger.auth_error_category(auth_err)
+  }
+  logger.emit(
+    logger.new(
+      level: logger.Warning,
+      event: "vestibule.adapter.callback.failure",
+      phase: "callback",
+      outcome: "failure",
+      provider: option.Some(provider),
+      fields: [
+        logger.field("transport", "wisp"),
+        logger.field("error_category", category),
+      ],
+    ),
+  )
 }
 
 fn callback_error_response(err: CallbackError(e)) -> Response {

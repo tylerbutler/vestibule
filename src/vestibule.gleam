@@ -5,6 +5,7 @@
 //// All flows use PKCE (Proof Key for Code Exchange) for enhanced security.
 
 import gleam/dict.{type Dict}
+import gleam/list
 import gleam/option
 import gleam/result
 import gleam/string
@@ -15,6 +16,7 @@ import vestibule/authorization_request.{type AuthorizationRequest}
 import vestibule/config.{type Config}
 import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
+import vestibule/internal/logger
 import vestibule/pkce
 import vestibule/state
 import vestibule/strategy.{type Strategy}
@@ -36,6 +38,17 @@ pub fn create_authorization_request(
   strat: Strategy(e),
   cfg cfg: Config,
 ) -> Result(AuthorizationRequest, AuthError(e)) {
+  let provider = option.Some(strategy.provider(strat))
+  logger.emit(
+    logger.new(
+      level: logger.Debug,
+      event: "vestibule.authorization_request.start",
+      phase: "request",
+      outcome: "start",
+      provider: provider,
+      fields: [],
+    ),
+  )
   let csrf_state = state.generate()
   let code_verifier = pkce.generate_verifier()
   let code_challenge = pkce.compute_challenge(code_verifier)
@@ -43,18 +56,58 @@ pub fn create_authorization_request(
     [] -> strategy.default_scopes(strat)
     custom -> custom
   }
-  use base_url <- result.try(strategy.build_authorize_url(
-    strat,
-    cfg: cfg,
-    scopes: scopes,
-    state: csrf_state,
-  ))
-  let url = append_pkce_params(base_url, code_challenge)
-  Ok(authorization_request.new(
-    url: url,
-    state: csrf_state,
-    code_verifier: code_verifier,
-  ))
+  logger.emit(
+    logger.new(
+      level: logger.Debug,
+      event: "vestibule.authorization_request.scopes_resolved",
+      phase: "request",
+      outcome: "success",
+      provider: provider,
+      fields: [logger.int_field("scope_count", list.length(scopes))],
+    ),
+  )
+  let outcome =
+    strategy.build_authorize_url(
+      strat,
+      cfg: cfg,
+      scopes: scopes,
+      state: csrf_state,
+    )
+    |> result.map(fn(base_url) { append_pkce_params(base_url, code_challenge) })
+    |> result.map(fn(url) {
+      authorization_request.new(
+        url: url,
+        state: csrf_state,
+        code_verifier: code_verifier,
+      )
+    })
+  case outcome {
+    Ok(_) ->
+      logger.emit(
+        logger.new(
+          level: logger.Info,
+          event: "vestibule.authorization_request.success",
+          phase: "request",
+          outcome: "success",
+          provider: provider,
+          fields: [],
+        ),
+      )
+    Error(err) ->
+      logger.emit(
+        logger.new(
+          level: failure_level(err),
+          event: "vestibule.authorization_request.failure",
+          phase: "request",
+          outcome: "failure",
+          provider: provider,
+          fields: [
+            logger.field("error_category", logger.auth_error_category(err)),
+          ],
+        ),
+      )
+  }
+  outcome
 }
 
 /// Phase 2: Handle the OAuth callback from the provider.
@@ -77,50 +130,231 @@ pub fn handle_callback(
   expected_state expected_state: String,
   code_verifier code_verifier: String,
 ) -> Result(Auth, AuthError(e)) {
-  // Extract state (needed for CSRF validation)
-  use received_state <- result.try(
-    dict.get(callback_params, "state")
-    |> result.replace_error(error.MissingCallbackParam("state")),
+  let provider = option.Some(strategy.provider(strat))
+  logger.emit(
+    logger.new(
+      level: logger.Debug,
+      event: "vestibule.callback.start",
+      phase: "callback",
+      outcome: "start",
+      provider: provider,
+      fields: [],
+    ),
   )
+
+  // Extract state (needed for CSRF validation)
+  let state_result =
+    dict.get(callback_params, "state")
+    |> result.replace_error(error.MissingCallbackParam("state"))
+  case state_result {
+    Ok(_) ->
+      logger.emit(
+        logger.new(
+          level: logger.Debug,
+          event: "vestibule.callback.state_received",
+          phase: "callback",
+          outcome: "success",
+          provider: provider,
+          fields: [],
+        ),
+      )
+    Error(err) ->
+      logger.emit(
+        logger.new(
+          level: logger.Warning,
+          event: "vestibule.callback.failure",
+          phase: "callback",
+          outcome: "failure",
+          provider: provider,
+          fields: [
+            logger.field("error_category", logger.auth_error_category(err)),
+            logger.field("missing_param", "state"),
+          ],
+        ),
+      )
+  }
+  use received_state <- result.try(state_result)
 
   // Validate state before surfacing any provider response details.
-  use _ <- result.try(state.validate(
-    received: received_state,
-    expected: expected_state,
-  ))
+  let validate_result =
+    state.validate(received: received_state, expected: expected_state)
+  case validate_result {
+    Ok(_) ->
+      logger.emit(
+        logger.new(
+          level: logger.Debug,
+          event: "vestibule.callback.state_valid",
+          phase: "callback",
+          outcome: "success",
+          provider: provider,
+          fields: [],
+        ),
+      )
+    Error(err) ->
+      logger.emit(
+        logger.new(
+          level: logger.Warning,
+          event: "vestibule.callback.failure",
+          phase: "callback",
+          outcome: "failure",
+          provider: provider,
+          fields: [
+            logger.field("error_category", logger.auth_error_category(err)),
+          ],
+        ),
+      )
+  }
+  use _ <- result.try(validate_result)
 
   // Check for provider errors before requiring code
-  use _ <- result.try(check_provider_error(callback_params))
+  let provider_check = check_provider_error(callback_params)
+  case provider_check {
+    Ok(_) ->
+      logger.emit(
+        logger.new(
+          level: logger.Debug,
+          event: "vestibule.callback.provider_error_checked",
+          phase: "callback",
+          outcome: "success",
+          provider: provider,
+          fields: [],
+        ),
+      )
+    Error(err) ->
+      logger.emit(
+        logger.new(
+          level: logger.Warning,
+          event: "vestibule.callback.failure",
+          phase: "callback",
+          outcome: "failure",
+          provider: provider,
+          fields: [
+            logger.field("error_category", logger.auth_error_category(err)),
+          ],
+        ),
+      )
+  }
+  use _ <- result.try(provider_check)
 
   // Extract authorization code
-  use code <- result.try(
+  let code_result =
     dict.get(callback_params, "code")
-    |> result.replace_error(error.MissingCallbackParam("code")),
-  )
+    |> result.replace_error(error.MissingCallbackParam("code"))
+  case code_result {
+    Ok(_) ->
+      logger.emit(
+        logger.new(
+          level: logger.Debug,
+          event: "vestibule.callback.code_received",
+          phase: "callback",
+          outcome: "success",
+          provider: provider,
+          fields: [],
+        ),
+      )
+    Error(err) ->
+      logger.emit(
+        logger.new(
+          level: logger.Warning,
+          event: "vestibule.callback.failure",
+          phase: "callback",
+          outcome: "failure",
+          provider: provider,
+          fields: [
+            logger.field("error_category", logger.auth_error_category(err)),
+            logger.field("missing_param", "code"),
+          ],
+        ),
+      )
+  }
+  use code <- result.try(code_result)
 
   // Exchange code for credentials and provider-specific artifacts, passing the PKCE verifier
-  use exchange <- result.try(strategy.exchange_code(
-    strat,
-    cfg: cfg,
-    code: code,
-    code_verifier: option.Some(code_verifier),
-  ))
+  let exchange_result =
+    strategy.exchange_code(
+      strat,
+      cfg: cfg,
+      code: code,
+      code_verifier: option.Some(code_verifier),
+    )
+  case exchange_result {
+    Ok(_) ->
+      logger.emit(
+        logger.new(
+          level: logger.Debug,
+          event: "vestibule.callback.exchange.success",
+          phase: "callback",
+          outcome: "success",
+          provider: provider,
+          fields: [],
+        ),
+      )
+    Error(err) ->
+      logger.emit(
+        logger.new(
+          level: failure_level(err),
+          event: "vestibule.callback.failure",
+          phase: "callback",
+          outcome: "failure",
+          provider: provider,
+          fields: [
+            logger.field("error_category", logger.auth_error_category(err)),
+          ],
+        ),
+      )
+  }
+  use exchange <- result.try(exchange_result)
 
   // Fetch user info
-  use user <- result.try(strategy.fetch_user(
-    strat,
-    cfg: cfg,
-    exchange: exchange,
-  ))
+  let user_result = strategy.fetch_user(strat, cfg: cfg, exchange: exchange)
+  case user_result {
+    Ok(_) ->
+      logger.emit(
+        logger.new(
+          level: logger.Debug,
+          event: "vestibule.callback.user.success",
+          phase: "callback",
+          outcome: "success",
+          provider: provider,
+          fields: [],
+        ),
+      )
+    Error(err) ->
+      logger.emit(
+        logger.new(
+          level: failure_level(err),
+          event: "vestibule.callback.failure",
+          phase: "callback",
+          outcome: "failure",
+          provider: provider,
+          fields: [
+            logger.field("error_category", logger.auth_error_category(err)),
+          ],
+        ),
+      )
+  }
+  use user <- result.try(user_result)
 
   // Assemble the Auth result
-  Ok(Auth(
-    uid: strategy.user_result_uid(user),
-    provider: strategy.provider(strat),
-    info: strategy.user_result_info(user),
-    credentials: strategy.exchange_credentials(exchange),
-    extra: strategy.user_result_extra(user),
-  ))
+  let auth =
+    Auth(
+      uid: strategy.user_result_uid(user),
+      provider: strategy.provider(strat),
+      info: strategy.user_result_info(user),
+      credentials: strategy.exchange_credentials(exchange),
+      extra: strategy.user_result_extra(user),
+    )
+  logger.emit(
+    logger.new(
+      level: logger.Info,
+      event: "vestibule.callback.success",
+      phase: "callback",
+      outcome: "success",
+      provider: provider,
+      fields: [],
+    ),
+  )
+  Ok(auth)
 }
 
 /// Refresh an access token using a refresh token.
@@ -131,7 +365,70 @@ pub fn refresh_token(
   cfg cfg: Config,
   refresh_tok refresh_tok: String,
 ) -> Result(Credentials, AuthError(e)) {
-  strategy.refresh_token(strat, cfg: cfg, refresh_tok: refresh_tok)
+  let provider = option.Some(strategy.provider(strat))
+  logger.emit(
+    logger.new(
+      level: logger.Debug,
+      event: "vestibule.refresh.start",
+      phase: "refresh",
+      outcome: "start",
+      provider: provider,
+      fields: [],
+    ),
+  )
+  let outcome =
+    strategy.refresh_token(strat, cfg: cfg, refresh_tok: refresh_tok)
+  case outcome {
+    Ok(creds) ->
+      logger.emit(
+        logger.new(
+          level: logger.Info,
+          event: "vestibule.refresh.success",
+          phase: "refresh",
+          outcome: "success",
+          provider: provider,
+          fields: [
+            logger.bool_field(
+              "has_refresh_token",
+              option.is_some(credentials.refresh_token(creds)),
+            ),
+            logger.int_field(
+              "scope_count",
+              list.length(credentials.scopes(creds)),
+            ),
+          ],
+        ),
+      )
+    Error(err) ->
+      logger.emit(
+        logger.new(
+          level: failure_level(err),
+          event: "vestibule.refresh.failure",
+          phase: "refresh",
+          outcome: "failure",
+          provider: provider,
+          fields: [
+            logger.field("error_category", logger.auth_error_category(err)),
+          ],
+        ),
+      )
+  }
+  outcome
+}
+
+fn failure_level(err: AuthError(e)) -> logger.Level {
+  case err {
+    error.NetworkError(_)
+    | error.HttpError(_, _)
+    | error.DecodeError(_, _)
+    | error.ConfigError(_) -> logger.Error
+    error.StateMismatch
+    | error.MissingCallbackParam(_)
+    | error.CodeExchangeFailed(_)
+    | error.UserInfoFailed(_)
+    | error.ProviderError(_, _, _)
+    | error.Custom(_) -> logger.Warning
+  }
 }
 
 /// Check callback params for a provider error response.

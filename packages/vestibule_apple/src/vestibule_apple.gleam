@@ -33,6 +33,7 @@ import gleam/dynamic
 import gleam/dynamic/decode
 import gleam/int
 import gleam/json
+import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
@@ -40,6 +41,7 @@ import gleam/time/duration
 import gleam/uri
 
 import gleam/http/request
+import gleam/http/response
 import gleam/httpc
 
 import glow_auth
@@ -50,6 +52,7 @@ import glow_auth/uri/uri_builder
 import vestibule/config.{type Config}
 import vestibule/credentials
 import vestibule/error.{type AuthError}
+import vestibule/internal/logger
 import vestibule/provider_support
 import vestibule/strategy.{type ExchangeResult, type Strategy, type UserResult}
 import vestibule/user_info
@@ -134,8 +137,71 @@ pub fn strategy(apple: AppleCache) -> Strategy(e) {
 pub fn parse_token_response(
   body: String,
 ) -> Result(ExchangeResult, AuthError(e)) {
-  use body <- result.try(provider_support.check_token_error(body))
-  parse_success_token(body)
+  do_parse_token_response(body, "token")
+}
+
+fn do_parse_token_response(
+  body: String,
+  endpoint: String,
+) -> Result(ExchangeResult, AuthError(e)) {
+  let result = {
+    use body <- result.try(provider_support.check_token_error(body))
+    parse_success_token(body)
+  }
+  case result {
+    Ok(exchange) -> {
+      let has_id_token =
+        dict.has_key(strategy.exchange_artifacts(exchange), "id_token")
+      let id_token_fields = case has_id_token {
+        True -> [logger.bool_field("has_id_token", True)]
+        False -> []
+      }
+      logger.new(
+        level: logger.Debug,
+        event: "vestibule.provider.token_parse.success",
+        phase: "provider_request",
+        outcome: "success",
+        provider: Some("apple"),
+        fields: list.flatten([
+          [
+            logger.field("endpoint", endpoint),
+            logger.bool_field(
+              "has_refresh_token",
+              option.is_some(
+                credentials.refresh_token(strategy.exchange_credentials(
+                  exchange,
+                )),
+              ),
+            ),
+            logger.int_field(
+              "scope_count",
+              list.length(
+                credentials.scopes(strategy.exchange_credentials(exchange)),
+              ),
+            ),
+          ],
+          id_token_fields,
+        ]),
+      )
+      |> logger.emit()
+      Ok(exchange)
+    }
+    Error(err) -> {
+      logger.new(
+        level: logger.Warning,
+        event: "vestibule.provider.token_parse.failure",
+        phase: "provider_request",
+        outcome: "failure",
+        provider: Some("apple"),
+        fields: [
+          logger.field("endpoint", endpoint),
+          logger.field("error_category", logger.auth_error_category(err)),
+        ],
+      )
+      |> logger.emit()
+      Error(err)
+    }
+  }
 }
 
 fn parse_success_token(body: String) -> Result(ExchangeResult, AuthError(e)) {
@@ -284,6 +350,29 @@ fn string_bool_decoder() -> decode.Decoder(Bool) {
   })
 }
 
+// Calls check_response_status_for_endpoint (emitting structured logs) but
+// maps HttpError back to the legacy NetworkError shape to preserve the
+// public error contract that predates the HttpError variant.
+fn check_apple_http(
+  response: response.Response(String),
+  endpoint: String,
+) -> Result(String, AuthError(e)) {
+  provider_support.check_response_status_for_endpoint(
+    response,
+    provider_name: "apple",
+    endpoint: endpoint,
+  )
+  |> result.map_error(fn(err) {
+    case err {
+      error.HttpError(status: status, body: body) ->
+        error.NetworkError(
+          reason: "HTTP " <> int.to_string(status) <> ": " <> body,
+        )
+      _ -> err
+    }
+  })
+}
+
 fn do_authorize_url(
   cfg: Config,
   scopes: List(String),
@@ -354,20 +443,37 @@ fn do_exchange_code(
     )
     |> request.set_header("accept", "application/json")
   let req = strategy.append_code_verifier(req, code_verifier)
+  logger.new(
+    level: logger.Debug,
+    event: "vestibule.provider.request.start",
+    phase: "provider_request",
+    outcome: "start",
+    provider: Some("apple"),
+    fields: [logger.field("endpoint", "token")],
+  )
+  |> logger.emit()
   case httpc.send(req) {
-    Ok(response) if response.status >= 200 && response.status < 300 ->
-      parse_token_response(response.body)
-    Ok(response) ->
-      Error(error.NetworkError(
-        reason: "HTTP "
-        <> int.to_string(response.status)
-        <> ": "
-        <> response.body,
-      ))
-    Error(_) ->
+    Ok(response) -> {
+      use body <- result.try(check_apple_http(response, "token"))
+      parse_token_response(body)
+    }
+    Error(_) -> {
+      logger.new(
+        level: logger.Error,
+        event: "vestibule.provider.request.failure",
+        phase: "provider_request",
+        outcome: "failure",
+        provider: Some("apple"),
+        fields: [
+          logger.field("endpoint", "token"),
+          logger.field("error_category", "network_error"),
+        ],
+      )
+      |> logger.emit()
       Error(error.NetworkError(
         reason: "Failed to connect to Apple token endpoint",
       ))
+    }
   }
 }
 
@@ -395,16 +501,44 @@ fn do_refresh_token(
     )
     |> request.set_header("accept", "application/json")
 
+  logger.new(
+    level: logger.Debug,
+    event: "vestibule.provider.request.start",
+    phase: "provider_request",
+    outcome: "start",
+    provider: Some("apple"),
+    fields: [logger.field("endpoint", "refresh")],
+  )
+  |> logger.emit()
   case httpc.send(req) {
     Ok(response) -> {
-      use body <- result.try(provider_support.check_response_status(response))
-      use exchange <- result.try(parse_token_response(body))
+      use body <- result.try(
+        provider_support.check_response_status_for_endpoint(
+          response,
+          provider_name: "apple",
+          endpoint: "refresh",
+        ),
+      )
+      use exchange <- result.try(do_parse_token_response(body, "refresh"))
       Ok(strategy.exchange_credentials(exchange))
     }
-    Error(_) ->
+    Error(_) -> {
+      logger.new(
+        level: logger.Error,
+        event: "vestibule.provider.request.failure",
+        phase: "provider_request",
+        outcome: "failure",
+        provider: Some("apple"),
+        fields: [
+          logger.field("endpoint", "refresh"),
+          logger.field("error_category", "network_error"),
+        ],
+      )
+      |> logger.emit()
       Error(error.NetworkError(
         reason: "Failed to connect to Apple token endpoint",
       ))
+    }
   }
 }
 
