@@ -31,6 +31,7 @@
 import gleam/dict
 import gleam/dynamic
 import gleam/dynamic/decode
+import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -40,6 +41,7 @@ import gleam/time/duration
 import gleam/uri
 
 import gleam/http/request
+import gleam/http/response
 import gleam/httpc
 
 import glow_auth
@@ -135,6 +137,13 @@ pub fn strategy(apple: AppleCache) -> Strategy(e) {
 pub fn parse_token_response(
   body: String,
 ) -> Result(ExchangeResult, AuthError(e)) {
+  do_parse_token_response(body, "token")
+}
+
+fn do_parse_token_response(
+  body: String,
+  endpoint: String,
+) -> Result(ExchangeResult, AuthError(e)) {
   let result = {
     use body <- result.try(provider_support.check_token_error(body))
     parse_success_token(body)
@@ -155,7 +164,7 @@ pub fn parse_token_response(
         provider: Some("apple"),
         fields: list.flatten([
           [
-            logger.field("endpoint", "token"),
+            logger.field("endpoint", endpoint),
             logger.bool_field(
               "has_refresh_token",
               option.is_some(
@@ -185,7 +194,7 @@ pub fn parse_token_response(
         outcome: "failure",
         provider: Some("apple"),
         fields: [
-          logger.field("endpoint", "token"),
+          logger.field("endpoint", endpoint),
           logger.field("error_category", logger.auth_error_category(err)),
         ],
       )
@@ -341,6 +350,29 @@ fn string_bool_decoder() -> decode.Decoder(Bool) {
   })
 }
 
+// Calls check_response_status_for_endpoint (emitting structured logs) but
+// maps HttpError back to the legacy NetworkError shape to preserve the
+// public error contract that predates the HttpError variant.
+fn check_apple_http(
+  response: response.Response(String),
+  endpoint: String,
+) -> Result(String, AuthError(e)) {
+  provider_support.check_response_status_for_endpoint(
+    response,
+    provider_name: "apple",
+    endpoint: endpoint,
+  )
+  |> result.map_error(fn(err) {
+    case err {
+      error.HttpError(status: status, body: body) ->
+        error.NetworkError(
+          reason: "HTTP " <> int.to_string(status) <> ": " <> body,
+        )
+      _ -> err
+    }
+  })
+}
+
 fn do_authorize_url(
   cfg: Config,
   scopes: List(String),
@@ -422,13 +454,7 @@ fn do_exchange_code(
   |> logger.emit()
   case httpc.send(req) {
     Ok(response) -> {
-      use body <- result.try(
-        provider_support.check_response_status_for_endpoint(
-          response,
-          provider_name: "apple",
-          endpoint: "token",
-        ),
-      )
+      use body <- result.try(check_apple_http(response, "token"))
       parse_token_response(body)
     }
     Error(_) -> {
@@ -486,14 +512,8 @@ fn do_refresh_token(
   |> logger.emit()
   case httpc.send(req) {
     Ok(response) -> {
-      use body <- result.try(
-        provider_support.check_response_status_for_endpoint(
-          response,
-          provider_name: "apple",
-          endpoint: "refresh",
-        ),
-      )
-      use exchange <- result.try(parse_token_response(body))
+      use body <- result.try(check_apple_http(response, "refresh"))
+      use exchange <- result.try(do_parse_token_response(body, "refresh"))
       Ok(strategy.exchange_credentials(exchange))
     }
     Error(_) -> {

@@ -7,7 +7,9 @@
 import bravo
 import bravo/uset.{type USet}
 import gleam/http/request
+import gleam/http/response
 import gleam/httpc
+import gleam/int
 import gleam/json
 import gleam/option
 import gleam/result
@@ -103,13 +105,22 @@ fn fetch_keys() -> Result(List(VerifyKey), AuthError(e)) {
   )
   |> logger.emit()
   case httpc.send(req) {
-    Ok(response) -> {
+    Ok(resp) -> {
       use body <- result.try(
         provider_support.check_response_status_for_endpoint(
-          response,
+          resp,
           provider_name: "apple",
           endpoint: "jwks",
-        ),
+        )
+        |> result.map_error(fn(err) {
+          case err {
+            error.HttpError(status: status, body: body) ->
+              error.NetworkError(
+                reason: "HTTP " <> int.to_string(status) <> ": " <> body,
+              )
+            _ -> err
+          }
+        }),
       )
       parse_jwks(body)
     }
