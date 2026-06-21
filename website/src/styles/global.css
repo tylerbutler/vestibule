@@ -917,6 +917,10 @@ pre code {
   font-weight: var(--weight-semibold);
 }
 
+.package-route-list {
+  margin-bottom: var(--space-12);
+}
+
 .package-river {
   display: grid;
   gap: var(--space-3);
