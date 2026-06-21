@@ -59,6 +59,7 @@ pub fn redaction_guard_rejects_sensitive_field_names_test() {
     logger.field("provider", "github"),
     logger.field("access_token", "secret-access-token"),
     logger.field("refresh_token", "secret-refresh-token"),
+    logger.field("id_token", "secret-id-token"),
     logger.field("code_verifier", "secret-verifier"),
     logger.field("session_id", "secret-session"),
     logger.field("status", "500"),

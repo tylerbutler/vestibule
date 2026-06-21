@@ -39,6 +39,13 @@ pub fn strategy() -> Strategy(e) {
 /// Parse a GitHub token exchange response into Credentials.
 /// Supported parsing helper for GitHub strategy integrations.
 pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
+  do_parse_token_response(body, "token")
+}
+
+fn do_parse_token_response(
+  body: String,
+  endpoint: String,
+) -> Result(Credentials, AuthError(e)) {
   let result =
     provider_support.parse_oauth_token_response(
       body,
@@ -53,7 +60,7 @@ pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
         outcome: "success",
         provider: option.Some("github"),
         fields: [
-          logger.field("endpoint", "token"),
+          logger.field("endpoint", endpoint),
           logger.bool_field(
             "has_refresh_token",
             option.is_some(credentials.refresh_token(creds)),
@@ -75,7 +82,7 @@ pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
         outcome: "failure",
         provider: option.Some("github"),
         fields: [
-          logger.field("endpoint", "token"),
+          logger.field("endpoint", endpoint),
           logger.field("error_category", logger.auth_error_category(err)),
         ],
       )
@@ -313,7 +320,7 @@ fn do_refresh_token(
           endpoint: "refresh",
         ),
       )
-      parse_token_response(body)
+      do_parse_token_response(body, "refresh")
     }
     Error(_) -> {
       logger.new(
@@ -410,9 +417,14 @@ fn do_fetch_user(
       )
       |> logger.emit()
       case httpc.send(email_req) {
-        Ok(response) if response.status >= 200 && response.status < 300 ->
-          parse_primary_email(response.body)
-        Ok(_) -> None
+        Ok(response) ->
+          provider_support.check_response_status_for_endpoint(
+            response,
+            provider_name: "github",
+            endpoint: "user_email",
+          )
+          |> result.map(parse_primary_email)
+          |> result.unwrap(None)
         Error(_) -> {
           logger.new(
             level: logger.Error,

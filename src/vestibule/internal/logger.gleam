@@ -105,6 +105,7 @@ const reserved_field_names = ["event", "phase", "outcome", "provider"]
 const sensitive_field_names = [
   "access_token",
   "refresh_token",
+  "id_token",
   "client_secret",
   "authorization_code",
   "code_verifier",
