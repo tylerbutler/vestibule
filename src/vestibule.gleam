@@ -417,10 +417,17 @@ pub fn refresh_token(
 }
 
 fn failure_level(err: AuthError(e)) -> logger.Level {
-  case logger.auth_error_category(err) {
-    "network_error" | "http_error" | "decode_error" | "config_error" ->
-      logger.Error
-    _ -> logger.Warning
+  case err {
+    error.NetworkError(_)
+    | error.HttpError(_, _)
+    | error.DecodeError(_, _)
+    | error.ConfigError(_) -> logger.Error
+    error.StateMismatch
+    | error.MissingCallbackParam(_)
+    | error.CodeExchangeFailed(_)
+    | error.UserInfoFailed(_)
+    | error.ProviderError(_, _, _)
+    | error.Custom(_) -> logger.Warning
   }
 }
 
