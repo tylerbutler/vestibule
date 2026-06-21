@@ -129,7 +129,7 @@ BEAM control over log routing, filtering, and formatting.
 
 Logs include safe fields such as `event`, `phase`, `outcome`, `provider`,
 `transport`, `endpoint`, `status`, and `error_category`. Vestibule never logs
-access tokens, refresh tokens, client secrets, authorization codes, PKCE code
+access tokens, refresh tokens, ID tokens, client secrets, authorization codes, PKCE code
 verifiers, raw callback parameters, session IDs, cookie values, signed payloads,
 or raw provider response bodies.
 
