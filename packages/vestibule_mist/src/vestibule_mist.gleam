@@ -259,14 +259,33 @@ pub fn callback_phase_result(
   store store: StateStore,
   options options: Options,
 ) -> Result(Auth, Response(ResponseData)) {
-  callback_phase_auth_result(
-    req,
-    reg: reg,
-    provider: provider,
-    store: store,
-    options: options,
-  )
-  |> result.map_error(callback_error_response)
+  case
+    callback_phase_auth_result(
+      req,
+      reg: reg,
+      provider: provider,
+      store: store,
+      options: options,
+    )
+  {
+    Ok(auth) -> {
+      logger.emit(
+        logger.new(
+          level: logger.Info,
+          event: "vestibule.adapter.callback.success",
+          phase: "callback",
+          outcome: "success",
+          provider: option.Some(provider),
+          fields: [logger.field("transport", "mist")],
+        ),
+      )
+      Ok(auth)
+    }
+    Error(err) -> {
+      log_callback_error(provider, err)
+      Error(callback_error_response(err))
+    }
+  }
 }
 
 /// Phase 2 (structured Result variant): Handle the OAuth callback and return
@@ -285,16 +304,6 @@ pub fn callback_phase_auth_result(
   store store: StateStore,
   options options: Options,
 ) -> Result(Auth, CallbackError(e)) {
-  logger.emit(
-    logger.new(
-      level: logger.Debug,
-      event: "vestibule.adapter.callback.start",
-      phase: "callback",
-      outcome: "start",
-      provider: option.Some(provider),
-      fields: [logger.field("transport", "mist")],
-    ),
-  )
   use params <- result.try(get_callback_params(req))
   callback_phase_auth_result_with_params(
     req,
@@ -320,6 +329,16 @@ pub fn callback_phase_auth_result_with_params(
   store store: StateStore,
   options options: Options,
 ) -> Result(Auth, CallbackError(e)) {
+  logger.emit(
+    logger.new(
+      level: logger.Debug,
+      event: "vestibule.adapter.callback.start",
+      phase: "callback",
+      outcome: "start",
+      provider: option.Some(provider),
+      fields: [logger.field("transport", "mist")],
+    ),
+  )
   use strategy_config <- result.try(
     transport_flow.ensure_callback_provider(reg, provider)
     |> result.map_error(map_callback_flow_error),

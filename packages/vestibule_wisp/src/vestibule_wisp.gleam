@@ -301,14 +301,33 @@ pub fn callback_phase_result_with_options(
   state_store state_store: StateStore,
   options options: Options,
 ) -> Result(Auth, Response) {
-  callback_phase_auth_result_with_options(
-    req,
-    reg: reg,
-    provider: provider,
-    state_store: state_store,
-    options: options,
-  )
-  |> result.map_error(callback_error_response)
+  case
+    callback_phase_auth_result_with_options(
+      req,
+      reg: reg,
+      provider: provider,
+      state_store: state_store,
+      options: options,
+    )
+  {
+    Ok(auth) -> {
+      logger.emit(
+        logger.new(
+          level: logger.Info,
+          event: "vestibule.adapter.callback.success",
+          phase: "callback",
+          outcome: "success",
+          provider: option.Some(provider),
+          fields: [logger.field("transport", "wisp")],
+        ),
+      )
+      Ok(auth)
+    }
+    Error(err) -> {
+      log_callback_error(provider, err)
+      Error(callback_error_response(err))
+    }
+  }
 }
 
 /// Phase 2 (structured Result variant): Handle the OAuth callback and return
