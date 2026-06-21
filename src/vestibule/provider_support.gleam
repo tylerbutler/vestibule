@@ -13,6 +13,7 @@ import gleam/result
 import gleam/string
 import gleam/uri
 import vestibule/error.{type AuthError}
+import vestibule/internal/logger
 
 import vestibule/credentials
 
@@ -21,14 +22,53 @@ import vestibule/credentials
 pub fn check_response_status(
   response: Response(String),
 ) -> Result(String, AuthError(e)) {
-  use <- bool.guard(
-    when: response.status < 200 || response.status >= 300,
-    return: Error(error.HttpError(
-      status: response.status,
-      body: safe_error_body(response.body),
-    )),
-  )
-  Ok(response.body)
+  check_response_status_for_endpoint(response, provider_name: "", endpoint: "")
+}
+
+/// Check that an HTTP response has a 2xx status code, emitting structured log
+/// events with the given provider name and endpoint label.
+/// Returns the response body on success, or an HttpError on failure.
+pub fn check_response_status_for_endpoint(
+  response: Response(String),
+  provider_name provider_name: String,
+  endpoint endpoint: String,
+) -> Result(String, AuthError(e)) {
+  case response.status < 200 || response.status >= 300 {
+    True -> {
+      logger.new(
+        level: logger.Error,
+        event: "vestibule.provider.response.failure",
+        phase: "provider_request",
+        outcome: "failure",
+        provider: option.Some(provider_name),
+        fields: [
+          logger.field("endpoint", endpoint),
+          logger.int_field("status", response.status),
+          logger.field("error_category", "http_error"),
+        ],
+      )
+      |> logger.emit()
+      Error(error.HttpError(
+        status: response.status,
+        body: safe_error_body(response.body),
+      ))
+    }
+    False -> {
+      logger.new(
+        level: logger.Debug,
+        event: "vestibule.provider.response.success",
+        phase: "provider_request",
+        outcome: "success",
+        provider: option.Some(provider_name),
+        fields: [
+          logger.field("endpoint", endpoint),
+          logger.int_field("status", response.status),
+        ],
+      )
+      |> logger.emit()
+      Ok(response.body)
+    }
+  }
 }
 
 fn safe_error_body(body: String) -> String {
@@ -243,15 +283,41 @@ pub fn fetch_json_with_auth(
     req
     |> request.set_header("authorization", auth_header)
     |> request.set_header("accept", "application/json")
+  logger.new(
+    level: logger.Debug,
+    event: "vestibule.provider.request.start",
+    phase: "provider_request",
+    outcome: "start",
+    provider: option.Some(provider_name),
+    fields: [logger.field("endpoint", "user_info")],
+  )
+  |> logger.emit()
   case httpc.send(req) {
     Ok(response) -> {
-      use body <- result.try(check_response_status(response))
+      use body <- result.try(check_response_status_for_endpoint(
+        response,
+        provider_name: provider_name,
+        endpoint: "user_info",
+      ))
       parse(body)
     }
-    Error(_) ->
+    Error(_) -> {
+      logger.new(
+        level: logger.Error,
+        event: "vestibule.provider.request.failure",
+        phase: "provider_request",
+        outcome: "failure",
+        provider: option.Some(provider_name),
+        fields: [
+          logger.field("endpoint", "user_info"),
+          logger.field("error_category", "network_error"),
+        ],
+      )
+      |> logger.emit()
       Error(error.NetworkError(
         reason: "Failed to connect to " <> provider_name <> " API: " <> url,
       ))
+    }
   }
 }
 

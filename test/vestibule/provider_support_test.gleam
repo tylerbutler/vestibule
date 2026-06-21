@@ -388,6 +388,21 @@ pub fn parse_oauth_token_response_required_scope_rejects_missing_scope_test() {
   }
 }
 
+pub fn check_response_status_still_truncates_logged_unsafe_body_test() {
+  let long_body = string.repeat("secret-body-", 20)
+  let result =
+    response.Response(status: 502, headers: [], body: long_body)
+    |> provider_support.check_response_status()
+
+  case result {
+    Error(error.HttpError(status:, body:)) -> {
+      status |> expect.to_equal(502)
+      { string.length(body) <= 120 } |> expect.to_be_true()
+    }
+    _ -> panic as "expected HttpError"
+  }
+}
+
 pub fn fetch_json_with_auth_rejects_remote_http_before_sending_token_test() {
   let result =
     provider_support.fetch_json_with_auth(
