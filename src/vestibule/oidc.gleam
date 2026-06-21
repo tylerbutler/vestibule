@@ -133,7 +133,13 @@ pub fn fetch_configuration(
 
   case httpc.send(req) {
     Ok(response) -> {
-      use body <- result.try(provider_support.check_response_status(response))
+      use body <- result.try(
+        provider_support.check_response_status_for_endpoint(
+          response,
+          provider_name: "oidc",
+          endpoint: "discovery",
+        ),
+      )
       use config <- result.try(parse_discovery_document(body))
       // Security: validate issuer matches per OIDC Discovery spec
       let normalized_issuer = strip_trailing_slash(issuer_url)
@@ -457,7 +463,13 @@ fn build_exchange_code_fn(
 
     case httpc.send(req) {
       Ok(response) -> {
-        use body <- result.try(provider_support.check_response_status(response))
+        use body <- result.try(
+          provider_support.check_response_status_for_endpoint(
+            response,
+            provider_name: "oidc",
+            endpoint: "token",
+          ),
+        )
         parse_token_response(body)
         |> result.map(strategy.exchange_result)
       }
@@ -522,7 +534,13 @@ fn build_refresh_token_fn(
 
     case httpc.send(req) {
       Ok(response) -> {
-        use body <- result.try(provider_support.check_response_status(response))
+        use body <- result.try(
+          provider_support.check_response_status_for_endpoint(
+            response,
+            provider_name: "oidc",
+            endpoint: "refresh",
+          ),
+        )
         parse_token_response(body)
       }
       Error(_) ->
