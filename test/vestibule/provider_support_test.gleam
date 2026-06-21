@@ -388,7 +388,7 @@ pub fn parse_oauth_token_response_required_scope_rejects_missing_scope_test() {
   }
 }
 
-pub fn check_response_status_still_truncates_logged_unsafe_body_test() {
+pub fn check_response_status_truncates_error_body_test() {
   let long_body = string.repeat("secret-body-", 20)
   let result =
     response.Response(status: 502, headers: [], body: long_body)

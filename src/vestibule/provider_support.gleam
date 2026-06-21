@@ -22,7 +22,11 @@ import vestibule/credentials
 pub fn check_response_status(
   response: Response(String),
 ) -> Result(String, AuthError(e)) {
-  check_response_status_for_endpoint(response, provider_name: "", endpoint: "")
+  check_response_status_for_endpoint(
+    response,
+    provider_name: "unknown",
+    endpoint: "unknown",
+  )
 }
 
 /// Check that an HTTP response has a 2xx status code, emitting structured log
