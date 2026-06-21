@@ -512,7 +512,13 @@ fn do_refresh_token(
   |> logger.emit()
   case httpc.send(req) {
     Ok(response) -> {
-      use body <- result.try(check_apple_http(response, "refresh"))
+      use body <- result.try(
+        provider_support.check_response_status_for_endpoint(
+          response,
+          provider_name: "apple",
+          endpoint: "refresh",
+        ),
+      )
       use exchange <- result.try(do_parse_token_response(body, "refresh"))
       Ok(strategy.exchange_credentials(exchange))
     }
