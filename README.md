@@ -121,6 +121,18 @@ VM at startup. Use `state_store.try_init` if you want to handle
 duplicate-table errors explicitly. The same store can be shared between
 `vestibule_wisp` and `vestibule_mist`.
 
+### Logging
+
+Vestibule emits structured OAuth lifecycle logs through Erlang/OTP Logger. It
+does not configure Logger handlers or levels; your application keeps normal
+BEAM control over log routing, filtering, and formatting.
+
+Logs include safe fields such as `event`, `phase`, `outcome`, `provider`,
+`transport`, `endpoint`, `status`, and `error_category`. Vestibule never logs
+access tokens, refresh tokens, client secrets, authorization codes, PKCE code
+verifiers, raw callback parameters, session IDs, cookie values, signed payloads,
+or raw provider response bodies.
+
 If you want to handle callback failures yourself instead of using the default
 HTML error page, use `vestibule_wisp.callback_phase_result`. Use
 `vestibule_wisp.callback_phase_auth_result` when you need structured errors such
