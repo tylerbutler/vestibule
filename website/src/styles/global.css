@@ -1325,7 +1325,8 @@ pre code {
 
 .step-list,
 .setup-list,
-.check-list {
+.check-list,
+.responsibility-list {
   display: grid;
   gap: var(--space-4);
 }
@@ -1403,6 +1404,26 @@ pre code {
 
 .check-list.warning li::before {
   background: var(--yellow);
+}
+
+.responsibility-list {
+  margin: var(--space-4) 0 0;
+  border-radius: var(--radius-md);
+  background: color-mix(in oklch, var(--primary-soft) 56%, var(--bg));
+  padding: var(--space-4);
+  list-style: none;
+}
+
+.responsibility-list.warning {
+  background: var(--yellow-soft);
+}
+
+.responsibility-list li {
+  color: var(--muted);
+}
+
+.responsibility-list strong {
+  color: var(--ink);
 }
 
 .package-feature {
