@@ -399,3 +399,34 @@ pub fn missing_callback_code_is_structured_test() {
   )
   |> expect.to_equal(Error(error.MissingCallbackParam("code")))
 }
+
+pub fn logging_does_not_change_core_result_shapes_test() {
+  let strat = test_strategy()
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "http://localhost/cb",
+    )
+  let assert Ok(req) = vestibule.create_authorization_request(strat, cfg: conf)
+  let params =
+    dict.from_list([
+      #("code", "valid_code"),
+      #("state", authorization_request.state(req)),
+    ])
+
+  let _ =
+    vestibule.handle_callback(
+      strat,
+      cfg: conf,
+      callback_params: params,
+      expected_state: authorization_request.state(req),
+      code_verifier: authorization_request.code_verifier(req),
+    )
+    |> expect.to_be_ok()
+
+  let _ =
+    vestibule.refresh_token(strat, cfg: conf, refresh_tok: "refresh-123")
+    |> expect.to_be_ok()
+  Nil
+}
