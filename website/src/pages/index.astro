@@ -5,7 +5,6 @@ import DocsLayout from "../layouts/DocsLayout.astro";
 import { getPackageEntries, packageHref, packageSlug } from "../data/content";
 
 const packageEntries = await getPackageEntries();
-const primaryPackages = packageEntries.slice(0, 3);
 const packageBySlug = new Map(packageEntries.map((entry) => [packageSlug(entry), entry]));
 const hrefForPackage = (slug: string) => {
   const entry = packageBySlug.get(slug);
@@ -16,9 +15,9 @@ const nameForPackage = (slug: string, fallback: string) =>
 const supportedProviders = [
   {
     name: "GitHub",
-    packageName: nameForPackage("core", "vestibule"),
-    href: hrefForPackage("core"),
-    note: "Built into the core package.",
+    packageName: nameForPackage("github", "vestibule_github"),
+    href: hrefForPackage("github"),
+    note: "OAuth App sign-in with verified-primary-email lookup.",
     icon: siGithub
   },
   {
@@ -65,6 +64,36 @@ case
   Error(error.StateMismatch) -> restart_sign_in()
   Error(reason) -> show_auth_error(reason)
 }`;
+const routeChoices = [
+  {
+    label: "Recommended for Wisp and Mist",
+    title: "Start with middleware",
+    recommended: true,
+    body:
+      "Let Wisp or Mist own request and callback routes while your app maps the normalized auth result to a user session.",
+    href: "/docs/quick-start#middleware-path",
+    action: "Use middleware",
+    meta: "Add core, one provider strategy, and the middleware package for your server layer."
+  },
+  {
+    label: "Advanced path",
+    title: "Use core when your app owns the auth routes",
+    body:
+      "Choose core APIs when you want direct control over redirects, callback storage, and framework integration.",
+    href: "/docs/quick-start#core-path",
+    action: "Use core directly",
+    meta: "Store state and PKCE verifier yourself before redirecting."
+  },
+  {
+    label: "After the base flow works",
+    title: "Add provider packages",
+    body:
+      "Add GitHub, Google, Microsoft, or Apple strategies when your sign-in flow needs provider-specific profile behavior.",
+    href: "/docs/packages#provider-strategies",
+    action: "Choose providers",
+    meta: "Provider packages extend the base flow; they do not replace route handling."
+  }
+];
 ---
 
 <DocsLayout
@@ -113,13 +142,38 @@ case
     </div>
   </section>
 
+  <section class="route-decision" aria-labelledby="route-decision-heading">
+    <div class="section-heading">
+      <h2 id="route-decision-heading">Choose the route shape first.</h2>
+      <p>
+        Start with middleware when Wisp or Mist should own the auth routes. Use
+        core only when your app handles routing, session storage, and callback
+        data directly.
+      </p>
+    </div>
+    <div class="route-choice-list">
+      {routeChoices.map((choice) => (
+        <a
+          class:list={["route-choice", { recommended: choice.recommended }]}
+          href={choice.href}
+        >
+          <span class="path-label">{choice.label}</span>
+          <strong>{choice.title}</strong>
+          <span>{choice.body}</span>
+          <small>{choice.meta}</small>
+          <em>{choice.action}</em>
+        </a>
+      ))}
+    </div>
+  </section>
+
   <section class="content-grid split">
     <div>
-      <h2>Start with the integration shape.</h2>
+      <h2>Keep the callback boundary explicit.</h2>
       <p>
-        Use core APIs when you want direct control, Wisp or Mist middleware when
-        you want routing helpers, GitHub in core, and provider packages when your
-        app needs Google, Microsoft, or Apple.
+        Vestibule creates the authorization request and validates the callback.
+        Your app still stores state and PKCE data before redirecting, then maps
+        successful auth results to accounts.
       </p>
     </div>
     <CodeBlock code={directFlow} lang="gleam" class="code-card" />
@@ -166,19 +220,34 @@ case
 
   <section>
     <div class="section-heading">
-      <h2>Packages by job</h2>
-      <p>Pick the package by the responsibility it should own in your app.</p>
+      <h2>Packages follow the route shape.</h2>
+      <p>
+        Pick the routing layer first, then add provider strategies for the
+        identity providers your app supports.
+      </p>
     </div>
     <div class="package-river">
-      {primaryPackages.map((pkg) => (
-        <a class="package-row" href={packageHref(pkg)}>
-          <span>
-            <strong>{pkg.data.name}</strong>
-            <small>{pkg.data.kind}</small>
-          </span>
-          <span>{pkg.data.summary}</span>
-        </a>
-      ))}
+      <a class="package-row" href={hrefForPackage("wisp")}>
+        <span>
+          <strong>{nameForPackage("wisp", "vestibule_wisp")}</strong>
+          <small>Wisp middleware</small>
+        </span>
+        <span>Use when your Wisp app should own request and callback routing helpers.</span>
+      </a>
+      <a class="package-row" href={hrefForPackage("mist")}>
+        <span>
+          <strong>{nameForPackage("mist", "vestibule_mist")}</strong>
+          <small>Mist middleware</small>
+        </span>
+        <span>Use when your app runs directly on Mist and wants the same auth ergonomics.</span>
+      </a>
+      <a class="package-row" href={hrefForPackage("core")}>
+        <span>
+          <strong>{nameForPackage("core", "vestibule")}</strong>
+          <small>Core package</small>
+        </span>
+        <span>Use when your app owns routing, transient callback storage, and framework integration.</span>
+      </a>
     </div>
   </section>
 
