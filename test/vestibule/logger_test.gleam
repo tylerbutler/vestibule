@@ -92,7 +92,9 @@ pub fn canonical_fields_survive_when_caller_supplies_sensitive_keys_test() {
     )
 
   let result = logger.fields(event)
-  result |> list.key_find("event") |> expect.to_equal(Ok("vestibule.callback.success"))
+  result
+  |> list.key_find("event")
+  |> expect.to_equal(Ok("vestibule.callback.success"))
   result |> list.key_find("phase") |> expect.to_equal(Ok("callback"))
   result |> list.key_find("outcome") |> expect.to_equal(Ok("success"))
   result |> list.key_find("provider") |> expect.to_equal(Ok("github"))
