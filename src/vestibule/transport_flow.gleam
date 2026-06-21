@@ -344,6 +344,9 @@ pub fn finish_callback(
           ],
         ),
       )
+    // Exhaustive-match guards: `handle_callback` only ever returns
+    // `CallbackAuthFailed`; these arms are structurally required by the
+    // type system but are unreachable at runtime.
     Error(CallbackSessionUnavailable) ->
       logger.emit(
         logger.new(
