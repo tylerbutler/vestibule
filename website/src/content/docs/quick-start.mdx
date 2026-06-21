@@ -8,7 +8,7 @@ nav:
   label: Quick start
 toc:
   - href: "#middleware-path"
-    label: Set up the routes
+    label: Choose the route shape
   - href: "#callback-failure"
     label: When the callback fails
   - href: "#security-responsibilities"
@@ -147,12 +147,18 @@ case vestibule.handle_callback(strategy, cfg, params, expected_state, verifier) 
 <section id="middleware-path" className="quick-paths" aria-label="Recommended quick start path">
   <div className="primary-path">
     <div className="path-body">
-      <span className="path-label">Recommended path</span>
-      <h2>Use middleware for the auth routes</h2>
+      <span className="path-label">Recommended for Wisp and Mist apps</span>
+      <h2>Let middleware own the auth routes</h2>
       <p>
-        Add core plus the middleware for your server layer. GitHub support is
-        provided by vestibule_github; provider packages add Google, Microsoft,
-        or Apple.
+        If your app uses Wisp or Mist, start here. Add core, a provider strategy,
+        and the middleware package for your server layer. Use the advanced core
+        path only when your app needs to own routing, session storage, and
+        callback handling directly.
+      </p>
+      <p className="scope-note">
+        <strong>Start here for Wisp or Mist:</strong> middleware owns the
+        request and callback routes. Add provider packages after this base flow
+        works.
       </p>
       <CodeBlock code={middlewareInstallCode} lang="sh" />
 
@@ -161,7 +167,28 @@ case vestibule.handle_callback(strategy, cfg, params, expected_state, verifier) 
         Register strategies once, initialize the state store once, then pass
         request and callback routes to the middleware.
       </p>
+      <p>
+        <strong>What to notice:</strong> the request route starts the redirect
+        and stores transient callback data; the callback route returns an auth
+        result only after state and PKCE checks pass.
+      </p>
       <CodeBlock code={wispCode} lang="gleam" />
+
+      <ul className="responsibility-list" aria-label="Middleware responsibilities before redirecting">
+        <li>
+          <strong>Initialize the state store once.</strong>
+          Reusing it lets middleware bind callback data to the user flow.
+        </li>
+        <li>
+          <strong>Delete callback data after success or failure.</strong>
+          The middleware consumes one-time state; your app should not reuse a
+          failed callback.
+        </li>
+        <li>
+          <strong>Map <code>auth.uid</code> to your own account.</strong>
+          Vestibule authenticates the provider identity; your app owns sessions.
+        </li>
+      </ul>
 
       <p className="scope-note">
         <strong>Using Mist?</strong> The route shape is the same; use{" "}
@@ -174,9 +201,9 @@ case vestibule.handle_callback(strategy, cfg, params, expected_state, verifier) 
   <details id="core-path" className="path-panel">
     <summary>
       <span>
-        <span className="path-label">Advanced path</span>
-        <strong>Need direct core control?</strong>
-        <small>Use this when your app owns routing, sessions, and callback storage.</small>
+        <span className="path-label">Advanced path for custom routing</span>
+        <strong>Use core when your app owns the flow</strong>
+        <small>Choose this when you handle routing, sessions, and callback storage yourself.</small>
       </span>
     </summary>
     <div className="path-body">
@@ -193,7 +220,29 @@ case vestibule.handle_callback(strategy, cfg, params, expected_state, verifier) 
         stored values back during callback validation and delete them after
         success.
       </p>
+      <p>
+        <strong>What to notice:</strong> asserting is safe only while creating
+        the authorization request. The callback can be stale, forged, or rejected
+        by the provider, so handle every error branch.
+      </p>
       <CodeBlock code={coreCode} lang="gleam" />
+
+      <ul className="responsibility-list warning" aria-label="Core flow responsibilities">
+        <li>
+          <strong>Store state and PKCE verifier server-side before redirecting.</strong>
+          Bind them to the user's session and expire them quickly.
+        </li>
+        <li>
+          <strong>Delete stored callback data after every result.</strong>
+          Success, provider rejection, and state mismatch should all consume the
+          stored values.
+        </li>
+        <li>
+          <strong>Never assert the callback result.</strong>
+          Stale tabs, denied consent, network errors, and forged state are normal
+          runtime cases.
+        </li>
+      </ul>
     </div>
   </details>
 </section>
@@ -207,6 +256,11 @@ case vestibule.handle_callback(strategy, cfg, params, expected_state, verifier) 
     the request.
   </p>
 
+  <p>
+    <strong>What to notice:</strong> every failure restarts or exits the OAuth
+    flow. Only transient upstream errors should offer a retry; a state mismatch
+    should never be retried with the same callback data.
+  </p>
   <CodeBlock code={callbackFailureCode} lang="gleam" />
 
   <div className="content-grid">
@@ -222,10 +276,10 @@ case vestibule.handle_callback(strategy, cfg, params, expected_state, verifier) 
     <div>
       <h3>How to respond</h3>
       <ul className="check-list warning">
-        <li>Discard the stored state and verifier on every failure, then restart the flow.</li>
-        <li>Show users a generic "sign-in failed, try again" message.</li>
-        <li>Keep the specific error in your server logs, never in the response.</li>
-        <li>Offer a retry for transient errors; do not retry a state mismatch.</li>
+        <li>Discard the stored state and verifier on every failure.</li>
+        <li>Restart the flow for stale tabs, reused links, and state mismatch.</li>
+        <li>Offer retry only for transient network or code-exchange failures.</li>
+        <li>Log the specific error server-side; show users a generic sign-in failure.</li>
       </ul>
     </div>
   </div>
@@ -241,14 +295,16 @@ case vestibule.handle_callback(strategy, cfg, params, expected_state, verifier) 
   <div>
     <h2>Before shipping</h2>
     <p>
-      Keep OAuth callback data server-side, short-lived, and bound to the
-      user's session. Reject missing or mismatched callbacks.
+      Check these before enabling sign-in for real users. Keep OAuth callback
+      data server-side, short-lived, and bound to the user's session. Reject
+      missing or mismatched callbacks.
     </p>
   </div>
   <ul className="check-list">
     <li>Production redirect URIs must use HTTPS.</li>
-    <li>Bearer tokens should be redacted from logs and error reports.</li>
-    <li>Cookie-secret rotation invalidates in-flight OAuth flows.</li>
+    <li>State and PKCE verifier values must be short-lived and server-side.</li>
+    <li>Bearer tokens must be redacted from logs and error reports.</li>
+    <li>Cookie-secret rotation invalidates in-flight OAuth callbacks.</li>
   </ul>
 </section>
 
