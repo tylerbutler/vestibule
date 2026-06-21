@@ -290,7 +290,7 @@ pub fn callback_phase_auth_result(
       Error(err)
     }
     Ok(params) ->
-      callback_phase_auth_result_with_params(
+      do_callback_phase_auth_result_with_params(
         req,
         params: params,
         reg: reg,
@@ -308,6 +308,34 @@ pub fn callback_phase_auth_result(
 /// Generic over the request body type so it can be used in unit tests with
 /// `Request(BitArray)` or any other body.
 pub fn callback_phase_auth_result_with_params(
+  req: Request(body),
+  params params: dict.Dict(String, String),
+  reg reg: Registry(e),
+  provider provider: String,
+  store store: StateStore,
+  options options: Options,
+) -> Result(Auth, CallbackError(e)) {
+  logger.emit(
+    logger.new(
+      level: logger.Debug,
+      event: "vestibule.adapter.callback.start",
+      phase: "callback",
+      outcome: "start",
+      provider: option.Some(provider),
+      fields: [logger.field("transport", "mist")],
+    ),
+  )
+  do_callback_phase_auth_result_with_params(
+    req,
+    params: params,
+    reg: reg,
+    provider: provider,
+    store: store,
+    options: options,
+  )
+}
+
+fn do_callback_phase_auth_result_with_params(
   req: Request(body),
   params params: dict.Dict(String, String),
   reg reg: Registry(e),
