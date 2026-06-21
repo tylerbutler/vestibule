@@ -8,9 +8,11 @@ The name "vestibule" refers to an entrance hall — the transitional space betwe
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/vestibule/)
 
 > [!NOTE]
-> vestibule follows [Semantic Versioning](https://semver.org/) for 1.0 and
-> later releases. Public APIs are intended to be stable across patch and minor
-> releases; breaking changes are reserved for major versions.
+> vestibule is pre-1.0 (currently `0.x`). The public API is still subject to
+> change and breaking changes may land before 1.0. Once 1.0 ships, vestibule
+> will follow [Semantic Versioning](https://semver.org/): public APIs stable
+> across patch and minor releases, with breaking changes reserved for major
+> versions.
 >
 > OAuth security depends on application configuration too: production redirect
 > URIs must use HTTPS. `http://localhost` and `http://127.0.0.1` redirect URIs
@@ -274,7 +276,8 @@ common attacks, but a few responsibilities remain with the consuming app.
 
 ## API Notes
 
-The root package has two intended public surfaces for 1.0.
+The root package has two intended public surfaces for the planned 1.0 API.
+Before 1.0, this API is still subject to change.
 
 **Application API** modules are for apps that run OAuth flows directly or through
 the middleware packages:
