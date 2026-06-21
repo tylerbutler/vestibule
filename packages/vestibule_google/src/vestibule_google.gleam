@@ -8,6 +8,7 @@ import gleam/dict
 import gleam/dynamic
 import gleam/dynamic/decode
 import gleam/json
+import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
@@ -24,6 +25,7 @@ import glow_auth/uri/uri_builder
 import vestibule/config.{type Config}
 import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
+import vestibule/internal/logger
 import vestibule/provider_support
 import vestibule/strategy.{type Strategy, type UserResult}
 import vestibule/user_info
@@ -75,10 +77,50 @@ pub fn strategy_for_hosted_domain(hosted_domain: String) -> Strategy(e) {
 
 /// Parse Google token response JSON.
 pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
-  provider_support.parse_oauth_token_response(
-    body,
-    provider_support.RequiredScope(separator: " "),
-  )
+  let result =
+    provider_support.parse_oauth_token_response(
+      body,
+      provider_support.RequiredScope(separator: " "),
+    )
+  case result {
+    Ok(creds) -> {
+      logger.new(
+        level: logger.Debug,
+        event: "vestibule.provider.token_parse.success",
+        phase: "provider_request",
+        outcome: "success",
+        provider: Some("google"),
+        fields: [
+          logger.field("endpoint", "token"),
+          logger.bool_field(
+            "has_refresh_token",
+            option.is_some(credentials.refresh_token(creds)),
+          ),
+          logger.int_field(
+            "scope_count",
+            list.length(credentials.scopes(creds)),
+          ),
+        ],
+      )
+      |> logger.emit()
+      Ok(creds)
+    }
+    Error(err) -> {
+      logger.new(
+        level: logger.Warning,
+        event: "vestibule.provider.token_parse.failure",
+        phase: "provider_request",
+        outcome: "failure",
+        provider: Some("google"),
+        fields: [
+          logger.field("endpoint", "token"),
+          logger.field("error_category", logger.auth_error_category(err)),
+        ],
+      )
+      |> logger.emit()
+      Error(err)
+    }
+  }
 }
 
 /// Parse Google /oauth2/v3/userinfo response JSON.
@@ -258,16 +300,44 @@ fn do_exchange_code(
     )
     |> request.set_header("accept", "application/json")
   let req = strategy.append_code_verifier(req, code_verifier)
+  logger.new(
+    level: logger.Debug,
+    event: "vestibule.provider.request.start",
+    phase: "provider_request",
+    outcome: "start",
+    provider: Some("google"),
+    fields: [logger.field("endpoint", "token")],
+  )
+  |> logger.emit()
   case httpc.send(req) {
     Ok(response) -> {
-      use body <- result.try(provider_support.check_response_status(response))
+      use body <- result.try(
+        provider_support.check_response_status_for_endpoint(
+          response,
+          provider_name: "google",
+          endpoint: "token",
+        ),
+      )
       parse_token_response(body)
       |> result.map(strategy.exchange_result)
     }
-    Error(_) ->
+    Error(_) -> {
+      logger.new(
+        level: logger.Error,
+        event: "vestibule.provider.request.failure",
+        phase: "provider_request",
+        outcome: "failure",
+        provider: Some("google"),
+        fields: [
+          logger.field("endpoint", "token"),
+          logger.field("error_category", "network_error"),
+        ],
+      )
+      |> logger.emit()
       Error(error.NetworkError(
         reason: "Failed to connect to Google token endpoint",
       ))
+    }
   }
 }
 
@@ -295,18 +365,46 @@ fn do_refresh_token(
     )
     |> request.set_header("accept", "application/json")
 
+  logger.new(
+    level: logger.Debug,
+    event: "vestibule.provider.request.start",
+    phase: "provider_request",
+    outcome: "start",
+    provider: Some("google"),
+    fields: [logger.field("endpoint", "refresh")],
+  )
+  |> logger.emit()
   case httpc.send(req) {
     Ok(response) -> {
-      use body <- result.try(provider_support.check_response_status(response))
+      use body <- result.try(
+        provider_support.check_response_status_for_endpoint(
+          response,
+          provider_name: "google",
+          endpoint: "refresh",
+        ),
+      )
       provider_support.parse_oauth_token_response(
         body,
         provider_support.OptionalScope(" "),
       )
     }
-    Error(_) ->
+    Error(_) -> {
+      logger.new(
+        level: logger.Error,
+        event: "vestibule.provider.request.failure",
+        phase: "provider_request",
+        outcome: "failure",
+        provider: Some("google"),
+        fields: [
+          logger.field("endpoint", "refresh"),
+          logger.field("error_category", "network_error"),
+        ],
+      )
+      |> logger.emit()
       Error(error.NetworkError(
         reason: "Failed to connect to Google token endpoint",
       ))
+    }
   }
 }
 
