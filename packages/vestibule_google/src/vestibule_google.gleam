@@ -77,11 +77,19 @@ pub fn strategy_for_hosted_domain(hosted_domain: String) -> Strategy(e) {
 
 /// Parse Google token response JSON.
 pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
-  let result =
-    provider_support.parse_oauth_token_response(
-      body,
-      provider_support.RequiredScope(separator: " "),
-    )
+  do_parse_token_response(
+    body,
+    provider_support.RequiredScope(separator: " "),
+    "token",
+  )
+}
+
+fn do_parse_token_response(
+  body: String,
+  scope_parsing: provider_support.ScopeParsing,
+  endpoint: String,
+) -> Result(Credentials, AuthError(e)) {
+  let result = provider_support.parse_oauth_token_response(body, scope_parsing)
   case result {
     Ok(creds) -> {
       logger.new(
@@ -91,7 +99,7 @@ pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
         outcome: "success",
         provider: Some("google"),
         fields: [
-          logger.field("endpoint", "token"),
+          logger.field("endpoint", endpoint),
           logger.bool_field(
             "has_refresh_token",
             option.is_some(credentials.refresh_token(creds)),
@@ -113,7 +121,7 @@ pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
         outcome: "failure",
         provider: Some("google"),
         fields: [
-          logger.field("endpoint", "token"),
+          logger.field("endpoint", endpoint),
           logger.field("error_category", logger.auth_error_category(err)),
         ],
       )
@@ -383,7 +391,11 @@ fn do_refresh_token(
           endpoint: "refresh",
         ),
       )
-      parse_token_response(body)
+      do_parse_token_response(
+        body,
+        provider_support.OptionalScope(separator: " "),
+        "refresh",
+      )
     }
     Error(_) -> {
       logger.new(
