@@ -8,7 +8,8 @@ log(Level, Fields) ->
 level(<<"debug">>) -> debug;
 level(<<"info">>) -> info;
 level(<<"warning">>) -> warning;
-level(<<"error">>) -> error.
+level(<<"error">>) -> error;
+level(_) -> debug.
 
 key(<<"event">>) -> event;
 key(<<"phase">>) -> phase;

@@ -68,3 +68,36 @@ pub fn redaction_guard_rejects_sensitive_field_names_test() {
     #("status", "500"),
   ])
 }
+
+pub fn redaction_preserves_code_field_but_strips_authorization_code_test() {
+  logger.safe_fields([
+    logger.field("code", "invalid_grant"),
+    logger.field("authorization_code", "secret-auth-code"),
+  ])
+  |> expect.to_equal([#("code", "invalid_grant")])
+}
+
+pub fn reserved_fields_cannot_be_overridden_by_caller_test() {
+  let event =
+    logger.new(
+      level: logger.Info,
+      event: "vestibule.callback.success",
+      phase: "callback",
+      outcome: "success",
+      provider: Some("github"),
+      fields: [
+        logger.field("event", "override"),
+        logger.field("provider", "evil"),
+        logger.field("transport", "wisp"),
+      ],
+    )
+
+  logger.fields(event)
+  |> expect.to_equal([
+    #("event", "vestibule.callback.success"),
+    #("phase", "callback"),
+    #("outcome", "success"),
+    #("provider", "github"),
+    #("transport", "wisp"),
+  ])
+}

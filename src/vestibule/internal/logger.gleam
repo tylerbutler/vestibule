@@ -32,9 +32,16 @@ pub fn new(
     Some(name) -> [#("provider", name)]
     None -> []
   }
+  let safe_caller_fields =
+    list.filter(fields, fn(f) {
+      let #(key, _) = f
+      !list.contains(reserved_field_names, key)
+    })
   Event(
     level: level,
-    fields: safe_fields(list.flatten([required, provider_fields, fields])),
+    fields: safe_fields(
+      list.flatten([required, provider_fields, safe_caller_fields]),
+    ),
   )
 }
 
@@ -93,12 +100,13 @@ fn level_name(level: Level) -> String {
   }
 }
 
+const reserved_field_names = ["event", "phase", "outcome", "provider"]
+
 const sensitive_field_names = [
   "access_token",
   "refresh_token",
   "client_secret",
   "authorization_code",
-  "code",
   "code_verifier",
   "callback_params",
   "session_id",
