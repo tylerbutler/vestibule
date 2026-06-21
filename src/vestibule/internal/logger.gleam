@@ -32,16 +32,16 @@ pub fn new(
     Some(name) -> [#("provider", name)]
     None -> []
   }
-  let safe_caller_fields =
-    list.filter(fields, fn(f) {
+  let sanitized_caller_fields =
+    fields
+    |> list.filter(fn(f) {
       let #(key, _) = f
       !list.contains(reserved_field_names, key)
     })
+    |> safe_fields
   Event(
     level: level,
-    fields: safe_fields(
-      list.flatten([required, provider_fields, safe_caller_fields]),
-    ),
+    fields: list.flatten([required, provider_fields, sanitized_caller_fields]),
   )
 }
 

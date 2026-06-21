@@ -77,6 +77,29 @@ pub fn redaction_preserves_code_field_but_strips_authorization_code_test() {
   |> expect.to_equal([#("code", "invalid_grant")])
 }
 
+pub fn canonical_fields_survive_when_caller_supplies_sensitive_keys_test() {
+  let event =
+    logger.new(
+      level: logger.Info,
+      event: "vestibule.callback.success",
+      phase: "callback",
+      outcome: "success",
+      provider: Some("github"),
+      fields: [
+        logger.field("access_token", "should-be-stripped"),
+        logger.field("transport", "wisp"),
+      ],
+    )
+
+  let result = logger.fields(event)
+  result |> list.key_find("event") |> expect.to_equal(Ok("vestibule.callback.success"))
+  result |> list.key_find("phase") |> expect.to_equal(Ok("callback"))
+  result |> list.key_find("outcome") |> expect.to_equal(Ok("success"))
+  result |> list.key_find("provider") |> expect.to_equal(Ok("github"))
+  result |> list.key_find("access_token") |> expect.to_equal(Error(Nil))
+  result |> list.key_find("transport") |> expect.to_equal(Ok("wisp"))
+}
+
 pub fn reserved_fields_cannot_be_overridden_by_caller_test() {
   let event =
     logger.new(
