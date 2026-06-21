@@ -384,10 +384,7 @@ fn do_refresh_token(
           endpoint: "refresh",
         ),
       )
-      provider_support.parse_oauth_token_response(
-        body,
-        provider_support.RequiredScope(separator: " "),
-      )
+      parse_token_response(body)
     }
     Error(_) -> {
       logger.new(

@@ -31,7 +31,6 @@
 import gleam/dict
 import gleam/dynamic
 import gleam/dynamic/decode
-import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -422,15 +421,16 @@ fn do_exchange_code(
   )
   |> logger.emit()
   case httpc.send(req) {
-    Ok(response) if response.status >= 200 && response.status < 300 ->
-      parse_token_response(response.body)
-    Ok(response) ->
-      Error(error.NetworkError(
-        reason: "HTTP "
-        <> int.to_string(response.status)
-        <> ": "
-        <> response.body,
-      ))
+    Ok(response) -> {
+      use body <- result.try(
+        provider_support.check_response_status_for_endpoint(
+          response,
+          provider_name: "apple",
+          endpoint: "token",
+        ),
+      )
+      parse_token_response(body)
+    }
     Error(_) -> {
       logger.new(
         level: logger.Error,

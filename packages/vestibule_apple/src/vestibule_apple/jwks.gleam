@@ -8,7 +8,6 @@ import bravo
 import bravo/uset.{type USet}
 import gleam/http/request
 import gleam/httpc
-import gleam/int
 import gleam/json
 import gleam/option
 import gleam/result
@@ -16,6 +15,7 @@ import gleam/string
 
 import vestibule/error.{type AuthError}
 import vestibule/internal/logger
+import vestibule/provider_support
 import ywt/verify_key.{type VerifyKey}
 
 const apple_jwks_url = "https://appleid.apple.com/auth/keys"
@@ -103,15 +103,16 @@ fn fetch_keys() -> Result(List(VerifyKey), AuthError(e)) {
   )
   |> logger.emit()
   case httpc.send(req) {
-    Ok(response) if response.status >= 200 && response.status < 300 ->
-      parse_jwks(response.body)
-    Ok(response) ->
-      Error(error.NetworkError(
-        reason: "HTTP "
-        <> int.to_string(response.status)
-        <> ": "
-        <> response.body,
-      ))
+    Ok(response) -> {
+      use body <- result.try(
+        provider_support.check_response_status_for_endpoint(
+          response,
+          provider_name: "apple",
+          endpoint: "jwks",
+        ),
+      )
+      parse_jwks(body)
+    }
     Error(_) -> {
       logger.new(
         level: logger.Error,
