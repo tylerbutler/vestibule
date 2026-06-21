@@ -227,23 +227,8 @@ pub fn callback_phase(
       options: options,
     )
   {
-    Ok(auth) -> {
-      logger.emit(
-        logger.new(
-          level: logger.Info,
-          event: "vestibule.adapter.callback.success",
-          phase: "callback",
-          outcome: "success",
-          provider: option.Some(provider),
-          fields: [logger.field("transport", "mist")],
-        ),
-      )
-      on_success(auth)
-    }
-    Error(err) -> {
-      log_callback_error(provider, err)
-      callback_error_response(err)
-    }
+    Ok(auth) -> on_success(auth)
+    Error(err) -> callback_error_response(err)
   }
 }
 
@@ -268,23 +253,8 @@ pub fn callback_phase_result(
       options: options,
     )
   {
-    Ok(auth) -> {
-      logger.emit(
-        logger.new(
-          level: logger.Info,
-          event: "vestibule.adapter.callback.success",
-          phase: "callback",
-          outcome: "success",
-          provider: option.Some(provider),
-          fields: [logger.field("transport", "mist")],
-        ),
-      )
-      Ok(auth)
-    }
-    Error(err) -> {
-      log_callback_error(provider, err)
-      Error(callback_error_response(err))
-    }
+    Ok(auth) -> Ok(auth)
+    Error(err) -> Error(callback_error_response(err))
   }
 }
 
@@ -304,15 +274,31 @@ pub fn callback_phase_auth_result(
   store store: StateStore,
   options options: Options,
 ) -> Result(Auth, CallbackError(e)) {
-  use params <- result.try(get_callback_params(req))
-  callback_phase_auth_result_with_params(
-    req,
-    params: params,
-    reg: reg,
-    provider: provider,
-    store: store,
-    options: options,
+  logger.emit(
+    logger.new(
+      level: logger.Debug,
+      event: "vestibule.adapter.callback.start",
+      phase: "callback",
+      outcome: "start",
+      provider: option.Some(provider),
+      fields: [logger.field("transport", "mist")],
+    ),
   )
+  case get_callback_params(req) {
+    Error(err) -> {
+      log_callback_error(provider, err)
+      Error(err)
+    }
+    Ok(params) ->
+      callback_phase_auth_result_with_params(
+        req,
+        params: params,
+        reg: reg,
+        provider: provider,
+        store: store,
+        options: options,
+      )
+  }
 }
 
 /// Phase 2 with pre-extracted callback parameters.
@@ -329,34 +315,41 @@ pub fn callback_phase_auth_result_with_params(
   store store: StateStore,
   options options: Options,
 ) -> Result(Auth, CallbackError(e)) {
-  logger.emit(
-    logger.new(
-      level: logger.Debug,
-      event: "vestibule.adapter.callback.start",
-      phase: "callback",
-      outcome: "start",
-      provider: option.Some(provider),
-      fields: [logger.field("transport", "mist")],
-    ),
-  )
-  use strategy_config <- result.try(
-    transport_flow.ensure_callback_provider(reg, provider)
-    |> result.map_error(map_callback_flow_error),
-  )
+  let outcome = {
+    use strategy_config <- result.try(
+      transport_flow.ensure_callback_provider(reg, provider)
+      |> result.map_error(map_callback_flow_error),
+    )
 
-  use session_id <- result.try(get_signed_cookie(
-    req,
-    options.cookie_name,
-    options.secret_key_base,
-  ))
+    use session_id <- result.try(get_signed_cookie(
+      req,
+      options.cookie_name,
+      options.secret_key_base,
+    ))
 
-  transport_flow.finish_callback(
-    strategy_config,
-    store: store,
-    params: params,
-    session_id: session_id,
-  )
-  |> result.map_error(map_callback_flow_error)
+    transport_flow.finish_callback(
+      strategy_config,
+      store: store,
+      params: params,
+      session_id: session_id,
+    )
+    |> result.map_error(map_callback_flow_error)
+  }
+  case outcome {
+    Ok(_) ->
+      logger.emit(
+        logger.new(
+          level: logger.Info,
+          event: "vestibule.adapter.callback.success",
+          phase: "callback",
+          outcome: "success",
+          provider: option.Some(provider),
+          fields: [logger.field("transport", "mist")],
+        ),
+      )
+    Error(err) -> log_callback_error(provider, err)
+  }
+  outcome
 }
 
 fn get_signed_cookie(

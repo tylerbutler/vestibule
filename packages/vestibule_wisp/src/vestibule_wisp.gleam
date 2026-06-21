@@ -249,23 +249,8 @@ pub fn callback_phase_with_options(
       options: options,
     )
   {
-    Ok(auth) -> {
-      logger.emit(
-        logger.new(
-          level: logger.Info,
-          event: "vestibule.adapter.callback.success",
-          phase: "callback",
-          outcome: "success",
-          provider: option.Some(provider),
-          fields: [logger.field("transport", "wisp")],
-        ),
-      )
-      on_success(auth)
-    }
-    Error(err) -> {
-      log_callback_error(provider, err)
-      callback_error_response(err)
-    }
+    Ok(auth) -> on_success(auth)
+    Error(err) -> callback_error_response(err)
   }
 }
 
@@ -310,23 +295,8 @@ pub fn callback_phase_result_with_options(
       options: options,
     )
   {
-    Ok(auth) -> {
-      logger.emit(
-        logger.new(
-          level: logger.Info,
-          event: "vestibule.adapter.callback.success",
-          phase: "callback",
-          outcome: "success",
-          provider: option.Some(provider),
-          fields: [logger.field("transport", "wisp")],
-        ),
-      )
-      Ok(auth)
-    }
-    Error(err) -> {
-      log_callback_error(provider, err)
-      Error(callback_error_response(err))
-    }
+    Ok(auth) -> Ok(auth)
+    Error(err) -> Error(callback_error_response(err))
   }
 }
 
@@ -373,25 +343,42 @@ pub fn callback_phase_auth_result_with_options(
       fields: [logger.field("transport", "wisp")],
     ),
   )
-  use strategy_config <- result.try(
-    transport_flow.ensure_callback_provider(reg, provider)
-    |> result.map_error(map_callback_flow_error),
-  )
+  let outcome = {
+    use strategy_config <- result.try(
+      transport_flow.ensure_callback_provider(reg, provider)
+      |> result.map_error(map_callback_flow_error),
+    )
 
-  use params <- result.try(get_callback_params(req))
+    use params <- result.try(get_callback_params(req))
 
-  use session_id <- result.try(
-    wisp.get_cookie(req, options.cookie_name, wisp.Signed)
-    |> result.map_error(fn(_) { MissingSessionCookie }),
-  )
+    use session_id <- result.try(
+      wisp.get_cookie(req, options.cookie_name, wisp.Signed)
+      |> result.map_error(fn(_) { MissingSessionCookie }),
+    )
 
-  transport_flow.finish_callback(
-    strategy_config,
-    store: state_store,
-    params: params,
-    session_id: session_id,
-  )
-  |> result.map_error(map_callback_flow_error)
+    transport_flow.finish_callback(
+      strategy_config,
+      store: state_store,
+      params: params,
+      session_id: session_id,
+    )
+    |> result.map_error(map_callback_flow_error)
+  }
+  case outcome {
+    Ok(_) ->
+      logger.emit(
+        logger.new(
+          level: logger.Info,
+          event: "vestibule.adapter.callback.success",
+          phase: "callback",
+          outcome: "success",
+          provider: option.Some(provider),
+          fields: [logger.field("transport", "wisp")],
+        ),
+      )
+    Error(err) -> log_callback_error(provider, err)
+  }
+  outcome
 }
 
 /// Extract callback parameters from either query string (GET) or
