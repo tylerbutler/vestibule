@@ -19,6 +19,7 @@ key(<<"transport">>) -> transport;
 key(<<"endpoint">>) -> endpoint;
 key(<<"status">>) -> status;
 key(<<"error_category">>) -> error_category;
+key(<<"missing_param">>) -> missing_param;
 key(<<"scope_count">>) -> scope_count;
 key(<<"has_refresh_token">>) -> has_refresh_token;
 key(<<"has_id_token">>) -> has_id_token;

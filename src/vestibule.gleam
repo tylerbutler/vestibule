@@ -96,7 +96,7 @@ pub fn create_authorization_request(
     Error(err) ->
       logger.emit(
         logger.new(
-          level: logger.Error,
+          level: failure_level(err),
           event: "vestibule.authorization_request.failure",
           phase: "request",
           outcome: "failure",
@@ -168,6 +168,7 @@ pub fn handle_callback(
           provider: provider,
           fields: [
             logger.field("error_category", logger.auth_error_category(err)),
+            logger.field("missing_param", "state"),
           ],
         ),
       )
@@ -261,6 +262,7 @@ pub fn handle_callback(
           provider: provider,
           fields: [
             logger.field("error_category", logger.auth_error_category(err)),
+            logger.field("missing_param", "code"),
           ],
         ),
       )
