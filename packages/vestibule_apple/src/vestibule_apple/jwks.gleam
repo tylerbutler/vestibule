@@ -7,7 +7,6 @@
 import bravo
 import bravo/uset.{type USet}
 import gleam/http/request
-import gleam/http/response
 import gleam/httpc
 import gleam/int
 import gleam/json
