@@ -5,9 +5,11 @@
 /// 2. Look for `rel="indieauth-metadata"` — if found, fetch metadata JSON
 /// 3. Fall back to `rel="authorization_endpoint"` and `rel="token_endpoint"`
 /// 4. Check HTTP `Link` headers first, then HTML `<link>` tags
+import gleam/bool
 import gleam/dynamic/decode
 import gleam/http/request
 import gleam/httpc
+import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -73,7 +75,7 @@ pub fn discover_endpoints(
     status ->
       Error(error.NetworkError(
         reason: "Profile URL returned HTTP "
-        <> string.inspect(status)
+        <> int.to_string(status)
         <> ": "
         <> profile_url,
       ))
@@ -116,7 +118,7 @@ fn fetch_metadata(
     status ->
       Error(error.NetworkError(
         reason: "Metadata endpoint returned HTTP "
-        <> string.inspect(status)
+        <> int.to_string(status)
         <> ": "
         <> metadata_url,
       ))
@@ -233,20 +235,13 @@ fn parse_link_header_value(
   |> list.filter_map(fn(entry) {
     let entry = string.trim(entry)
     // Extract URL between < and >
-    case string.split_once(entry, "<") {
-      Ok(#(_, rest)) ->
-        case string.split_once(rest, ">") {
-          Ok(#(url, params)) -> {
-            // Check if rel matches
-            case has_rel_param(params, target_rel) {
-              True -> Ok(string.trim(url))
-              False -> Error(Nil)
-            }
-          }
-          Error(_) -> Error(Nil)
-        }
-      Error(_) -> Error(Nil)
-    }
+    use #(_, rest) <- result.try(string.split_once(entry, "<"))
+    use #(url, params) <- result.try(string.split_once(rest, ">"))
+    use <- bool.guard(
+      when: !has_rel_param(params, target_rel),
+      return: Error(Nil),
+    )
+    Ok(string.trim(url))
   })
   |> list.first()
 }
@@ -311,18 +306,17 @@ fn resolve_url(url: String, base_url: String) -> String {
 
 /// Resolve a relative path against a base path.
 fn resolve_path(base_path: String, relative_path: String) -> String {
-  case string.starts_with(relative_path, "/") {
-    True -> relative_path
-    False -> {
-      // Remove the last segment from base path and append relative
-      let base_dir = case string.split(base_path, "/") {
-        [] -> "/"
-        segments -> {
-          let dir_segments = list.take(segments, list.length(segments) - 1)
-          string.join(dir_segments, "/")
-        }
-      }
-      base_dir <> "/" <> relative_path
+  use <- bool.guard(
+    when: string.starts_with(relative_path, "/"),
+    return: relative_path,
+  )
+  // Remove the last segment from base path and append relative
+  let base_dir = case string.split(base_path, "/") {
+    [] -> "/"
+    segments -> {
+      let dir_segments = list.take(segments, list.length(segments) - 1)
+      string.join(dir_segments, "/")
     }
   }
+  base_dir <> "/" <> relative_path
 }

@@ -165,11 +165,7 @@ pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
   }
   case json.parse(body, error_decoder) {
     Ok(#(code, description)) ->
-      Error(error.ProviderError(
-        code: code,
-        description: description,
-        uri: None,
-      ))
+      Error(error.ProviderError(code: code, description: description, uri: None))
     _ -> parse_token_success(body)
   }
 }

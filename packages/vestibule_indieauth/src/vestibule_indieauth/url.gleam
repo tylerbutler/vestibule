@@ -4,6 +4,7 @@
 /// - Section 3.2: User Profile URL
 /// - Section 3.3: Client Identifier
 /// - Section 3.4: URL Canonicalization
+import gleam/bool
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/result
@@ -123,24 +124,21 @@ pub fn canonicalize(raw_url: String) -> String {
 
 /// Check if a string looks like an IP address (v4 or v6).
 fn is_ip_address(host: String) -> Bool {
-  case string.starts_with(host, "[") {
-    True -> True
-    False ->
-      string.to_graphemes(host)
-      |> list.all(fn(c) {
-        c == "."
-        || c == "0"
-        || c == "1"
-        || c == "2"
-        || c == "3"
-        || c == "4"
-        || c == "5"
-        || c == "6"
-        || c == "7"
-        || c == "8"
-        || c == "9"
-      })
-  }
+  use <- bool.guard(when: string.starts_with(host, "["), return: True)
+  string.to_graphemes(host)
+  |> list.all(fn(c) {
+    c == "."
+    || c == "0"
+    || c == "1"
+    || c == "2"
+    || c == "3"
+    || c == "4"
+    || c == "5"
+    || c == "6"
+    || c == "7"
+    || c == "8"
+    || c == "9"
+  })
 }
 
 /// Check if a path contains . or .. segments.
