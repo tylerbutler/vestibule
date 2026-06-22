@@ -1,0 +1,4 @@
+project: vestibule
+kind: Changed
+body: 'Public types `Strategy`, `UserResult`, `ExchangeResult`, and `AuthorizationRequest` are now opaque. Construct via `strategy.new`, `strategy.user_result`, `strategy.exchange_result`, and `authorization_request.new`; read fields via the accessor functions on each module.'
+time: 2026-05-16T00:51:19.363143+00:00

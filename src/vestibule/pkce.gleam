@@ -1,7 +1,8 @@
-/// PKCE (Proof Key for Code Exchange) utilities for OAuth2.
-///
-/// Implements RFC 7636 with S256 challenge method.
-/// PKCE prevents authorization code interception attacks.
+//// PKCE (Proof Key for Code Exchange) utilities for OAuth2.
+////
+//// Implements RFC 7636 with S256 challenge method.
+//// PKCE prevents authorization code interception attacks.
+
 import gleam/bit_array
 import gleam/crypto
 

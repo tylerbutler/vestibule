@@ -1,0 +1,140 @@
+---
+import DocsLayout from "../../../layouts/DocsLayout.astro";
+import {
+  getPackageEntries,
+  packageHref,
+  packageReferenceUrl,
+  packageSlug
+} from "../../../data/content";
+
+const packages = await getPackageEntries();
+const providers = packages.filter((pkg) => pkg.data.kind.includes("Provider"));
+
+const packageBySlug = new Map(packages.map((pkg) => [packageSlug(pkg), pkg]));
+const routePackages = ["wisp", "mist", "core"].flatMap((slug) => {
+  const pkg = packageBySlug.get(slug);
+  return pkg ? [pkg] : [];
+});
+const routeLabel = (slug: string) =>
+  slug === "wisp"
+    ? "Recommended for Wisp apps"
+    : slug === "mist"
+      ? "Recommended for plain Mist apps"
+      : slug === "core"
+        ? "Advanced custom routing"
+        : "Route package";
+---
+
+<DocsLayout
+  title="Package overview"
+  description="Choose the right Vestibule package for a Gleam OAuth integration."
+  section="Packages"
+  toc={[
+    { href: "#route-packages", label: "Route packages" },
+    { href: "#provider-strategies", label: "Provider strategies" },
+    { href: "#api-reference", label: "API reference" }
+  ]}
+>
+  <article class="doc-page">
+    <header class="doc-hero">
+      <h1>Package overview</h1>
+      <p>
+        Vestibule is split by responsibility: core flow, transport middleware,
+        and provider strategy packages.
+      </p>
+    </header>
+
+    <section id="route-packages" class="route-decision">
+      <div class="section-heading">
+        <h2>Choose who owns the auth routes</h2>
+        <p>
+          Start with Wisp or Mist middleware when your server layer should own
+          request and callback routes. Use core directly when your app owns that
+          transport boundary.
+        </p>
+      </div>
+      <div class="route-choice-list package-route-list">
+        {routePackages.map((pkg) => {
+          const slug = packageSlug(pkg);
+          return (
+            <a
+              class:list={["route-choice", { recommended: slug === "wisp" || slug === "mist" }]}
+              href={packageHref(pkg)}
+            >
+              <span class="path-label">{routeLabel(slug)}</span>
+              <strong>{pkg.data.name}</strong>
+              <span>{pkg.data.useWhen}</span>
+              <small>{pkg.data.summary}</small>
+              <em>Read package guide</em>
+            </a>
+          );
+        })}
+      </div>
+    </section>
+
+    <section id="provider-strategies">
+      <div class="section-heading">
+        <h2>Add provider strategies after the route shape</h2>
+        <p>
+          Provider packages plug into the base request/callback flow. Choose them
+          for the identity providers your app supports.
+        </p>
+      </div>
+      <table class="provider-table">
+        <caption class="visually-hidden">Provider package comparison</caption>
+        <thead>
+          <tr>
+            <th id="provider-package" scope="col">Provider package</th>
+            <th id="provider-scopes" scope="col">Default scopes</th>
+            <th id="provider-behavior" scope="col">Important behavior</th>
+          </tr>
+        </thead>
+        <tbody>
+          {providers.map((pkg) => (
+            <tr>
+              <th id={`provider-${packageSlug(pkg)}-package`} scope="row" headers="provider-package">
+                <span class="provider-cell-label" aria-hidden="true">Package</span>
+                <a href={packageHref(pkg)}><strong>{pkg.data.name}</strong></a>
+              </th>
+              <td headers={`provider-${packageSlug(pkg)}-package provider-scopes`}>
+                <span class="provider-cell-label" aria-hidden="true">Default scopes</span>
+                {pkg.data.defaultScopes || "Provider-owned"}
+              </td>
+              <td headers={`provider-${packageSlug(pkg)}-package provider-behavior`}>
+                <span class="provider-cell-label" aria-hidden="true">Important behavior</span>
+                {pkg.data.highlights[0]}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+
+    <section id="api-reference">
+      <div class="section-heading">
+        <h2>Read generated API reference</h2>
+        <p>
+          Reference pages are generated from Gleam docs metadata during the
+          website build, so they stay aligned with each package's public API.
+        </p>
+      </div>
+      <table class="provider-table">
+        <caption class="visually-hidden">Generated API reference links</caption>
+        <thead>
+          <tr>
+            <th scope="col">Package</th>
+            <th scope="col">Reference</th>
+          </tr>
+        </thead>
+        <tbody>
+          {packages.map((pkg) => (
+            <tr>
+              <th scope="row">{pkg.data.name}</th>
+              <td><a href={packageReferenceUrl(pkg)}>Open generated reference</a></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  </article>
+</DocsLayout>

@@ -1,0 +1,4 @@
+project: vestibule_microsoft
+kind: Fixed
+body: 'Refresh-token responses now use `RequiredScope(" ")` to match the exchange-code behavior. Previously `OptionalScope` would silently return `[]` if Microsoft omitted `scope` on refresh.'
+time: 2026-05-16T00:51:23.386922+00:00

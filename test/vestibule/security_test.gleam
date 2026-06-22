@@ -8,14 +8,15 @@ import gleam/option.{None, Some}
 import gleam/string
 import startest/expect
 import vestibule
-import vestibule/authorization_request.{AuthorizationRequest}
+import vestibule/authorization_request
 import vestibule/config
-import vestibule/credentials.{Credentials}
+import vestibule/credentials
 import vestibule/error
 import vestibule/oidc
 import vestibule/pkce
+import vestibule/provider_support
 import vestibule/state
-import vestibule/strategy.{type Strategy, Strategy}
+import vestibule/strategy.{type Strategy}
 import vestibule/user_info.{UserInfo}
 
 // ---------------------------------------------------------------------------
@@ -23,10 +24,9 @@ import vestibule/user_info.{UserInfo}
 // ---------------------------------------------------------------------------
 
 fn test_strategy() -> Strategy(e) {
-  Strategy(
+  strategy.new(
     provider: "test",
     default_scopes: ["scope"],
-    token_url: "https://test.example.com/token",
     authorize_url: fn(_config, scopes, st) {
       Ok(
         "https://test.example.com/auth?scope="
@@ -39,21 +39,26 @@ fn test_strategy() -> Strategy(e) {
       case code {
         "valid_code" ->
           Ok(
-            Credentials(
-              token: "tok",
-              refresh_token: None,
-              token_type: "bearer",
-              expires_at: None,
-              scopes: [],
+            strategy.exchange_result(
+              credentials.new(
+                token: "tok",
+                refresh_token: None,
+                token_type: "bearer",
+                expires_in: None,
+                scopes: [],
+              ),
             ),
           )
         _ -> Error(error.CodeExchangeFailed(reason: "bad code"))
       }
     },
-    fetch_user: fn(_creds) {
-      Ok(#(
-        "uid",
-        UserInfo(
+    refresh_token: fn(_config, _refresh_token) {
+      Error(error.ConfigError(reason: "refresh not implemented"))
+    },
+    fetch_user: fn(_config, _exchange) {
+      Ok(strategy.user_result(
+        uid: "uid",
+        info: UserInfo(
           name: None,
           email: None,
           nickname: None,
@@ -61,6 +66,7 @@ fn test_strategy() -> Strategy(e) {
           description: None,
           urls: dict.new(),
         ),
+        extra: dict.new(),
       ))
     },
   )
@@ -72,13 +78,13 @@ fn test_strategy() -> Strategy(e) {
 
 /// Security: empty state values must always be rejected.
 pub fn state_validate_rejects_both_empty_test() {
-  state.validate("", "")
+  state.validate(received: "", expected: "")
   |> expect.to_equal(Error(error.StateMismatch))
 }
 
 /// Security: whitespace-only state values must be rejected.
 pub fn state_validate_rejects_whitespace_only_test() {
-  state.validate("   ", "   ")
+  state.validate(received: "   ", expected: "   ")
   |> expect.to_equal(Error(error.StateMismatch))
 }
 
@@ -119,7 +125,7 @@ pub fn state_validate_rejects_near_miss_test() {
   // Flip the last character
   let prefix = string.drop_end(s, 1)
   let tampered = prefix <> "X"
-  state.validate(tampered, s)
+  state.validate(received: tampered, expected: s)
   |> expect.to_equal(Error(error.StateMismatch))
 }
 
@@ -127,7 +133,7 @@ pub fn state_validate_rejects_near_miss_test() {
 pub fn state_validate_rejects_swapped_values_test() {
   let a = state.generate()
   let b = state.generate()
-  state.validate(a, b)
+  state.validate(received: a, expected: b)
   |> expect.to_equal(Error(error.StateMismatch))
 }
 
@@ -180,23 +186,39 @@ pub fn pkce_different_verifiers_produce_different_challenges_test() {
 
 /// Security: authorization URL must always include PKCE params.
 /// No code path should produce a URL without code_challenge.
-pub fn authorize_url_always_includes_pkce_test() {
+pub fn create_authorization_request_always_includes_pkce_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "https://localhost/cb")
-  let assert Ok(AuthorizationRequest(url:, ..)) =
-    vestibule.authorize_url(strat, conf)
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "https://localhost/cb",
+    )
+  let assert Ok(auth_req) =
+    vestibule.create_authorization_request(strat, cfg: conf)
+  let url = authorization_request.url(auth_req)
   { string.contains(url, "code_challenge=") } |> expect.to_be_true()
   { string.contains(url, "code_challenge_method=S256") } |> expect.to_be_true()
 }
 
-/// Security: authorize_url state and verifier must differ on each call.
-pub fn authorize_url_produces_fresh_state_and_verifier_test() {
+/// Security: create_authorization_request state and verifier must differ on each call.
+pub fn create_authorization_request_produces_fresh_state_and_verifier_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "https://localhost/cb")
-  let assert Ok(req1) = vestibule.authorize_url(strat, conf)
-  let assert Ok(req2) = vestibule.authorize_url(strat, conf)
-  { req1.state != req2.state } |> expect.to_be_true()
-  { req1.code_verifier != req2.code_verifier } |> expect.to_be_true()
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "https://localhost/cb",
+    )
+  let assert Ok(req1) = vestibule.create_authorization_request(strat, cfg: conf)
+  let assert Ok(req2) = vestibule.create_authorization_request(strat, cfg: conf)
+  { authorization_request.state(req1) != authorization_request.state(req2) }
+  |> expect.to_be_true()
+  {
+    authorization_request.code_verifier(req1)
+    != authorization_request.code_verifier(req2)
+  }
+  |> expect.to_be_true()
 }
 
 // ===========================================================================
@@ -207,32 +229,61 @@ pub fn authorize_url_produces_fresh_state_and_verifier_test() {
 /// server-side operations (code exchange, user fetch).
 pub fn callback_rejects_state_mismatch_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "https://localhost/cb")
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "https://localhost/cb",
+    )
   let params =
     dict.from_list([#("code", "valid_code"), #("state", "attacker_state")])
-  vestibule.handle_callback(strat, conf, params, "real_state", "verifier")
+  vestibule.handle_callback(
+    strat,
+    cfg: conf,
+    callback_params: params,
+    expected_state: "real_state",
+    code_verifier: "verifier",
+  )
   |> expect.to_equal(Error(error.StateMismatch))
 }
 
 /// Security: missing state parameter must be rejected.
 pub fn callback_rejects_missing_state_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "https://localhost/cb")
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "https://localhost/cb",
+    )
   let params = dict.from_list([#("code", "valid_code")])
-  let result =
-    vestibule.handle_callback(strat, conf, params, "expected", "verifier")
-  let _ = result |> expect.to_be_error()
-  Nil
+  vestibule.handle_callback(
+    strat,
+    cfg: conf,
+    callback_params: params,
+    expected_state: "expected",
+    code_verifier: "verifier",
+  )
+  |> expect.to_equal(Error(error.MissingCallbackParam("state")))
 }
 
 /// Security: empty callback params must be rejected.
 pub fn callback_rejects_empty_params_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "https://localhost/cb")
-  let result =
-    vestibule.handle_callback(strat, conf, dict.new(), "expected", "verifier")
-  let _ = result |> expect.to_be_error()
-  Nil
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "https://localhost/cb",
+    )
+  vestibule.handle_callback(
+    strat,
+    cfg: conf,
+    callback_params: dict.new(),
+    expected_state: "expected",
+    code_verifier: "verifier",
+  )
+  |> expect.to_equal(Error(error.MissingCallbackParam("state")))
 }
 
 /// Security: provider error responses must be detected.
@@ -240,7 +291,12 @@ pub fn callback_rejects_empty_params_test() {
 /// the library should propagate the ProviderError, not a generic message.
 pub fn callback_detects_provider_error_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "https://localhost/cb")
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "https://localhost/cb",
+    )
   let state_val = "matching_state"
   let params =
     dict.from_list([
@@ -248,32 +304,86 @@ pub fn callback_detects_provider_error_test() {
       #("error", "access_denied"),
       #("error_description", "User denied access"),
     ])
-  vestibule.handle_callback(strat, conf, params, state_val, "verifier")
+  vestibule.handle_callback(
+    strat,
+    cfg: conf,
+    callback_params: params,
+    expected_state: state_val,
+    code_verifier: "verifier",
+  )
   |> expect.to_be_error()
   |> expect.to_equal(error.ProviderError(
     code: "access_denied",
     description: "User denied access",
+    uri: None,
+  ))
+}
+
+pub fn callback_preserves_provider_error_uri_test() {
+  let strat = test_strategy()
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "https://localhost/cb",
+    )
+  let state_val = "matching_state"
+  let params =
+    dict.from_list([
+      #("state", state_val),
+      #("error", "access_denied"),
+      #("error_description", "User denied access"),
+      #("error_uri", "https://example.com/access-denied"),
+    ])
+  vestibule.handle_callback(
+    strat,
+    cfg: conf,
+    callback_params: params,
+    expected_state: state_val,
+    code_verifier: "verifier",
+  )
+  |> expect.to_be_error()
+  |> expect.to_equal(error.ProviderError(
+    code: "access_denied",
+    description: "User denied access",
+    uri: Some("https://example.com/access-denied"),
   ))
 }
 
 /// Security: state validation must happen before provider errors are surfaced.
 pub fn callback_rejects_provider_error_when_state_mismatch_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "https://localhost/cb")
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "https://localhost/cb",
+    )
   let params =
     dict.from_list([
       #("state", "attacker_state"),
       #("error", "access_denied"),
       #("error_description", "User denied access"),
     ])
-  vestibule.handle_callback(strat, conf, params, "expected_state", "verifier")
+  vestibule.handle_callback(
+    strat,
+    cfg: conf,
+    callback_params: params,
+    expected_state: "expected_state",
+    code_verifier: "verifier",
+  )
   |> expect.to_equal(Error(error.StateMismatch))
 }
 
 /// Security: extra unexpected parameters should not cause crashes.
 pub fn callback_ignores_extra_params_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "https://localhost/cb")
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "https://localhost/cb",
+    )
   let state_val = "test_state"
   let params =
     dict.from_list([
@@ -283,7 +393,13 @@ pub fn callback_ignores_extra_params_test() {
       #("another", "<script>alert(1)</script>"),
     ])
   let result =
-    vestibule.handle_callback(strat, conf, params, state_val, "verifier")
+    vestibule.handle_callback(
+      strat,
+      cfg: conf,
+      callback_params: params,
+      expected_state: state_val,
+      code_verifier: "verifier",
+    )
   let _ = result |> expect.to_be_ok()
   Nil
 }
@@ -295,13 +411,23 @@ pub fn callback_ignores_extra_params_test() {
 /// Security: refresh response parser must handle malformed JSON gracefully.
 pub fn refresh_response_handles_html_error_page_test() {
   let body = "<html><body><h1>500 Internal Server Error</h1></body></html>"
-  let _ = vestibule.parse_refresh_response(body) |> expect.to_be_error()
+  let _ =
+    provider_support.parse_oauth_token_response(
+      body,
+      provider_support.OptionalScope(" "),
+    )
+    |> expect.to_be_error()
   Nil
 }
 
 /// Security: refresh response parser must handle empty body.
 pub fn refresh_response_handles_empty_body_test() {
-  let _ = vestibule.parse_refresh_response("") |> expect.to_be_error()
+  let _ =
+    provider_support.parse_oauth_token_response(
+      "",
+      provider_support.OptionalScope(" "),
+    )
+    |> expect.to_be_error()
   Nil
 }
 
@@ -309,9 +435,16 @@ pub fn refresh_response_handles_empty_body_test() {
 /// Finding L5 -- some providers omit error_description.
 pub fn refresh_response_handles_error_without_description_test() {
   let body = "{\"error\":\"invalid_grant\"}"
-  vestibule.parse_refresh_response(body)
+  provider_support.parse_oauth_token_response(
+    body,
+    provider_support.OptionalScope(" "),
+  )
   |> expect.to_be_error()
-  |> expect.to_equal(error.ProviderError(code: "invalid_grant", description: ""))
+  |> expect.to_equal(error.ProviderError(
+    code: "invalid_grant",
+    description: "",
+    uri: None,
+  ))
 }
 
 /// Security: refresh response with extremely long token should not crash.
@@ -319,9 +452,13 @@ pub fn refresh_response_handles_long_token_test() {
   let long_token = string.repeat("a", 10_000)
   let body =
     "{\"access_token\":\"" <> long_token <> "\",\"token_type\":\"bearer\"}"
-  let result = vestibule.parse_refresh_response(body)
+  let result =
+    provider_support.parse_oauth_token_response(
+      body,
+      provider_support.OptionalScope(" "),
+    )
   let assert Ok(creds) = result
-  { string.length(creds.token) == 10_000 } |> expect.to_be_true()
+  { string.length(credentials.token(creds)) == 10_000 } |> expect.to_be_true()
 }
 
 // ===========================================================================
@@ -338,7 +475,7 @@ pub fn oidc_issuer_mismatch_is_detected_test() {
   // Parser itself accepts it (validation happens at fetch_configuration level)
   let result = oidc.parse_discovery_document(json)
   let assert Ok(parsed) = result
-  parsed.issuer |> expect.to_equal("https://evil.example.com")
+  oidc.issuer(parsed) |> expect.to_equal("https://evil.example.com")
 }
 
 /// Security: OIDC discovery parser must handle missing required fields.
@@ -419,10 +556,10 @@ pub fn oidc_rejects_unverified_email_test() {
 /// Security: null bytes in state parameter must not bypass validation.
 pub fn state_validate_handles_null_bytes_test() {
   let _ =
-    state.validate("abc\u{0000}def", "abc\u{0000}def")
+    state.validate(received: "abc\u{0000}def", expected: "abc\u{0000}def")
     |> expect.to_be_ok()
 
-  state.validate("abc\u{0000}def", "abcXdef")
+  state.validate(received: "abc\u{0000}def", expected: "abcXdef")
   |> expect.to_equal(Error(error.StateMismatch))
 }
 
@@ -432,7 +569,7 @@ pub fn state_validate_handles_null_bytes_test() {
 pub fn state_validate_is_byte_level_comparison_test() {
   // These are the same visual character but different byte sequences
   // e-acute: U+00E9 (single codepoint) vs e + combining acute U+0065 U+0301
-  state.validate("\u{00E9}", "e\u{0301}")
+  state.validate(received: "\u{00E9}", expected: "e\u{0301}")
   |> expect.to_equal(Error(error.StateMismatch))
 }
 
@@ -440,10 +577,10 @@ pub fn state_validate_is_byte_level_comparison_test() {
 pub fn state_validate_handles_long_values_test() {
   let long = string.repeat("a", 10_000)
   let _ =
-    state.validate(long, long)
+    state.validate(received: long, expected: long)
     |> expect.to_be_ok()
 
-  state.validate(long, long <> "x")
+  state.validate(received: long, expected: long <> "x")
   |> expect.to_equal(Error(error.StateMismatch))
 }
 

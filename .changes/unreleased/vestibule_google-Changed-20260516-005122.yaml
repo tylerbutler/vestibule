@@ -1,0 +1,4 @@
+project: vestibule_google
+kind: Changed
+body: 'Provider strategy now uses the opaque `strategy.new` / `strategy.user_result` / `strategy.exchange_credentials` constructors and accessors. No behavior change.'
+time: 2026-05-16T00:51:22.381762+00:00

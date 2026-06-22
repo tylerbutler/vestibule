@@ -1,0 +1,4 @@
+project: vestibule_apple
+kind: Changed
+body: '`AppleCache` and `JwksCache` are now opaque. Use `vestibule_apple.init` / `try_init` / `try_init_named` to construct an `AppleCache`; internal callers no longer access `jwks` directly.'
+time: 2026-05-16T00:51:21.375354+00:00

@@ -3,29 +3,178 @@ import gleam/option.{None, Some}
 import gleam/string
 import startest/expect
 import vestibule/config
-import vestibule/credentials.{Credentials}
+import vestibule/credentials
 import vestibule/error
-import vestibule/oidc.{OidcConfig}
+import vestibule/oidc
+import vestibule/strategy
 
 // --- OidcConfig construction ---
 
 pub fn oidc_config_construction_test() {
-  let config =
-    OidcConfig(
+  let config = example_config()
+  oidc.issuer(config) |> expect.to_equal("https://accounts.example.com")
+  oidc.authorization_endpoint(config)
+  |> expect.to_equal("https://accounts.example.com/authorize")
+  oidc.token_endpoint(config)
+  |> expect.to_equal("https://accounts.example.com/token")
+  oidc.userinfo_endpoint(config)
+  |> expect.to_equal("https://accounts.example.com/userinfo")
+  oidc.scopes_supported(config)
+  |> expect.to_equal(["openid", "profile", "email"])
+}
+
+pub fn new_config_rejects_http_issuer_test() {
+  let result =
+    oidc.new_config(
+      issuer: "http://issuer.example.com",
+      authorization_endpoint: "https://issuer.example.com/auth",
+      token_endpoint: "https://issuer.example.com/token",
+      userinfo_endpoint: "https://issuer.example.com/userinfo",
+      scopes_supported: ["openid", "profile"],
+    )
+
+  let _ = result |> expect.to_be_error()
+  Nil
+}
+
+pub fn new_config_rejects_http_authorization_endpoint_test() {
+  let result =
+    oidc.new_config(
+      issuer: "https://issuer.example.com",
+      authorization_endpoint: "http://issuer.example.com/auth",
+      token_endpoint: "https://issuer.example.com/token",
+      userinfo_endpoint: "https://issuer.example.com/userinfo",
+      scopes_supported: ["openid", "profile"],
+    )
+
+  let _ = result |> expect.to_be_error()
+  Nil
+}
+
+pub fn new_config_rejects_http_token_endpoint_test() {
+  let result =
+    oidc.new_config(
+      issuer: "https://issuer.example.com",
+      authorization_endpoint: "https://issuer.example.com/auth",
+      token_endpoint: "http://issuer.example.com/token",
+      userinfo_endpoint: "https://issuer.example.com/userinfo",
+      scopes_supported: ["openid", "profile"],
+    )
+
+  let _ = result |> expect.to_be_error()
+  Nil
+}
+
+pub fn new_config_rejects_http_userinfo_endpoint_test() {
+  let result =
+    oidc.new_config(
+      issuer: "https://issuer.example.com",
+      authorization_endpoint: "https://issuer.example.com/auth",
+      token_endpoint: "https://issuer.example.com/token",
+      userinfo_endpoint: "http://issuer.example.com/userinfo",
+      scopes_supported: ["openid", "profile"],
+    )
+
+  let _ = result |> expect.to_be_error()
+  Nil
+}
+
+pub fn new_config_rejects_localhost_http_endpoints_test() {
+  let result =
+    oidc.new_config(
+      issuer: "http://localhost",
+      authorization_endpoint: "http://localhost/auth",
+      token_endpoint: "http://localhost/token",
+      userinfo_endpoint: "http://localhost/userinfo",
+      scopes_supported: ["openid", "profile"],
+    )
+
+  let _ = result |> expect.to_be_error()
+  Nil
+}
+
+pub fn new_config_rejects_https_localhost_endpoints_test() {
+  let result =
+    oidc.new_config(
+      issuer: "https://localhost",
+      authorization_endpoint: "https://localhost/auth",
+      token_endpoint: "https://localhost/token",
+      userinfo_endpoint: "https://localhost/userinfo",
+      scopes_supported: ["openid", "profile"],
+    )
+
+  let _ = result |> expect.to_be_error()
+  Nil
+}
+
+pub fn new_config_rejects_loopback_ipv4_endpoint_test() {
+  let result =
+    oidc.new_config(
       issuer: "https://accounts.example.com",
-      authorization_endpoint: "https://accounts.example.com/authorize",
+      authorization_endpoint: "https://accounts.example.com/auth",
+      token_endpoint: "https://127.0.0.1/token",
+      userinfo_endpoint: "https://accounts.example.com/userinfo",
+      scopes_supported: ["openid", "profile"],
+    )
+
+  let _ = result |> expect.to_be_error()
+  Nil
+}
+
+pub fn new_config_rejects_loopback_ipv6_endpoint_test() {
+  let result =
+    oidc.new_config(
+      issuer: "https://accounts.example.com",
+      authorization_endpoint: "https://accounts.example.com/auth",
+      token_endpoint: "https://accounts.example.com/token",
+      userinfo_endpoint: "https://[::1]/userinfo",
+      scopes_supported: ["openid", "profile"],
+    )
+
+  let _ = result |> expect.to_be_error()
+  Nil
+}
+
+pub fn new_config_rejects_private_network_endpoint_test() {
+  let result =
+    oidc.new_config(
+      issuer: "https://accounts.example.com",
+      authorization_endpoint: "https://192.168.1.10/auth",
       token_endpoint: "https://accounts.example.com/token",
       userinfo_endpoint: "https://accounts.example.com/userinfo",
-      scopes_supported: ["openid", "profile", "email"],
+      scopes_supported: ["openid", "profile"],
     )
-  config.issuer |> expect.to_equal("https://accounts.example.com")
-  config.authorization_endpoint
-  |> expect.to_equal("https://accounts.example.com/authorize")
-  config.token_endpoint
-  |> expect.to_equal("https://accounts.example.com/token")
-  config.userinfo_endpoint
-  |> expect.to_equal("https://accounts.example.com/userinfo")
-  config.scopes_supported |> expect.to_equal(["openid", "profile", "email"])
+
+  let _ = result |> expect.to_be_error()
+  Nil
+}
+
+pub fn new_config_rejects_link_local_metadata_endpoint_test() {
+  let result =
+    oidc.new_config(
+      issuer: "https://accounts.example.com",
+      authorization_endpoint: "https://accounts.example.com/auth",
+      token_endpoint: "https://169.254.169.254/token",
+      userinfo_endpoint: "https://accounts.example.com/userinfo",
+      scopes_supported: ["openid", "profile"],
+    )
+
+  let _ = result |> expect.to_be_error()
+  Nil
+}
+
+pub fn new_config_allows_public_https_endpoints_test() {
+  let result =
+    oidc.new_config(
+      issuer: "https://accounts.example.com",
+      authorization_endpoint: "https://accounts.example.com/auth",
+      token_endpoint: "https://accounts.example.com/token",
+      userinfo_endpoint: "https://accounts.example.com/userinfo",
+      scopes_supported: ["openid", "profile"],
+    )
+
+  let _ = result |> expect.to_be_ok()
+  Nil
 }
 
 // --- parse_discovery_document ---
@@ -35,14 +184,14 @@ pub fn parse_discovery_document_full_test() {
     "{\"issuer\":\"https://accounts.example.com\",\"authorization_endpoint\":\"https://accounts.example.com/authorize\",\"token_endpoint\":\"https://accounts.example.com/token\",\"userinfo_endpoint\":\"https://accounts.example.com/userinfo\",\"scopes_supported\":[\"openid\",\"profile\",\"email\",\"address\"]}"
   let result = oidc.parse_discovery_document(json)
   let assert Ok(config) = result
-  config.issuer |> expect.to_equal("https://accounts.example.com")
-  config.authorization_endpoint
+  oidc.issuer(config) |> expect.to_equal("https://accounts.example.com")
+  oidc.authorization_endpoint(config)
   |> expect.to_equal("https://accounts.example.com/authorize")
-  config.token_endpoint
+  oidc.token_endpoint(config)
   |> expect.to_equal("https://accounts.example.com/token")
-  config.userinfo_endpoint
+  oidc.userinfo_endpoint(config)
   |> expect.to_equal("https://accounts.example.com/userinfo")
-  config.scopes_supported
+  oidc.scopes_supported(config)
   |> expect.to_equal(["openid", "profile", "email", "address"])
 }
 
@@ -51,7 +200,52 @@ pub fn parse_discovery_document_without_scopes_test() {
     "{\"issuer\":\"https://example.com\",\"authorization_endpoint\":\"https://example.com/auth\",\"token_endpoint\":\"https://example.com/token\",\"userinfo_endpoint\":\"https://example.com/userinfo\"}"
   let result = oidc.parse_discovery_document(json)
   let assert Ok(config) = result
-  config.scopes_supported |> expect.to_equal([])
+  oidc.scopes_supported(config) |> expect.to_equal([])
+}
+
+pub fn parse_discovery_document_rejects_http_endpoint_test() {
+  let json =
+    "{\"issuer\":\"https://example.com\",\"authorization_endpoint\":\"https://example.com/auth\",\"token_endpoint\":\"http://example.com/token\",\"userinfo_endpoint\":\"https://example.com/userinfo\"}"
+  let _ =
+    oidc.parse_discovery_document(json)
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn parse_discovery_document_rejects_localhost_endpoint_test() {
+  let json =
+    "{\"issuer\":\"https://example.com\",\"authorization_endpoint\":\"https://example.com/auth\",\"token_endpoint\":\"https://localhost/token\",\"userinfo_endpoint\":\"https://example.com/userinfo\"}"
+  let _ =
+    oidc.parse_discovery_document(json)
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn parse_discovery_document_rejects_loopback_ipv4_endpoint_test() {
+  let json =
+    "{\"issuer\":\"https://example.com\",\"authorization_endpoint\":\"https://example.com/auth\",\"token_endpoint\":\"https://example.com/token\",\"userinfo_endpoint\":\"https://127.0.0.1/userinfo\"}"
+  let _ =
+    oidc.parse_discovery_document(json)
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn parse_discovery_document_rejects_loopback_ipv6_endpoint_test() {
+  let json =
+    "{\"issuer\":\"https://example.com\",\"authorization_endpoint\":\"https://[::1]/auth\",\"token_endpoint\":\"https://example.com/token\",\"userinfo_endpoint\":\"https://example.com/userinfo\"}"
+  let _ =
+    oidc.parse_discovery_document(json)
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn parse_discovery_document_rejects_private_network_endpoint_test() {
+  let json =
+    "{\"issuer\":\"https://example.com\",\"authorization_endpoint\":\"https://example.com/auth\",\"token_endpoint\":\"https://10.0.0.5/token\",\"userinfo_endpoint\":\"https://example.com/userinfo\"}"
+  let _ =
+    oidc.parse_discovery_document(json)
+    |> expect.to_be_error()
+  Nil
 }
 
 pub fn parse_discovery_document_invalid_json_test() {
@@ -72,6 +266,41 @@ pub fn parse_discovery_document_missing_required_field_test() {
   Nil
 }
 
+// --- discovery_url ---
+
+pub fn discovery_url_for_host_issuer_test() {
+  oidc.discovery_url("https://example.com")
+  |> expect.to_equal(Ok("https://example.com/.well-known/openid-configuration"))
+}
+
+pub fn discovery_url_for_path_issuer_test() {
+  oidc.discovery_url("https://example.com/tenant")
+  |> expect.to_equal(Ok(
+    "https://example.com/.well-known/openid-configuration/tenant",
+  ))
+}
+
+pub fn discovery_url_preserves_issuer_validation_test() {
+  let _ =
+    oidc.discovery_url("http://example.com/tenant")
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn discovery_url_rejects_loopback_issuer_test() {
+  let _ =
+    oidc.discovery_url("https://localhost/tenant")
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn discovery_url_rejects_loopback_ipv4_issuer_test() {
+  let _ =
+    oidc.discovery_url("https://127.0.0.1")
+    |> expect.to_be_error()
+  Nil
+}
+
 // --- parse_token_response ---
 
 pub fn parse_token_response_success_test() {
@@ -80,11 +309,11 @@ pub fn parse_token_response_success_test() {
   oidc.parse_token_response(json)
   |> expect.to_be_ok()
   |> expect.to_equal(
-    Credentials(
+    credentials.new(
       token: "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9",
       refresh_token: Some("dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4"),
       token_type: "Bearer",
-      expires_at: Some(3600),
+      expires_in: Some(3600),
       scopes: ["openid", "profile", "email"],
     ),
   )
@@ -95,14 +324,21 @@ pub fn parse_token_response_minimal_test() {
   oidc.parse_token_response(json)
   |> expect.to_be_ok()
   |> expect.to_equal(
-    Credentials(
+    credentials.new(
       token: "abc123",
       refresh_token: None,
       token_type: "bearer",
-      expires_at: None,
+      expires_in: None,
       scopes: [],
     ),
   )
+}
+
+pub fn parse_token_response_empty_scope_test() {
+  let json =
+    "{\"access_token\":\"abc123\",\"token_type\":\"Bearer\",\"scope\":\"\"}"
+  let assert Ok(creds) = oidc.parse_token_response(json)
+  credentials.scopes(creds) |> expect.to_equal([])
 }
 
 pub fn parse_token_response_error_test() {
@@ -118,7 +354,11 @@ pub fn parse_token_response_error_without_description_test() {
   let json = "{\"error\":\"invalid_grant\"}"
   oidc.parse_token_response(json)
   |> expect.to_be_error()
-  |> expect.to_equal(error.ProviderError(code: "invalid_grant", description: ""))
+  |> expect.to_equal(error.ProviderError(
+    code: "invalid_grant",
+    description: "",
+    uri: None,
+  ))
 }
 
 pub fn parse_token_response_invalid_json_test() {
@@ -195,32 +435,25 @@ pub fn filter_default_scopes_partial_test() {
 pub fn filter_default_scopes_none_present_test() {
   let supported = ["custom_scope", "another_scope"]
   oidc.filter_default_scopes(supported)
-  |> expect.to_equal([])
+  |> expect.to_equal(["openid"])
 }
 
 pub fn filter_default_scopes_empty_test() {
   oidc.filter_default_scopes([])
-  |> expect.to_equal([])
+  |> expect.to_equal(["openid"])
 }
 
 // --- strategy_from_config ---
 
 pub fn strategy_from_config_sets_provider_name_test() {
-  let oidc_config =
-    OidcConfig(
-      issuer: "https://accounts.example.com",
-      authorization_endpoint: "https://accounts.example.com/authorize",
-      token_endpoint: "https://accounts.example.com/token",
-      userinfo_endpoint: "https://accounts.example.com/userinfo",
-      scopes_supported: ["openid", "profile", "email"],
-    )
+  let oidc_config = example_config()
   let strat = oidc.strategy_from_config(oidc_config, "my-oidc-provider")
-  strat.provider |> expect.to_equal("my-oidc-provider")
+  strategy.provider(strat) |> expect.to_equal("my-oidc-provider")
 }
 
 pub fn strategy_from_config_sets_default_scopes_test() {
-  let oidc_config =
-    OidcConfig(
+  let assert Ok(oidc_config) =
+    oidc.new_config(
       issuer: "https://accounts.example.com",
       authorization_endpoint: "https://accounts.example.com/authorize",
       token_endpoint: "https://accounts.example.com/token",
@@ -228,12 +461,13 @@ pub fn strategy_from_config_sets_default_scopes_test() {
       scopes_supported: ["openid", "profile", "email", "address"],
     )
   let strat = oidc.strategy_from_config(oidc_config, "example")
-  strat.default_scopes |> expect.to_equal(["openid", "profile", "email"])
+  strategy.default_scopes(strat)
+  |> expect.to_equal(["openid", "profile", "email"])
 }
 
 pub fn strategy_from_config_filters_scopes_test() {
-  let oidc_config =
-    OidcConfig(
+  let assert Ok(oidc_config) =
+    oidc.new_config(
       issuer: "https://accounts.example.com",
       authorization_endpoint: "https://accounts.example.com/authorize",
       token_endpoint: "https://accounts.example.com/token",
@@ -241,22 +475,51 @@ pub fn strategy_from_config_filters_scopes_test() {
       scopes_supported: ["openid", "custom"],
     )
   let strat = oidc.strategy_from_config(oidc_config, "example")
-  strat.default_scopes |> expect.to_equal(["openid"])
+  strategy.default_scopes(strat) |> expect.to_equal(["openid"])
 }
 
-pub fn strategy_from_config_authorize_url_test() {
-  let oidc_config =
-    OidcConfig(
+pub fn strategy_from_config_defaults_to_openid_without_scope_metadata_test() {
+  let assert Ok(oidc_config) =
+    oidc.new_config(
       issuer: "https://accounts.example.com",
       authorization_endpoint: "https://accounts.example.com/authorize",
       token_endpoint: "https://accounts.example.com/token",
       userinfo_endpoint: "https://accounts.example.com/userinfo",
-      scopes_supported: ["openid", "profile", "email"],
+      scopes_supported: [],
     )
   let strat = oidc.strategy_from_config(oidc_config, "example")
+  strategy.default_scopes(strat) |> expect.to_equal(["openid"])
+}
+
+pub fn strategy_from_config_defaults_to_openid_when_no_desired_scopes_supported_test() {
+  let assert Ok(oidc_config) =
+    oidc.new_config(
+      issuer: "https://accounts.example.com",
+      authorization_endpoint: "https://accounts.example.com/authorize",
+      token_endpoint: "https://accounts.example.com/token",
+      userinfo_endpoint: "https://accounts.example.com/userinfo",
+      scopes_supported: ["custom_scope"],
+    )
+  let strat = oidc.strategy_from_config(oidc_config, "example")
+  strategy.default_scopes(strat) |> expect.to_equal(["openid"])
+}
+
+pub fn strategy_from_config_authorize_url_test() {
+  let oidc_config = example_config()
+  let strat = oidc.strategy_from_config(oidc_config, "example")
   let conf =
-    config.new("my-client-id", "my-secret", "http://localhost/callback")
-  let result = strat.authorize_url(conf, ["openid", "profile"], "test-state")
+    config.new(
+      client_id: "my-client-id",
+      client_secret: "my-secret",
+      redirect_uri: "http://localhost/callback",
+    )
+  let result =
+    strategy.build_authorize_url(
+      strat,
+      cfg: conf,
+      scopes: ["openid", "profile"],
+      state: "test-state",
+    )
   let assert Ok(url) = result
   // Verify all expected query parameters are in the URL
   { string.contains(url, "https://accounts.example.com/authorize") }
@@ -269,8 +532,35 @@ pub fn strategy_from_config_authorize_url_test() {
 }
 
 pub fn strategy_from_config_authorize_url_with_extra_params_test() {
-  let oidc_config =
-    OidcConfig(
+  let assert Ok(oidc_config) =
+    oidc.new_config(
+      issuer: "https://accounts.example.com",
+      authorization_endpoint: "https://accounts.example.com/authorize",
+      token_endpoint: "https://accounts.example.com/token",
+      userinfo_endpoint: "https://accounts.example.com/userinfo",
+      scopes_supported: ["openid"],
+    )
+  let strat = oidc.strategy_from_config(oidc_config, "example")
+  let assert Ok(conf) =
+    config.new(
+      client_id: "client-id",
+      client_secret: "secret",
+      redirect_uri: "http://localhost/cb",
+    )
+    |> config.with_extra_params([#("prompt", "consent")])
+  let assert Ok(url) =
+    strategy.build_authorize_url(
+      strat,
+      cfg: conf,
+      scopes: ["openid"],
+      state: "state-123",
+    )
+  { string.contains(url, "prompt=consent") } |> expect.to_be_true()
+}
+
+pub fn strategy_from_config_invalid_redirect_uri_returns_error_test() {
+  let assert Ok(oidc_config) =
+    oidc.new_config(
       issuer: "https://accounts.example.com",
       authorization_endpoint: "https://accounts.example.com/authorize",
       token_endpoint: "https://accounts.example.com/token",
@@ -279,25 +569,30 @@ pub fn strategy_from_config_authorize_url_with_extra_params_test() {
     )
   let strat = oidc.strategy_from_config(oidc_config, "example")
   let conf =
-    config.new("client-id", "secret", "http://localhost/cb")
-    |> config.with_extra_params([#("prompt", "consent")])
-  let assert Ok(url) = strat.authorize_url(conf, ["openid"], "state-123")
-  { string.contains(url, "prompt=consent") } |> expect.to_be_true()
+    config.new(
+      client_id: "client-id",
+      client_secret: "secret",
+      redirect_uri: "not a uri",
+    )
+  let _ =
+    strategy.build_authorize_url(
+      strat,
+      cfg: conf,
+      scopes: ["openid"],
+      state: "state-123",
+    )
+    |> expect.to_be_error()
+  Nil
 }
 
-pub fn strategy_from_config_invalid_redirect_uri_returns_error_test() {
-  let oidc_config =
-    OidcConfig(
+fn example_config() {
+  let assert Ok(config) =
+    oidc.new_config(
       issuer: "https://accounts.example.com",
       authorization_endpoint: "https://accounts.example.com/authorize",
       token_endpoint: "https://accounts.example.com/token",
       userinfo_endpoint: "https://accounts.example.com/userinfo",
-      scopes_supported: ["openid"],
+      scopes_supported: ["openid", "profile", "email"],
     )
-  let strat = oidc.strategy_from_config(oidc_config, "example")
-  let conf = config.new("client-id", "secret", "not a uri")
-  let _ =
-    strat.authorize_url(conf, ["openid"], "state-123")
-    |> expect.to_be_error()
-  Nil
+  config
 }

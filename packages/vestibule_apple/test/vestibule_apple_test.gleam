@@ -1,10 +1,12 @@
+import gleam/dict
+import gleam/dynamic/decode
 import gleam/option.{None, Some}
 import startest
 import startest/expect
 import vestibule/config
-import vestibule/credentials.{Credentials}
+import vestibule/credentials
+import vestibule/strategy
 import vestibule_apple
-import vestibule_apple/id_token_cache
 import vestibule_apple/jwks
 
 pub fn main() -> Nil {
@@ -14,25 +16,34 @@ pub fn main() -> Nil {
 // --- Strategy construction ---
 
 fn test_apple_cache(name: String) -> vestibule_apple.AppleCache {
-  vestibule_apple.AppleCache(
-    id_tokens: id_token_cache.init_named("apple_test_idtok_" <> name),
-    jwks: jwks.init_named("apple_test_jwks_" <> name),
-  )
+  let assert Ok(cache) = vestibule_apple.try_init_named("apple_test_" <> name)
+  cache
+}
+
+pub fn jwks_try_init_named_returns_error_for_duplicate_table_test() {
+  let name = "apple_test_jwks_duplicate"
+  let assert Ok(_) = jwks.try_init_named(name)
+  let result = jwks.try_init_named(name)
+  let _ = result |> expect.to_be_error()
+  Nil
+}
+
+pub fn apple_try_init_named_returns_error_for_duplicate_cache_test() {
+  let name = "apple_test_duplicate"
+  let assert Ok(_) = vestibule_apple.try_init_named(name)
+  let result = vestibule_apple.try_init_named(name)
+  let _ = result |> expect.to_be_error()
+  Nil
 }
 
 pub fn strategy_provider_test() {
   let s = vestibule_apple.strategy(test_apple_cache("provider"))
-  s.provider |> expect.to_equal("apple")
+  strategy.provider(s) |> expect.to_equal("apple")
 }
 
 pub fn strategy_default_scopes_test() {
   let s = vestibule_apple.strategy(test_apple_cache("scopes"))
-  s.default_scopes |> expect.to_equal(["name", "email"])
-}
-
-pub fn strategy_token_url_test() {
-  let s = vestibule_apple.strategy(test_apple_cache("url"))
-  s.token_url |> expect.to_equal("https://appleid.apple.com/auth/token")
+  strategy.default_scopes(s) |> expect.to_equal(["name", "email"])
 }
 
 // --- Token response parsing ---
@@ -40,35 +51,56 @@ pub fn strategy_token_url_test() {
 pub fn parse_token_response_success_test() {
   let body =
     "{\"access_token\":\"a1b2c3.test_access_token\",\"token_type\":\"Bearer\",\"expires_in\":3600,\"refresh_token\":\"r4e5f6.test_refresh\",\"id_token\":\"header.payload.signature\"}"
-  let assert Ok(#(creds, id_token)) = vestibule_apple.parse_token_response(body)
-  creds
+  let assert Ok(exchange) = vestibule_apple.parse_token_response(body)
+  strategy.exchange_credentials(exchange)
   |> expect.to_equal(
-    Credentials(
+    credentials.new(
       token: "a1b2c3.test_access_token",
       refresh_token: Some("r4e5f6.test_refresh"),
       token_type: "Bearer",
-      expires_at: Some(3600),
+      expires_in: Some(3600),
       scopes: [],
     ),
   )
-  id_token |> expect.to_equal(Some("header.payload.signature"))
+  let assert Ok(id_token) =
+    dict.get(strategy.exchange_artifacts(exchange), "id_token")
+  decode.run(id_token, decode.string)
+  |> expect.to_equal(Ok("header.payload.signature"))
 }
 
 pub fn parse_token_response_without_refresh_token_test() {
   let body =
     "{\"access_token\":\"test_token\",\"token_type\":\"Bearer\",\"expires_in\":3600,\"id_token\":\"h.p.s\"}"
-  let assert Ok(#(creds, id_token)) = vestibule_apple.parse_token_response(body)
-  creds.token |> expect.to_equal("test_token")
-  creds.refresh_token |> expect.to_equal(None)
-  id_token |> expect.to_equal(Some("h.p.s"))
+  let assert Ok(exchange) = vestibule_apple.parse_token_response(body)
+  strategy.exchange_credentials(exchange)
+  |> credentials.token()
+  |> expect.to_equal("test_token")
+  strategy.exchange_credentials(exchange)
+  |> credentials.refresh_token()
+  |> expect.to_equal(None)
+  let assert Ok(id_token) =
+    dict.get(strategy.exchange_artifacts(exchange), "id_token")
+  decode.run(id_token, decode.string) |> expect.to_equal(Ok("h.p.s"))
 }
 
 pub fn parse_token_response_without_id_token_test() {
   let body =
     "{\"access_token\":\"test_token\",\"token_type\":\"Bearer\",\"expires_in\":3600}"
-  let assert Ok(#(creds, id_token)) = vestibule_apple.parse_token_response(body)
-  creds.token |> expect.to_equal("test_token")
-  id_token |> expect.to_equal(None)
+  let assert Ok(exchange) = vestibule_apple.parse_token_response(body)
+  strategy.exchange_credentials(exchange)
+  |> credentials.token()
+  |> expect.to_equal("test_token")
+  dict.get(strategy.exchange_artifacts(exchange), "id_token")
+  |> expect.to_be_error()
+}
+
+pub fn parse_token_response_empty_scope_test() {
+  let body =
+    "{\"access_token\":\"test_token\",\"token_type\":\"Bearer\",\"expires_in\":3600,\"scope\":\"\"}"
+  let assert Ok(exchange) = vestibule_apple.parse_token_response(body)
+  strategy.exchange_credentials(exchange)
+  |> credentials.scopes()
+  |> expect.to_equal([])
 }
 
 pub fn parse_token_response_error_test() {
@@ -90,9 +122,19 @@ pub fn parse_token_response_error_without_description_test() {
 
 pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
   let strat = vestibule_apple.strategy(test_apple_cache("invalid_redirect"))
-  let conf = config.new("client-id", "secret", "not a uri")
+  let conf =
+    config.new(
+      client_id: "client-id",
+      client_secret: "secret",
+      redirect_uri: "not a uri",
+    )
   let _ =
-    strat.authorize_url(conf, ["name", "email"], "state")
+    strategy.build_authorize_url(
+      strat,
+      cfg: conf,
+      scopes: ["name", "email"],
+      state: "state",
+    )
     |> expect.to_be_error()
   Nil
 }

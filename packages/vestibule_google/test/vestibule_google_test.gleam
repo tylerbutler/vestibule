@@ -3,8 +3,9 @@ import gleam/string
 import startest
 import startest/expect
 import vestibule/config
-import vestibule/credentials.{Credentials}
+import vestibule/credentials
 import vestibule/error
+import vestibule/strategy
 import vestibule_google
 
 pub fn main() -> Nil {
@@ -17,11 +18,11 @@ pub fn parse_token_response_success_test() {
   vestibule_google.parse_token_response(body)
   |> expect.to_be_ok()
   |> expect.to_equal(
-    Credentials(
+    credentials.new(
       token: "ya29.test_token",
       refresh_token: None,
       token_type: "Bearer",
-      expires_at: Some(3599),
+      expires_in: Some(3599),
       scopes: [
         "openid",
         "https://www.googleapis.com/auth/userinfo.email",
@@ -37,14 +38,21 @@ pub fn parse_token_response_with_refresh_token_test() {
   vestibule_google.parse_token_response(body)
   |> expect.to_be_ok()
   |> expect.to_equal(
-    Credentials(
+    credentials.new(
       token: "ya29.test",
       refresh_token: Some("1//test_refresh"),
       token_type: "Bearer",
-      expires_at: Some(3600),
+      expires_in: Some(3600),
       scopes: ["openid"],
     ),
   )
+}
+
+pub fn parse_token_response_empty_scope_test() {
+  let body =
+    "{\"access_token\":\"ya29.test\",\"expires_in\":3600,\"scope\":\"\",\"token_type\":\"Bearer\"}"
+  let assert Ok(creds) = vestibule_google.parse_token_response(body)
+  credentials.scopes(creds) |> expect.to_equal([])
 }
 
 pub fn parse_token_response_error_test() {
@@ -64,6 +72,7 @@ pub fn parse_token_response_error_without_description_test() {
     |> expect.to_equal(error.ProviderError(
       code: "invalid_grant",
       description: "",
+      uri: None,
     ))
   Nil
 }
@@ -101,18 +110,125 @@ pub fn parse_user_response_minimal_test() {
 
 pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
   let strat = vestibule_google.strategy()
-  let conf = config.new("client-id", "secret", "not a uri")
+  let conf =
+    config.new(
+      client_id: "client-id",
+      client_secret: "secret",
+      redirect_uri: "not a uri",
+    )
   let _ =
-    strat.authorize_url(conf, ["openid"], "state")
+    strategy.build_authorize_url(
+      strat,
+      cfg: conf,
+      scopes: ["openid"],
+      state: "state",
+    )
     |> expect.to_be_error()
   Nil
 }
 
 pub fn authorize_url_includes_extra_params_test() {
   let strat = vestibule_google.strategy()
-  let conf =
-    config.new("client-id", "secret", "http://localhost/callback")
+  let assert Ok(conf) =
+    config.new(
+      client_id: "client-id",
+      client_secret: "secret",
+      redirect_uri: "http://localhost/callback",
+    )
     |> config.with_extra_params([#("prompt", "consent")])
-  let assert Ok(url) = strat.authorize_url(conf, ["openid"], "state")
+  let assert Ok(url) =
+    strategy.build_authorize_url(
+      strat,
+      cfg: conf,
+      scopes: ["openid"],
+      state: "state",
+    )
   { string.contains(url, "prompt=consent") } |> expect.to_be_true()
+}
+
+// --- Hosted-domain (hd) enforcement ---
+
+pub fn parse_user_response_with_hd_present_test() {
+  let body =
+    "{\"sub\":\"42\",\"email\":\"jane@corp.example\",\"email_verified\":true,\"hd\":\"corp.example\"}"
+  let assert Ok(#(uid, _info, hd)) =
+    vestibule_google.parse_user_response_with_hd(body)
+  uid |> expect.to_equal("42")
+  hd |> expect.to_equal(Some("corp.example"))
+}
+
+pub fn parse_user_response_with_hd_absent_test() {
+  let body =
+    "{\"sub\":\"42\",\"email\":\"jane@gmail.com\",\"email_verified\":true}"
+  let assert Ok(#(_uid, _info, hd)) =
+    vestibule_google.parse_user_response_with_hd(body)
+  hd |> expect.to_equal(None)
+}
+
+pub fn validate_hosted_domain_match_test() {
+  vestibule_google.validate_hosted_domain(
+    required: Some("corp.example"),
+    returned: Some("corp.example"),
+  )
+  |> expect.to_be_ok()
+  |> expect.to_equal(Some("corp.example"))
+}
+
+pub fn validate_hosted_domain_mismatch_fails_test() {
+  vestibule_google.validate_hosted_domain(
+    required: Some("corp.example"),
+    returned: Some("evil.com"),
+  )
+  |> expect.to_be_error()
+  |> fn(err) {
+    case err {
+      error.UserInfoFailed(_) -> Nil
+      _ -> panic as "expected UserInfoFailed for hosted-domain mismatch"
+    }
+  }
+}
+
+pub fn validate_hosted_domain_missing_claim_fails_test() {
+  vestibule_google.validate_hosted_domain(
+    required: Some("corp.example"),
+    returned: None,
+  )
+  |> expect.to_be_error()
+  |> fn(err) {
+    case err {
+      error.UserInfoFailed(_) -> Nil
+      _ -> panic as "expected UserInfoFailed when hd claim is missing"
+    }
+  }
+}
+
+pub fn validate_hosted_domain_not_required_passes_through_test() {
+  vestibule_google.validate_hosted_domain(
+    required: None,
+    returned: Some("corp.example"),
+  )
+  |> expect.to_be_ok()
+  |> expect.to_equal(Some("corp.example"))
+
+  vestibule_google.validate_hosted_domain(required: None, returned: None)
+  |> expect.to_be_ok()
+  |> expect.to_equal(None)
+}
+
+pub fn strategy_for_hosted_domain_authorize_url_includes_hd_hint_test() {
+  let strat = vestibule_google.strategy_for_hosted_domain("corp.example")
+  let conf =
+    config.new(
+      client_id: "client-id",
+      client_secret: "secret",
+      redirect_uri: "http://localhost/callback",
+    )
+  let assert Ok(url) =
+    strategy.build_authorize_url(
+      strat,
+      cfg: conf,
+      scopes: ["openid"],
+      state: "state",
+    )
+  { string.contains(url, "hd=corp.example") } |> expect.to_be_true()
 }

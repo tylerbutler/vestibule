@@ -6,6 +6,7 @@ gleam = ">= 1.7.0"
 [dependencies]
 vestibule = { path = ".." }
 vestibule_wisp = { path = "../packages/vestibule_wisp" }
+vestibule_github = { path = "../packages/vestibule_github" }
 vestibule_microsoft = { path = "../packages/vestibule_microsoft" }
 vestibule_google = { path = "../packages/vestibule_google" }
 wisp = ">= 2.2.0 and < 3.0.0"
@@ -14,6 +15,7 @@ gleam_stdlib = ">= 0.48.0 and < 2.0.0"
 gleam_erlang = ">= 1.0.0 and < 2.0.0"
 gleam_http = ">= 4.0.0 and < 5.0.0"
 envoy = ">= 1.1.0 and < 2.0.0"
+houdini = ">= 1.2.0 and < 2.0.0"
 
 [dependencies.bravo]
 git = "https://github.com/Michael-Mark-Edu/bravo"
@@ -21,3 +23,18 @@ ref = "0f49223187fe57f646642ad0be12468c400401a2"
 
 [dev-dependencies]
 startest = ">= 0.8.0 and < 1.0.0"
+glinter = ">= 2.19.0 and < 3.0.0"
+
+[tools.glinter]
+# Strict lint: any warning fails the build. glinter only supports this
+# globally (no per-rule error severity), so label_possible is turned off
+# below to keep intentional unlabelled subject/pipe first-args from failing.
+warnings_as_errors = true
+
+[tools.glinter.rules]
+# Argument labels are encouraged but not enforced: many functions intentionally
+# leave their subject/pipe-receiver first arg unlabelled.
+label_possible = "off"
+# main() validates startup config and crashes on misconfiguration, which is
+# the legitimate crash-on-startup pattern for an application entry point.
+avoid_panic = "off"

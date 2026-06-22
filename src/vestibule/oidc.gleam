@@ -1,19 +1,21 @@
-/// OpenID Connect Discovery support for auto-configuring strategies.
-///
-/// This module implements [OIDC Discovery 1.0](https://openid.net/specs/openid-connect-discovery-1_0.html)
-/// to automatically fetch provider configuration from a well-known endpoint
-/// and build a `Strategy` from the discovered endpoints.
-///
-/// ## Usage
-///
-/// ```gleam
-/// // Auto-discover and create a strategy in one step:
-/// let assert Ok(strategy) = oidc.discover("https://accounts.google.com")
-///
-/// // Or fetch configuration separately for inspection:
-/// let assert Ok(config) = oidc.fetch_configuration("https://accounts.google.com")
-/// let strategy = oidc.strategy_from_config(config, "my-provider")
-/// ```
+//// OpenID Connect Discovery support for auto-configuring strategies.
+////
+//// This module implements [OIDC Discovery 1.0](https://openid.net/specs/openid-connect-discovery-1_0.html)
+//// to automatically fetch provider configuration from a well-known endpoint
+//// and build a `Strategy` from the discovered endpoints.
+////
+//// ## Usage
+////
+//// ```gleam
+//// // Auto-discover and create a strategy in one step:
+//// let assert Ok(strategy) = oidc.discover("https://accounts.google.com")
+////
+//// // Or fetch configuration separately for inspection:
+//// let assert Ok(config) = oidc.fetch_configuration("https://accounts.google.com")
+//// let strategy = oidc.strategy_from_config(config, "my-provider")
+//// ```
+
+import gleam/bool
 import gleam/dict
 import gleam/dynamic/decode
 import gleam/http
@@ -27,15 +29,16 @@ import gleam/string
 import gleam/uri
 
 import vestibule/config
-import vestibule/credentials.{type Credentials, Credentials}
+import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
-import vestibule/internal/http as internal_http
-import vestibule/strategy.{type Strategy, Strategy}
+import vestibule/internal/logger
+import vestibule/provider_support
+import vestibule/strategy.{type Strategy, type UserResult}
 import vestibule/user_info
 
 /// Configuration discovered from an OpenID Connect provider's
 /// `/.well-known/openid-configuration` endpoint.
-pub type OidcConfig {
+pub opaque type OidcConfig {
   OidcConfig(
     /// The issuer identifier (must match the URL used for discovery).
     issuer: String,
@@ -50,6 +53,61 @@ pub type OidcConfig {
   )
 }
 
+/// Construct a validated OIDC configuration.
+///
+/// The issuer and endpoint URLs must use HTTPS and target a publicly-routable
+/// host. Loopback (`localhost`, `127.0.0.1`, `[::1]`), private, and link-local
+/// addresses are rejected: these endpoints come from a provider-controlled
+/// discovery document and are called server-side with an `Authorization`
+/// header, so permitting internal hosts would enable SSRF.
+pub fn new_config(
+  issuer issuer: String,
+  authorization_endpoint authorization_endpoint: String,
+  token_endpoint token_endpoint: String,
+  userinfo_endpoint userinfo_endpoint: String,
+  scopes_supported scopes_supported: List(String),
+) -> Result(OidcConfig, AuthError(e)) {
+  use _ <- result.try(provider_support.require_public_https(issuer))
+  use _ <- result.try(provider_support.require_public_https(
+    authorization_endpoint,
+  ))
+  use _ <- result.try(provider_support.require_public_https(token_endpoint))
+  use _ <- result.try(provider_support.require_public_https(userinfo_endpoint))
+
+  Ok(OidcConfig(
+    issuer: issuer,
+    authorization_endpoint: authorization_endpoint,
+    token_endpoint: token_endpoint,
+    userinfo_endpoint: userinfo_endpoint,
+    scopes_supported: scopes_supported,
+  ))
+}
+
+/// Get the issuer identifier for an OIDC configuration.
+pub fn issuer(config: OidcConfig) -> String {
+  config.issuer
+}
+
+/// Get the authorization endpoint URL for an OIDC configuration.
+pub fn authorization_endpoint(config: OidcConfig) -> String {
+  config.authorization_endpoint
+}
+
+/// Get the token endpoint URL for an OIDC configuration.
+pub fn token_endpoint(config: OidcConfig) -> String {
+  config.token_endpoint
+}
+
+/// Get the userinfo endpoint URL for an OIDC configuration.
+pub fn userinfo_endpoint(config: OidcConfig) -> String {
+  config.userinfo_endpoint
+}
+
+/// Get the scopes supported by an OIDC configuration.
+pub fn scopes_supported(config: OidcConfig) -> List(String) {
+  config.scopes_supported
+}
+
 /// Fetch the OpenID Connect configuration from a provider's discovery endpoint.
 ///
 /// Constructs the well-known URL from the issuer, makes a GET request, parses
@@ -62,41 +120,33 @@ pub type OidcConfig {
 pub fn fetch_configuration(
   issuer_url: String,
 ) -> Result(OidcConfig, AuthError(e)) {
-  // Security: require HTTPS for the issuer URL
-  use _ <- result.try(internal_http.require_https(issuer_url))
+  use discovery_url <- result.try(discovery_url(issuer_url))
 
-  let discovery_url =
-    strip_trailing_slash(issuer_url) <> "/.well-known/openid-configuration"
-
-  use r <- result.try(
+  use req <- result.try(
     request.to(discovery_url)
     |> result.map_error(fn(_) {
       error.ConfigError(reason: "Invalid discovery URL: " <> discovery_url)
     }),
   )
-  let r =
-    r
+  let req =
+    req
     |> request.set_header("accept", "application/json")
 
-  case httpc.send(r) {
+  case httpc.send(req) {
     Ok(response) -> {
-      use body <- result.try(internal_http.check_response_status(response))
+      use body <- result.try(
+        provider_support.check_response_status_for_endpoint(
+          response,
+          provider_name: "oidc",
+          endpoint: "discovery",
+        ),
+      )
       use config <- result.try(parse_discovery_document(body))
       // Security: validate issuer matches per OIDC Discovery spec
       let normalized_issuer = strip_trailing_slash(issuer_url)
       let response_issuer = strip_trailing_slash(config.issuer)
       case normalized_issuer == response_issuer {
-        True -> {
-          // Security: validate discovered endpoints use HTTPS
-          use _ <- result.try(internal_http.require_https(
-            config.authorization_endpoint,
-          ))
-          use _ <- result.try(internal_http.require_https(config.token_endpoint))
-          use _ <- result.try(internal_http.require_https(
-            config.userinfo_endpoint,
-          ))
-          Ok(config)
-        }
+        True -> Ok(config)
         False ->
           Error(error.ConfigError(
             reason: "Issuer mismatch: expected "
@@ -113,10 +163,42 @@ pub fn fetch_configuration(
   }
 }
 
+/// Build the OpenID Connect discovery URL for an issuer URL.
+///
+/// Per OIDC Discovery, path-based issuers insert
+/// `/.well-known/openid-configuration` between the host and issuer path.
+pub fn discovery_url(issuer_url: String) -> Result(String, AuthError(e)) {
+  // Security: preserve issuer validation before constructing the fetch URL.
+  // The issuer is provider-controlled, so reject loopback/internal hosts.
+  use _ <- result.try(provider_support.require_public_https(issuer_url))
+
+  use issuer <- result.try(
+    uri.parse(issuer_url)
+    |> result.map_error(fn(_) {
+      error.ConfigError(reason: "Invalid issuer URL: " <> issuer_url)
+    }),
+  )
+
+  let path = strip_trailing_slash(issuer.path)
+  let issuer_path = case path {
+    "" | "/" -> ""
+    _ -> path
+  }
+
+  uri.Uri(
+    ..issuer,
+    path: "/.well-known/openid-configuration" <> issuer_path,
+    query: None,
+    fragment: None,
+  )
+  |> uri.to_string()
+  |> Ok()
+}
+
 /// Parse an OIDC discovery JSON document into an `OidcConfig`.
 ///
-/// Exported for testing. Extracts the required fields from the standard
-/// OpenID Connect discovery response.
+/// Supported parsing helper for custom OIDC strategy authors. Extracts the
+/// required fields from the standard OpenID Connect discovery response.
 pub fn parse_discovery_document(
   body: String,
 ) -> Result(OidcConfig, AuthError(e)) {
@@ -133,16 +215,29 @@ pub fn parse_discovery_document(
       [],
       decode.list(decode.string),
     )
-    decode.success(OidcConfig(
-      issuer: issuer,
-      authorization_endpoint: authorization_endpoint,
-      token_endpoint: token_endpoint,
-      userinfo_endpoint: userinfo_endpoint,
-      scopes_supported: scopes_supported,
+    decode.success(#(
+      issuer,
+      authorization_endpoint,
+      token_endpoint,
+      userinfo_endpoint,
+      scopes_supported,
     ))
   }
   case json.parse(body, decoder) {
-    Ok(config) -> Ok(config)
+    Ok(#(
+      issuer,
+      authorization_endpoint,
+      token_endpoint,
+      userinfo_endpoint,
+      scopes_supported,
+    )) ->
+      new_config(
+        issuer: issuer,
+        authorization_endpoint: authorization_endpoint,
+        token_endpoint: token_endpoint,
+        userinfo_endpoint: userinfo_endpoint,
+        scopes_supported: scopes_supported,
+      )
     Error(err) ->
       Error(error.ConfigError(
         reason: "Failed to parse OIDC discovery document: "
@@ -164,12 +259,12 @@ pub fn strategy_from_config(
   provider_name: String,
 ) -> Strategy(e) {
   let scopes = filter_default_scopes(oidc_config.scopes_supported)
-  Strategy(
+  strategy.new(
     provider: provider_name,
     default_scopes: scopes,
-    token_url: oidc_config.token_endpoint,
     authorize_url: build_authorize_url_fn(oidc_config.authorization_endpoint),
     exchange_code: build_exchange_code_fn(oidc_config.token_endpoint),
+    refresh_token: build_refresh_token_fn(oidc_config.token_endpoint),
     fetch_user: build_fetch_user_fn(oidc_config.userinfo_endpoint),
   )
 }
@@ -187,23 +282,72 @@ pub fn discover(issuer_url: String) -> Result(Strategy(e), AuthError(e)) {
 
 /// Filter scopes to only include the standard OIDC scopes that the provider supports.
 ///
-/// Exported for testing.
+/// Supported helper for custom OIDC strategy authors.
 pub fn filter_default_scopes(scopes_supported: List(String)) -> List(String) {
   let desired = ["openid", "profile", "email"]
-  list.filter(desired, fn(scope) { list.contains(scopes_supported, scope) })
+  case
+    list.filter(desired, fn(scope) { list.contains(scopes_supported, scope) })
+  {
+    [] -> ["openid"]
+    scopes -> scopes
+  }
 }
 
 /// Parse a standard OAuth2/OIDC token response.
 ///
-/// Exported for testing. Handles both success and error responses.
+/// Supported parsing helper for custom OIDC strategy authors. Handles both
+/// success and error responses.
 pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
-  use body <- result.try(internal_http.check_token_error(body))
-  parse_success_token(body)
+  let result =
+    provider_support.parse_oauth_token_response(
+      body,
+      provider_support.OptionalScope(separator: " "),
+    )
+  case result {
+    Ok(creds) -> {
+      logger.new(
+        level: logger.Debug,
+        event: "vestibule.provider.token_parse.success",
+        phase: "provider_request",
+        outcome: "success",
+        provider: Some("oidc"),
+        fields: [
+          logger.field("endpoint", "token"),
+          logger.bool_field(
+            "has_refresh_token",
+            option.is_some(credentials.refresh_token(creds)),
+          ),
+          logger.int_field(
+            "scope_count",
+            list.length(credentials.scopes(creds)),
+          ),
+        ],
+      )
+      |> logger.emit()
+      Ok(creds)
+    }
+    Error(err) -> {
+      logger.new(
+        level: logger.Warning,
+        event: "vestibule.provider.token_parse.failure",
+        phase: "provider_request",
+        outcome: "failure",
+        provider: Some("oidc"),
+        fields: [
+          logger.field("endpoint", "token"),
+          logger.field("error_category", logger.auth_error_category(err)),
+        ],
+      )
+      |> logger.emit()
+      Error(err)
+    }
+  }
 }
 
 /// Parse a standard OIDC userinfo response into a uid and UserInfo.
 ///
-/// Exported for testing. Maps standard OIDC claims to UserInfo fields:
+/// Supported parsing helper for custom OIDC strategy authors. Maps standard
+/// OIDC claims to UserInfo fields:
 /// - `sub` -> uid
 /// - `name` -> name
 /// - `email` -> email
@@ -267,47 +411,9 @@ pub fn parse_userinfo_response(
 
 // --- Internal helpers ---
 
-fn parse_success_token(body: String) -> Result(Credentials, AuthError(e)) {
-  let decoder = {
-    use access_token <- decode.field("access_token", decode.string)
-    use token_type <- decode.field("token_type", decode.string)
-    use scope <- decode.optional_field("scope", "", decode.string)
-    use expires_in <- decode.optional_field(
-      "expires_in",
-      None,
-      decode.optional(decode.int),
-    )
-    use refresh_token <- decode.optional_field(
-      "refresh_token",
-      None,
-      decode.optional(decode.string),
-    )
-    let scopes = case scope {
-      "" -> []
-      s -> string.split(s, " ")
-    }
-    decode.success(Credentials(
-      token: access_token,
-      refresh_token: refresh_token,
-      token_type: token_type,
-      expires_at: expires_in,
-      scopes: scopes,
-    ))
-  }
-  case json.parse(body, decoder) {
-    Ok(creds) -> Ok(creds)
-    Error(err) ->
-      Error(error.CodeExchangeFailed(
-        reason: "Failed to parse OIDC token response: " <> string.inspect(err),
-      ))
-  }
-}
-
 fn strip_trailing_slash(url: String) -> String {
-  case string.ends_with(url, "/") {
-    True -> string.drop_end(url, 1)
-    False -> url
-  }
+  use <- bool.guard(when: !string.ends_with(url, "/"), return: url)
+  string.drop_end(url, 1)
 }
 
 fn extract_hostname(url: String) -> String {
@@ -329,7 +435,7 @@ fn build_authorize_url_fn(
     AuthError(e),
   ) {
     use redirect <- result.try(
-      internal_http.parse_redirect_uri(config.redirect_uri(cfg)),
+      provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
     )
     case uri.parse(authorization_endpoint) {
       Ok(base_uri) -> {
@@ -359,13 +465,13 @@ fn build_authorize_url_fn(
 fn build_exchange_code_fn(
   token_endpoint: String,
 ) -> fn(config.Config, String, option.Option(String)) ->
-  Result(Credentials, AuthError(e)) {
+  Result(strategy.ExchangeResult, AuthError(e)) {
   fn(cfg: config.Config, code: String, code_verifier: option.Option(String)) -> Result(
-    Credentials,
+    strategy.ExchangeResult,
     AuthError(e),
   ) {
     use redirect <- result.try(
-      internal_http.parse_redirect_uri(config.redirect_uri(cfg)),
+      provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
     )
     let base_params = [
       #("grant_type", "authorization_code"),
@@ -381,7 +487,7 @@ fn build_exchange_code_fn(
     }
     let body = uri.query_to_string(params)
 
-    use r <- result.try(
+    use req <- result.try(
       request.to(token_endpoint)
       |> result.map_error(fn(_) {
         error.ConfigError(
@@ -389,17 +495,24 @@ fn build_exchange_code_fn(
         )
       }),
     )
-    let r =
-      r
+    let req =
+      req
       |> request.set_method(http.Post)
       |> request.set_header("content-type", "application/x-www-form-urlencoded")
       |> request.set_header("accept", "application/json")
       |> request.set_body(body)
 
-    case httpc.send(r) {
+    case httpc.send(req) {
       Ok(response) -> {
-        use body <- result.try(internal_http.check_response_status(response))
+        use body <- result.try(
+          provider_support.check_response_status_for_endpoint(
+            response,
+            provider_name: "oidc",
+            endpoint: "token",
+          ),
+        )
         parse_token_response(body)
+        |> result.map(strategy.exchange_result)
       }
       Error(_) ->
         Error(error.NetworkError(
@@ -411,14 +524,70 @@ fn build_exchange_code_fn(
 
 fn build_fetch_user_fn(
   userinfo_endpoint: String,
-) -> fn(Credentials) -> Result(#(String, user_info.UserInfo), AuthError(e)) {
-  fn(creds: Credentials) -> Result(#(String, user_info.UserInfo), AuthError(e)) {
-    use auth_header <- result.try(strategy.authorization_header(creds))
-    internal_http.fetch_json_with_auth(
+) -> fn(config.Config, strategy.ExchangeResult) ->
+  Result(UserResult, AuthError(e)) {
+  fn(_cfg: config.Config, exchange: strategy.ExchangeResult) -> Result(
+    UserResult,
+    AuthError(e),
+  ) {
+    use auth_header <- result.try(
+      strategy.authorization_header(strategy.exchange_credentials(exchange)),
+    )
+    use #(uid, info) <- result.try(provider_support.fetch_json_with_auth(
       userinfo_endpoint,
       auth_header,
       parse_userinfo_response,
       "OIDC userinfo",
+    ))
+    Ok(strategy.user_result(uid: uid, info: info, extra: dict.new()))
+  }
+}
+
+fn build_refresh_token_fn(
+  token_endpoint: String,
+) -> fn(config.Config, String) -> Result(Credentials, AuthError(e)) {
+  fn(cfg: config.Config, refresh_tok: String) -> Result(
+    Credentials,
+    AuthError(e),
+  ) {
+    let body =
+      uri.query_to_string([
+        #("grant_type", "refresh_token"),
+        #("refresh_token", refresh_tok),
+        #("client_id", config.client_id(cfg)),
+        #("client_secret", config.client_secret(cfg)),
+      ])
+
+    use req <- result.try(
+      request.to(token_endpoint)
+      |> result.map_error(fn(_) {
+        error.ConfigError(
+          reason: "Invalid token endpoint URL: " <> token_endpoint,
+        )
+      }),
     )
+    let req =
+      req
+      |> request.set_method(http.Post)
+      |> request.set_header("content-type", "application/x-www-form-urlencoded")
+      |> request.set_header("accept", "application/json")
+      |> request.set_body(body)
+
+    case httpc.send(req) {
+      Ok(response) -> {
+        use body <- result.try(
+          provider_support.check_response_status_for_endpoint(
+            response,
+            provider_name: "oidc",
+            endpoint: "refresh",
+          ),
+        )
+        parse_token_response(body)
+      }
+      Error(_) ->
+        Error(error.NetworkError(
+          reason: "Failed to connect to OIDC token endpoint: " <> token_endpoint,
+        ))
+    }
   }
 }

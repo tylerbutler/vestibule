@@ -1,34 +1,39 @@
-/// Apple Sign In strategy for vestibule.
-///
-/// Apple's OAuth implementation has several key differences from standard providers:
-///
-/// - **No userinfo endpoint**: User info is extracted from the `id_token` JWT
-///   in the token response rather than from a separate API call.
-/// - **`response_mode=form_post`**: Apple sends the callback as a POST with
-///   form data. The vestibule core handles extracting callback params, so this
-///   strategy just adds the parameter to the authorization URL.
-/// - **Client secret is a JWT**: Apple requires the client_secret to be a signed
-///   JWT. The caller is responsible for generating this JWT and providing it in
-///   the Config. This strategy passes it through to the token endpoint.
-/// - **User info only on first auth**: Apple only sends the full user object
-///   (with name) on the first authorization. Subsequent authorizations only
-///   include `sub` and `email` in the ID token.
-/// - **JWT signature verification**: ID tokens are verified against Apple's
-///   published JWKS keys using ES256.
-///
-/// ## Setup
-///
-/// Call `vestibule_apple.init()` once at application startup to initialize
-/// caches, then use `vestibule_apple.strategy()` to create the strategy.
-///
-/// ```gleam
-/// let apple = vestibule_apple.init()
-/// let strategy = vestibule_apple.strategy(apple)
-/// ```
+//// Apple Sign In strategy for vestibule.
+////
+//// Apple's OAuth implementation has several key differences from standard providers:
+////
+//// - **No userinfo endpoint**: User info is extracted from the `id_token` JWT
+////   in the token response rather than from a separate API call.
+//// - **`response_mode=form_post`**: Apple sends the callback as a POST with
+////   form data. The vestibule core handles extracting callback params, so this
+////   strategy just adds the parameter to the authorization URL.
+//// - **Client secret is a JWT**: Apple requires the client_secret to be a signed
+////   JWT. The caller is responsible for generating this JWT and providing it in
+////   the Config. This strategy passes it through to the token endpoint.
+//// - **User info only on first auth**: Apple only sends the full user object
+////   (with name) on the first authorization. Subsequent authorizations only
+////   include `sub` and `email` in the ID token.
+//// - **JWT signature verification**: ID tokens are verified against Apple's
+////   published JWKS keys using ES256.
+////
+//// ## Setup
+////
+//// Call `vestibule_apple.init()` once per VM at application startup to
+//// initialize caches, then use `vestibule_apple.strategy()` to create the
+//// strategy. Use `try_init()` if startup code needs to handle duplicate cache
+//// initialization without panicking.
+////
+//// ```gleam
+//// let apple = vestibule_apple.init()
+//// let strategy = vestibule_apple.strategy(apple)
+//// ```
+
 import gleam/dict
+import gleam/dynamic
 import gleam/dynamic/decode
 import gleam/int
 import gleam/json
+import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
@@ -36,6 +41,7 @@ import gleam/time/duration
 import gleam/uri
 
 import gleam/http/request
+import gleam/http/response
 import gleam/httpc
 
 import glow_auth
@@ -44,27 +50,36 @@ import glow_auth/token_request
 import glow_auth/uri/uri_builder
 
 import vestibule/config.{type Config}
-import vestibule/credentials.{type Credentials, Credentials}
+import vestibule/credentials
 import vestibule/error.{type AuthError}
-import vestibule/internal/http as internal_http
-import vestibule/strategy.{type Strategy, Strategy}
+import vestibule/internal/logger
+import vestibule/provider_support
+import vestibule/strategy.{type ExchangeResult, type Strategy, type UserResult}
 import vestibule/user_info
-import vestibule_apple/id_token_cache.{type IdTokenCache}
 import vestibule_apple/jwks.{type JwksCache}
 import vestibule_apple/jwt
 import ywt/claim
 import ywt/verify_key.{type VerifyKey}
 
-/// Holds both the ID token cache and the JWKS cache.
-/// Returned by `init()` and required by `strategy()`.
-pub type AppleCache {
-  AppleCache(id_tokens: IdTokenCache, jwks: JwksCache)
+/// Holds the JWKS cache used for Apple ID token signature verification.
+/// Returned by `init()` and required by `strategy()`. Construction and field
+/// access are intentionally opaque so the cache backing store can change
+/// without breaking consumers.
+pub opaque type AppleCache {
+  AppleCache(jwks: JwksCache)
+}
+
+/// Errors returned by checked Apple cache initialization.
+pub type AppleInitError {
+  JwksCacheInitFailed(jwks.JwksCacheError)
 }
 
 /// Initialize the Apple strategy's caches.
 ///
-/// Must be called once at application startup before handling any
+/// Must be called once per VM at application startup before handling any
 /// authentication flows. Returns the cache handle needed by `strategy()`.
+/// This convenience wrapper panics if the underlying cache tables already
+/// exist; use `try_init()` when startup code needs to handle that case.
 ///
 /// ## Example
 ///
@@ -73,7 +88,23 @@ pub type AppleCache {
 /// let strategy = vestibule_apple.strategy(apple)
 /// ```
 pub fn init() -> AppleCache {
-  AppleCache(id_tokens: id_token_cache.init(), jwks: jwks.init())
+  let assert Ok(apple) = try_init()
+    as "vestibule_apple caches must be initialized once per VM"
+  apple
+}
+
+/// Try to initialize the Apple strategy's caches.
+pub fn try_init() -> Result(AppleCache, AppleInitError) {
+  try_init_named("vestibule_apple")
+}
+
+/// Try to initialize named Apple strategy caches. Useful for tests that need
+/// isolated cache tables.
+pub fn try_init_named(prefix: String) -> Result(AppleCache, AppleInitError) {
+  case jwks.try_init_named(prefix <> "_jwks") {
+    Ok(jwks) -> Ok(AppleCache(jwks: jwks))
+    Error(err) -> Error(JwksCacheInitFailed(err))
+  }
 }
 
 /// Create an Apple Sign In authentication strategy.
@@ -86,46 +117,94 @@ pub fn init() -> AppleCache {
 /// ID tokens are verified against Apple's published JWKS keys with
 /// claim validation for issuer, audience, and expiration.
 pub fn strategy(apple: AppleCache) -> Strategy(e) {
-  Strategy(
+  strategy.new(
     provider: "apple",
     default_scopes: ["name", "email"],
-    token_url: "https://appleid.apple.com/auth/token",
     authorize_url: do_authorize_url,
     exchange_code: fn(config, code, code_verifier) {
-      do_exchange_code(apple, config, code, code_verifier)
+      do_exchange_code(config, code, code_verifier)
     },
-    fetch_user: fn(creds) { do_fetch_user(apple, creds) },
+    refresh_token: do_refresh_token,
+    fetch_user: fn(config, exchange) { do_fetch_user(apple, config, exchange) },
   )
 }
 
 /// Parse Apple token response JSON.
 ///
 /// Apple's token response includes an `id_token` JWT containing user claims.
-/// This function parses the response and returns both the Credentials and the
-/// raw id_token string as a tuple.
+/// This function parses the response and returns standard credentials plus
+/// provider-specific artifacts such as the raw `id_token`.
 pub fn parse_token_response(
   body: String,
-) -> Result(#(Credentials, Option(String)), AuthError(e)) {
-  // Try error response first
-  let error_decoder = {
-    use error_code <- decode.field("error", decode.string)
-    use description <- decode.optional_field(
-      "error_description",
-      "",
-      decode.string,
-    )
-    decode.success(#(error_code, description))
+) -> Result(ExchangeResult, AuthError(e)) {
+  do_parse_token_response(body, "token")
+}
+
+fn do_parse_token_response(
+  body: String,
+  endpoint: String,
+) -> Result(ExchangeResult, AuthError(e)) {
+  let result = {
+    use body <- result.try(provider_support.check_token_error(body))
+    parse_success_token(body)
   }
-  case json.parse(body, error_decoder) {
-    Ok(#(code, description)) ->
-      Error(error.ProviderError(code: code, description: description))
-    _ -> parse_success_token(body)
+  case result {
+    Ok(exchange) -> {
+      let has_id_token =
+        dict.has_key(strategy.exchange_artifacts(exchange), "id_token")
+      let id_token_fields = case has_id_token {
+        True -> [logger.bool_field("has_id_token", True)]
+        False -> []
+      }
+      logger.new(
+        level: logger.Debug,
+        event: "vestibule.provider.token_parse.success",
+        phase: "provider_request",
+        outcome: "success",
+        provider: Some("apple"),
+        fields: list.flatten([
+          [
+            logger.field("endpoint", endpoint),
+            logger.bool_field(
+              "has_refresh_token",
+              option.is_some(
+                credentials.refresh_token(strategy.exchange_credentials(
+                  exchange,
+                )),
+              ),
+            ),
+            logger.int_field(
+              "scope_count",
+              list.length(
+                credentials.scopes(strategy.exchange_credentials(exchange)),
+              ),
+            ),
+          ],
+          id_token_fields,
+        ]),
+      )
+      |> logger.emit()
+      Ok(exchange)
+    }
+    Error(err) -> {
+      logger.new(
+        level: logger.Warning,
+        event: "vestibule.provider.token_parse.failure",
+        phase: "provider_request",
+        outcome: "failure",
+        provider: Some("apple"),
+        fields: [
+          logger.field("endpoint", endpoint),
+          logger.field("error_category", logger.auth_error_category(err)),
+        ],
+      )
+      |> logger.emit()
+      Error(err)
+    }
   }
 }
 
-fn parse_success_token(
-  body: String,
-) -> Result(#(Credentials, Option(String)), AuthError(e)) {
+fn parse_success_token(body: String) -> Result(ExchangeResult, AuthError(e)) {
   let decoder = {
     use access_token <- decode.field("access_token", decode.string)
     use token_type <- decode.field("token_type", decode.string)
@@ -144,23 +223,41 @@ fn parse_success_token(
       None,
       decode.optional(decode.string),
     )
+    use scope <- decode.optional_field("scope", "", decode.string)
+    let scopes = case scope {
+      "" -> []
+      s -> string.split(s, " ")
+    }
     decode.success(#(
-      Credentials(
+      credentials.new(
         token: access_token,
         refresh_token: refresh_token,
         token_type: token_type,
-        expires_at: expires_in,
-        scopes: [],
+        expires_in: expires_in,
+        scopes: scopes,
       ),
       id_token,
     ))
   }
   case json.parse(body, decoder) {
-    Ok(parsed) -> Ok(parsed)
+    Ok(#(credentials, id_token)) ->
+      Ok(strategy.exchange_result_with_artifacts(
+        credentials,
+        id_token_artifacts(id_token),
+      ))
     _ ->
       Error(error.CodeExchangeFailed(
         reason: "Failed to parse Apple token response",
       ))
+  }
+}
+
+fn id_token_artifacts(
+  id_token: Option(String),
+) -> dict.Dict(String, dynamic.Dynamic) {
+  case id_token {
+    Some(token) -> dict.from_list([#("id_token", dynamic.string(token))])
+    None -> dict.new()
   }
 }
 
@@ -171,9 +268,9 @@ fn parse_success_token(
 ///
 /// Returns the user's `sub` (uid) and `UserInfo` on success.
 pub fn verify_id_token(
-  jwt: String,
-  keys: List(VerifyKey),
-  client_id: String,
+  jwt jwt: String,
+  keys keys: List(VerifyKey),
+  client_id client_id: String,
 ) -> Result(#(String, user_info.UserInfo), AuthError(e)) {
   let claims = [
     claim.issuer("https://appleid.apple.com", []),
@@ -253,14 +350,42 @@ fn string_bool_decoder() -> decode.Decoder(Bool) {
   })
 }
 
+// Calls check_response_status_for_endpoint (emitting structured logs) but
+// maps HttpError back to the legacy NetworkError shape to preserve the
+// public error contract that predates the HttpError variant.
+fn check_apple_http(
+  response: response.Response(String),
+  endpoint: String,
+) -> Result(String, AuthError(e)) {
+  provider_support.check_response_status_for_endpoint(
+    response,
+    provider_name: "apple",
+    endpoint: endpoint,
+  )
+  |> result.map_error(fn(err) {
+    case err {
+      error.HttpError(status: status, body: body) ->
+        error.NetworkError(
+          reason: "HTTP " <> int.to_string(status) <> ": " <> body,
+        )
+      _ -> err
+    }
+  })
+}
+
 fn do_authorize_url(
   cfg: Config,
   scopes: List(String),
   state: String,
 ) -> Result(String, AuthError(e)) {
-  let assert Ok(site) = uri.parse("https://appleid.apple.com")
+  use site <- result.try(
+    uri.parse("https://appleid.apple.com")
+    |> result.map_error(fn(_) {
+      error.ConfigError(reason: "Failed to parse Apple OAuth base URL")
+    }),
+  )
   use redirect <- result.try(
-    internal_http.parse_redirect_uri(config.redirect_uri(cfg)),
+    provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
   )
   let client =
     glow_auth.Client(
@@ -282,7 +407,7 @@ fn do_authorize_url(
   let url = url <> "&response_mode=form_post"
   // Append any extra params from config
   let url =
-    internal_http.append_query_params(
+    provider_support.append_query_params(
       url,
       dict.to_list(config.extra_params(cfg)),
     )
@@ -290,14 +415,18 @@ fn do_authorize_url(
 }
 
 fn do_exchange_code(
-  apple: AppleCache,
   cfg: Config,
   code: String,
   code_verifier: Option(String),
-) -> Result(Credentials, AuthError(e)) {
-  let assert Ok(site) = uri.parse("https://appleid.apple.com")
+) -> Result(ExchangeResult, AuthError(e)) {
+  use site <- result.try(
+    uri.parse("https://appleid.apple.com")
+    |> result.map_error(fn(_) {
+      error.ConfigError(reason: "Failed to parse Apple OAuth base URL")
+    }),
+  )
   use redirect <- result.try(
-    internal_http.parse_redirect_uri(config.redirect_uri(cfg)),
+    provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
   )
   let client =
     glow_auth.Client(
@@ -314,62 +443,129 @@ fn do_exchange_code(
     )
     |> request.set_header("accept", "application/json")
   let req = strategy.append_code_verifier(req, code_verifier)
+  logger.new(
+    level: logger.Debug,
+    event: "vestibule.provider.request.start",
+    phase: "provider_request",
+    outcome: "start",
+    provider: Some("apple"),
+    fields: [logger.field("endpoint", "token")],
+  )
+  |> logger.emit()
   case httpc.send(req) {
-    Ok(response) if response.status >= 200 && response.status < 300 -> {
-      case parse_token_response(response.body) {
-        Ok(#(creds, id_token)) -> {
-          // Store the id_token + client_id in the cache so fetch_user can
-          // verify and decode it
-          case id_token {
-            Some(token) ->
-              id_token_cache.store(
-                apple.id_tokens,
-                creds.token,
-                token <> "\n" <> config.client_id(cfg),
-              )
-            None -> Nil
-          }
-          Ok(creds)
-        }
-        Error(err) -> Error(err)
-      }
+    Ok(response) -> {
+      use body <- result.try(check_apple_http(response, "token"))
+      parse_token_response(body)
     }
-    Ok(response) ->
-      Error(error.NetworkError(
-        reason: "HTTP "
-        <> int.to_string(response.status)
-        <> ": "
-        <> response.body,
-      ))
-    Error(_) ->
+    Error(_) -> {
+      logger.new(
+        level: logger.Error,
+        event: "vestibule.provider.request.failure",
+        phase: "provider_request",
+        outcome: "failure",
+        provider: Some("apple"),
+        fields: [
+          logger.field("endpoint", "token"),
+          logger.field("error_category", "network_error"),
+        ],
+      )
+      |> logger.emit()
       Error(error.NetworkError(
         reason: "Failed to connect to Apple token endpoint",
       ))
+    }
+  }
+}
+
+fn do_refresh_token(
+  cfg: Config,
+  refresh_tok: String,
+) -> Result(credentials.Credentials, AuthError(e)) {
+  use site <- result.try(
+    uri.parse("https://appleid.apple.com")
+    |> result.map_error(fn(_) {
+      error.ConfigError(reason: "Failed to parse Apple OAuth base URL")
+    }),
+  )
+  let client =
+    glow_auth.Client(
+      id: config.client_id(cfg),
+      secret: config.client_secret(cfg),
+      site: site,
+    )
+  let req =
+    token_request.refresh(
+      client,
+      uri_builder.RelativePath("/auth/token"),
+      refresh_tok,
+    )
+    |> request.set_header("accept", "application/json")
+
+  logger.new(
+    level: logger.Debug,
+    event: "vestibule.provider.request.start",
+    phase: "provider_request",
+    outcome: "start",
+    provider: Some("apple"),
+    fields: [logger.field("endpoint", "refresh")],
+  )
+  |> logger.emit()
+  case httpc.send(req) {
+    Ok(response) -> {
+      use body <- result.try(
+        provider_support.check_response_status_for_endpoint(
+          response,
+          provider_name: "apple",
+          endpoint: "refresh",
+        ),
+      )
+      use exchange <- result.try(do_parse_token_response(body, "refresh"))
+      Ok(strategy.exchange_credentials(exchange))
+    }
+    Error(_) -> {
+      logger.new(
+        level: logger.Error,
+        event: "vestibule.provider.request.failure",
+        phase: "provider_request",
+        outcome: "failure",
+        provider: Some("apple"),
+        fields: [
+          logger.field("endpoint", "refresh"),
+          logger.field("error_category", "network_error"),
+        ],
+      )
+      |> logger.emit()
+      Error(error.NetworkError(
+        reason: "Failed to connect to Apple token endpoint",
+      ))
+    }
   }
 }
 
 fn do_fetch_user(
   apple: AppleCache,
-  creds: Credentials,
-) -> Result(#(String, user_info.UserInfo), AuthError(e)) {
+  cfg: Config,
+  exchange: ExchangeResult,
+) -> Result(UserResult, AuthError(e)) {
   // Apple has no userinfo endpoint. User info comes from the id_token JWT
-  // stored during exchange_code.
-  use cached <- result.try(
-    id_token_cache.retrieve(apple.id_tokens, creds.token)
+  // returned as an exchange artifact.
+  use artifact <- result.try(
+    dict.get(strategy.exchange_artifacts(exchange), "id_token")
     |> result.replace_error(error.UserInfoFailed(
-      reason: "No Apple ID token found. Ensure exchange_code was called first and init() was called at startup.",
+      reason: "No Apple ID token found in exchange artifacts.",
     )),
   )
-
-  // The cache stores "id_token\nclient_id"
-  case string.split_once(cached, "\n") {
-    Ok(#(id_token, client_id)) -> {
-      // Fetch JWKS keys and verify the token
-      use keys <- result.try(jwks.get_keys(apple.jwks))
-      verify_id_token(id_token, keys, client_id)
-    }
-    Error(_) ->
-      // Fallback: cached value has no client_id separator (shouldn't happen)
-      Error(error.UserInfoFailed(reason: "Cached Apple ID token is malformed"))
-  }
+  use id_token <- result.try(
+    decode.run(artifact, decode.string)
+    |> result.map_error(fn(_) {
+      error.UserInfoFailed(reason: "Apple ID token artifact is not a string")
+    }),
+  )
+  use keys <- result.try(jwks.get_keys(apple.jwks))
+  use #(uid, info) <- result.try(verify_id_token(
+    jwt: id_token,
+    keys: keys,
+    client_id: config.client_id(cfg),
+  ))
+  Ok(strategy.user_result(uid: uid, info: info, extra: dict.new()))
 }

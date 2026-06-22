@@ -1,27 +1,22 @@
-/// Vestibule — a strategy-based authentication library for Gleam.
-///
-/// Provides a consistent interface across OAuth2 identity providers
-/// using a two-phase flow: redirect to provider, then handle callback.
-/// All flows use PKCE (Proof Key for Code Exchange) for enhanced security.
+//// Vestibule — a strategy-based authentication library for Gleam.
+////
+//// Provides a consistent interface across OAuth2 identity providers
+//// using a two-phase flow: redirect to provider, then handle callback.
+//// All flows use PKCE (Proof Key for Code Exchange) for enhanced security.
+
 import gleam/dict.{type Dict}
-import gleam/dynamic/decode
-import gleam/http
-import gleam/http/request
-import gleam/httpc
-import gleam/json
-import gleam/option.{None}
+import gleam/list
+import gleam/option
 import gleam/result
 import gleam/string
 import gleam/uri
 
 import vestibule/auth.{type Auth, Auth}
-import vestibule/authorization_request.{
-  type AuthorizationRequest, AuthorizationRequest,
-}
+import vestibule/authorization_request.{type AuthorizationRequest}
 import vestibule/config.{type Config}
-import vestibule/credentials.{type Credentials, Credentials}
+import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
-import vestibule/internal/http as internal_http
+import vestibule/internal/logger
 import vestibule/pkce
 import vestibule/state
 import vestibule/strategy.{type Strategy}
@@ -39,24 +34,80 @@ import vestibule/strategy.{type Strategy}
 /// not enforce expiration. If you need time-based expiration, store a
 /// timestamp alongside the state when saving it to your session and
 /// check it before calling `handle_callback`.
-pub fn authorize_url(
-  strategy: Strategy(e),
-  cfg: Config,
+pub fn create_authorization_request(
+  strat: Strategy(e),
+  cfg cfg: Config,
 ) -> Result(AuthorizationRequest, AuthError(e)) {
+  let provider = option.Some(strategy.provider(strat))
+  logger.emit(
+    logger.new(
+      level: logger.Debug,
+      event: "vestibule.authorization_request.start",
+      phase: "request",
+      outcome: "start",
+      provider: provider,
+      fields: [],
+    ),
+  )
   let csrf_state = state.generate()
   let code_verifier = pkce.generate_verifier()
   let code_challenge = pkce.compute_challenge(code_verifier)
   let scopes = case config.scopes(cfg) {
-    [] -> strategy.default_scopes
+    [] -> strategy.default_scopes(strat)
     custom -> custom
   }
-  use base_url <- result.try(strategy.authorize_url(cfg, scopes, csrf_state))
-  let url = append_pkce_params(base_url, code_challenge)
-  Ok(AuthorizationRequest(
-    url: url,
-    state: csrf_state,
-    code_verifier: code_verifier,
-  ))
+  logger.emit(
+    logger.new(
+      level: logger.Debug,
+      event: "vestibule.authorization_request.scopes_resolved",
+      phase: "request",
+      outcome: "success",
+      provider: provider,
+      fields: [logger.int_field("scope_count", list.length(scopes))],
+    ),
+  )
+  let outcome =
+    strategy.build_authorize_url(
+      strat,
+      cfg: cfg,
+      scopes: scopes,
+      state: csrf_state,
+    )
+    |> result.map(fn(base_url) { append_pkce_params(base_url, code_challenge) })
+    |> result.map(fn(url) {
+      authorization_request.new(
+        url: url,
+        state: csrf_state,
+        code_verifier: code_verifier,
+      )
+    })
+  case outcome {
+    Ok(_) ->
+      logger.emit(
+        logger.new(
+          level: logger.Info,
+          event: "vestibule.authorization_request.success",
+          phase: "request",
+          outcome: "success",
+          provider: provider,
+          fields: [],
+        ),
+      )
+    Error(err) ->
+      logger.emit(
+        logger.new(
+          level: failure_level(err),
+          event: "vestibule.authorization_request.failure",
+          phase: "request",
+          outcome: "failure",
+          provider: provider,
+          fields: [
+            logger.field("error_category", logger.auth_error_category(err)),
+          ],
+        ),
+      )
+  }
+  outcome
 }
 
 /// Phase 2: Handle the OAuth callback from the provider.
@@ -73,144 +124,310 @@ pub fn authorize_url(
 /// expiration, check the timestamp you stored alongside the state
 /// before calling this function.
 pub fn handle_callback(
-  strategy: Strategy(e),
-  cfg: Config,
-  callback_params: Dict(String, String),
-  expected_state: String,
-  code_verifier: String,
+  strat: Strategy(e),
+  cfg cfg: Config,
+  callback_params callback_params: Dict(String, String),
+  expected_state expected_state: String,
+  code_verifier code_verifier: String,
 ) -> Result(Auth, AuthError(e)) {
-  // Extract state (needed for CSRF validation)
-  use received_state <- result.try(
-    dict.get(callback_params, "state")
-    |> result.replace_error(error.ConfigError(
-      reason: "Missing state parameter in callback",
-    )),
+  let provider = option.Some(strategy.provider(strat))
+  logger.emit(
+    logger.new(
+      level: logger.Debug,
+      event: "vestibule.callback.start",
+      phase: "callback",
+      outcome: "start",
+      provider: provider,
+      fields: [],
+    ),
   )
+
+  // Extract state (needed for CSRF validation)
+  let state_result =
+    dict.get(callback_params, "state")
+    |> result.replace_error(error.MissingCallbackParam("state"))
+  case state_result {
+    Ok(_) ->
+      logger.emit(
+        logger.new(
+          level: logger.Debug,
+          event: "vestibule.callback.state_received",
+          phase: "callback",
+          outcome: "success",
+          provider: provider,
+          fields: [],
+        ),
+      )
+    Error(err) ->
+      logger.emit(
+        logger.new(
+          level: logger.Warning,
+          event: "vestibule.callback.failure",
+          phase: "callback",
+          outcome: "failure",
+          provider: provider,
+          fields: [
+            logger.field("error_category", logger.auth_error_category(err)),
+            logger.field("missing_param", "state"),
+          ],
+        ),
+      )
+  }
+  use received_state <- result.try(state_result)
 
   // Validate state before surfacing any provider response details.
-  use _ <- result.try(state.validate(received_state, expected_state))
+  let validate_result =
+    state.validate(received: received_state, expected: expected_state)
+  case validate_result {
+    Ok(_) ->
+      logger.emit(
+        logger.new(
+          level: logger.Debug,
+          event: "vestibule.callback.state_valid",
+          phase: "callback",
+          outcome: "success",
+          provider: provider,
+          fields: [],
+        ),
+      )
+    Error(err) ->
+      logger.emit(
+        logger.new(
+          level: logger.Warning,
+          event: "vestibule.callback.failure",
+          phase: "callback",
+          outcome: "failure",
+          provider: provider,
+          fields: [
+            logger.field("error_category", logger.auth_error_category(err)),
+          ],
+        ),
+      )
+  }
+  use _ <- result.try(validate_result)
 
   // Check for provider errors before requiring code
-  use _ <- result.try(check_provider_error(callback_params))
+  let provider_check = check_provider_error(callback_params)
+  case provider_check {
+    Ok(_) ->
+      logger.emit(
+        logger.new(
+          level: logger.Debug,
+          event: "vestibule.callback.provider_error_checked",
+          phase: "callback",
+          outcome: "success",
+          provider: provider,
+          fields: [],
+        ),
+      )
+    Error(err) ->
+      logger.emit(
+        logger.new(
+          level: logger.Warning,
+          event: "vestibule.callback.failure",
+          phase: "callback",
+          outcome: "failure",
+          provider: provider,
+          fields: [
+            logger.field("error_category", logger.auth_error_category(err)),
+          ],
+        ),
+      )
+  }
+  use _ <- result.try(provider_check)
 
   // Extract authorization code
-  use code <- result.try(
+  let code_result =
     dict.get(callback_params, "code")
-    |> result.replace_error(error.ConfigError(
-      reason: "Missing code parameter in callback",
-    )),
-  )
+    |> result.replace_error(error.MissingCallbackParam("code"))
+  case code_result {
+    Ok(_) ->
+      logger.emit(
+        logger.new(
+          level: logger.Debug,
+          event: "vestibule.callback.code_received",
+          phase: "callback",
+          outcome: "success",
+          provider: provider,
+          fields: [],
+        ),
+      )
+    Error(err) ->
+      logger.emit(
+        logger.new(
+          level: logger.Warning,
+          event: "vestibule.callback.failure",
+          phase: "callback",
+          outcome: "failure",
+          provider: provider,
+          fields: [
+            logger.field("error_category", logger.auth_error_category(err)),
+            logger.field("missing_param", "code"),
+          ],
+        ),
+      )
+  }
+  use code <- result.try(code_result)
 
-  // Exchange code for credentials, passing the PKCE verifier
-  use credentials <- result.try(strategy.exchange_code(
-    cfg,
-    code,
-    option.Some(code_verifier),
-  ))
+  // Exchange code for credentials and provider-specific artifacts, passing the PKCE verifier
+  let exchange_result =
+    strategy.exchange_code(
+      strat,
+      cfg: cfg,
+      code: code,
+      code_verifier: option.Some(code_verifier),
+    )
+  case exchange_result {
+    Ok(_) ->
+      logger.emit(
+        logger.new(
+          level: logger.Debug,
+          event: "vestibule.callback.exchange.success",
+          phase: "callback",
+          outcome: "success",
+          provider: provider,
+          fields: [],
+        ),
+      )
+    Error(err) ->
+      logger.emit(
+        logger.new(
+          level: failure_level(err),
+          event: "vestibule.callback.failure",
+          phase: "callback",
+          outcome: "failure",
+          provider: provider,
+          fields: [
+            logger.field("error_category", logger.auth_error_category(err)),
+          ],
+        ),
+      )
+  }
+  use exchange <- result.try(exchange_result)
 
   // Fetch user info
-  use #(uid, info) <- result.try(strategy.fetch_user(credentials))
+  let user_result = strategy.fetch_user(strat, cfg: cfg, exchange: exchange)
+  case user_result {
+    Ok(_) ->
+      logger.emit(
+        logger.new(
+          level: logger.Debug,
+          event: "vestibule.callback.user.success",
+          phase: "callback",
+          outcome: "success",
+          provider: provider,
+          fields: [],
+        ),
+      )
+    Error(err) ->
+      logger.emit(
+        logger.new(
+          level: failure_level(err),
+          event: "vestibule.callback.failure",
+          phase: "callback",
+          outcome: "failure",
+          provider: provider,
+          fields: [
+            logger.field("error_category", logger.auth_error_category(err)),
+          ],
+        ),
+      )
+  }
+  use user <- result.try(user_result)
 
   // Assemble the Auth result
-  Ok(Auth(
-    uid: uid,
-    provider: strategy.provider,
-    info: info,
-    credentials: credentials,
-    extra: dict.new(),
-  ))
+  let auth =
+    Auth(
+      uid: strategy.user_result_uid(user),
+      provider: strategy.provider(strat),
+      info: strategy.user_result_info(user),
+      credentials: strategy.exchange_credentials(exchange),
+      extra: strategy.user_result_extra(user),
+    )
+  logger.emit(
+    logger.new(
+      level: logger.Info,
+      event: "vestibule.callback.success",
+      phase: "callback",
+      outcome: "success",
+      provider: provider,
+      fields: [],
+    ),
+  )
+  Ok(auth)
 }
 
 /// Refresh an access token using a refresh token.
 ///
-/// Sends a POST request to the strategy's token endpoint with the
-/// `refresh_token` grant type. Returns new credentials on success.
+/// Delegates to the provider strategy so refresh semantics remain provider-owned.
 pub fn refresh_token(
-  strategy: Strategy(e),
-  cfg: Config,
-  refresh_tok: String,
+  strat: Strategy(e),
+  cfg cfg: Config,
+  refresh_tok refresh_tok: String,
 ) -> Result(Credentials, AuthError(e)) {
-  let body =
-    uri.query_to_string([
-      #("grant_type", "refresh_token"),
-      #("refresh_token", refresh_tok),
-      #("client_id", config.client_id(cfg)),
-      #("client_secret", config.client_secret(cfg)),
-    ])
-
-  use req <- result.try(
-    request.to(strategy.token_url)
-    |> result.replace_error(error.ConfigError(
-      reason: "Invalid token URL: " <> strategy.token_url,
-    )),
+  let provider = option.Some(strategy.provider(strat))
+  logger.emit(
+    logger.new(
+      level: logger.Debug,
+      event: "vestibule.refresh.start",
+      phase: "refresh",
+      outcome: "start",
+      provider: provider,
+      fields: [],
+    ),
   )
-
-  let req =
-    req
-    |> request.set_method(http.Post)
-    |> request.set_header("content-type", "application/x-www-form-urlencoded")
-    |> request.set_header("accept", "application/json")
-    |> request.set_body(body)
-
-  case httpc.send(req) {
-    Ok(response) -> {
-      use body <- result.try(internal_http.check_response_status(response))
-      parse_refresh_response(body)
-    }
-    Error(_) ->
-      Error(error.NetworkError(
-        reason: "Failed to connect to token endpoint: " <> strategy.token_url,
-      ))
-  }
-}
-
-/// Parse a token refresh response JSON into Credentials.
-///
-/// Handles both success responses and error responses from the provider.
-/// Exported for testing.
-pub fn parse_refresh_response(body: String) -> Result(Credentials, AuthError(e)) {
-  use body <- result.try(internal_http.check_token_error(body))
-  parse_refresh_success(body)
-}
-
-fn parse_refresh_success(body: String) -> Result(Credentials, AuthError(e)) {
-  let decoder = {
-    use access_token <- decode.field("access_token", decode.string)
-    use token_type <- decode.field("token_type", decode.string)
-    use refresh_token_val <- decode.optional_field(
-      "refresh_token",
-      None,
-      decode.optional(decode.string),
-    )
-    use expires_in <- decode.optional_field(
-      "expires_in",
-      None,
-      decode.optional(decode.int),
-    )
-    use scope <- decode.optional_field(
-      "scope",
-      None,
-      decode.optional(decode.string),
-    )
-    let scopes = case scope {
-      option.Some(s) -> string.split(s, " ")
-      None -> []
-    }
-    decode.success(Credentials(
-      token: access_token,
-      refresh_token: refresh_token_val,
-      token_type: token_type,
-      expires_at: expires_in,
-      scopes: scopes,
-    ))
-  }
-  case json.parse(body, decoder) {
-    Ok(creds) -> Ok(creds)
+  let outcome =
+    strategy.refresh_token(strat, cfg: cfg, refresh_tok: refresh_tok)
+  case outcome {
+    Ok(creds) ->
+      logger.emit(
+        logger.new(
+          level: logger.Info,
+          event: "vestibule.refresh.success",
+          phase: "refresh",
+          outcome: "success",
+          provider: provider,
+          fields: [
+            logger.bool_field(
+              "has_refresh_token",
+              option.is_some(credentials.refresh_token(creds)),
+            ),
+            logger.int_field(
+              "scope_count",
+              list.length(credentials.scopes(creds)),
+            ),
+          ],
+        ),
+      )
     Error(err) ->
-      Error(error.CodeExchangeFailed(
-        reason: "Failed to parse token refresh response: "
-        <> string.inspect(err),
-      ))
+      logger.emit(
+        logger.new(
+          level: failure_level(err),
+          event: "vestibule.refresh.failure",
+          phase: "refresh",
+          outcome: "failure",
+          provider: provider,
+          fields: [
+            logger.field("error_category", logger.auth_error_category(err)),
+          ],
+        ),
+      )
+  }
+  outcome
+}
+
+fn failure_level(err: AuthError(e)) -> logger.Level {
+  case err {
+    error.NetworkError(_)
+    | error.HttpError(_, _)
+    | error.DecodeError(_, _)
+    | error.ConfigError(_) -> logger.Error
+    error.StateMismatch
+    | error.MissingCallbackParam(_)
+    | error.CodeExchangeFailed(_)
+    | error.UserInfoFailed(_)
+    | error.ProviderError(_, _, _)
+    | error.Custom(_) -> logger.Warning
   }
 }
 
@@ -223,7 +440,12 @@ fn check_provider_error(
       let description =
         dict.get(params, "error_description")
         |> result.unwrap("")
-      Error(error.ProviderError(code: error_code, description: description))
+      let uri = dict.get(params, "error_uri") |> option.from_result()
+      Error(error.ProviderError(
+        code: error_code,
+        description: description,
+        uri: uri,
+      ))
     }
     Error(Nil) -> Ok(Nil)
   }
@@ -231,13 +453,28 @@ fn check_provider_error(
 
 /// Append PKCE code_challenge and code_challenge_method to an authorization URL.
 fn append_pkce_params(url: String, code_challenge: String) -> String {
+  let pkce_query =
+    uri.query_to_string([
+      #("code_challenge", code_challenge),
+      #("code_challenge_method", "S256"),
+    ])
+
+  case uri.parse(url) {
+    Ok(parsed) -> {
+      let query = case parsed.query {
+        option.Some(existing) -> existing <> "&" <> pkce_query
+        option.None -> pkce_query
+      }
+      uri.to_string(uri.Uri(..parsed, query: option.Some(query)))
+    }
+    Error(_) -> append_pkce_params_raw(url, pkce_query)
+  }
+}
+
+fn append_pkce_params_raw(url: String, pkce_query: String) -> String {
   let separator = case string.contains(url, "?") {
     True -> "&"
     False -> "?"
   }
-  url
-  <> separator
-  <> "code_challenge="
-  <> uri.percent_encode(code_challenge)
-  <> "&code_challenge_method=S256"
+  url <> separator <> pkce_query
 }

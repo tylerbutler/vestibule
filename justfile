@@ -1,4 +1,7 @@
-# Gleam Project Tasks
+# Vestibule Monorepo Tasks
+#
+# Packages are built/tested in dependency order:
+#   vestibule → provider packages and middleware packages
 
 set dotenv-load := true
 set dotenv-path := "example/.env"
@@ -7,105 +10,139 @@ set dotenv-path := "example/.env"
 alias b := build
 alias t := test
 alias f := format
+alias l := lint
 alias c := check
 alias d := docs
 alias cl := change
+alias cp := change-pkg
 
 default:
     @just --list
 
+# Packages in topological (dependency) order. "." is the root vestibule package.
+packages := ". vestibule_apple vestibule_github vestibule_google vestibule_indieauth vestibule_microsoft vestibule_wisp vestibule_mist"
+
 # === DEPENDENCIES ===
 
-# Download project dependencies
+# Download dependencies for all packages
 deps:
-    gleam deps download
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for pkg in {{ packages }}; do
+        dir="packages/$pkg"
+        if [ "$pkg" = "." ]; then dir="."; fi
+        echo "==> $pkg: downloading deps"
+        ( cd "$dir" && gleam deps download )
+    done
 
 # === BUILD ===
 
-# Build project (Erlang target)
+# Build all packages (Erlang target)
 build:
-    gleam build
-
-# Build with warnings as errors
-build-strict:
-    gleam build --warnings-as-errors
-
-# Build sub-packages with warnings as errors
-build-strict-packages:
     #!/usr/bin/env bash
     set -euo pipefail
-    for pkg in packages/vestibule_*/; do
-        [ -f "$pkg/gleam.toml" ] || continue
-        echo "=== Building $pkg (strict) ==="
-        (cd "$pkg" && gleam build --warnings-as-errors)
+    for pkg in {{ packages }}; do
+        dir="packages/$pkg"
+        if [ "$pkg" = "." ]; then dir="."; fi
+        echo "==> $pkg: building"
+        ( cd "$dir" && gleam build )
     done
 
 # Build all packages with warnings as errors
-build-strict-all: build-strict build-strict-packages
+build-strict:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for pkg in {{ packages }}; do
+        dir="packages/$pkg"
+        if [ "$pkg" = "." ]; then dir="."; fi
+        echo "==> $pkg: building (strict)"
+        ( cd "$dir" && gleam build --warnings-as-errors )
+    done
 
 # === TESTING ===
 
-# Run tests for root package
+# Run tests for all packages (Erlang target)
 test:
-    gleam test
-
-# Run tests for all sub-packages
-test-packages:
     #!/usr/bin/env bash
     set -euo pipefail
-    for pkg in packages/vestibule_*/; do
-        [ -f "$pkg/gleam.toml" ] || continue
-        echo "=== Testing $pkg ==="
-        (cd "$pkg" && gleam test)
+    for pkg in {{ packages }}; do
+        dir="packages/$pkg"
+        if [ "$pkg" = "." ]; then dir="."; fi
+        echo "==> $pkg: testing (erlang)"
+        ( cd "$dir" && gleam test )
     done
 
-# Run all tests (root + sub-packages)
-test-all: test test-packages
+# Backwards-compatible alias for all tests
+test-all: test
 
 # Run tests for a specific sub-package
 test-pkg pkg:
-    cd packages/{{pkg}} && gleam test
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ "{{ pkg }}" = "." ]; then
+        gleam test
+    else
+        cd packages/{{ pkg }} && gleam test
+    fi
 
 # === CODE QUALITY ===
 
-# Format source code (root + all sub-packages)
+# Format source code in all packages
 format:
     #!/usr/bin/env bash
     set -euo pipefail
-    gleam format src test
-    for pkg in packages/vestibule_*/; do
-        [ -f "$pkg/gleam.toml" ] || continue
-        echo "=== Formatting $pkg ==="
-        (cd "$pkg" && gleam format src test)
+    for pkg in {{ packages }}; do
+        dir="packages/$pkg"
+        if [ "$pkg" = "." ]; then dir="."; fi
+        ( cd "$dir" && gleam format src test )
     done
 
-# Check formatting (root + all sub-packages)
+# Check formatting without changes
 format-check:
     #!/usr/bin/env bash
     set -euo pipefail
-    gleam format --check src test
-    for pkg in packages/vestibule_*/; do
-        [ -f "$pkg/gleam.toml" ] || continue
-        echo "=== Checking format: $pkg ==="
-        (cd "$pkg" && gleam format --check src test)
-    done
-
-# Type check without building
-check:
-    gleam check
-
-# Type check sub-packages
-check-packages:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    for pkg in packages/vestibule_*/; do
-        [ -f "$pkg/gleam.toml" ] || continue
-        echo "=== Checking $pkg ==="
-        (cd "$pkg" && gleam check)
+    for pkg in {{ packages }}; do
+        dir="packages/$pkg"
+        if [ "$pkg" = "." ]; then dir="."; fi
+        echo "==> $pkg: format check"
+        ( cd "$dir" && gleam format --check src test )
     done
 
 # Type check all packages
-check-all: check check-packages
+check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for pkg in {{ packages }}; do
+        dir="packages/$pkg"
+        if [ "$pkg" = "." ]; then dir="."; fi
+        echo "==> $pkg: type check"
+        ( cd "$dir" && gleam check )
+    done
+
+# Lint all packages with glinter
+lint:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for pkg in {{ packages }}; do
+        dir="packages/$pkg"
+        if [ "$pkg" = "." ]; then dir="."; fi
+        echo "==> $pkg: linting"
+        ( cd "$dir" && gleam run -m glinter )
+    done
+    echo "==> example: linting"
+    ( cd example && gleam run -m glinter )
+
+# Lint a single package: just lint-pkg vestibule_google
+lint-pkg pkg:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ "{{ pkg }}" = "." ]; then
+        gleam run -m glinter
+    elif [ "{{ pkg }}" = "example" ]; then
+        cd example && gleam run -m glinter
+    else
+        cd packages/{{ pkg }} && gleam run -m glinter
+    fi
 
 # === EXAMPLE APP ===
 
@@ -115,22 +152,32 @@ serve:
 
 # === DOCUMENTATION ===
 
-# Build documentation
+# Build documentation for all packages
 docs:
-    gleam docs build
-
-# Build documentation for sub-packages
-docs-packages:
     #!/usr/bin/env bash
     set -euo pipefail
-    for pkg in packages/vestibule_*/; do
-        [ -f "$pkg/gleam.toml" ] || continue
-        echo "=== Building docs: $pkg ==="
-        (cd "$pkg" && gleam docs build)
+    for pkg in {{ packages }}; do
+        dir="packages/$pkg"
+        if [ "$pkg" = "." ]; then dir="."; fi
+        echo "==> $pkg: building docs"
+        ( cd "$dir" && gleam docs build )
     done
 
-# Build documentation for all packages
-docs-all: docs docs-packages
+# Install documentation website dependencies
+website-deps:
+    cd website && pnpm install
+
+# Start the Astro documentation website
+website-dev:
+    cd website && pnpm dev
+
+# Generate website reference docs from Gleam docs JSON
+website-reference: docs
+    cd website && pnpm generate:reference
+
+# Build the Astro documentation website
+website-build: website-reference
+    cd website && pnpm build
 
 # === CHANGELOG ===
 
@@ -146,79 +193,42 @@ change-pkg pkg:
 changelog-preview pkg:
     changie batch auto --project {{pkg}} --dry-run
 
-# Generate CHANGELOG.md
-changelog:
-    changie merge
+# Generate CHANGELOG.md for a project
+changelog pkg:
+    changie merge --project {{pkg}}
 
 # === MAINTENANCE ===
 
-# Remove build artifacts
+# Remove build artifacts from all packages
 clean:
-    rm -rf build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for pkg in {{ packages }}; do
+        dir="packages/$pkg"
+        if [ "$pkg" = "." ]; then dir="."; fi
+        rm -rf "$dir/build"
+    done
+    rm -rf example/build
+
+# === PER-PACKAGE TARGETS ===
+
+# Build a single package: just build-pkg vestibule_google
+build-pkg pkg:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ "{{ pkg }}" = "." ]; then
+        gleam build
+    else
+        cd packages/{{ pkg }} && gleam build
+    fi
 
 # === CI ===
 
-# Run all CI checks (format, check, root + package tests, build)
-ci: format-check check test-all build-strict
-
-# Run all CI checks across all packages
-ci-all: format-check check-all test-all build-strict-all
+# Run all CI checks (format, lint, check, test, build strict)
+ci: format-check lint check test build-strict
 
 # Alias for PR checks
 alias pr := ci
 
 # Run extended checks for main branch
-main: ci-all docs-all
-
-# =============================================================================
-# MULTI-TARGET SUPPORT (Uncomment if targeting JavaScript)
-# =============================================================================
-
-# # Build for JavaScript target
-# build-js:
-#     gleam build --target javascript
-
-# # Build all targets
-# build-all: build build-js
-
-# # Build JavaScript with warnings as errors
-# build-strict-js:
-#     gleam build --target javascript --warnings-as-errors
-
-# # Build all targets strictly
-# build-strict-all: build-strict build-strict-js
-
-# # Test on Erlang target
-# test-erlang:
-#     gleam test
-
-# # Test on JavaScript target
-# test-js:
-#     gleam test --target javascript
-
-# # Test on all targets
-# test-all: test-erlang test-js
-
-# =============================================================================
-# JAVASCRIPT INTEGRATION TESTS (Uncomment if needed)
-# =============================================================================
-
-# # Run integration tests with Node.js
-# test-integration-node: build-js
-#     node --test test/integration/test_runner.mjs
-
-# # Run integration tests with Deno
-# test-integration-deno: build-js
-#     deno test --allow-read --allow-env test/integration/test_runner.mjs
-
-# # Run integration tests with Bun
-# test-integration-bun: build-js
-#     bun test test/integration/test_runner.mjs
-
-# =============================================================================
-# COVERAGE (Uncomment if needed)
-# =============================================================================
-
-# # Run tests with coverage (requires setup - see README)
-# coverage:
-#     @echo "Coverage requires additional setup. See README.md"
+main: ci docs

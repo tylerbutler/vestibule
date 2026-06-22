@@ -1,0 +1,22 @@
+---
+import DocsLayout from "../layouts/DocsLayout.astro";
+---
+
+<DocsLayout
+  title="Page not found"
+  description="The requested Vestibule documentation page could not be found."
+  section="Missing page"
+>
+  <article class="doc-page not-found">
+    <span class="chip">404</span>
+    <h1>This documentation page was not found.</h1>
+    <p>
+      The documentation may have moved, or the link may point at a package page
+      that has not been written yet.
+    </p>
+    <div class="hero-actions">
+      <a class="button primary" href="/docs/quick-start">Go to quick start</a>
+      <a class="button secondary" href="/docs/packages">Browse packages</a>
+    </div>
+  </article>
+</DocsLayout>

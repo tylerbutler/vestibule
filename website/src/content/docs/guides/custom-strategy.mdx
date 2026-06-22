@@ -1,0 +1,224 @@
+---
+title: Writing a custom strategy
+description: Build a Vestibule OAuth2 provider strategy from scratch.
+nav:
+  group: Extend
+  groupOrder: 20
+  order: 10
+  label: Custom strategy guide
+toc:
+  - href: "#core-boundary"
+    label: What the core handles
+  - href: "#strategy-type"
+    label: The Strategy type
+  - href: "#authoring-steps"
+    label: Authoring steps
+  - href: "#authoring-checklist"
+    label: Authoring checklist
+searchTerms:
+  - strategy type
+  - custom provider
+  - provider package
+  - authorize url
+  - exchange code
+  - fetch user
+  - twitch
+---
+
+import CodeBlock from "../../../components/CodeBlock.astro";
+
+export const strategyType = `pub type Strategy(e) {
+  Strategy(
+    provider: String,
+    default_scopes: List(String),
+    authorize_url: fn(Config, List(String), String) ->
+      Result(String, AuthError(e)),
+    exchange_code: fn(Config, String, Option(String)) ->
+      Result(ExchangeResult, AuthError(e)),
+    refresh_token: fn(Config, String) -> Result(Credentials, AuthError(e)),
+    fetch_user: fn(Config, ExchangeResult) -> Result(UserResult, AuthError(e)),
+  )
+}`;
+
+export const authorizeUrl = `fn do_authorize_url(
+  cfg: Config,
+  scopes: List(String),
+  state: String,
+) -> Result(String, AuthError(e)) {
+  let assert Ok(site) = uri.parse("https://id.twitch.tv")
+  use redirect <- result.try(
+    provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
+  )
+
+  let client =
+    glow_auth.Client(
+      id: config.client_id(cfg),
+      secret: config.client_secret(cfg),
+      site: site,
+    )
+
+  let url =
+    authorize_uri.build(
+      client,
+      uri_builder.RelativePath("/oauth2/authorize"),
+      redirect,
+    )
+    |> authorize_uri.set_scope(string.join(scopes, " "))
+    |> authorize_uri.set_state(state)
+    |> authorize_uri.to_code_authorization_uri()
+    |> uri.to_string()
+
+  Ok(url)
+}`;
+
+export const packageToml = `name = "vestibule_twitch"
+version = "0.1.0"
+description = "Twitch OAuth strategy for Vestibule"
+licences = ["MIT"]
+gleam = ">= 1.7.0"
+
+[dependencies]
+vestibule = ">= 1.0.0 and < 2.0.0"
+gleam_stdlib = ">= 0.48.0 and < 2.0.0"
+gleam_http = ">= 4.3.0 and < 5.0.0"
+gleam_httpc = ">= 5.0.0 and < 6.0.0"
+gleam_json = ">= 3.1.0 and < 4.0.0"
+glow_auth = ">= 1.0.1 and < 2.0.0"`;
+
+export const exchangeAndFetch = `fn do_exchange_code(
+  cfg: Config,
+  code: String,
+  code_verifier: Option(String),
+) -> Result(strategy.ExchangeResult, AuthError(e)) {
+  // Build and send the provider token request, then parse credentials.
+  use body <- result.try(post_token_request(cfg, code, code_verifier))
+  provider_support.parse_oauth_token_response(
+    body,
+    provider_support.OptionalScope(" "),
+  )
+  |> result.map(strategy.exchange_result)
+}
+
+fn do_fetch_user(
+  _cfg: Config,
+  exchange: strategy.ExchangeResult,
+) -> Result(strategy.UserResult, AuthError(e)) {
+  use auth_header <- result.try(
+    strategy.authorization_header(strategy.exchange_credentials(exchange)),
+  )
+  use #(uid, info) <- result.try(provider_support.fetch_json_with_auth(
+    "https://id.twitch.tv/oauth2/userinfo",
+    auth_header,
+    parse_user_response,
+    "Twitch userinfo",
+  ))
+
+  Ok(strategy.user_result(uid: uid, info: info, extra: dict.new()))
+}`;
+
+export const strategyValue = `pub fn strategy() -> Strategy(e) {
+  strategy.new(
+    provider: "twitch",
+    default_scopes: ["user:read:email"],
+    authorize_url: do_authorize_url,
+    exchange_code: do_exchange_code,
+    refresh_token: do_refresh_token,
+    fetch_user: do_fetch_user,
+  )
+}`;
+
+<section id="core-boundary" className="security-callout">
+  <div>
+    <h2>What the core handles</h2>
+    <p>
+      Vestibule generates and validates CSRF state, manages PKCE, resolves
+      configured scopes, appends PKCE parameters, and dispatches token
+      refresh through the strategy.
+    </p>
+  </div>
+  <ul className="check-list">
+    <li>Your strategy builds provider URLs.</li>
+    <li>Your strategy exchanges codes for credentials.</li>
+    <li>Your strategy fetches and normalizes user info.</li>
+  </ul>
+</section>
+
+<section id="strategy-type">
+  <h2>The Strategy type</h2>
+  <p>
+    The provider name, default scopes, and four functions define the full
+    contract. The custom error type flows through <code>AuthError(e)</code>.
+  </p>
+  <CodeBlock code={strategyType} lang="gleam" />
+</section>
+
+<section id="authoring-steps" className="step-list">
+  <div className="step-item">
+    <span className="step-number">1</span>
+    <div>
+      <h2>Create the provider package</h2>
+      <p>
+        A provider can live in its own package. This example starts a Twitch
+        strategy package that depends on Vestibule and the same OAuth helpers
+        used by the built-in strategies.
+      </p>
+      <CodeBlock code={packageToml} lang="toml" />
+    </div>
+  </div>
+
+  <div className="step-item">
+    <span className="step-number">2</span>
+    <div>
+      <h2>Build the authorization URL</h2>
+      <p>
+        The function receives the already-resolved scopes and state value.
+        Return the provider URL; Vestibule appends the PKCE challenge.
+      </p>
+      <CodeBlock code={authorizeUrl} lang="gleam" />
+    </div>
+  </div>
+
+  <div className="step-item">
+    <span className="step-number">3</span>
+    <div>
+      <h2>Exchange the code and fetch the user</h2>
+      <p>
+        Exchange the authorization code with the provider token endpoint,
+        parse the response into <code>ExchangeResult</code>, then use the
+        credentials and artifacts to fetch a stable provider UID and
+        normalized <code>UserInfo</code>.
+      </p>
+      <CodeBlock code={exchangeAndFetch} lang="gleam" />
+    </div>
+  </div>
+
+  <div className="step-item">
+    <span className="step-number">4</span>
+    <div>
+      <h2>Expose the final strategy value</h2>
+      <p>
+        Export a <code>strategy()</code> function that returns
+        <code>Strategy(e)</code> when the provider only needs built-in error
+        variants, or <code>Strategy(YourError)</code> when it exposes custom
+        domain-specific errors.
+      </p>
+      <CodeBlock code={strategyValue} lang="gleam" />
+    </div>
+  </div>
+</section>
+
+<section id="authoring-checklist">
+  <h2>Authoring checklist</h2>
+  <ul className="check-list">
+    <li>Use provider_support helpers before copying built-in internals.</li>
+    <li>Keep scopes minimal and provider-owned.</li>
+    <li>Normalize user info without pretending optional provider fields always exist.</li>
+    <li>Make refresh-token behavior explicit; providers differ on rotation and returned scopes.</li>
+    <li>Add tests for URL building, token parsing, profile normalization, and failure responses.</li>
+  </ul>
+</section>
+
+<nav className="next-links" aria-label="Guide navigation">
+  <a href="/docs/packages/core">Review the core API</a>
+  <a href="/docs/packages/google">Compare a built-in strategy</a>
+</nav>

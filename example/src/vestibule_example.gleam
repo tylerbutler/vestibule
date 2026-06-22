@@ -10,12 +10,12 @@ import wisp/wisp_mist
 import router.{Context}
 import vestibule/config
 import vestibule/registry
-import vestibule/strategy/github
+import vestibule_github
 import vestibule_google
 import vestibule_microsoft
-import vestibule_wisp/state_store
+import vestibule/state_store
 
-pub fn main() {
+pub fn main() -> Nil {
   let port =
     envoy.get("PORT")
     |> result.try(int.parse)
@@ -34,11 +34,17 @@ pub fn main() {
   {
     Ok(id), Ok(secret) -> {
       io.println("  Registered provider: github")
-      registry.register(
-        reg,
-        github.strategy(),
-        config.new(id, secret, callback_base <> "/auth/github/callback"),
-      )
+      let assert Ok(reg) =
+        registry.register(
+          reg,
+          strategy: vestibule_github.strategy(),
+          config: config.new(
+            client_id: id,
+            client_secret: secret,
+            redirect_uri: callback_base <> "/auth/github/callback",
+          ),
+        )
+      reg
     }
     _, _ -> reg
   }
@@ -49,11 +55,17 @@ pub fn main() {
   {
     Ok(id), Ok(secret) -> {
       io.println("  Registered provider: microsoft")
-      registry.register(
-        reg,
-        vestibule_microsoft.strategy(),
-        config.new(id, secret, callback_base <> "/auth/microsoft/callback"),
-      )
+      let assert Ok(reg) =
+        registry.register(
+          reg,
+          strategy: vestibule_microsoft.strategy(),
+          config: config.new(
+            client_id: id,
+            client_secret: secret,
+            redirect_uri: callback_base <> "/auth/microsoft/callback",
+          ),
+        )
+      reg
     }
     _, _ -> reg
   }
@@ -64,11 +76,17 @@ pub fn main() {
   {
     Ok(id), Ok(secret) -> {
       io.println("  Registered provider: google")
-      registry.register(
-        reg,
-        vestibule_google.strategy(),
-        config.new(id, secret, callback_base <> "/auth/google/callback"),
-      )
+      let assert Ok(reg) =
+        registry.register(
+          reg,
+          strategy: vestibule_google.strategy(),
+          config: config.new(
+            client_id: id,
+            client_secret: secret,
+            redirect_uri: callback_base <> "/auth/google/callback",
+          ),
+        )
+      reg
     }
     _, _ -> reg
   }

@@ -167,7 +167,7 @@ pub type Credentials {
     token: String,
     refresh_token: Option(String),
     token_type: String,
-    expires_at: Option(Int),
+    expires_in: Option(Int),
     scopes: List(String),
   )
 }

@@ -1,16 +1,85 @@
+//// Wisp middleware that wires a `Registry` of `Strategy` values into HTTP
+//// endpoints.
+////
+//// Provides `request_phase` (start an authorization flow, persist `state`
+//// and `code_verifier`) and `callback_phase` (validate state, exchange
+//// code, fetch user, invoke caller's success handler). Uses a `StateStore`
+//// for single-use storage of in-flight flow state.
+
 import gleam/bit_array
 import gleam/dict
 import gleam/http
+import gleam/option
 import gleam/result
 import gleam/string
 import gleam/uri
 import wisp.{type Request, type Response}
 
-import vestibule
 import vestibule/auth.{type Auth}
 import vestibule/error
+import vestibule/internal/logger
 import vestibule/registry.{type Registry}
-import vestibule_wisp/state_store.{type StateStore}
+import vestibule/state_store.{type StateStore}
+import vestibule/transport_flow
+
+/// Middleware configuration options.
+///
+/// `cookie_name` should be host-bound (use the `__Host-` prefix) to defend
+/// against OAuth session cookie tossing / fixation. A non-host-bound name such
+/// as `vestibule_session` can be overwritten by a sibling subdomain setting a
+/// `Domain=.example.com` cookie of the same name, which lets an attacker plant
+/// their own in-flight flow state and fixate the victim's session — especially
+/// dangerous in account-linking flows. The default options use a host-bound
+/// name; keep the `__Host-` prefix for any custom `cookie_name`. See
+/// `is_host_bound_cookie_name`.
+pub type Options {
+  Options(cookie_name: String, session_ttl_seconds: Int)
+}
+
+/// Structured errors that can occur during the OAuth callback phase.
+pub type CallbackError(e) {
+  /// The requested provider is not registered.
+  UnknownProvider(provider: String)
+  /// The signed session cookie set during the request phase is missing or invalid.
+  MissingSessionCookie
+  /// The session state was not found, expired, or already used.
+  SessionExpired
+  /// Callback parameters could not be extracted from the request.
+  InvalidCallbackParams
+  /// Provider authentication failed.
+  AuthFailed(error.AuthError(e))
+}
+
+/// Default middleware options.
+///
+/// Uses the host-bound `__Host-vestibule_session` signed cookie with a
+/// 600-second session TTL. The `__Host-` prefix makes browsers reject the
+/// cookie unless it is set with `Secure`, `Path=/`, and no `Domain` attribute,
+/// which prevents a sibling subdomain from tossing/fixating the OAuth session
+/// (see the `Options` docs). `wisp.set_cookie` already sets `Secure` (over
+/// HTTPS), `Path=/`, and no `Domain`, so this cookie meets the `__Host-`
+/// requirements.
+pub fn default_options() -> Options {
+  Options(cookie_name: host_bound_cookie_name, session_ttl_seconds: 600)
+}
+
+/// Prefix that makes a cookie host-bound under the `__Host-` cookie name rule.
+const host_cookie_prefix: String = "__Host-"
+
+/// The default host-bound OAuth session cookie name.
+const host_bound_cookie_name: String = "__Host-vestibule_session"
+
+/// Returns `True` when `name` is host-bound (uses the `__Host-` prefix).
+///
+/// Host-bound cookie names resist cookie tossing / session fixation from
+/// sibling subdomains: browsers only accept a `__Host-` cookie when it is set
+/// with `Secure`, `Path=/`, and no `Domain` attribute, so a sibling subdomain
+/// cannot overwrite it with a `Domain=.example.com` cookie of the same name.
+/// Prefer keeping the `__Host-` prefix for any custom `Options.cookie_name`;
+/// use this to validate names supplied by callers.
+pub fn is_host_bound_cookie_name(name: String) -> Bool {
+  string.starts_with(name, host_cookie_prefix)
+}
 
 /// Phase 1: Redirect user to the OAuth provider.
 ///
@@ -21,32 +90,116 @@ import vestibule_wisp/state_store.{type StateStore}
 /// Returns 404 if the provider is not registered.
 pub fn request_phase(
   req: Request,
-  reg: Registry(e),
-  provider: String,
-  state_store: StateStore,
+  reg reg: Registry(e),
+  provider provider: String,
+  state_store state_store: StateStore,
 ) -> Response {
-  case registry.get(reg, provider) {
-    Error(Nil) -> wisp.not_found()
-    Ok(#(strategy, config)) ->
-      case vestibule.authorize_url(strategy, config) {
-        Ok(auth_request) -> {
-          let session_id =
-            state_store.store(
-              state_store,
-              auth_request.state,
-              auth_request.code_verifier,
-            )
-          wisp.redirect(auth_request.url)
-          |> wisp.set_cookie(
-            req,
-            "vestibule_session",
-            session_id,
-            wisp.Signed,
-            600,
-          )
-        }
-        Error(err) -> error_response(err)
-      }
+  request_phase_with_options(
+    req,
+    reg: reg,
+    provider: provider,
+    state_store: state_store,
+    options: default_options(),
+  )
+}
+
+/// Phase 1: Redirect user to the OAuth provider using custom middleware
+/// options.
+pub fn request_phase_with_options(
+  req: Request,
+  reg reg: Registry(e),
+  provider provider: String,
+  state_store state_store: StateStore,
+  options options: Options,
+) -> Response {
+  logger.emit(
+    logger.new(
+      level: logger.Debug,
+      event: "vestibule.adapter.request.start",
+      phase: "request",
+      outcome: "start",
+      provider: option.Some(provider),
+      fields: [logger.field("transport", "wisp")],
+    ),
+  )
+  case
+    transport_flow.start_authorization(
+      reg,
+      provider: provider,
+      store: state_store,
+      ttl_seconds: options.session_ttl_seconds,
+    )
+  {
+    Error(transport_flow.UnknownProvider(_)) -> {
+      logger.emit(
+        logger.new(
+          level: logger.Warning,
+          event: "vestibule.adapter.request.failure",
+          phase: "request",
+          outcome: "failure",
+          provider: option.Some(provider),
+          fields: [
+            logger.field("transport", "wisp"),
+            logger.field("error_category", "unknown_provider"),
+          ],
+        ),
+      )
+      wisp.not_found()
+    }
+    Error(transport_flow.AuthFailed(err)) -> {
+      logger.emit(
+        logger.new(
+          level: logger.Warning,
+          event: "vestibule.adapter.request.failure",
+          phase: "request",
+          outcome: "failure",
+          provider: option.Some(provider),
+          fields: [
+            logger.field("transport", "wisp"),
+            logger.field("error_category", logger.auth_error_category(err)),
+          ],
+        ),
+      )
+      error_response(err)
+    }
+    Error(transport_flow.StoreFailed(_)) -> {
+      logger.emit(
+        logger.new(
+          level: logger.Error,
+          event: "vestibule.adapter.request.failure",
+          phase: "request",
+          outcome: "failure",
+          provider: option.Some(provider),
+          fields: [
+            logger.field("transport", "wisp"),
+            logger.field("error_category", "state_store_failed"),
+          ],
+        ),
+      )
+      error_response(error.ConfigError(
+        reason: "Failed to store OAuth session state",
+      ))
+    }
+    Ok(#(url, session_id)) -> {
+      logger.emit(
+        logger.new(
+          level: logger.Info,
+          event: "vestibule.adapter.request.success",
+          phase: "request",
+          outcome: "success",
+          provider: option.Some(provider),
+          fields: [logger.field("transport", "wisp")],
+        ),
+      )
+      wisp.redirect(url)
+      |> wisp.set_cookie(
+        req,
+        options.cookie_name,
+        session_id,
+        wisp.Signed,
+        options.session_ttl_seconds,
+      )
+    }
   }
 }
 
@@ -63,14 +216,41 @@ pub fn request_phase(
 /// Returns 404 if the provider is not registered.
 pub fn callback_phase(
   req: Request,
-  reg: Registry(e),
-  provider: String,
-  state_store: StateStore,
-  on_success: fn(Auth) -> Response,
+  reg reg: Registry(e),
+  provider provider: String,
+  state_store state_store: StateStore,
+  on_success on_success: fn(Auth) -> Response,
 ) -> Response {
-  case do_callback(req, reg, provider, state_store) {
+  callback_phase_with_options(
+    req,
+    reg: reg,
+    provider: provider,
+    state_store: state_store,
+    on_success: on_success,
+    options: default_options(),
+  )
+}
+
+/// Phase 2: Handle the OAuth callback using custom middleware options.
+pub fn callback_phase_with_options(
+  req: Request,
+  reg reg: Registry(e),
+  provider provider: String,
+  state_store state_store: StateStore,
+  on_success on_success: fn(Auth) -> Response,
+  options options: Options,
+) -> Response {
+  case
+    callback_phase_auth_result_with_options(
+      req,
+      reg: reg,
+      provider: provider,
+      state_store: state_store,
+      options: options,
+    )
+  {
     Ok(auth) -> on_success(auth)
-    Error(response) -> response
+    Error(err) -> callback_error_response(err)
   }
 }
 
@@ -80,54 +260,125 @@ pub fn callback_phase(
 /// Supports both GET callbacks (query parameters) and POST callbacks
 /// (form-encoded body). See `callback_phase` for details.
 ///
-/// Use this instead of `callback_phase` when you want to handle
-/// errors yourself rather than using the default error pages.
+/// Use this instead of `callback_phase` when you want to decide how to use the
+/// success value or generated error response yourself.
 pub fn callback_phase_result(
   req: Request,
-  reg: Registry(e),
-  provider: String,
-  state_store: StateStore,
+  reg reg: Registry(e),
+  provider provider: String,
+  state_store state_store: StateStore,
 ) -> Result(Auth, Response) {
-  do_callback(req, reg, provider, state_store)
+  callback_phase_result_with_options(
+    req,
+    reg: reg,
+    provider: provider,
+    state_store: state_store,
+    options: default_options(),
+  )
 }
 
-fn do_callback(
+/// Phase 2 (Result variant): Handle the OAuth callback using custom middleware
+/// options.
+pub fn callback_phase_result_with_options(
   req: Request,
-  reg: Registry(e),
-  provider: String,
-  state_store: StateStore,
+  reg reg: Registry(e),
+  provider provider: String,
+  state_store state_store: StateStore,
+  options options: Options,
 ) -> Result(Auth, Response) {
-  use #(strategy, config) <- result.try(
-    registry.get(reg, provider)
-    |> result.map_error(fn(_) { wisp.not_found() }),
-  )
+  case
+    callback_phase_auth_result_with_options(
+      req,
+      reg: reg,
+      provider: provider,
+      state_store: state_store,
+      options: options,
+    )
+  {
+    Ok(auth) -> Ok(auth)
+    Error(err) -> Error(callback_error_response(err))
+  }
+}
 
-  use session_id <- result.try(
-    wisp.get_cookie(req, "vestibule_session", wisp.Signed)
-    |> result.map_error(fn(_) {
-      error_response(error.ConfigError(reason: "Missing session cookie"))
-    }),
+/// Phase 2 (structured Result variant): Handle the OAuth callback and return
+/// either the Auth result or a structured callback error.
+///
+/// Use this when you want to distinguish provider lookup, session, callback
+/// parameter, and provider authentication failures without parsing responses.
+pub fn callback_phase_auth_result(
+  req: Request,
+  reg reg: Registry(e),
+  provider provider: String,
+  state_store state_store: StateStore,
+) -> Result(Auth, CallbackError(e)) {
+  callback_phase_auth_result_with_options(
+    req,
+    reg: reg,
+    provider: provider,
+    state_store: state_store,
+    options: default_options(),
   )
+}
 
-  use #(expected_state, code_verifier) <- result.try(
-    state_store.retrieve(state_store, session_id)
-    |> result.map_error(fn(_) {
-      error_response(error.ConfigError(
-        reason: "Session expired or already used",
-      ))
-    }),
+/// Phase 2 (structured Result variant): Handle the OAuth callback using custom
+/// middleware options.
+///
+/// Callback parameters are parsed and state is validated before the stored
+/// session is consumed, so malformed or wrong-state callbacks do not burn a
+/// valid in-flight login.
+pub fn callback_phase_auth_result_with_options(
+  req: Request,
+  reg reg: Registry(e),
+  provider provider: String,
+  state_store state_store: StateStore,
+  options options: Options,
+) -> Result(Auth, CallbackError(e)) {
+  logger.emit(
+    logger.new(
+      level: logger.Debug,
+      event: "vestibule.adapter.callback.start",
+      phase: "callback",
+      outcome: "start",
+      provider: option.Some(provider),
+      fields: [logger.field("transport", "wisp")],
+    ),
   )
+  let outcome = {
+    use strategy_config <- result.try(
+      transport_flow.ensure_callback_provider(reg, provider)
+      |> result.map_error(map_callback_flow_error),
+    )
 
-  use params <- result.try(get_callback_params(req))
+    use params <- result.try(get_callback_params(req))
 
-  vestibule.handle_callback(
-    strategy,
-    config,
-    params,
-    expected_state,
-    code_verifier,
-  )
-  |> result.map_error(error_response)
+    use session_id <- result.try(
+      wisp.get_cookie(req, options.cookie_name, wisp.Signed)
+      |> result.map_error(fn(_) { MissingSessionCookie }),
+    )
+
+    transport_flow.finish_callback(
+      strategy_config,
+      store: state_store,
+      params: params,
+      session_id: session_id,
+    )
+    |> result.map_error(map_callback_flow_error)
+  }
+  case outcome {
+    Ok(_) ->
+      logger.emit(
+        logger.new(
+          level: logger.Info,
+          event: "vestibule.adapter.callback.success",
+          phase: "callback",
+          outcome: "success",
+          provider: option.Some(provider),
+          fields: [logger.field("transport", "wisp")],
+        ),
+      )
+    Error(err) -> log_callback_error(provider, err)
+  }
+  outcome
 }
 
 /// Extract callback parameters from either query string (GET) or
@@ -135,65 +386,88 @@ fn do_callback(
 /// are merged over query parameters so they take precedence.
 fn get_callback_params(
   req: Request,
-) -> Result(dict.Dict(String, String), Response) {
+) -> Result(dict.Dict(String, String), CallbackError(e)) {
   let query_params = wisp.get_query(req)
   case req.method {
     http.Post -> {
-      case wisp.read_body_bits(req) {
-        Ok(body_bits) -> {
-          case bit_array.to_string(body_bits) {
-            Ok(body_string) -> {
-              case uri.parse_query(body_string) {
-                Ok(body_params) -> {
-                  // Merge: body params take precedence over query params
-                  Ok(dict.merge(
-                    dict.from_list(query_params),
-                    dict.from_list(body_params),
-                  ))
-                }
-                Error(_) -> {
-                  // Body isn't valid form data, fall back to query params
-                  Ok(dict.from_list(query_params))
-                }
-              }
-            }
-            Error(_) -> Ok(dict.from_list(query_params))
-          }
-        }
-        Error(_) -> Ok(dict.from_list(query_params))
-      }
+      use body_bits <- result.try(
+        wisp.read_body_bits(req)
+        |> result.replace_error(InvalidCallbackParams),
+      )
+      use body_string <- result.try(
+        bit_array.to_string(body_bits)
+        |> result.replace_error(InvalidCallbackParams),
+      )
+      use body_params <- result.try(
+        uri.parse_query(body_string)
+        |> result.replace_error(InvalidCallbackParams),
+      )
+      // Merge: body params take precedence over query params
+      Ok(dict.merge(dict.from_list(query_params), dict.from_list(body_params)))
     }
     _ -> Ok(dict.from_list(query_params))
   }
 }
 
-fn error_response(err: error.AuthError(e)) -> Response {
-  let message = case err {
-    error.StateMismatch -> "State mismatch — possible CSRF attack"
-    error.CodeExchangeFailed(reason:) -> "Code exchange failed: " <> reason
-    error.UserInfoFailed(reason:) -> "User info fetch failed: " <> reason
-    error.ProviderError(code:, description:) ->
-      "Provider error [" <> code <> "]: " <> description
-    error.NetworkError(reason:) -> "Network error: " <> reason
-    error.ConfigError(reason:) -> "Configuration error: " <> reason
-    error.Custom(_) -> "Custom provider error"
+fn map_callback_flow_error(
+  err: transport_flow.CallbackFlowError(e),
+) -> CallbackError(e) {
+  case err {
+    transport_flow.CallbackUnknownProvider(provider) ->
+      UnknownProvider(provider)
+    transport_flow.CallbackSessionUnavailable -> SessionExpired
+    transport_flow.CallbackAuthFailed(err) -> AuthFailed(err)
   }
-  let safe_message = html_escape(message)
-  wisp.html_response("<html>
+}
+
+fn log_callback_error(provider: String, err: CallbackError(e)) -> Nil {
+  let category = case err {
+    UnknownProvider(_) -> "unknown_provider"
+    MissingSessionCookie -> "missing_session_cookie"
+    SessionExpired -> "session_expired"
+    InvalidCallbackParams -> "invalid_callback_params"
+    AuthFailed(auth_err) -> logger.auth_error_category(auth_err)
+  }
+  logger.emit(
+    logger.new(
+      level: logger.Warning,
+      event: "vestibule.adapter.callback.failure",
+      phase: "callback",
+      outcome: "failure",
+      provider: option.Some(provider),
+      fields: [
+        logger.field("transport", "wisp"),
+        logger.field("error_category", category),
+      ],
+    ),
+  )
+}
+
+fn callback_error_response(err: CallbackError(e)) -> Response {
+  case err {
+    UnknownProvider(_) -> wisp.not_found()
+    MissingSessionCookie ->
+      error_response(error.ConfigError(reason: "Missing session cookie"))
+    SessionExpired ->
+      error_response(error.ConfigError(
+        reason: "Session expired or already used",
+      ))
+    InvalidCallbackParams ->
+      error_response(error.ConfigError(reason: "Invalid callback parameters"))
+    AuthFailed(err) -> error_response(err)
+  }
+}
+
+fn error_response(_err: error.AuthError(e)) -> Response {
+  wisp.html_response(
+    "<html>
 <head><title>Authentication Error</title></head>
 <body style=\"font-family: system-ui, sans-serif; max-width: 600px; margin: 80px auto;\">
   <h1>Authentication Failed</h1>
-  <p style=\"color: #c0392b;\">" <> safe_message <> "</p>
+  <p style=\"color: #c0392b;\">Authentication failed. Please try again.</p>
   <a href=\"/\">Try again</a>
 </body>
-</html>", 400)
-}
-
-fn html_escape(text: String) -> String {
-  text
-  |> string.replace("&", "&amp;")
-  |> string.replace("<", "&lt;")
-  |> string.replace(">", "&gt;")
-  |> string.replace("\"", "&quot;")
-  |> string.replace("'", "&#x27;")
+</html>",
+    400,
+  )
 }

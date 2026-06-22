@@ -1,0 +1,4 @@
+project: vestibule_wisp
+kind: Changed
+body: 'Middleware now reads `AuthorizationRequest` fields through the new `authorization_request.url` / `state` / `code_verifier` accessors.'
+time: 2026-05-16T00:51:26.404428+00:00

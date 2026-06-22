@@ -1,17 +1,71 @@
+//// Bearer credentials returned by a provider after a successful token
+//// exchange or refresh.
+////
+//// > **Security**: `Credentials` values contain access/refresh/id tokens.
+//// > Treat them like passwords — never log them, never include them in
+//// > error reports, and store them encrypted at rest.
+
 import gleam/option.{type Option}
+import vestibule/internal/secret.{type Secret}
 
 /// OAuth credentials from the provider.
 ///
-/// **Security warning:** This type contains sensitive tokens. Avoid logging
-/// or debugging `Credentials` values — `io.debug()` will print the access
-/// token and refresh token in plain text. Store tokens securely and treat
-/// them as secrets.
-pub type Credentials {
+/// Opaque so raw access and refresh tokens are not exposed through pattern
+/// matching or casual field access. The access and refresh tokens are wrapped
+/// in `Secret`, so `string.inspect`, Erlang `~p` formatting, logs, and crash
+/// reports redact them even when a caller accidentally renders a `Credentials`
+/// (or an `Auth` containing one) directly. Use `new` to construct credentials
+/// in strategies and accessors to read fields when needed.
+pub opaque type Credentials {
   Credentials(
-    token: String,
-    refresh_token: Option(String),
+    token: Secret,
+    refresh_token: Option(Secret),
     token_type: String,
-    expires_at: Option(Int),
+    /// Seconds until the access token expires, as returned by the provider's
+    /// `expires_in` field. This is not an absolute timestamp.
+    expires_in: Option(Int),
     scopes: List(String),
   )
+}
+
+/// Construct OAuth credentials from a provider token response.
+pub fn new(
+  token token: String,
+  refresh_token refresh_token: Option(String),
+  token_type token_type: String,
+  expires_in expires_in: Option(Int),
+  scopes scopes: List(String),
+) -> Credentials {
+  Credentials(
+    token: secret.from_string(token),
+    refresh_token: option.map(refresh_token, secret.from_string),
+    token_type: token_type,
+    expires_in: expires_in,
+    scopes: scopes,
+  )
+}
+
+/// Return the access token.
+pub fn token(credentials: Credentials) -> String {
+  secret.expose(credentials.token)
+}
+
+/// Return the refresh token, when the provider supplied one.
+pub fn refresh_token(credentials: Credentials) -> Option(String) {
+  option.map(credentials.refresh_token, secret.expose)
+}
+
+/// Return the token type, usually `Bearer`.
+pub fn token_type(credentials: Credentials) -> String {
+  credentials.token_type
+}
+
+/// Return the provider-reported lifetime in seconds.
+pub fn expires_in(credentials: Credentials) -> Option(Int) {
+  credentials.expires_in
+}
+
+/// Return the scopes granted by the provider.
+pub fn scopes(credentials: Credentials) -> List(String) {
+  credentials.scopes
 }
