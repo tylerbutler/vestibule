@@ -171,8 +171,12 @@ website-deps:
 website-dev:
     cd website && pnpm dev
 
+# Generate website reference docs from Gleam docs JSON
+website-reference: docs
+    cd website && pnpm generate:reference
+
 # Build the Astro documentation website
-website-build:
+website-build: website-reference
     cd website && pnpm build
 
 # === CHANGELOG ===

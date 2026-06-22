@@ -76,7 +76,8 @@ const staticSearchEntries: SearchEntry[] = [
   }
 ];
 
-const stripExtension = (id: string) => id.replace(/\.(md|mdx)$/i, "");
+const stripExtension = (id: string) =>
+  id.replace(/\.(md|mdx)$/i, "").replace(/\/index$/i, "");
 
 export const docsSlug = (entry: DocsEntry) => stripExtension(entry.id);
 
