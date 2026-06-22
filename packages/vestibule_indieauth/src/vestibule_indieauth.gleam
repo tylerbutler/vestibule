@@ -23,6 +23,8 @@
 /// 2. Direct link relations (`rel="authorization_endpoint"`, `rel="token_endpoint"`)
 /// 3. Falls back from HTTP `Link` headers to HTML `<link>` tags at each tier
 import gleam/dict
+import gleam/dynamic/decode
+import gleam/json
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
@@ -34,7 +36,9 @@ import vestibule/error.{type AuthError}
 import vestibule/strategy.{type Strategy, type UserResult}
 import vestibule/user_info
 
-import vestibule_indieauth/discovery.{type DiscoveredEndpoints}
+import vestibule_indieauth/discovery.{
+  type DiscoveredEndpoints, DiscoveredEndpoints,
+}
 import vestibule_indieauth/token
 import vestibule_indieauth/url
 
@@ -69,6 +73,96 @@ pub fn discover_endpoints(
 ) -> Result(DiscoveredEndpoints, AuthError(e)) {
   use canonical_url <- result.try(url.validate_profile_url(user_url))
   discovery.discover_endpoints(canonical_url)
+}
+
+/// Discover IndieAuth endpoints and return them together with the canonical
+/// `me` URL.
+///
+/// IndieAuth's two-phase flow needs both the discovered endpoints and the
+/// canonical profile URL again at callback time, but `discover` returns only a
+/// `Strategy` and `discover_endpoints` returns only the endpoints. This helper
+/// performs validation + discovery once and hands back both, so callers don't
+/// have to reach into the `url` and `discovery` submodules themselves.
+///
+/// Pair it with `serialize_endpoints` / `parse_endpoints` to carry the result
+/// across the request→callback boundary (e.g. in a signed cookie), then rebuild
+/// the strategy with `strategy(endpoints, me)`.
+///
+/// ## Example
+///
+/// ```gleam
+/// let assert Ok(#(endpoints, me)) =
+///   vestibule_indieauth.discover_endpoints_with_me("https://user.example.com")
+/// let strategy = vestibule_indieauth.strategy(endpoints, me)
+/// ```
+pub fn discover_endpoints_with_me(
+  user_url: String,
+) -> Result(#(DiscoveredEndpoints, String), AuthError(e)) {
+  use me <- result.try(url.validate_profile_url(user_url))
+  use endpoints <- result.try(discovery.discover_endpoints(me))
+  Ok(#(endpoints, me))
+}
+
+/// Serialize discovered endpoints + the canonical `me` URL to a compact JSON
+/// string.
+///
+/// IndieAuth strategies are discovered per-user at request time, but the
+/// transport-independent flow needs the same endpoints again in the callback
+/// phase. Persist this string (for example in a signed cookie or server-side
+/// session) during the request phase and restore it with `parse_endpoints` in
+/// the callback phase to rebuild the strategy via `strategy(endpoints, me)` —
+/// no second discovery round-trip required.
+pub fn serialize_endpoints(
+  endpoints: DiscoveredEndpoints,
+  me: String,
+) -> String {
+  json.object([
+    #("me", json.string(me)),
+    #("authorization_endpoint", json.string(endpoints.authorization_endpoint)),
+    #("token_endpoint", json.string(endpoints.token_endpoint)),
+    #("issuer", json.nullable(endpoints.issuer, json.string)),
+    #(
+      "userinfo_endpoint",
+      json.nullable(endpoints.userinfo_endpoint, json.string),
+    ),
+  ])
+  |> json.to_string
+}
+
+/// Parse a string produced by `serialize_endpoints` back into the discovered
+/// endpoints and the canonical `me` URL.
+///
+/// Returns `Error(error.ConfigError(..))` if the value is missing fields or is
+/// not the JSON produced by `serialize_endpoints`.
+pub fn parse_endpoints(
+  value: String,
+) -> Result(#(DiscoveredEndpoints, String), AuthError(e)) {
+  let decoder = {
+    use me <- decode.field("me", decode.string)
+    use authorization_endpoint <- decode.field(
+      "authorization_endpoint",
+      decode.string,
+    )
+    use token_endpoint <- decode.field("token_endpoint", decode.string)
+    use issuer <- decode.field("issuer", decode.optional(decode.string))
+    use userinfo_endpoint <- decode.field(
+      "userinfo_endpoint",
+      decode.optional(decode.string),
+    )
+    decode.success(#(
+      DiscoveredEndpoints(
+        authorization_endpoint: authorization_endpoint,
+        token_endpoint: token_endpoint,
+        issuer: issuer,
+        userinfo_endpoint: userinfo_endpoint,
+      ),
+      me,
+    ))
+  }
+  json.parse(value, decoder)
+  |> result.replace_error(error.ConfigError(
+    reason: "Failed to parse serialized IndieAuth endpoints",
+  ))
 }
 
 /// Create a strategy from previously discovered endpoints.
