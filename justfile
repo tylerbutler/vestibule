@@ -20,7 +20,7 @@ default:
     @just --list
 
 # Packages in topological (dependency) order. "." is the root vestibule package.
-packages := ". vestibule_apple vestibule_github vestibule_google vestibule_microsoft vestibule_wisp vestibule_mist"
+packages := ". vestibule_apple vestibule_github vestibule_google vestibule_indieauth vestibule_microsoft vestibule_wisp vestibule_mist"
 
 # === DEPENDENCIES ===
 

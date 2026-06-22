@@ -50,6 +50,7 @@ packages/
 ├── vestibule_apple/                  # Apple Sign In strategy
 ├── vestibule_github/                 # GitHub OAuth strategy
 ├── vestibule_google/                 # Google OAuth strategy
+├── vestibule_indieauth/             # IndieAuth strategy (decentralized identity)
 ├── vestibule_microsoft/              # Microsoft OAuth strategy
 ├── vestibule_wisp/                   # Wisp middleware
 └── vestibule_mist/                   # Mist middleware
