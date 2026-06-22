@@ -16,21 +16,21 @@ pub fn generate_produces_unique_values_test() {
 
 pub fn validate_accepts_matching_state_test() {
   let s = state.generate()
-  state.validate(s, s)
+  state.validate(received: s, expected: s)
   |> expect.to_be_ok()
 }
 
 pub fn validate_rejects_mismatched_state_test() {
-  state.validate("abc123", "def456")
+  state.validate(received: "abc123", expected: "def456")
   |> expect.to_equal(Error(error.StateMismatch))
 }
 
 pub fn validate_rejects_empty_state_test() {
-  state.validate("", "some-state")
+  state.validate(received: "", expected: "some-state")
   |> expect.to_equal(Error(error.StateMismatch))
 }
 
 pub fn validate_rejects_whitespace_only_state_test() {
-  state.validate("   ", "   ")
+  state.validate(received: "   ", expected: "   ")
   |> expect.to_equal(Error(error.StateMismatch))
 }

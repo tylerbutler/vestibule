@@ -1,0 +1,133 @@
+---
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import { getSearchEntries } from "../../data/content";
+
+const entries = await getSearchEntries();
+---
+
+<DocsLayout
+  title="Search docs"
+  description="Search Vestibule documentation, package guides, and API references."
+  section="Search"
+  toc={[
+    { href: "#docs-search", label: "Search field" },
+    { href: "#search-results", label: "Results" }
+  ]}
+>
+  <article class="doc-page search-page" data-search-page>
+    <header class="doc-hero">
+      <h1>Search docs</h1>
+      <p>
+        Find the page, package, or API reference you need. Results stay visible
+        without JavaScript; typing narrows them in place.
+      </p>
+    </header>
+
+    <form class="search-form" role="search">
+      <label for="docs-search">Search documentation</label>
+      <div class="search-field-row">
+        <input
+          id="docs-search"
+          type="search"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="Try state, PKCE, callback errors, hosted domains"
+          aria-describedby="docs-search-hint"
+          data-search-input
+        />
+        <button class="search-reset" type="reset" data-search-reset disabled>Clear search</button>
+      </div>
+      <p id="docs-search-hint">
+        Search covers docs pages, provider packages, OAuth concepts, and HexDocs
+        API references.
+      </p>
+      <div class="search-suggestions" aria-label="Common searches">
+        <span>Common searches:</span>
+        <a href="/docs/search?q=state" aria-label="Search docs for state">state</a>
+        <a href="/docs/search?q=PKCE" aria-label="Search docs for PKCE">PKCE</a>
+        <a href="/docs/search?q=callback%20errors" aria-label="Search docs for callback errors">callback errors</a>
+        <a href="/docs/search?q=hosted%20domains" aria-label="Search docs for hosted domains">hosted domains</a>
+      </div>
+    </form>
+
+    <p class="search-count" aria-live="polite" data-search-count>
+      {entries.length} results
+    </p>
+    <p class="scope-note" hidden data-search-empty>
+      No matching docs found. Clear the search or try a provider name, package
+      name, or OAuth term.
+    </p>
+
+    <ul id="search-results" class="search-results" data-search-results>
+      {entries.map((entry) => (
+        <li
+          class="search-result"
+          data-search-item
+          data-search-text={`${entry.title} ${entry.category} ${entry.description} ${entry.terms}`.toLocaleLowerCase()}
+        >
+          <a
+            href={entry.href}
+            target={entry.external ? "_blank" : undefined}
+            rel={entry.external ? "noopener noreferrer" : undefined}
+            aria-label={entry.external ? `${entry.title}, opens in a new tab` : undefined}
+          >
+            <span class="chip">{entry.category}</span>
+            <strong>{entry.title}</strong>
+            <span>{entry.description}</span>
+            {entry.external && <span class="result-meta">HexDocs reference</span>}
+          </a>
+        </li>
+      ))}
+    </ul>
+  </article>
+
+  <script is:inline>
+    (() => {
+      const page = document.querySelector("[data-search-page]");
+      if (!page) return;
+
+      const input = page.querySelector("[data-search-input]");
+      const form = page.querySelector(".search-form");
+      const reset = page.querySelector("[data-search-reset]");
+      const count = page.querySelector("[data-search-count]");
+      const empty = page.querySelector("[data-search-empty]");
+      const items = Array.from(page.querySelectorAll("[data-search-item]"));
+
+      if (
+        !(input instanceof HTMLInputElement) ||
+        !(reset instanceof HTMLButtonElement) ||
+        !count ||
+        !empty
+      ) return;
+
+      const initialQuery = new URLSearchParams(window.location.search).get("q");
+      if (initialQuery) input.value = initialQuery;
+
+      const normalized = (value) =>
+        value
+          .toLocaleLowerCase()
+          .normalize("NFKD")
+          .replace(/[\u0300-\u036f]/g, "");
+
+      const render = () => {
+        const terms = normalized(input.value).trim().split(/\s+/).filter(Boolean);
+        let visible = 0;
+
+        for (const item of items) {
+          const text = normalized(item.dataset.searchText || "");
+          const matches = terms.every((term) => text.includes(term));
+          item.hidden = !matches;
+          if (matches) visible += 1;
+        }
+
+        count.textContent = `${visible} result${visible === 1 ? "" : "s"}`;
+        empty.hidden = visible > 0;
+        reset.disabled = input.value.trim().length === 0;
+      };
+
+      input.addEventListener("input", render);
+      form?.addEventListener("reset", () => window.requestAnimationFrame(render));
+      render();
+    })();
+  </script>
+</DocsLayout>

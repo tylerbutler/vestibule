@@ -1,6 +1,5 @@
 import gleam/http/request
 import gleam/option
-import gleam/string
 import startest/expect
 import vestibule/credentials
 import vestibule/strategy
@@ -87,21 +86,4 @@ pub fn credentials_accessors_return_token_fields_test() {
   credentials.token_type(creds) |> expect.to_equal("Bearer")
   credentials.expires_in(creds) |> expect.to_equal(option.Some(3600))
   credentials.scopes(creds) |> expect.to_equal(["read:user"])
-}
-
-pub fn credentials_redacted_does_not_include_token_values_test() {
-  let creds =
-    credentials.new(
-      token: "secret-access-token",
-      refresh_token: option.Some("secret-refresh-token"),
-      token_type: "Bearer",
-      expires_in: option.Some(3600),
-      scopes: ["read:user"],
-    )
-  let rendered = credentials.redacted(creds)
-
-  { string.contains(rendered, "secret-access-token") } |> expect.to_be_false()
-  { string.contains(rendered, "secret-refresh-token") } |> expect.to_be_false()
-  { string.contains(rendered, "Bearer") } |> expect.to_be_true()
-  { string.contains(rendered, "read:user") } |> expect.to_be_true()
 }

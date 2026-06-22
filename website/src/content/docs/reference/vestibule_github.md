@@ -1,0 +1,58 @@
+---
+title: "vestibule_github"
+description: "Reference for vestibule_github."
+nav:
+  group: Reference
+  groupOrder: 20
+  order: 26
+  label: "vestibule_github"
+toc:
+  - href: "#functions"
+    label: "Functions"
+searchTerms:
+  - api
+  - reference
+  - module
+  - vestibule_github
+---
+
+# `vestibule_github`
+
+Reference for vestibule_github.
+
+## Functions
+
+### `parse_primary_email`
+
+Parse the primary verified email from GitHub /user/emails response.
+Supported parsing helper for GitHub strategy integrations.
+
+```gleam
+pub fn parse_primary_email(String) -> option.Option(String)
+```
+
+### `parse_token_response`
+
+Parse a GitHub token exchange response into Credentials.
+Supported parsing helper for GitHub strategy integrations.
+
+```gleam
+pub fn parse_token_response(String) -> Result(credentials.Credentials, error.AuthError(a))
+```
+
+### `parse_user_response`
+
+Parse a GitHub /user API response into a uid and UserInfo.
+Supported parsing helper for GitHub strategy integrations.
+
+```gleam
+pub fn parse_user_response(String) -> Result(#(String, user_info.UserInfo), error.AuthError(a))
+```
+
+### `strategy`
+
+Create a GitHub authentication strategy.
+
+```gleam
+pub fn strategy() -> strategy.Strategy(a)
+```

@@ -15,6 +15,7 @@
 //// let strategy = oidc.strategy_from_config(config, "my-provider")
 //// ```
 
+import gleam/bool
 import gleam/dict
 import gleam/dynamic/decode
 import gleam/http
@@ -30,6 +31,7 @@ import gleam/uri
 import vestibule/config
 import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
+import vestibule/internal/logger
 import vestibule/provider_support
 import vestibule/strategy.{type Strategy, type UserResult}
 import vestibule/user_info
@@ -53,8 +55,11 @@ pub opaque type OidcConfig {
 
 /// Construct a validated OIDC configuration.
 ///
-/// The issuer and endpoint URLs must use HTTPS, except for localhost URLs
-/// which are allowed for local development.
+/// The issuer and endpoint URLs must use HTTPS and target a publicly-routable
+/// host. Loopback (`localhost`, `127.0.0.1`, `[::1]`), private, and link-local
+/// addresses are rejected: these endpoints come from a provider-controlled
+/// discovery document and are called server-side with an `Authorization`
+/// header, so permitting internal hosts would enable SSRF.
 pub fn new_config(
   issuer issuer: String,
   authorization_endpoint authorization_endpoint: String,
@@ -62,10 +67,12 @@ pub fn new_config(
   userinfo_endpoint userinfo_endpoint: String,
   scopes_supported scopes_supported: List(String),
 ) -> Result(OidcConfig, AuthError(e)) {
-  use _ <- result.try(provider_support.require_https(issuer))
-  use _ <- result.try(provider_support.require_https(authorization_endpoint))
-  use _ <- result.try(provider_support.require_https(token_endpoint))
-  use _ <- result.try(provider_support.require_https(userinfo_endpoint))
+  use _ <- result.try(provider_support.require_public_https(issuer))
+  use _ <- result.try(provider_support.require_public_https(
+    authorization_endpoint,
+  ))
+  use _ <- result.try(provider_support.require_public_https(token_endpoint))
+  use _ <- result.try(provider_support.require_public_https(userinfo_endpoint))
 
   Ok(OidcConfig(
     issuer: issuer,
@@ -115,19 +122,25 @@ pub fn fetch_configuration(
 ) -> Result(OidcConfig, AuthError(e)) {
   use discovery_url <- result.try(discovery_url(issuer_url))
 
-  use r <- result.try(
+  use req <- result.try(
     request.to(discovery_url)
     |> result.map_error(fn(_) {
       error.ConfigError(reason: "Invalid discovery URL: " <> discovery_url)
     }),
   )
-  let r =
-    r
+  let req =
+    req
     |> request.set_header("accept", "application/json")
 
-  case httpc.send(r) {
+  case httpc.send(req) {
     Ok(response) -> {
-      use body <- result.try(provider_support.check_response_status(response))
+      use body <- result.try(
+        provider_support.check_response_status_for_endpoint(
+          response,
+          provider_name: "oidc",
+          endpoint: "discovery",
+        ),
+      )
       use config <- result.try(parse_discovery_document(body))
       // Security: validate issuer matches per OIDC Discovery spec
       let normalized_issuer = strip_trailing_slash(issuer_url)
@@ -156,7 +169,8 @@ pub fn fetch_configuration(
 /// `/.well-known/openid-configuration` between the host and issuer path.
 pub fn discovery_url(issuer_url: String) -> Result(String, AuthError(e)) {
   // Security: preserve issuer validation before constructing the fetch URL.
-  use _ <- result.try(provider_support.require_https(issuer_url))
+  // The issuer is provider-controlled, so reject loopback/internal hosts.
+  use _ <- result.try(provider_support.require_public_https(issuer_url))
 
   use issuer <- result.try(
     uri.parse(issuer_url)
@@ -284,10 +298,50 @@ pub fn filter_default_scopes(scopes_supported: List(String)) -> List(String) {
 /// Supported parsing helper for custom OIDC strategy authors. Handles both
 /// success and error responses.
 pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
-  provider_support.parse_oauth_token_response(
-    body,
-    provider_support.OptionalScope(separator: " "),
-  )
+  let result =
+    provider_support.parse_oauth_token_response(
+      body,
+      provider_support.OptionalScope(separator: " "),
+    )
+  case result {
+    Ok(creds) -> {
+      logger.new(
+        level: logger.Debug,
+        event: "vestibule.provider.token_parse.success",
+        phase: "provider_request",
+        outcome: "success",
+        provider: Some("oidc"),
+        fields: [
+          logger.field("endpoint", "token"),
+          logger.bool_field(
+            "has_refresh_token",
+            option.is_some(credentials.refresh_token(creds)),
+          ),
+          logger.int_field(
+            "scope_count",
+            list.length(credentials.scopes(creds)),
+          ),
+        ],
+      )
+      |> logger.emit()
+      Ok(creds)
+    }
+    Error(err) -> {
+      logger.new(
+        level: logger.Warning,
+        event: "vestibule.provider.token_parse.failure",
+        phase: "provider_request",
+        outcome: "failure",
+        provider: Some("oidc"),
+        fields: [
+          logger.field("endpoint", "token"),
+          logger.field("error_category", logger.auth_error_category(err)),
+        ],
+      )
+      |> logger.emit()
+      Error(err)
+    }
+  }
 }
 
 /// Parse a standard OIDC userinfo response into a uid and UserInfo.
@@ -358,10 +412,8 @@ pub fn parse_userinfo_response(
 // --- Internal helpers ---
 
 fn strip_trailing_slash(url: String) -> String {
-  case string.ends_with(url, "/") {
-    True -> string.drop_end(url, 1)
-    False -> url
-  }
+  use <- bool.guard(when: !string.ends_with(url, "/"), return: url)
+  string.drop_end(url, 1)
 }
 
 fn extract_hostname(url: String) -> String {
@@ -435,7 +487,7 @@ fn build_exchange_code_fn(
     }
     let body = uri.query_to_string(params)
 
-    use r <- result.try(
+    use req <- result.try(
       request.to(token_endpoint)
       |> result.map_error(fn(_) {
         error.ConfigError(
@@ -443,16 +495,22 @@ fn build_exchange_code_fn(
         )
       }),
     )
-    let r =
-      r
+    let req =
+      req
       |> request.set_method(http.Post)
       |> request.set_header("content-type", "application/x-www-form-urlencoded")
       |> request.set_header("accept", "application/json")
       |> request.set_body(body)
 
-    case httpc.send(r) {
+    case httpc.send(req) {
       Ok(response) -> {
-        use body <- result.try(provider_support.check_response_status(response))
+        use body <- result.try(
+          provider_support.check_response_status_for_endpoint(
+            response,
+            provider_name: "oidc",
+            endpoint: "token",
+          ),
+        )
         parse_token_response(body)
         |> result.map(strategy.exchange_result)
       }
@@ -500,7 +558,7 @@ fn build_refresh_token_fn(
         #("client_secret", config.client_secret(cfg)),
       ])
 
-    use r <- result.try(
+    use req <- result.try(
       request.to(token_endpoint)
       |> result.map_error(fn(_) {
         error.ConfigError(
@@ -508,16 +566,22 @@ fn build_refresh_token_fn(
         )
       }),
     )
-    let r =
-      r
+    let req =
+      req
       |> request.set_method(http.Post)
       |> request.set_header("content-type", "application/x-www-form-urlencoded")
       |> request.set_header("accept", "application/json")
       |> request.set_body(body)
 
-    case httpc.send(r) {
+    case httpc.send(req) {
       Ok(response) -> {
-        use body <- result.try(provider_support.check_response_status(response))
+        use body <- result.try(
+          provider_support.check_response_status_for_endpoint(
+            response,
+            provider_name: "oidc",
+            endpoint: "refresh",
+          ),
+        )
         parse_token_response(body)
       }
       Error(_) ->

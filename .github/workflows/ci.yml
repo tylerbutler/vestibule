@@ -8,19 +8,48 @@ on:
   workflow_call:
 
 jobs:
-  checks:
-    name: Checks
-    uses: tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@77f80621309fc7443b628802e08a815d41dd4b47 # ratchet:tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@main
+  format:
+    name: Format
+    uses: tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@1761c18aa4583d74916e1a53f2a106d1d70d72a8 # ratchet:tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@main
+    with:
+      cache: true
+      format-check: true
+
+  check:
+    name: Check
+    uses: tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@1761c18aa4583d74916e1a53f2a106d1d70d72a8 # ratchet:tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@main
+    with:
+      cache: true
+      check: true
+
+  lint:
+    name: Lint
+    uses: tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@1761c18aa4583d74916e1a53f2a106d1d70d72a8 # ratchet:tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@main
+    with:
+      cache: true
+      tools: just
+      run-deps: true
+      custom-command: gleam run -m glinter
+
+  build:
+    name: Build
+    uses: tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@1761c18aa4583d74916e1a53f2a106d1d70d72a8 # ratchet:tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@main
     with:
       cache: true
 
-  docs:
-    name: Docs
-    uses: tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@77f80621309fc7443b628802e08a815d41dd4b47 # ratchet:tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@main
+  test:
+    name: Test
+    uses: tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@1761c18aa4583d74916e1a53f2a106d1d70d72a8 # ratchet:tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@main
     with:
       cache: true
-      format-check: false
-      check: false
+      tools: just
+      run-deps: true
+      test: true
+
+  docs:
+    name: Docs
+    uses: tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@1761c18aa4583d74916e1a53f2a106d1d70d72a8 # ratchet:tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@main
+    with:
+      cache: true
       build-strict: false
-      test: false
       docs: true

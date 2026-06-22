@@ -137,17 +137,31 @@ fn fragment_strategy() -> Strategy(e) {
       )
     },
     exchange_code: fn(cfg, code, verifier) {
-      strategy.exchange_code(base, cfg, code, verifier)
+      strategy.exchange_code(
+        base,
+        cfg: cfg,
+        code: code,
+        code_verifier: verifier,
+      )
     },
-    refresh_token: fn(cfg, tok) { strategy.refresh_token(base, cfg, tok) },
-    fetch_user: fn(cfg, exchange) { strategy.fetch_user(base, cfg, exchange) },
+    refresh_token: fn(cfg, tok) {
+      strategy.refresh_token(base, cfg: cfg, refresh_tok: tok)
+    },
+    fetch_user: fn(cfg, exchange) {
+      strategy.fetch_user(base, cfg: cfg, exchange: exchange)
+    },
   )
 }
 
-pub fn authorize_url_returns_authorization_request_test() {
+pub fn create_authorization_request_returns_authorization_request_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "http://localhost/cb")
-  let assert Ok(req) = vestibule.authorize_url(strat, conf)
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "http://localhost/cb",
+    )
+  let assert Ok(req) = vestibule.create_authorization_request(strat, cfg: conf)
   let url = authorization_request.url(req)
   let state = authorization_request.state(req)
   let verifier = authorization_request.code_verifier(req)
@@ -162,9 +176,15 @@ pub fn authorize_url_returns_authorization_request_test() {
   { string.contains(url, "code_challenge_method=S256") } |> expect.to_be_true()
 }
 
-pub fn authorize_url_appends_pkce_before_url_fragment_test() {
-  let conf = config.new("id", "secret", "http://localhost/cb")
-  let assert Ok(req) = vestibule.authorize_url(fragment_strategy(), conf)
+pub fn create_authorization_request_appends_pkce_before_url_fragment_test() {
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "http://localhost/cb",
+    )
+  let assert Ok(req) =
+    vestibule.create_authorization_request(fragment_strategy(), cfg: conf)
   let url = authorization_request.url(req)
 
   { string.contains(url, "&existing=1&code_challenge=") }
@@ -173,32 +193,52 @@ pub fn authorize_url_appends_pkce_before_url_fragment_test() {
   |> expect.to_be_true()
 }
 
-pub fn authorize_url_uses_config_scopes_when_present_test() {
+pub fn create_authorization_request_uses_config_scopes_when_present_test() {
   let strat = test_strategy()
   let conf =
-    config.new("id", "secret", "http://localhost/cb")
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "http://localhost/cb",
+    )
     |> config.with_scopes(["custom_scope"])
-  let assert Ok(req) = vestibule.authorize_url(strat, conf)
+  let assert Ok(req) = vestibule.create_authorization_request(strat, cfg: conf)
   let url = authorization_request.url(req)
   { string.contains(url, "custom_scope") } |> expect.to_be_true()
   { string.contains(url, "default_scope") } |> expect.to_be_false()
 }
 
-pub fn authorize_url_uses_default_scopes_when_config_empty_test() {
+pub fn create_authorization_request_uses_default_scopes_when_config_empty_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "http://localhost/cb")
-  let assert Ok(req) = vestibule.authorize_url(strat, conf)
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "http://localhost/cb",
+    )
+  let assert Ok(req) = vestibule.create_authorization_request(strat, cfg: conf)
   let url = authorization_request.url(req)
   { string.contains(url, "default_scope") } |> expect.to_be_true()
 }
 
 pub fn handle_callback_succeeds_with_valid_params_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "http://localhost/cb")
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "http://localhost/cb",
+    )
   let state = "test_state_value"
   let params = dict.from_list([#("code", "valid_code"), #("state", state)])
   let result =
-    vestibule.handle_callback(strat, conf, params, state, "test_verifier")
+    vestibule.handle_callback(
+      strat,
+      cfg: conf,
+      callback_params: params,
+      expected_state: state,
+      code_verifier: "test_verifier",
+    )
   let assert Ok(auth) = result
   auth.uid |> expect.to_equal("user123")
   auth.provider |> expect.to_equal("test")
@@ -208,29 +248,45 @@ pub fn handle_callback_succeeds_with_valid_params_test() {
 
 pub fn handle_callback_populates_auth_extra_from_strategy_user_result_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "http://localhost/cb")
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "http://localhost/cb",
+    )
   let state = "test_state_value"
   let params = dict.from_list([#("code", "valid_code"), #("state", state)])
 
   let assert Ok(auth) =
-    vestibule.handle_callback(strat, conf, params, state, "test_verifier")
+    vestibule.handle_callback(
+      strat,
+      cfg: conf,
+      callback_params: params,
+      expected_state: state,
+      code_verifier: "test_verifier",
+    )
   let assert Ok(raw_provider) = dict.get(auth.extra, "raw_provider")
   decode.run(raw_provider, decode.string)
   |> expect.to_equal(Ok("from-provider"))
 }
 
 pub fn handle_callback_passes_exchange_artifacts_to_fetch_user_test() {
-  let conf = config.new("id", "secret", "http://localhost/cb")
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "http://localhost/cb",
+    )
   let state = "test_state_value"
   let params = dict.from_list([#("code", "valid_code"), #("state", state)])
 
   let assert Ok(auth) =
     vestibule.handle_callback(
       artifact_strategy(),
-      conf,
-      params,
-      state,
-      "test_verifier",
+      cfg: conf,
+      callback_params: params,
+      expected_state: state,
+      code_verifier: "test_verifier",
     )
 
   auth.uid |> expect.to_equal("from-exchange")
@@ -239,9 +295,14 @@ pub fn handle_callback_passes_exchange_artifacts_to_fetch_user_test() {
 
 pub fn refresh_token_delegates_to_strategy_refresh_token_test() {
   let strat = test_strategy()
-  let conf = config.new("client-id", "secret", "http://localhost/cb")
+  let conf =
+    config.new(
+      client_id: "client-id",
+      client_secret: "secret",
+      redirect_uri: "http://localhost/cb",
+    )
 
-  vestibule.refresh_token(strat, conf, "refresh-123")
+  vestibule.refresh_token(strat, cfg: conf, refresh_tok: "refresh-123")
   |> expect.to_equal(
     Ok(
       credentials.new(
@@ -257,40 +318,115 @@ pub fn refresh_token_delegates_to_strategy_refresh_token_test() {
 
 pub fn handle_callback_fails_on_state_mismatch_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "http://localhost/cb")
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "http://localhost/cb",
+    )
   let params = dict.from_list([#("code", "valid_code"), #("state", "wrong")])
   let result =
-    vestibule.handle_callback(strat, conf, params, "expected", "test_verifier")
+    vestibule.handle_callback(
+      strat,
+      cfg: conf,
+      callback_params: params,
+      expected_state: "expected",
+      code_verifier: "test_verifier",
+    )
   let _ = result |> expect.to_be_error()
   Nil
 }
 
 pub fn missing_callback_state_is_structured_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "http://localhost/cb")
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "http://localhost/cb",
+    )
   let params = dict.from_list([#("code", "valid_code")])
 
-  vestibule.handle_callback(strat, conf, params, "expected", "test_verifier")
+  vestibule.handle_callback(
+    strat,
+    cfg: conf,
+    callback_params: params,
+    expected_state: "expected",
+    code_verifier: "test_verifier",
+  )
   |> expect.to_equal(Error(error.MissingCallbackParam("state")))
 }
 
 pub fn handle_callback_fails_on_missing_code_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "http://localhost/cb")
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "http://localhost/cb",
+    )
   let state = "test_state"
   let params = dict.from_list([#("state", state)])
   let result =
-    vestibule.handle_callback(strat, conf, params, state, "test_verifier")
+    vestibule.handle_callback(
+      strat,
+      cfg: conf,
+      callback_params: params,
+      expected_state: state,
+      code_verifier: "test_verifier",
+    )
   let _ = result |> expect.to_be_error()
   Nil
 }
 
 pub fn missing_callback_code_is_structured_test() {
   let strat = test_strategy()
-  let conf = config.new("id", "secret", "http://localhost/cb")
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "http://localhost/cb",
+    )
   let state = "test_state"
   let params = dict.from_list([#("state", state)])
 
-  vestibule.handle_callback(strat, conf, params, state, "test_verifier")
+  vestibule.handle_callback(
+    strat,
+    cfg: conf,
+    callback_params: params,
+    expected_state: state,
+    code_verifier: "test_verifier",
+  )
   |> expect.to_equal(Error(error.MissingCallbackParam("code")))
+}
+
+pub fn logging_does_not_change_core_result_shapes_test() {
+  let strat = test_strategy()
+  let conf =
+    config.new(
+      client_id: "id",
+      client_secret: "secret",
+      redirect_uri: "http://localhost/cb",
+    )
+  let assert Ok(req) = vestibule.create_authorization_request(strat, cfg: conf)
+  let params =
+    dict.from_list([
+      #("code", "valid_code"),
+      #("state", authorization_request.state(req)),
+    ])
+
+  let _ =
+    vestibule.handle_callback(
+      strat,
+      cfg: conf,
+      callback_params: params,
+      expected_state: authorization_request.state(req),
+      code_verifier: authorization_request.code_verifier(req),
+    )
+    |> expect.to_be_ok()
+
+  let _ =
+    vestibule.refresh_token(strat, cfg: conf, refresh_tok: "refresh-123")
+    |> expect.to_be_ok()
+  Nil
 }

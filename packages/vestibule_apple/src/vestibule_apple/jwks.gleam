@@ -10,10 +10,13 @@ import gleam/http/request
 import gleam/httpc
 import gleam/int
 import gleam/json
+import gleam/option
 import gleam/result
 import gleam/string
 
 import vestibule/error.{type AuthError}
+import vestibule/internal/logger
+import vestibule/provider_support
 import ywt/verify_key.{type VerifyKey}
 
 const apple_jwks_url = "https://appleid.apple.com/auth/keys"
@@ -68,7 +71,8 @@ pub fn get_keys(cache: JwksCache) -> Result(List(VerifyKey), AuthError(e)) {
     Ok(keys) -> Ok(keys)
     Error(_) -> {
       use keys <- result.try(fetch_keys())
-      let _ = uset.insert(into: cache.table, key: cache_key, value: keys)
+      let _inserted =
+        uset.insert(into: cache.table, key: cache_key, value: keys)
       Ok(keys)
     }
   }
@@ -77,7 +81,7 @@ pub fn get_keys(cache: JwksCache) -> Result(List(VerifyKey), AuthError(e)) {
 /// Force refresh the cached keys from Apple's endpoint.
 pub fn refresh_keys(cache: JwksCache) -> Result(List(VerifyKey), AuthError(e)) {
   use keys <- result.try(fetch_keys())
-  let _ = uset.insert(into: cache.table, key: cache_key, value: keys)
+  let _inserted = uset.insert(into: cache.table, key: cache_key, value: keys)
   Ok(keys)
 }
 
@@ -90,20 +94,52 @@ fn fetch_keys() -> Result(List(VerifyKey), AuthError(e)) {
     }),
   )
   let req = req |> request.set_header("accept", "application/json")
+  logger.new(
+    level: logger.Debug,
+    event: "vestibule.provider.request.start",
+    phase: "provider_request",
+    outcome: "start",
+    provider: option.Some("apple"),
+    fields: [logger.field("endpoint", "jwks")],
+  )
+  |> logger.emit()
   case httpc.send(req) {
-    Ok(response) if response.status >= 200 && response.status < 300 ->
-      parse_jwks(response.body)
-    Ok(response) ->
-      Error(error.NetworkError(
-        reason: "HTTP "
-        <> int.to_string(response.status)
-        <> ": "
-        <> response.body,
-      ))
-    Error(_) ->
+    Ok(resp) -> {
+      use body <- result.try(
+        provider_support.check_response_status_for_endpoint(
+          resp,
+          provider_name: "apple",
+          endpoint: "jwks",
+        )
+        |> result.map_error(fn(err) {
+          case err {
+            error.HttpError(status: status, body: body) ->
+              error.NetworkError(
+                reason: "HTTP " <> int.to_string(status) <> ": " <> body,
+              )
+            _ -> err
+          }
+        }),
+      )
+      parse_jwks(body)
+    }
+    Error(_) -> {
+      logger.new(
+        level: logger.Error,
+        event: "vestibule.provider.request.failure",
+        phase: "provider_request",
+        outcome: "failure",
+        provider: option.Some("apple"),
+        fields: [
+          logger.field("endpoint", "jwks"),
+          logger.field("error_category", "network_error"),
+        ],
+      )
+      |> logger.emit()
       Error(error.NetworkError(
         reason: "Failed to fetch Apple JWKS from " <> apple_jwks_url,
       ))
+    }
   }
 }
 

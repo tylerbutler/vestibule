@@ -10,9 +10,22 @@ vestibule = { path = "../.." }
 wisp = ">= 2.2.0 and < 3.0.0"
 gleam_stdlib = ">= 0.48.0 and < 2.0.0"
 gleam_http = ">= 4.3.0 and < 5.0.0"
-gleam_json = ">= 3.1.0 and < 4.0.0"
-gleam_crypto = ">= 1.5.0 and < 2.0.0"
-gleam_time = ">= 1.7.0 and < 2.0.0"
 
 [dev-dependencies]
 startest = ">= 0.8.0 and < 1.0.0"
+glinter = ">= 2.19.0 and < 3.0.0"
+
+# See root gleam.toml for rationale; these rules conflict with vestibule's
+# deliberate library patterns (public API exports, domain error mapping).
+[tools.glinter]
+# Strict lint: any warning fails the build. glinter only supports this
+# globally (no per-rule error severity), so label_possible is turned off
+# below to keep intentional unlabelled subject/pipe first-args from failing.
+warnings_as_errors = true
+
+[tools.glinter.rules]
+# Argument labels are encouraged but not enforced: many functions intentionally
+# leave their subject/pipe-receiver first arg unlabelled.
+label_possible = "off"
+unused_exports = "off"
+error_context_lost = "off"

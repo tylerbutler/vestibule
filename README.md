@@ -8,9 +8,11 @@ The name "vestibule" refers to an entrance hall — the transitional space betwe
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/vestibule/)
 
 > [!NOTE]
-> vestibule follows [Semantic Versioning](https://semver.org/) for 1.0 and
-> later releases. Public APIs are intended to be stable across patch and minor
-> releases; breaking changes are reserved for major versions.
+> vestibule is pre-1.0 (currently `0.x`). The public API is still subject to
+> change and breaking changes may land before 1.0. Once 1.0 ships, vestibule
+> will follow [Semantic Versioning](https://semver.org/): public APIs stable
+> across patch and minor releases, with breaking changes reserved for major
+> versions.
 >
 > OAuth security depends on application configuration too: production redirect
 > URIs must use HTTPS. `http://localhost` and `http://127.0.0.1` redirect URIs
@@ -18,24 +20,25 @@ The name "vestibule" refers to an entrance hall — the transitional space betwe
 
 ## Quick Start
 
-Add vestibule to your project. If you're using the Wisp middleware, add
-`vestibule_wisp` too:
+Add vestibule and a provider package to your project. If you're using the Wisp
+middleware, add `vestibule_wisp` too:
 
 ```sh
 gleam add vestibule
+gleam add vestibule_github
 gleam add vestibule_wisp
 ```
 
-GitHub support is built into the core package, so you can start with the
+GitHub support is provided by `vestibule_github`, so you can start with the
 two-phase flow directly:
 
 ```gleam
 import gleam/dict
 import vestibule
 import vestibule/config
-import vestibule/strategy/github
+import vestibule_github
 
-let strategy = github.strategy()
+let strategy = vestibule_github.strategy()
 let cfg =
   config.new(
     "client_id",
@@ -44,7 +47,7 @@ let cfg =
   )
 
 // Phase 1: Generate authorization URL and redirect user
-let assert Ok(auth_request) = vestibule.authorize_url(strategy, cfg)
+let assert Ok(auth_request) = vestibule.create_authorization_request(strategy, cfg)
 // Store auth_request.state and auth_request.code_verifier server-side,
 // bound to this user's session, with an expiration time.
 // Redirect user to auth_request.url
@@ -80,15 +83,15 @@ import gleam/http
 import wisp
 import vestibule/config
 import vestibule/registry
-import vestibule/strategy/github
 import vestibule_wisp
-import vestibule_wisp/state_store
+import vestibule/state_store
+import vestibule_github
 
 // Initialize once at startup
-let reg =
+let assert Ok(reg) =
   registry.new()
   |> registry.register(
-    github.strategy(),
+    vestibule_github.strategy(),
     config.new(
       "client_id",
       "client_secret",
@@ -113,9 +116,22 @@ case wisp.path_segments(req), req.method {
 }
 ```
 
-The Wisp state store creates a named ETS table, so initialize it once per BEAM
-VM at startup. Use `state_store.try_init` if you want to handle duplicate-table
-errors explicitly.
+The state store creates a named ETS table, so initialize it once per BEAM
+VM at startup. Use `state_store.try_init` if you want to handle
+duplicate-table errors explicitly. The same store can be shared between
+`vestibule_wisp` and `vestibule_mist`.
+
+### Logging
+
+Vestibule emits structured OAuth lifecycle logs through Erlang/OTP Logger. It
+does not configure Logger handlers or levels; your application keeps normal
+BEAM control over log routing, filtering, and formatting.
+
+Logs include safe fields such as `event`, `phase`, `outcome`, `provider`,
+`transport`, `endpoint`, `status`, and `error_category`. Vestibule never logs
+access tokens, refresh tokens, ID tokens, client secrets, authorization codes, PKCE code
+verifiers, raw callback parameters, session IDs, cookie values, signed payloads,
+or raw provider response bodies.
 
 If you want to handle callback failures yourself instead of using the default
 HTML error page, use `vestibule_wisp.callback_phase_result`. Use
@@ -125,17 +141,49 @@ as `UnknownProvider`, `MissingSessionCookie`, `SessionExpired`,
 `code` values are provider/authentication failures and are reported through
 `AuthFailed`.
 
+Or use the `vestibule_mist` middleware for the same ergonomics on a plain
+mist server. Mist has no built-in signed-cookie helper, so you supply the
+secret explicitly:
+
+```gleam
+import gleam/http
+import gleam/http/request.{type Request}
+import gleam/http/response.{type Response}
+import mist.{type Connection, type ResponseData}
+import vestibule/state_store
+import vestibule_mist
+
+let assert Ok(store) = state_store.try_init()
+let options = vestibule_mist.new_options(secret_key_base)
+
+fn handle_request(req: Request(Connection)) -> Response(ResponseData) {
+  case request.path_segments(req), req.method {
+    ["auth", provider], http.Get ->
+      vestibule_mist.request_phase(req, reg, provider, store, options)
+    ["auth", provider, "callback"], http.Get
+    | ["auth", provider, "callback"], http.Post ->
+      vestibule_mist.callback_phase(req, reg, provider, store, options, on_success)
+    _, _ -> not_found()
+  }
+}
+```
+
+`vestibule_mist` sets its signed session cookie with `Secure` by default. Its
+structured cookie/session errors are named `MissingOrInvalidSessionCookie` and
+`SessionUnavailable`.
+
 ## Packages
 
 | Package | Description | Install |
 |---------|-------------|---------|
-| `vestibule` | Core types, two-phase OAuth2 flow, PKCE, token refresh | `gleam add vestibule` |
+| `vestibule` | Core types, two-phase OAuth2 flow, PKCE, token refresh, shared state store | `gleam add vestibule` |
 | `vestibule_wisp` | Wisp middleware for request/callback routing | `gleam add vestibule_wisp` |
+| `vestibule_mist` | Mist middleware for request/callback routing | `gleam add vestibule_mist` |
+| `vestibule_github` | GitHub OAuth strategy | `gleam add vestibule_github` |
 | `vestibule_google` | Google OAuth strategy | `gleam add vestibule_google` |
 | `vestibule_microsoft` | Microsoft OAuth strategy | `gleam add vestibule_microsoft` |
 | `vestibule_apple` | Apple Sign In strategy | `gleam add vestibule_apple` |
-
-GitHub is included in the core `vestibule` package.
+| `vestibule_indieauth` | IndieAuth strategy (decentralized identity) | `gleam add vestibule_indieauth` |
 
 ## How It Works
 
@@ -151,11 +199,20 @@ Strategies are records of functions — no behaviours, macros, or magic. Each st
 Use a registry to support multiple providers in one app:
 
 ```gleam
-let reg =
+let assert Ok(reg) =
   registry.new()
-  |> registry.register(github.strategy(), github_cfg)
+  |> registry.register(vestibule_github.strategy(), github_cfg)
+let assert Ok(reg) =
+  reg
   |> registry.register(vestibule_google.strategy(), google_cfg)
 ```
+
+`register` rejects a second registration under an already-registered provider
+name with `Error(DuplicateProvider(name))`, so an untrusted or dynamic provider
+config cannot silently replace a trusted provider. Namespace custom provider
+names (for example `"custom:acme"`) when names come from untrusted input. Use
+`registry.register_or_replace` only when a trusted caller intentionally needs to
+overwrite an existing provider.
 
 Refresh access tokens when a provider issues refresh tokens:
 
@@ -272,30 +329,47 @@ common attacks, but a few responsibilities remain with the consuming app.
 
 ## API Notes
 
-The 1.0 API intentionally keeps provider behavior explicit:
+The root package has two intended public surfaces for the planned 1.0 API.
+Before 1.0, this API is still subject to change.
 
-- `Credentials.expires_at` was replaced with `Credentials.expires_in`. The value
-  is the provider's relative `expires_in` duration in seconds, not an absolute
-  timestamp.
-- OIDC configuration is opaque and validated. Create it with `oidc.new_config`
-  or `oidc.discover` instead of constructing records directly.
-- `config.with_extra_params` returns `Result(Config, AuthError(e))` and rejects
-  reserved authorization parameters.
-- `Strategy.exchange_code` returns `ExchangeResult(credentials, artifacts)`.
-  Use `strategy.exchange_result(credentials)` for providers with no exchange
-  artifacts. `Strategy.fetch_user(Config, ExchangeResult)` receives both the
-  standard credentials and any provider-specific token response artifacts.
-- Provider-support helpers are public for custom strategy authors. Prefer
-  helpers such as `provider_support.parse_redirect_uri`,
-  `provider_support.check_response_status`, and
-  `strategy.authorization_header`, and `strategy.append_code_verifier` over
-  copying built-in strategy internals.
-- Supported parsers such as `provider_support.parse_oauth_token_response`,
-  `oidc.parse_token_response`, and `github.parse_token_response` are public API
-  for strategy authors.
-- Wisp exposes structured callback errors through
-  `vestibule_wisp.callback_phase_auth_result` for apps that need more control
-  than the default HTML error page.
+**Application API** modules are for apps that run OAuth flows directly or through
+the middleware packages:
+
+- `vestibule`
+- `vestibule/auth`
+- `vestibule/authorization_request`
+- `vestibule/config`
+- `vestibule/credentials`
+- `vestibule/error`
+- `vestibule/oidc`
+- `vestibule/registry`
+- `vestibule/state_store`
+- `vestibule/user_info`
+
+**Provider SDK** modules are for packages that implement custom OAuth or OIDC
+provider strategies:
+
+- `vestibule/strategy`
+- `vestibule/provider_support`
+
+`strategy.exchange_code` returns an opaque `ExchangeResult` carrying the OAuth
+credentials plus any provider-specific artifacts. Build one with
+`strategy.exchange_result(credentials)` for providers with no exchange
+artifacts, or `strategy.exchange_result_with_artifacts(credentials, artifacts)`
+otherwise, and read it back with `strategy.exchange_credentials` and
+`strategy.exchange_artifacts`. `strategy.fetch_user(Config, ExchangeResult)`
+receives both the standard credentials and any provider-specific token response
+artifacts.
+
+Prefer provider SDK helpers such as `provider_support.parse_redirect_uri`,
+`provider_support.check_response_status`,
+`provider_support.parse_oauth_token_response`,
+`strategy.authorization_header`, and `strategy.append_code_verifier` over
+copying built-in strategy internals.
+
+`vestibule/transport_flow` remains visible for now because the shipped Wisp and
+Mist middleware packages share it. It is not a finalized transport SDK; issue #85
+tracks whether to hide it or promote it with a stable shape.
 
 ## Writing a Custom Strategy
 
@@ -303,7 +377,7 @@ See the [strategy authoring guide](docs/guides/writing-a-custom-strategy.md) for
 
 ## Target
 
-Erlang (BEAM) runtime. Core types can cross-compile to JavaScript, but OAuth callbacks require a server.
+Erlang (BEAM) runtime. The current packages are validated on the Erlang target only.
 
 ## License
 

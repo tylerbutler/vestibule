@@ -5,8 +5,10 @@
 //// `email_verified` before populating `UserInfo.email`.
 
 import gleam/dict
+import gleam/dynamic
 import gleam/dynamic/decode
 import gleam/json
+import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
@@ -23,11 +25,18 @@ import glow_auth/uri/uri_builder
 import vestibule/config.{type Config}
 import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
+import vestibule/internal/logger
 import vestibule/provider_support
 import vestibule/strategy.{type Strategy, type UserResult}
 import vestibule/user_info
 
 /// Create a Google authentication strategy.
+///
+/// This strategy does not enforce a Google Workspace hosted domain. If the
+/// userinfo response includes an `hd` claim it is surfaced under the `"hd"`
+/// key of `UserResult`'s `extra` dict, but no domain restriction is applied.
+/// To restrict sign-in to a single Workspace domain, use
+/// `strategy_for_hosted_domain`.
 pub fn strategy() -> Strategy(e) {
   strategy.new(
     provider: "google",
@@ -35,22 +44,112 @@ pub fn strategy() -> Strategy(e) {
     authorize_url: do_authorize_url,
     exchange_code: do_exchange_code,
     refresh_token: do_refresh_token,
-    fetch_user: do_fetch_user,
+    fetch_user: fn(_cfg, exchange) { fetch_user_enforcing(exchange, None) },
+  )
+}
+
+/// Create a Google strategy that enforces a Workspace hosted domain.
+///
+/// Authentication fails unless Google's userinfo response carries an `hd`
+/// (hosted-domain) claim exactly matching `hosted_domain`. A missing or
+/// mismatched `hd` yields `error.UserInfoFailed`. The validated domain is
+/// surfaced under the `"hd"` key of `UserResult`'s `extra` dict.
+///
+/// `hosted_domain` is also added to the authorization URL as an account-picker
+/// hint, but that hint is advisory only — enforcement happens server-side when
+/// the userinfo response is validated. Setting `hd` via
+/// `config.with_extra_params([#("hd", ...)])` is purely a UI hint and must not
+/// be relied on for authorization.
+pub fn strategy_for_hosted_domain(hosted_domain: String) -> Strategy(e) {
+  strategy.new(
+    provider: "google",
+    default_scopes: ["openid", "profile", "email"],
+    authorize_url: fn(cfg, scopes, state) {
+      do_authorize_url_with_hd(cfg, scopes, state, Some(hosted_domain))
+    },
+    exchange_code: do_exchange_code,
+    refresh_token: do_refresh_token,
+    fetch_user: fn(_cfg, exchange) {
+      fetch_user_enforcing(exchange, Some(hosted_domain))
+    },
   )
 }
 
 /// Parse Google token response JSON.
 pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
-  provider_support.parse_oauth_token_response(
+  do_parse_token_response(
     body,
     provider_support.RequiredScope(separator: " "),
+    "token",
   )
+}
+
+fn do_parse_token_response(
+  body: String,
+  scope_parsing: provider_support.ScopeParsing,
+  endpoint: String,
+) -> Result(Credentials, AuthError(e)) {
+  let result = provider_support.parse_oauth_token_response(body, scope_parsing)
+  case result {
+    Ok(creds) -> {
+      logger.new(
+        level: logger.Debug,
+        event: "vestibule.provider.token_parse.success",
+        phase: "provider_request",
+        outcome: "success",
+        provider: Some("google"),
+        fields: [
+          logger.field("endpoint", endpoint),
+          logger.bool_field(
+            "has_refresh_token",
+            option.is_some(credentials.refresh_token(creds)),
+          ),
+          logger.int_field(
+            "scope_count",
+            list.length(credentials.scopes(creds)),
+          ),
+        ],
+      )
+      |> logger.emit()
+      Ok(creds)
+    }
+    Error(err) -> {
+      logger.new(
+        level: logger.Warning,
+        event: "vestibule.provider.token_parse.failure",
+        phase: "provider_request",
+        outcome: "failure",
+        provider: Some("google"),
+        fields: [
+          logger.field("endpoint", endpoint),
+          logger.field("error_category", logger.auth_error_category(err)),
+        ],
+      )
+      |> logger.emit()
+      Error(err)
+    }
+  }
 }
 
 /// Parse Google /oauth2/v3/userinfo response JSON.
 pub fn parse_user_response(
   body: String,
 ) -> Result(#(String, user_info.UserInfo), AuthError(e)) {
+  parse_user_response_with_hd(body)
+  |> result.map(fn(parsed) {
+    let #(uid, info, _hd) = parsed
+    #(uid, info)
+  })
+}
+
+/// Parse Google userinfo JSON, also extracting the optional `hd`
+/// (hosted-domain) claim used for Workspace domain enforcement.
+///
+/// The third tuple element is the raw `hd` claim, or `None` when the account
+/// is a consumer (gmail.com) account or Google omits the claim.
+pub fn parse_user_response_with_hd(
+  body: String,
+) -> Result(#(String, user_info.UserInfo, Option(String)), AuthError(e)) {
   let decoder = {
     use sub <- decode.field("sub", decode.string)
     use name <- decode.optional_field(
@@ -73,6 +172,7 @@ pub fn parse_user_response(
       None,
       decode.optional(decode.bool),
     )
+    use hd <- decode.optional_field("hd", None, decode.optional(decode.string))
     let verified_email = case email, email_verified {
       Some(addr), Some(True) -> Some(addr)
       _, _ -> None
@@ -87,6 +187,7 @@ pub fn parse_user_response(
         description: None,
         urls: dict.new(),
       ),
+      hd,
     ))
   }
   case json.parse(body, decoder) {
@@ -98,10 +199,52 @@ pub fn parse_user_response(
   }
 }
 
+/// Validate the returned hosted-domain claim against the required domain.
+///
+/// When `required` is `None` the returned claim (if any) passes through
+/// unchanged. When a domain is required, the claim must be present and match
+/// exactly, otherwise authentication fails with `error.UserInfoFailed`. This
+/// is the enforcement primitive behind `strategy_for_hosted_domain`.
+pub fn validate_hosted_domain(
+  required required: Option(String),
+  returned returned: Option(String),
+) -> Result(Option(String), AuthError(e)) {
+  case required, returned {
+    None, _ -> Ok(returned)
+    Some(expected), Some(actual) ->
+      case expected == actual {
+        True -> Ok(Some(actual))
+        False ->
+          Error(error.UserInfoFailed(
+            reason: "Google hosted domain mismatch: expected \""
+            <> expected
+            <> "\" but the account belongs to \""
+            <> actual
+            <> "\"",
+          ))
+      }
+    Some(expected), None ->
+      Error(error.UserInfoFailed(
+        reason: "Google did not return a hosted domain (hd) claim; cannot enforce hosted-domain restriction to \""
+        <> expected
+        <> "\"",
+      ))
+  }
+}
+
 fn do_authorize_url(
   cfg: Config,
   scopes: List(String),
   state: String,
+) -> Result(String, AuthError(e)) {
+  do_authorize_url_with_hd(cfg, scopes, state, None)
+}
+
+fn do_authorize_url_with_hd(
+  cfg: Config,
+  scopes: List(String),
+  state: String,
+  hosted_domain: Option(String),
 ) -> Result(String, AuthError(e)) {
   use site <- result.try(
     uri.parse("https://accounts.google.com")
@@ -118,6 +261,10 @@ fn do_authorize_url(
       secret: config.client_secret(cfg),
       site: site,
     )
+  let extra_params = case hosted_domain {
+    Some(domain) -> [#("hd", domain), ..dict.to_list(config.extra_params(cfg))]
+    None -> dict.to_list(config.extra_params(cfg))
+  }
   let url =
     authorize_uri.build(
       client,
@@ -128,9 +275,7 @@ fn do_authorize_url(
     |> authorize_uri.set_state(state)
     |> authorize_uri.to_code_authorization_uri()
     |> uri.to_string()
-    |> provider_support.append_query_params(
-      dict.to_list(config.extra_params(cfg)),
-    )
+    |> provider_support.append_query_params(extra_params)
   Ok(url)
 }
 
@@ -163,16 +308,44 @@ fn do_exchange_code(
     )
     |> request.set_header("accept", "application/json")
   let req = strategy.append_code_verifier(req, code_verifier)
+  logger.new(
+    level: logger.Debug,
+    event: "vestibule.provider.request.start",
+    phase: "provider_request",
+    outcome: "start",
+    provider: Some("google"),
+    fields: [logger.field("endpoint", "token")],
+  )
+  |> logger.emit()
   case httpc.send(req) {
     Ok(response) -> {
-      use body <- result.try(provider_support.check_response_status(response))
+      use body <- result.try(
+        provider_support.check_response_status_for_endpoint(
+          response,
+          provider_name: "google",
+          endpoint: "token",
+        ),
+      )
       parse_token_response(body)
       |> result.map(strategy.exchange_result)
     }
-    Error(_) ->
+    Error(_) -> {
+      logger.new(
+        level: logger.Error,
+        event: "vestibule.provider.request.failure",
+        phase: "provider_request",
+        outcome: "failure",
+        provider: Some("google"),
+        fields: [
+          logger.field("endpoint", "token"),
+          logger.field("error_category", "network_error"),
+        ],
+      )
+      |> logger.emit()
       Error(error.NetworkError(
         reason: "Failed to connect to Google token endpoint",
       ))
+    }
   }
 }
 
@@ -200,33 +373,72 @@ fn do_refresh_token(
     )
     |> request.set_header("accept", "application/json")
 
+  logger.new(
+    level: logger.Debug,
+    event: "vestibule.provider.request.start",
+    phase: "provider_request",
+    outcome: "start",
+    provider: Some("google"),
+    fields: [logger.field("endpoint", "refresh")],
+  )
+  |> logger.emit()
   case httpc.send(req) {
     Ok(response) -> {
-      use body <- result.try(provider_support.check_response_status(response))
-      provider_support.parse_oauth_token_response(
+      use body <- result.try(
+        provider_support.check_response_status_for_endpoint(
+          response,
+          provider_name: "google",
+          endpoint: "refresh",
+        ),
+      )
+      do_parse_token_response(
         body,
-        provider_support.OptionalScope(" "),
+        provider_support.OptionalScope(separator: " "),
+        "refresh",
       )
     }
-    Error(_) ->
+    Error(_) -> {
+      logger.new(
+        level: logger.Error,
+        event: "vestibule.provider.request.failure",
+        phase: "provider_request",
+        outcome: "failure",
+        provider: Some("google"),
+        fields: [
+          logger.field("endpoint", "refresh"),
+          logger.field("error_category", "network_error"),
+        ],
+      )
+      |> logger.emit()
       Error(error.NetworkError(
         reason: "Failed to connect to Google token endpoint",
       ))
+    }
   }
 }
 
-fn do_fetch_user(
-  _cfg: Config,
+fn fetch_user_enforcing(
   exchange: strategy.ExchangeResult,
+  required_hd: Option(String),
 ) -> Result(UserResult, AuthError(e)) {
   use auth_header <- result.try(
     strategy.authorization_header(strategy.exchange_credentials(exchange)),
   )
-  use #(uid, info) <- result.try(provider_support.fetch_json_with_auth(
-    "https://www.googleapis.com/oauth2/v3/userinfo",
-    auth_header,
-    parse_user_response,
-    "Google userinfo",
+  use #(uid, info, returned_hd) <- result.try(
+    provider_support.fetch_json_with_auth(
+      "https://www.googleapis.com/oauth2/v3/userinfo",
+      auth_header,
+      parse_user_response_with_hd,
+      "Google userinfo",
+    ),
+  )
+  use validated_hd <- result.try(validate_hosted_domain(
+    required: required_hd,
+    returned: returned_hd,
   ))
-  Ok(strategy.user_result(uid: uid, info: info, extra: dict.new()))
+  let extra = case validated_hd {
+    Some(domain) -> dict.from_list([#("hd", dynamic.string(domain))])
+    None -> dict.new()
+  }
+  Ok(strategy.user_result(uid: uid, info: info, extra: extra))
 }

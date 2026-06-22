@@ -1,0 +1,315 @@
+---
+import { siApple, siGithub, siGoogle } from "simple-icons";
+import CodeBlock from "../components/CodeBlock.astro";
+import DocsLayout from "../layouts/DocsLayout.astro";
+import { getPackageEntries, packageHref, packageSlug } from "../data/content";
+
+const packageEntries = await getPackageEntries();
+const packageBySlug = new Map(packageEntries.map((entry) => [packageSlug(entry), entry]));
+const hrefForPackage = (slug: string) => {
+  const entry = packageBySlug.get(slug);
+  return entry ? packageHref(entry) : `/docs/packages/${slug}`;
+};
+const nameForPackage = (slug: string, fallback: string) =>
+  packageBySlug.get(slug)?.data.name || fallback;
+const supportedProviders = [
+  {
+    name: "GitHub",
+    packageName: nameForPackage("github", "vestibule_github"),
+    href: hrefForPackage("github"),
+    note: "OAuth App sign-in with verified-primary-email lookup.",
+    icon: siGithub
+  },
+  {
+    name: "Google",
+    packageName: nameForPackage("google", "vestibule_google"),
+    href: hrefForPackage("google"),
+    note: "OpenID Connect, email, profile, and hosted-domain helpers.",
+    icon: siGoogle,
+    color: `#${siGoogle.hex}`
+  },
+  {
+    name: "Microsoft",
+    packageName: nameForPackage("microsoft", "vestibule_microsoft"),
+    href: hrefForPackage("microsoft"),
+    note: "Microsoft Graph /me plus tenant-specific sign-in helpers.",
+    icon: "microsoft"
+  },
+  {
+    name: "Apple",
+    packageName: nameForPackage("apple", "vestibule_apple"),
+    href: hrefForPackage("apple"),
+    note: "Sign in with Apple, JWKS-backed ID token verification, and form_post.",
+    icon: siApple
+  }
+];
+const directFlow = `// Request phase: failure here means misconfiguration, so assert is fine.
+let assert Ok(auth_request) =
+  vestibule.create_authorization_request(strategy, cfg)
+// Store auth_request.state and auth_request.code_verifier, then
+// redirect to auth_request.url.
+
+// Callback phase: state can mismatch and providers can reject the
+// user, so handle both branches instead of asserting.
+case
+  vestibule.handle_callback(
+    strategy,
+    cfg,
+    params,
+    expected_state,
+    code_verifier,
+  )
+{
+  Ok(auth) -> sign_in(auth)
+  Error(error.StateMismatch) -> restart_sign_in()
+  Error(reason) -> show_auth_error(reason)
+}`;
+const recommendedRoute = {
+  label: "Using Wisp or Mist?",
+  title: "Start with middleware routes",
+  body:
+    "Install core, one provider strategy, and the matching middleware package. Vestibule handles request and callback routing while your app stores callback data and creates the session.",
+  href: "/docs/quick-start#middleware-path",
+  action: "Use the middleware path",
+  checks: [
+    "Choose vestibule_wisp or vestibule_mist for your server.",
+    "Store the returned state and PKCE verifier before redirecting.",
+    "Handle the normalized auth result in your session code."
+  ]
+};
+const alternateRoutes = [
+  {
+    label: "Using another router?",
+    title: "Call the core API directly",
+    body:
+      "Use core when your application owns redirects, callback storage, and framework integration.",
+    href: "/docs/quick-start#core-path",
+    action: "Use the core path"
+  },
+  {
+    label: "Next setup step",
+    title: "Add a provider strategy",
+    body:
+      "After the route layer is clear, choose GitHub, Google, Microsoft, or Apple for provider-specific profile and token behavior.",
+    href: "/docs/packages#provider-strategies",
+    action: "Choose a provider",
+    followUp: true
+  }
+];
+const routePackages = [
+  {
+    name: nameForPackage("wisp", "vestibule_wisp"),
+    role: "Wisp middleware",
+    href: hrefForPackage("wisp"),
+    note: "Owns request and callback route helpers for Wisp apps."
+  },
+  {
+    name: nameForPackage("mist", "vestibule_mist"),
+    role: "Mist middleware",
+    href: hrefForPackage("mist"),
+    note: "Gives Mist apps the same route-phase ergonomics without Wisp."
+  },
+  {
+    name: nameForPackage("core", "vestibule"),
+    role: "Core package",
+    href: hrefForPackage("core"),
+    note: "Use directly when your app owns routing, transient storage, and sessions."
+  }
+];
+const recoveryOutcomes = [
+  {
+    title: "State mismatch",
+    body: "Restart sign-in and discard stored callback data.",
+    href: "/docs/quick-start#callback-failure"
+  },
+  {
+    title: "Provider rejection",
+    body: "Show an auth error instead of asserting success.",
+    href: "/docs/quick-start#callback-failure"
+  },
+  {
+    title: "Profile or token failure",
+    body: "Retry the provider flow or route users to support.",
+    href: "/docs/quick-start#callback-failure"
+  }
+];
+---
+
+<DocsLayout
+  title="Vestibule"
+  description="Strategy-based OAuth2 authentication for Gleam."
+  section="Overview"
+>
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="intro-label">Strategy-based OAuth2 authentication for Gleam</p>
+      <h1>OAuth sign-in for Gleam apps, without the guesswork.</h1>
+      <p class="lead">
+        Vestibule gives Gleam applications a consistent request/callback flow,
+        normalized auth results, PKCE, CSRF state, provider strategies, and Wisp
+        or Mist middleware without hiding the security responsibilities your app
+        still owns.
+      </p>
+      <div class="hero-actions">
+        <a class="button primary" href="/docs/quick-start">Add sign-in</a>
+        <a class="button secondary" href="/docs/packages">Compare packages</a>
+      </div>
+      <a class="hero-search" href="/docs/search" data-search-trigger data-search-hint>
+        Search state, PKCE, provider packages
+      </a>
+      <ol class="hero-flow" aria-label="OAuth flow checkpoints">
+        <li>
+          <strong>Request</strong>
+          <span>URL, state, PKCE verifier</span>
+        </li>
+        <li>
+          <strong>Store</strong>
+          <span>Bind transient callback data</span>
+        </li>
+        <li>
+          <strong>Callback</strong>
+          <span>Validate and normalize user info</span>
+        </li>
+      </ol>
+    </div>
+    <div class="hero-logo" aria-hidden="true">
+      <img
+        src="/logo.webp"
+        alt=""
+        width="451"
+        height="453"
+        decoding="async"
+        fetchpriority="high"
+      />
+    </div>
+  </section>
+
+  <section class="route-decision" aria-labelledby="route-decision-heading">
+    <div class="section-heading">
+      <h2 id="route-decision-heading">Pick the route path first.</h2>
+      <p>
+        Start with your server layer: Wisp and Mist apps can use middleware
+        routes; custom routers can call the core API directly. Provider
+        strategies come next.
+      </p>
+    </div>
+    <div class="route-decision-panel">
+      <a class="route-primary" href={recommendedRoute.href}>
+        <span class="path-label">{recommendedRoute.label}</span>
+        <strong>{recommendedRoute.title}</strong>
+        <span>{recommendedRoute.body}</span>
+        <ul>
+          {recommendedRoute.checks.map((check) => <li>{check}</li>)}
+        </ul>
+        <em>{recommendedRoute.action}</em>
+      </a>
+      <div class="route-secondary-list" aria-label="Other route choices">
+        {alternateRoutes.map((choice) => (
+          <a class:list={["route-choice", "compact", { "follow-up": choice.followUp }]} href={choice.href}>
+            <span class="path-label">{choice.label}</span>
+            <strong>{choice.title}</strong>
+            <span>{choice.body}</span>
+            <em>{choice.action}</em>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="stack-heading">
+    <div class="section-heading">
+      <h2 id="stack-heading">Build the stack in two moves.</h2>
+      <p>
+        Step one is the route layer. Step two is the provider strategy. Provider
+        packages add profile and token behavior; they do not replace request and
+        callback handling.
+      </p>
+    </div>
+    <div class="stack-map">
+      <div class="stack-column">
+        <h3>Route layer</h3>
+        <div class="stack-rows">
+          {routePackages.map((pkg) => (
+            <a class="stack-row" href={pkg.href}>
+              <span>
+                <strong>{pkg.name}</strong>
+                <small>{pkg.role}</small>
+              </span>
+              <span>{pkg.note}</span>
+            </a>
+          ))}
+        </div>
+      </div>
+      <div class="stack-column provider-stack">
+        <h3>Provider strategy</h3>
+        <div class="stack-rows" aria-label="Supported OAuth providers">
+          {supportedProviders.map((provider) => (
+            <a
+              class="stack-provider"
+              href={provider.href}
+              style={provider.color ? `--provider-color: ${provider.color}` : undefined}
+            >
+              <span class:list={["provider-mark", { "provider-mark-microsoft": provider.icon === "microsoft" }]} aria-hidden="true">
+                {provider.icon === "microsoft" ? (
+                  <span class="microsoft-window">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </span>
+                ) : (
+                  <svg viewBox="0 0 24 24" role="img" focusable="false">
+                    <path d={provider.icon.path}></path>
+                  </svg>
+                )}
+              </span>
+              <span class="provider-copy">
+                <strong>{provider.name}</strong>
+                <small>{provider.packageName}</small>
+              </span>
+              <span>{provider.note}</span>
+            </a>
+          ))}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="content-grid split boundary-section">
+    <div>
+      <h2>Keep the callback boundary explicit.</h2>
+      <p>
+        Vestibule creates the authorization request and validates the callback.
+        Your app still stores state and PKCE data before redirecting, then maps
+        successful auth results to accounts.
+      </p>
+      <div class="recovery-strip" aria-label="Callback recovery paths">
+        {recoveryOutcomes.map((outcome) => (
+          <p>
+            <a href={outcome.href}><strong>{outcome.title}</strong></a>
+            <span>{outcome.body}</span>
+          </p>
+        ))}
+      </div>
+      <a class="text-link recovery-action" href="/docs/quick-start#callback-failure">
+        Troubleshoot callback errors
+      </a>
+    </div>
+    <CodeBlock code={directFlow} lang="gleam" class="code-card" />
+  </section>
+
+  <section class="security-callout">
+    <div>
+      <h2>Secure defaults, explicit boundaries.</h2>
+      <p>
+        Vestibule creates strong state tokens, applies PKCE, validates callback
+        state before surfacing provider details, and verifies the provider-specific
+        data it owns. Your application still stores transient callback data,
+        protects bearer credentials, and decides how users map to accounts.
+      </p>
+    </div>
+    <a class="text-link" href="/docs/quick-start#security-responsibilities">
+      Review caller responsibilities
+    </a>
+  </section>
+</DocsLayout>

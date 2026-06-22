@@ -72,6 +72,93 @@ pub fn require_https_rejects_https_without_host_test() {
   }
 }
 
+pub fn require_public_https_accepts_public_host_test() {
+  provider_support.require_public_https("https://accounts.example.com/userinfo")
+  |> expect.to_equal(Ok(Nil))
+}
+
+pub fn require_public_https_rejects_http_test() {
+  let _ =
+    provider_support.require_public_https("http://accounts.example.com")
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn require_public_https_rejects_localhost_test() {
+  let _ =
+    provider_support.require_public_https("https://localhost/userinfo")
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn require_public_https_rejects_loopback_ipv4_test() {
+  let _ =
+    provider_support.require_public_https("https://127.0.0.1/userinfo")
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn require_public_https_rejects_loopback_ipv6_test() {
+  let _ =
+    provider_support.require_public_https("https://[::1]/userinfo")
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn require_public_https_rejects_private_10_test() {
+  let _ =
+    provider_support.require_public_https("https://10.0.0.5/userinfo")
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn require_public_https_rejects_private_192_168_test() {
+  let _ =
+    provider_support.require_public_https("https://192.168.1.1/userinfo")
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn require_public_https_rejects_private_172_16_test() {
+  let _ =
+    provider_support.require_public_https("https://172.16.0.1/userinfo")
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn require_public_https_rejects_link_local_metadata_test() {
+  let _ =
+    provider_support.require_public_https("https://169.254.169.254/userinfo")
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn require_public_https_rejects_cgnat_test() {
+  let _ =
+    provider_support.require_public_https("https://100.64.0.1/userinfo")
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn require_public_https_rejects_ula_ipv6_test() {
+  let _ =
+    provider_support.require_public_https("https://[fd00::1]/userinfo")
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn require_public_https_rejects_link_local_ipv6_test() {
+  let _ =
+    provider_support.require_public_https("https://[fe80::1]/userinfo")
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn require_public_https_allows_public_ipv4_test() {
+  provider_support.require_public_https("https://8.8.8.8/userinfo")
+  |> expect.to_equal(Ok(Nil))
+}
+
 pub fn parse_redirect_uri_rejects_remote_http_test() {
   let result =
     provider_support.parse_redirect_uri("http://example.com/callback")
@@ -298,6 +385,21 @@ pub fn parse_oauth_token_response_required_scope_rejects_missing_scope_test() {
       string.contains(reason, "scope") |> expect.to_be_true()
     }
     _ -> panic as "expected DecodeError"
+  }
+}
+
+pub fn check_response_status_truncates_error_body_test() {
+  let long_body = string.repeat("secret-body-", 20)
+  let result =
+    response.Response(status: 502, headers: [], body: long_body)
+    |> provider_support.check_response_status()
+
+  case result {
+    Error(error.HttpError(status:, body:)) -> {
+      status |> expect.to_equal(502)
+      { string.length(body) <= 120 } |> expect.to_be_true()
+    }
+    _ -> panic as "expected HttpError"
   }
 }
 

@@ -4,7 +4,7 @@ import wisp.{type Request, type Response}
 import pages
 import vestibule/registry.{type Registry}
 import vestibule_wisp
-import vestibule_wisp/state_store.{type StateStore}
+import vestibule/state_store.{type StateStore}
 
 /// Application context passed to the router.
 pub type Context(e) {
@@ -21,7 +21,12 @@ pub fn handle_request(req: Request, ctx: Context(e)) -> Response {
 
     // Phase 1: Redirect to provider
     ["auth", provider], http.Get ->
-      vestibule_wisp.request_phase(req, ctx.registry, provider, ctx.state_store)
+      vestibule_wisp.request_phase(
+        req,
+        reg: ctx.registry,
+        provider: provider,
+        state_store: ctx.state_store,
+      )
 
     // Phase 2: Handle callback (GET for most providers, POST for Apple form_post)
     ["auth", provider, "callback"], http.Get
@@ -29,10 +34,10 @@ pub fn handle_request(req: Request, ctx: Context(e)) -> Response {
     ->
       vestibule_wisp.callback_phase(
         req,
-        ctx.registry,
-        provider,
-        ctx.state_store,
-        fn(auth) { pages.success(auth) },
+        reg: ctx.registry,
+        provider: provider,
+        state_store: ctx.state_store,
+        on_success: fn(auth) { pages.success(auth) },
       )
 
     // Everything else
