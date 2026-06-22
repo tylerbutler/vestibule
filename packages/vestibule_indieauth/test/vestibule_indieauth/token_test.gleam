@@ -2,6 +2,8 @@ import gleam/option.{None, Some}
 import startest
 import startest/expect
 
+import vestibule/credentials
+
 import vestibule_indieauth/token
 
 pub fn main() {
@@ -24,19 +26,24 @@ pub fn parse_token_response_full_test() {
   let result = token.parse_token_response(json)
   let assert Ok(creds) = result
 
-  creds.token
+  creds
+  |> credentials.token
   |> expect.to_equal("XXXXXX")
 
-  creds.token_type
+  creds
+  |> credentials.token_type
   |> expect.to_equal("Bearer")
 
-  creds.scopes
+  creds
+  |> credentials.scopes
   |> expect.to_equal(["profile", "email", "create"])
 
-  creds.expires_at
+  creds
+  |> credentials.expires_in
   |> expect.to_equal(Some(3600))
 
-  creds.refresh_token
+  creds
+  |> credentials.refresh_token
   |> expect.to_equal(Some("RRRRRR"))
 }
 
@@ -52,16 +59,20 @@ pub fn parse_token_response_minimal_test() {
   let result = token.parse_token_response(json)
   let assert Ok(creds) = result
 
-  creds.token
+  creds
+  |> credentials.token
   |> expect.to_equal("abc123")
 
-  creds.scopes
+  creds
+  |> credentials.scopes
   |> expect.to_equal(["profile"])
 
-  creds.expires_at
+  creds
+  |> credentials.expires_in
   |> expect.to_equal(None)
 
-  creds.refresh_token
+  creds
+  |> credentials.refresh_token
   |> expect.to_equal(None)
 }
 
@@ -76,7 +87,8 @@ pub fn parse_token_response_empty_scope_test() {
   let result = token.parse_token_response(json)
   let assert Ok(creds) = result
 
-  creds.scopes
+  creds
+  |> credentials.scopes
   |> expect.to_equal([])
 }
 

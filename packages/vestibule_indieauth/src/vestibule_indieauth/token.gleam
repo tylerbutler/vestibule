@@ -14,9 +14,9 @@ import gleam/result
 import gleam/string
 import gleam/uri
 
-import vestibule/credentials.{type Credentials, Credentials}
+import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
-import vestibule/internal/http as internal_http
+import vestibule/provider_support
 import vestibule/strategy
 import vestibule/user_info.{type UserInfo}
 
@@ -74,7 +74,62 @@ pub fn exchange_code(
 
   case httpc.send(req) {
     Ok(response) -> {
-      use body <- result.try(internal_http.check_response_status(response))
+      use body <- result.try(
+        provider_support.check_response_status_for_endpoint(
+          response,
+          provider_name: "indieauth",
+          endpoint: "token",
+        ),
+      )
+      parse_token_response(body)
+    }
+    Error(_) ->
+      Error(error.NetworkError(
+        reason: "Failed to connect to IndieAuth token endpoint: "
+        <> token_endpoint,
+      ))
+  }
+}
+
+/// Exchange a refresh token for fresh credentials at the token endpoint.
+///
+/// IndieAuth uses public client semantics — no `client_secret` is sent.
+/// The `client_id` is the application's URL.
+pub fn refresh(
+  token_endpoint: String,
+  client_id: String,
+  refresh_token: String,
+) -> Result(Credentials, AuthError(e)) {
+  let body =
+    uri.query_to_string([
+      #("grant_type", "refresh_token"),
+      #("refresh_token", refresh_token),
+      #("client_id", client_id),
+    ])
+
+  use req <- result.try(
+    request.to(token_endpoint)
+    |> result.replace_error(error.ConfigError(
+      reason: "Invalid token endpoint URL: " <> token_endpoint,
+    )),
+  )
+
+  let req =
+    req
+    |> request.set_method(http.Post)
+    |> request.set_header("content-type", "application/x-www-form-urlencoded")
+    |> request.set_header("accept", "application/json")
+    |> request.set_body(body)
+
+  case httpc.send(req) {
+    Ok(response) -> {
+      use body <- result.try(
+        provider_support.check_response_status_for_endpoint(
+          response,
+          provider_name: "indieauth",
+          endpoint: "refresh",
+        ),
+      )
       parse_token_response(body)
     }
     Error(_) ->
@@ -110,7 +165,11 @@ pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
   }
   case json.parse(body, error_decoder) {
     Ok(#(code, description)) ->
-      Error(error.ProviderError(code: code, description: description))
+      Error(error.ProviderError(
+        code: code,
+        description: description,
+        uri: None,
+      ))
     _ -> parse_token_success(body)
   }
 }
@@ -134,11 +193,11 @@ fn parse_token_success(body: String) -> Result(Credentials, AuthError(e)) {
       "" -> []
       s -> string.split(s, " ")
     }
-    decode.success(Credentials(
+    decode.success(credentials.new(
       token: access_token,
       refresh_token: refresh_token,
       token_type: token_type,
-      expires_at: expires_in,
+      expires_in: expires_in,
       scopes: scopes,
     ))
   }
@@ -232,7 +291,13 @@ pub fn fetch_userinfo(
 
   case httpc.send(req) {
     Ok(response) -> {
-      use body <- result.try(internal_http.check_response_status(response))
+      use body <- result.try(
+        provider_support.check_response_status_for_endpoint(
+          response,
+          provider_name: "indieauth",
+          endpoint: "userinfo",
+        ),
+      )
       parse_userinfo_response(body)
     }
     Error(_) ->

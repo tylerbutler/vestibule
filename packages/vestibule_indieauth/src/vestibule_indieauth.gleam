@@ -31,7 +31,7 @@ import gleam/uri
 import vestibule/config.{type Config}
 import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
-import vestibule/strategy.{type Strategy, Strategy}
+import vestibule/strategy.{type Strategy, type UserResult}
 import vestibule/user_info
 
 import vestibule_indieauth/discovery.{type DiscoveredEndpoints}
@@ -76,17 +76,19 @@ pub fn discover_endpoints(
 /// Use this with `discover_endpoints` when you want to separate
 /// discovery from strategy creation.
 pub fn strategy(endpoints: DiscoveredEndpoints, me: String) -> Strategy(e) {
-  Strategy(
+  strategy.new(
     provider: "indieauth",
     default_scopes: ["profile"],
-    token_url: endpoints.token_endpoint,
     authorize_url: fn(cfg, scopes, state) {
       do_authorize_url(endpoints, me, cfg, scopes, state)
     },
     exchange_code: fn(cfg, code, code_verifier) {
       do_exchange_code(endpoints, cfg, code, code_verifier)
     },
-    fetch_user: fn(creds) { do_fetch_user(endpoints, me, creds) },
+    refresh_token: fn(cfg, refresh_tok) {
+      do_refresh_token(endpoints, cfg, refresh_tok)
+    },
+    fetch_user: fn(_cfg, exchange) { do_fetch_user(endpoints, me, exchange) },
   )
 }
 
@@ -121,7 +123,7 @@ fn do_exchange_code(
   cfg: Config,
   code: String,
   code_verifier: Option(String),
-) -> Result(Credentials, AuthError(e)) {
+) -> Result(strategy.ExchangeResult, AuthError(e)) {
   token.exchange_code(
     endpoints.token_endpoint,
     config.client_id(cfg),
@@ -129,13 +131,23 @@ fn do_exchange_code(
     code,
     code_verifier,
   )
+  |> result.map(strategy.exchange_result)
+}
+
+fn do_refresh_token(
+  endpoints: DiscoveredEndpoints,
+  cfg: Config,
+  refresh_tok: String,
+) -> Result(Credentials, AuthError(e)) {
+  token.refresh(endpoints.token_endpoint, config.client_id(cfg), refresh_tok)
 }
 
 fn do_fetch_user(
   endpoints: DiscoveredEndpoints,
   me: String,
-  creds: Credentials,
-) -> Result(#(String, user_info.UserInfo), AuthError(e)) {
+  exchange: strategy.ExchangeResult,
+) -> Result(UserResult, AuthError(e)) {
+  let creds = strategy.exchange_credentials(exchange)
   // IndieAuth returns profile info in the token response, so we
   // store it on the credentials. If the token endpoint returned
   // profile info, we already have it. For IndieAuth, the uid is
@@ -144,12 +156,15 @@ fn do_fetch_user(
   // If a userinfo_endpoint was discovered, fetch from it.
   // Otherwise, return minimal info with the me URL as identity.
   case endpoints.userinfo_endpoint {
-    Some(userinfo_url) -> token.fetch_userinfo(userinfo_url, creds)
-    None -> {
+    Some(userinfo_url) -> {
+      use #(uid, info) <- result.try(token.fetch_userinfo(userinfo_url, creds))
+      Ok(strategy.user_result(uid: uid, info: info, extra: dict.new()))
+    }
+    None ->
       // Return minimal user info — the me URL is the identity
-      Ok(#(
-        me,
-        user_info.UserInfo(
+      Ok(strategy.user_result(
+        uid: me,
+        info: user_info.UserInfo(
           name: None,
           email: None,
           nickname: None,
@@ -157,7 +172,7 @@ fn do_fetch_user(
           description: None,
           urls: dict.from_list([#("url", me)]),
         ),
+        extra: dict.new(),
       ))
-    }
   }
 }
