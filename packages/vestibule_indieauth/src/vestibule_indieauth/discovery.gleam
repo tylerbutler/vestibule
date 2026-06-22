@@ -125,7 +125,9 @@ fn fetch_metadata(
 
 /// Parse IndieAuth server metadata JSON.
 /// Exported for testing.
-pub fn parse_metadata(body: String) -> Result(DiscoveredEndpoints, AuthError(e)) {
+pub fn parse_metadata(
+  body: String,
+) -> Result(DiscoveredEndpoints, AuthError(e)) {
   let decoder = {
     use authorization_endpoint <- decode.field(
       "authorization_endpoint",
