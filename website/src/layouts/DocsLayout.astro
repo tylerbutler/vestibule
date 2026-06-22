@@ -85,7 +85,7 @@ const hasToc = toc.length > 0;
       </a>
       <div class="header-actions">
         <details class="header-resources">
-          <summary>Links</summary>
+          <summary>Search &amp; links</summary>
           <nav aria-label="Site links">
             <a href="/docs/search" data-search-trigger>Search</a>
             <a href="https://hex.pm/packages/vestibule">Hex</a>
@@ -192,7 +192,7 @@ const hasToc = toc.length > 0;
             type="search"
             class="cmd-input"
             role="combobox"
-            aria-expanded="true"
+            aria-expanded="false"
             aria-controls="cmd-results"
             aria-label="Search documentation"
             aria-autocomplete="list"
@@ -202,6 +202,7 @@ const hasToc = toc.length > 0;
             data-cmd-input
           />
           <kbd class="cmd-esc-hint" aria-hidden="true">esc</kbd>
+          <button class="cmd-close-button" type="button" data-cmd-close>Close</button>
         </div>
 
         <ul id="cmd-results" class="cmd-results" role="listbox" aria-label="Search results" data-cmd-results>
@@ -412,6 +413,7 @@ const hasToc = toc.length > 0;
 
         const items = Array.from(dialog.querySelectorAll("[data-cmd-item]"));
         const triggers = Array.from(document.querySelectorAll("[data-search-trigger]"));
+        const closeButtons = Array.from(dialog.querySelectorAll("[data-cmd-close]"));
         let visible = items.slice();
         let activeIndex = -1;
         let activeEl = null;
@@ -479,7 +481,13 @@ const hasToc = toc.length > 0;
           input.value = "";
           filter();
           dialog.showModal();
+          input.setAttribute("aria-expanded", "true");
           input.focus();
+        };
+
+        const syncClosedState = () => {
+          input.setAttribute("aria-expanded", "false");
+          input.removeAttribute("aria-activedescendant");
         };
 
         const close = () => {
@@ -492,6 +500,12 @@ const hasToc = toc.length > 0;
             open();
           });
         }
+
+        for (const button of closeButtons) {
+          button.addEventListener("click", close);
+        }
+
+        dialog.addEventListener("close", syncClosedState);
 
         document.addEventListener("keydown", (event) => {
           if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {

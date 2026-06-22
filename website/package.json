@@ -6,6 +6,8 @@
   "packageManager": "pnpm@7.33.6",
   "scripts": {
     "dev": "astro dev",
+    "generate:reference": "node scripts/generate-reference.mjs",
+    "test:reference": "node --test scripts/generate-reference.test.mjs",
     "build": "astro build",
     "preview": "astro preview"
   },

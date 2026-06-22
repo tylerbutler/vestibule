@@ -6,6 +6,7 @@ import {
   getPackageEntries,
   packageDocsUrl,
   packageHexUrl,
+  packageReferenceUrl,
   packageSlug
 } from "../../../data/content";
 
@@ -23,6 +24,7 @@ const { pkg } = Astro.props;
 const { data } = pkg;
 const hexUrl = packageHexUrl(pkg);
 const docsUrl = packageDocsUrl(pkg);
+const referenceUrl = packageReferenceUrl(pkg);
 ---
 
 <DocsLayout
@@ -57,7 +59,8 @@ const docsUrl = packageDocsUrl(pkg);
         <CodeBlock code={data.install.join("\n")} lang="sh" />
         <nav class="resource-links" aria-label={`${data.name} package resources`}>
           <a href={hexUrl}>Hex package</a>
-          <a href={docsUrl}>API docs</a>
+          <a href={referenceUrl}>API reference</a>
+          <a href={docsUrl}>HexDocs</a>
         </nav>
       </div>
     </section>
@@ -91,6 +94,7 @@ const docsUrl = packageDocsUrl(pkg);
 
     <nav class="next-links" aria-label="Package navigation">
       <a href="/docs/packages">Back to package overview</a>
+      <a href={referenceUrl}>Read the API reference</a>
       <a href="/docs/guides/custom-strategy">Write a custom strategy</a>
     </nav>
   </article>
