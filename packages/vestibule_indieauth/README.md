@@ -79,6 +79,32 @@ let assert Ok(auth) =
 - **Endpoints are per-user** — Each user may have different authorization/token endpoints
 - **Discovery required** — Call `discover()` before starting the auth flow
 
+## Resuming a flow across request and callback
+
+Because endpoints are discovered per-user at request time, a web app needs the
+same endpoints again in the callback phase. Rather than re-running discovery (a
+second network round-trip), discover once and persist the result — for example
+in a signed cookie or server-side session — then rebuild the strategy on the way
+back:
+
+```gleam
+// Request phase: discover once, keep the endpoints + canonical `me`.
+let assert Ok(#(endpoints, me)) =
+  vestibule_indieauth.discover_endpoints_with_me("https://user.example.com")
+let strategy = vestibule_indieauth.strategy(endpoints, me)
+// ...start the authorization flow, and stash this for the callback:
+let stashed = vestibule_indieauth.serialize_endpoints(endpoints, me)
+
+// Callback phase: restore and rebuild — no second discovery.
+let assert Ok(#(endpoints, me)) = vestibule_indieauth.parse_endpoints(stashed)
+let strategy = vestibule_indieauth.strategy(endpoints, me)
+```
+
+`discover_endpoints_with_me` validates, canonicalizes, and discovers in one call,
+returning both the endpoints and the canonical `me` URL (unlike `discover`, which
+returns only a `Strategy`, or `discover_endpoints`, which returns only the
+endpoints).
+
 ## Target
 
 Erlang (BEAM) runtime only — discovery requires HTTP requests.
