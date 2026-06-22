@@ -1,0 +1,123 @@
+---
+title: OIDC discovery
+description: Build a Vestibule strategy from any OpenID Connect provider's issuer URL, including self-hosted providers.
+nav:
+  group: Extend
+  groupOrder: 20
+  order: 20
+  label: OIDC discovery
+toc:
+  - href: "#discover"
+    label: Discover a provider
+  - href: "#self-hosted"
+    label: Self-hosted providers
+  - href: "#register-client"
+    label: Register a client
+  - href: "#nonce"
+    label: Nonce and replay protection
+searchTerms:
+  - oidc
+  - openid connect
+  - discovery
+  - discover
+  - issuer
+  - well-known
+  - openid-configuration
+  - pocket id
+  - self-hosted
+---
+
+import CodeBlock from "../../../components/CodeBlock.astro";
+
+export const discoverCode = `import vestibule/oidc
+
+let assert Ok(strategy) = oidc.discover("https://accounts.google.com")`;
+
+export const selfHostedCode = `import vestibule
+import vestibule/config
+import vestibule/oidc
+
+// Discovery reads https://your-pocket-id-instance/.well-known/openid-configuration
+let assert Ok(strategy) = oidc.discover("https://your-pocket-id-instance")
+let cfg =
+  config.new(
+    "your-client-id",
+    "your-client-secret",
+    "http://localhost:8000/auth/oidc/callback",
+  )
+
+let assert Ok(auth_request) = vestibule.create_authorization_request(strategy, cfg)`;
+
+<section id="discover">
+  <h2>Discover a provider</h2>
+  <p>
+    Any standards-compliant OpenID Connect provider can be turned into a
+    Vestibule strategy from its issuer URL. <code>oidc.discover</code> reads the
+    provider's <code>/.well-known/openid-configuration</code> document and
+    returns a ready-to-use strategy.
+  </p>
+  <CodeBlock code={discoverCode} lang="gleam" />
+  <p>
+    The discovered strategy plugs into the same two-phase flow, registry, and
+    <a href="/docs/packages/wisp">vestibule_wisp</a> or
+    <a href="/docs/packages/mist">vestibule_mist</a> middleware as the dedicated
+    provider packages.
+  </p>
+</section>
+
+<section id="self-hosted">
+  <h2>Self-hosted providers</h2>
+  <p>
+    Because <code>oidc.discover</code> only needs an issuer URL, self-hosted
+    providers such as <a href="https://pocket-id.org">Pocket ID</a> work the same
+    way. Point <code>discover</code> at your instance's base URL and pair the
+    resulting strategy with a <code>config.new</code> holding your client
+    credentials.
+  </p>
+  <CodeBlock code={selfHostedCode} lang="gleam" />
+</section>
+
+<section id="register-client">
+  <h2>Register a client</h2>
+  <p>
+    Register a client in your provider before discovery can be used end to end:
+  </p>
+  <ul className="check-list">
+    <li>
+      <strong>Redirect URI</strong> — must exactly match the one passed to
+      <code>config.new</code> (for example
+      <code>https://app.example.com/auth/oidc/callback</code>). Production
+      redirect URIs and OIDC issuers must use HTTPS;
+      <code>http://localhost</code> and <code>http://127.0.0.1</code> are
+      permitted for local development only.
+    </li>
+    <li>
+      <strong>Scopes</strong> — request <code>openid email profile</code> so
+      Vestibule can populate the user's id, email, and name.
+      <code>UserInfo.email</code> is only filled in when the provider reports
+      <code>email_verified</code>.
+    </li>
+    <li>
+      <strong>Client credentials</strong> — copy the issued client ID and secret
+      into <code>config.new</code>.
+    </li>
+  </ul>
+</section>
+
+<section id="nonce" className="security-callout">
+  <div>
+    <h2>Nonce and replay protection</h2>
+    <p>
+      The discover-built strategy does not currently generate or validate an
+      OIDC <code>nonce</code>. PKCE still protects the authorization code, but if
+      you need id_token replay protection beyond PKCE, validate the
+      <code>nonce</code> yourself when consuming the <code>id_token</code>
+      artifact returned in <code>ExchangeResult</code>.
+    </p>
+  </div>
+</section>
+
+<nav className="next-links" aria-label="Next documentation links">
+  <a href="/docs/packages">Compare packages</a>
+  <a href="/docs/reference/vestibule-oidc">vestibule/oidc API reference</a>
+</nav>

@@ -248,6 +248,46 @@ Discover OpenID Connect providers from their issuer URL:
 let assert Ok(strategy) = oidc.discover("https://accounts.google.com")
 ```
 
+### Using Pocket ID (or any self-hosted OIDC provider)
+
+Because `oidc.discover` only needs an issuer URL, any standards-compliant
+OpenID Connect provider works the same way — including self-hosted ones such
+as [Pocket ID](https://pocket-id.org). Point `discover` at your instance's
+base URL and pair the resulting strategy with a `config.new` holding your
+client credentials:
+
+```gleam
+import vestibule
+import vestibule/config
+import vestibule/oidc
+
+// Discovery reads https://your-pocket-id-instance/.well-known/openid-configuration
+let assert Ok(strategy) = oidc.discover("https://your-pocket-id-instance")
+let cfg =
+  config.new(
+    "your-client-id",
+    "your-client-secret",
+    "http://localhost:8000/auth/oidc/callback",
+  )
+
+let assert Ok(auth_request) = vestibule.authorize_url(strategy, cfg)
+```
+
+The discovered strategy plugs into the same two-phase flow, registry, and
+`vestibule_wisp` middleware shown above.
+
+Register a client in your provider first:
+
+- **Redirect URI** — must exactly match the one passed to `config.new`
+  (for example `https://app.example.com/auth/oidc/callback`). Production
+  redirect URIs and OIDC issuers must use HTTPS; `http://localhost` and
+  `http://127.0.0.1` are permitted for local development only.
+- **Scopes** — request `openid email profile` so vestibule can populate the
+  user's id, email, and name. Note that `UserInfo.email` is only filled in
+  when the provider reports `email_verified`.
+- **Client credentials** — copy the issued client ID and secret into
+  `config.new`.
+
 ## Security
 
 Vestibule implements the OAuth 2.0 / OIDC pieces that protect against
