@@ -93,6 +93,9 @@ export const packageHexUrl = (entry: PackageEntry) =>
 export const packageDocsUrl = (entry: PackageEntry) =>
   `https://hexdocs.pm/${entry.data.name}`;
 
+export const packageReferenceUrl = (entry: PackageEntry) =>
+  `/docs/reference/${entry.data.name}`;
+
 const sortByNav = (left: DocsEntry, right: DocsEntry) =>
   left.data.nav.groupOrder - right.data.nav.groupOrder ||
   left.data.nav.order - right.data.nav.order ||
@@ -195,11 +198,10 @@ export async function getSearchEntries() {
       },
       {
         title: `${entry.data.name} API docs`,
-        href: packageDocsUrl(entry),
+        href: packageReferenceUrl(entry),
         category: "API reference",
-        description: `Open the HexDocs API reference for ${entry.data.name}.`,
-        terms: `${entry.data.name} HexDocs API reference modules functions types`,
-        external: true
+        description: `Open the generated API reference for ${entry.data.name}.`,
+        terms: `${entry.data.name} generated API reference modules functions types hexdocs`
       }
     ])
   ];

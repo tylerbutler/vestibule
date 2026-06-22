@@ -1,6 +1,11 @@
 ---
 import DocsLayout from "../../../layouts/DocsLayout.astro";
-import { getPackageEntries, packageHref, packageSlug } from "../../../data/content";
+import {
+  getPackageEntries,
+  packageHref,
+  packageReferenceUrl,
+  packageSlug
+} from "../../../data/content";
 
 const packages = await getPackageEntries();
 const providers = packages.filter((pkg) => pkg.data.kind.includes("Provider"));
@@ -26,7 +31,8 @@ const routeLabel = (slug: string) =>
   section="Packages"
   toc={[
     { href: "#route-packages", label: "Route packages" },
-    { href: "#provider-strategies", label: "Provider strategies" }
+    { href: "#provider-strategies", label: "Provider strategies" },
+    { href: "#api-reference", label: "API reference" }
   ]}
 >
   <article class="doc-page">
@@ -98,6 +104,33 @@ const routeLabel = (slug: string) =>
                 <span class="provider-cell-label" aria-hidden="true">Important behavior</span>
                 {pkg.data.highlights[0]}
               </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+
+    <section id="api-reference">
+      <div class="section-heading">
+        <h2>Read generated API reference</h2>
+        <p>
+          Reference pages are generated from Gleam docs metadata during the
+          website build, so they stay aligned with each package's public API.
+        </p>
+      </div>
+      <table class="provider-table">
+        <caption class="visually-hidden">Generated API reference links</caption>
+        <thead>
+          <tr>
+            <th scope="col">Package</th>
+            <th scope="col">Reference</th>
+          </tr>
+        </thead>
+        <tbody>
+          {packages.map((pkg) => (
+            <tr>
+              <th scope="row">{pkg.data.name}</th>
+              <td><a href={packageReferenceUrl(pkg)}>Open generated reference</a></td>
             </tr>
           ))}
         </tbody>
