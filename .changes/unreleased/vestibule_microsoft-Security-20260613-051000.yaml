@@ -1,4 +1,0 @@
-project: vestibule_microsoft
-kind: Security
-body: Added `strategy_for_tenant(tenant_id)` for single-tenant apps. It uses tenant-specific Microsoft identity endpoints and verifies the `tid` claim in the returned ID token matches the configured tenant, failing authentication on mismatch. `strategy()` still uses `/common` (multi-tenant, no tenant enforcement) and its tenant-isolation risk is now documented.
-time: 2026-06-13T05:10:00.000000000-07:00
