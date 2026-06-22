@@ -64,34 +64,73 @@ case
   Error(error.StateMismatch) -> restart_sign_in()
   Error(reason) -> show_auth_error(reason)
 }`;
-const routeChoices = [
+const recommendedRoute = {
+  label: "Recommended for Wisp and Mist",
+  title: "Let middleware own the auth routes",
+  body:
+    "Use Wisp or Mist helpers when your server layer should handle request and callback routing, while your app maps normalized auth results to a user session.",
+  href: "/docs/quick-start#middleware-path",
+  action: "Start with middleware",
+  checks: [
+    "Install core, one provider strategy, and the middleware package.",
+    "Store the returned state and PKCE verifier before redirecting.",
+    "Handle the normalized auth result in your session code."
+  ]
+};
+const alternateRoutes = [
   {
-    label: "Recommended for Wisp and Mist",
-    title: "Start with middleware",
-    recommended: true,
-    body:
-      "Let Wisp or Mist own request and callback routes while your app maps the normalized auth result to a user session.",
-    href: "/docs/quick-start#middleware-path",
-    action: "Use middleware",
-    meta: "Add core, one provider strategy, and the middleware package for your server layer."
-  },
-  {
-    label: "Advanced path",
+    label: "When your router is custom",
     title: "Use core when your app owns the auth routes",
     body:
-      "Choose core APIs when you want direct control over redirects, callback storage, and framework integration.",
+      "Call the core APIs directly when you want full control over redirects, callback storage, and framework integration.",
     href: "/docs/quick-start#core-path",
-    action: "Use core directly",
-    meta: "Store state and PKCE verifier yourself before redirecting."
+    action: "Use core directly"
   },
   {
-    label: "After the base flow works",
-    title: "Add provider packages",
+    label: "Follow-up step",
+    title: "Then add provider strategy packages",
     body:
-      "Add GitHub, Google, Microsoft, or Apple strategies when your sign-in flow needs provider-specific profile behavior.",
+      "Choose GitHub, Google, Microsoft, or Apple strategies for provider-specific profile and token behavior.",
     href: "/docs/packages#provider-strategies",
     action: "Choose providers",
-    meta: "Provider packages extend the base flow; they do not replace route handling."
+    followUp: true
+  }
+];
+const routePackages = [
+  {
+    name: nameForPackage("wisp", "vestibule_wisp"),
+    role: "Wisp middleware",
+    href: hrefForPackage("wisp"),
+    note: "Owns request and callback route helpers for Wisp apps."
+  },
+  {
+    name: nameForPackage("mist", "vestibule_mist"),
+    role: "Mist middleware",
+    href: hrefForPackage("mist"),
+    note: "Gives Mist apps the same route-phase ergonomics without Wisp."
+  },
+  {
+    name: nameForPackage("core", "vestibule"),
+    role: "Core package",
+    href: hrefForPackage("core"),
+    note: "Use directly when your app owns routing, transient storage, and sessions."
+  }
+];
+const recoveryOutcomes = [
+  {
+    title: "State mismatch",
+    body: "Restart sign-in and discard stored callback data.",
+    href: "/docs/quick-start#callback-failure"
+  },
+  {
+    title: "Provider rejection",
+    body: "Show an auth error instead of asserting success.",
+    href: "/docs/quick-start#callback-failure"
+  },
+  {
+    title: "Profile or token failure",
+    body: "Retry the provider flow or route users to support.",
+    href: "/docs/quick-start#callback-failure"
   }
 ];
 ---
@@ -115,6 +154,9 @@ const routeChoices = [
         <a class="button primary" href="/docs/quick-start">Add sign-in</a>
         <a class="button secondary" href="/docs/packages">Compare packages</a>
       </div>
+      <a class="hero-search" href="/docs/search" data-search-trigger data-search-hint>
+        Search state, PKCE, provider packages
+      </a>
       <ol class="hero-flow" aria-label="OAuth flow checkpoints">
         <li>
           <strong>Request</strong>
@@ -144,30 +186,96 @@ const routeChoices = [
 
   <section class="route-decision" aria-labelledby="route-decision-heading">
     <div class="section-heading">
-      <h2 id="route-decision-heading">Choose the route shape first.</h2>
+      <h2 id="route-decision-heading">Choose who owns the auth routes.</h2>
       <p>
-        Start with middleware when Wisp or Mist should own the auth routes. Use
-        core only when your app handles routing, session storage, and callback
-        data directly.
+        Route ownership decides which packages you install, where you store
+        transient callback data, and how your app turns auth results into a
+        session.
       </p>
     </div>
-    <div class="route-choice-list">
-      {routeChoices.map((choice) => (
-        <a
-          class:list={["route-choice", { recommended: choice.recommended }]}
-          href={choice.href}
-        >
-          <span class="path-label">{choice.label}</span>
-          <strong>{choice.title}</strong>
-          <span>{choice.body}</span>
-          <small>{choice.meta}</small>
-          <em>{choice.action}</em>
-        </a>
-      ))}
+    <div class="route-decision-panel">
+      <a class="route-primary" href={recommendedRoute.href}>
+        <span class="path-label">{recommendedRoute.label}</span>
+        <strong>{recommendedRoute.title}</strong>
+        <span>{recommendedRoute.body}</span>
+        <ul>
+          {recommendedRoute.checks.map((check) => <li>{check}</li>)}
+        </ul>
+        <em>{recommendedRoute.action}</em>
+      </a>
+      <div class="route-secondary-list" aria-label="Other route choices">
+        {alternateRoutes.map((choice) => (
+          <a class:list={["route-choice", "compact", { "follow-up": choice.followUp }]} href={choice.href}>
+            <span class="path-label">{choice.label}</span>
+            <strong>{choice.title}</strong>
+            <span>{choice.body}</span>
+            <em>{choice.action}</em>
+          </a>
+        ))}
+      </div>
     </div>
   </section>
 
-  <section class="content-grid split">
+  <section aria-labelledby="stack-heading">
+    <div class="section-heading">
+      <h2 id="stack-heading">Build the stack in two moves.</h2>
+      <p>
+        Pick one route layer first, then add provider strategies. Provider
+        packages extend the flow; they do not replace request and callback
+        handling.
+      </p>
+    </div>
+    <div class="stack-map">
+      <div class="stack-column">
+        <h3>Route layer</h3>
+        <div class="stack-rows">
+          {routePackages.map((pkg) => (
+            <a class="stack-row" href={pkg.href}>
+              <span>
+                <strong>{pkg.name}</strong>
+                <small>{pkg.role}</small>
+              </span>
+              <span>{pkg.note}</span>
+            </a>
+          ))}
+        </div>
+      </div>
+      <div class="stack-column provider-stack">
+        <h3>Provider strategy</h3>
+        <div class="stack-rows" aria-label="Supported OAuth providers">
+          {supportedProviders.map((provider) => (
+            <a
+              class="stack-provider"
+              href={provider.href}
+              style={provider.color ? `--provider-color: ${provider.color}` : undefined}
+            >
+              <span class:list={["provider-mark", { "provider-mark-microsoft": provider.icon === "microsoft" }]} aria-hidden="true">
+                {provider.icon === "microsoft" ? (
+                  <span class="microsoft-window">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </span>
+                ) : (
+                  <svg viewBox="0 0 24 24" role="img" focusable="false">
+                    <path d={provider.icon.path}></path>
+                  </svg>
+                )}
+              </span>
+              <span class="provider-copy">
+                <strong>{provider.name}</strong>
+                <small>{provider.packageName}</small>
+              </span>
+              <span>{provider.note}</span>
+            </a>
+          ))}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="content-grid split boundary-section">
     <div>
       <h2>Keep the callback boundary explicit.</h2>
       <p>
@@ -175,80 +283,19 @@ const routeChoices = [
         Your app still stores state and PKCE data before redirecting, then maps
         successful auth results to accounts.
       </p>
+      <div class="recovery-strip" aria-label="Callback recovery paths">
+        {recoveryOutcomes.map((outcome) => (
+          <p>
+            <a href={outcome.href}><strong>{outcome.title}</strong></a>
+            <span>{outcome.body}</span>
+          </p>
+        ))}
+      </div>
+      <a class="text-link recovery-action" href="/docs/quick-start#callback-failure">
+        Troubleshoot callback errors
+      </a>
     </div>
     <CodeBlock code={directFlow} lang="gleam" class="code-card" />
-  </section>
-
-  <section aria-labelledby="supported-providers-heading">
-    <div class="section-heading">
-      <h2 id="supported-providers-heading">Supported providers</h2>
-      <p>
-        Start with middleware in your router, then add provider-specific packages
-        when your app needs additional authentication flows.
-      </p>
-    </div>
-    <div class="provider-ledger" aria-label="Supported OAuth providers">
-      {supportedProviders.map((provider) => (
-        <a
-          class="provider-link"
-          href={provider.href}
-          style={provider.color ? `--provider-color: ${provider.color}` : undefined}
-        >
-          <span class:list={["provider-mark", { "provider-mark-microsoft": provider.icon === "microsoft" }]} aria-hidden="true">
-            {provider.icon === "microsoft" ? (
-              <span class="microsoft-window">
-                <span></span>
-                <span></span>
-                <span></span>
-                <span></span>
-              </span>
-            ) : (
-              <svg viewBox="0 0 24 24" role="img" focusable="false">
-                <path d={provider.icon.path}></path>
-              </svg>
-            )}
-          </span>
-          <span class="provider-copy">
-            <strong>{provider.name}</strong>
-            <small>{provider.packageName}</small>
-          </span>
-          <span>{provider.note}</span>
-        </a>
-      ))}
-    </div>
-  </section>
-
-  <section>
-    <div class="section-heading">
-      <h2>Packages follow the route shape.</h2>
-      <p>
-        Pick the routing layer first, then add provider strategies for the
-        identity providers your app supports.
-      </p>
-    </div>
-    <div class="package-river">
-      <a class="package-row" href={hrefForPackage("wisp")}>
-        <span>
-          <strong>{nameForPackage("wisp", "vestibule_wisp")}</strong>
-          <small>Wisp middleware</small>
-        </span>
-        <span>Use when your Wisp app should own request and callback routing helpers.</span>
-      </a>
-      <a class="package-row" href={hrefForPackage("mist")}>
-        <span>
-          <strong>{nameForPackage("mist", "vestibule_mist")}</strong>
-          <small>Mist middleware</small>
-        </span>
-        <span>Use when your app runs directly on Mist and wants the same auth ergonomics.</span>
-      </a>
-      <a class="package-row" href={hrefForPackage("core")}>
-        <span>
-          <strong>{nameForPackage("core", "vestibule")}</strong>
-          <small>Core package</small>
-        </span>
-        <span>Use when your app owns routing, transient callback storage, and framework integration.</span>
-      </a>
-    </div>
   </section>
 
   <section class="security-callout">
