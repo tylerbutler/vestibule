@@ -65,34 +65,34 @@ case
   Error(reason) -> show_auth_error(reason)
 }`;
 const recommendedRoute = {
-  label: "Recommended for Wisp and Mist",
-  title: "Let middleware own the auth routes",
+  label: "Using Wisp or Mist?",
+  title: "Start with middleware routes",
   body:
-    "Use Wisp or Mist helpers when your server layer should handle request and callback routing, while your app maps normalized auth results to a user session.",
+    "Install core, one provider strategy, and the matching middleware package. Vestibule handles request and callback routing while your app stores callback data and creates the session.",
   href: "/docs/quick-start#middleware-path",
-  action: "Start with middleware",
+  action: "Use the middleware path",
   checks: [
-    "Install core, one provider strategy, and the middleware package.",
+    "Choose vestibule_wisp or vestibule_mist for your server.",
     "Store the returned state and PKCE verifier before redirecting.",
     "Handle the normalized auth result in your session code."
   ]
 };
 const alternateRoutes = [
   {
-    label: "When your router is custom",
-    title: "Use core when your app owns the auth routes",
+    label: "Using another router?",
+    title: "Call the core API directly",
     body:
-      "Call the core APIs directly when you want full control over redirects, callback storage, and framework integration.",
+      "Use core when your application owns redirects, callback storage, and framework integration.",
     href: "/docs/quick-start#core-path",
-    action: "Use core directly"
+    action: "Use the core path"
   },
   {
-    label: "Follow-up step",
-    title: "Then add provider strategy packages",
+    label: "Next setup step",
+    title: "Add a provider strategy",
     body:
-      "Choose GitHub, Google, Microsoft, or Apple strategies for provider-specific profile and token behavior.",
+      "After the route layer is clear, choose GitHub, Google, Microsoft, or Apple for provider-specific profile and token behavior.",
     href: "/docs/packages#provider-strategies",
-    action: "Choose providers",
+    action: "Choose a provider",
     followUp: true
   }
 ];
@@ -186,11 +186,11 @@ const recoveryOutcomes = [
 
   <section class="route-decision" aria-labelledby="route-decision-heading">
     <div class="section-heading">
-      <h2 id="route-decision-heading">Choose who owns the auth routes.</h2>
+      <h2 id="route-decision-heading">Pick the route path first.</h2>
       <p>
-        Route ownership decides which packages you install, where you store
-        transient callback data, and how your app turns auth results into a
-        session.
+        Start with your server layer: Wisp and Mist apps can use middleware
+        routes; custom routers can call the core API directly. Provider
+        strategies come next.
       </p>
     </div>
     <div class="route-decision-panel">
@@ -220,9 +220,9 @@ const recoveryOutcomes = [
     <div class="section-heading">
       <h2 id="stack-heading">Build the stack in two moves.</h2>
       <p>
-        Pick one route layer first, then add provider strategies. Provider
-        packages extend the flow; they do not replace request and callback
-        handling.
+        Step one is the route layer. Step two is the provider strategy. Provider
+        packages add profile and token behavior; they do not replace request and
+        callback handling.
       </p>
     </div>
     <div class="stack-map">

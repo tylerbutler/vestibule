@@ -147,6 +147,7 @@ a:hover {
   }
 
   .button.primary,
+  .cmd-close-button,
   .skip-link {
     border: 1px solid ButtonText;
   }
@@ -281,6 +282,7 @@ svg {
 .theme-toggle,
 .button,
 .code-copy-button,
+.cmd-close-button,
 .hero-search,
 .route-primary,
 .stack-row,
@@ -396,6 +398,7 @@ svg {
 .header-resources a,
 .theme-toggle,
 .code-copy-button,
+.cmd-close-button,
 .hero-search,
 .route-primary,
 .stack-row,
@@ -421,6 +424,7 @@ svg {
 .header-resources a,
 .theme-toggle,
 .button,
+.cmd-close-button,
 .hero-search,
 .route-primary,
 .stack-row,
@@ -1128,16 +1132,15 @@ pre code {
 }
 
 .provider-stack .stack-provider {
-  flex: 1 1 10rem;
+  flex: 1 1 14rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--bg);
   padding: var(--space-2);
 }
 
-.provider-stack .stack-provider > span:last-child,
-.provider-stack .provider-copy small {
-  display: none;
+.provider-stack .stack-provider > span:last-child {
+  display: block;
 }
 
 .provider-mark {
@@ -2154,6 +2157,24 @@ pre code {
   font-weight: var(--weight-semibold);
 }
 
+.cmd-close-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  padding: 0 var(--space-3);
+}
+
+.cmd-close-button:hover,
+.cmd-close-button:focus-visible,
+.cmd-close-button:active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
 .cmd-results {
   display: grid;
   gap: var(--space-1);
@@ -2253,6 +2274,10 @@ pre code {
 }
 
 @media (max-width: 32rem) {
+  .cmd-esc-hint {
+    display: none;
+  }
+
   .cmd-palette {
     width: 100%;
     max-width: 100%;
