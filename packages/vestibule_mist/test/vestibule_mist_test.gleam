@@ -179,7 +179,12 @@ pub fn callback_tampered_cookie_fails_as_missing_test() {
 pub fn callback_wrong_secret_fails_as_missing_test() {
   let store = state_store.init_named("test_mist_cb_wrong_secret")
   let session_id =
-    state_store.store(store, state: "state", code_verifier: "verifier")
+    state_store.store(
+      store,
+      state: "state",
+      code_verifier: "verifier",
+      nonce: option.None,
+    )
   let other_secret = <<"some-other-secret-key-base!!!!!!":utf8>>
   let token =
     signed_cookie.sign(payload: session_id, secret_key_base: other_secret)
@@ -204,7 +209,12 @@ pub fn callback_wrong_secret_fails_as_missing_test() {
 pub fn callback_missing_state_does_not_consume_session_test() {
   let store = state_store.init_named("test_mist_cb_missing_state_reusable")
   let session_id =
-    state_store.store(store, state: "state", code_verifier: "verifier")
+    state_store.store(
+      store,
+      state: "state",
+      code_verifier: "verifier",
+      nonce: option.None,
+    )
   let token =
     signed_cookie.sign(payload: session_id, secret_key_base: test_secret())
   let req =
@@ -267,7 +277,12 @@ pub fn callback_unknown_session_returns_expired_test() {
 pub fn callback_auth_result_preserves_provider_error_details_test() {
   let store = state_store.init_named("test_mist_cb_structured_error_details")
   let session_id =
-    state_store.store(store, state: "state", code_verifier: "verifier")
+    state_store.store(
+      store,
+      state: "state",
+      code_verifier: "verifier",
+      nonce: option.None,
+    )
   let token =
     signed_cookie.sign(payload: session_id, secret_key_base: test_secret())
   let req =
@@ -302,7 +317,12 @@ pub fn callback_auth_result_preserves_provider_error_details_test() {
 pub fn callback_custom_cookie_name_is_honored_test() {
   let store = state_store.init_named("test_mist_cb_custom_cookie_name")
   let session_id =
-    state_store.store(store, state: "state", code_verifier: "verifier")
+    state_store.store(
+      store,
+      state: "state",
+      code_verifier: "verifier",
+      nonce: option.None,
+    )
   let token =
     signed_cookie.sign(payload: session_id, secret_key_base: test_secret())
   let req =
@@ -352,6 +372,7 @@ fn test_strategy() -> Strategy(e) {
   strategy.new(
     provider: "test",
     default_scopes: [],
+    uses_nonce: False,
     authorize_url: fn(_config, _scopes, _state) { Ok("https://example.com") },
     exchange_code: fn(_config, _code, _code_verifier) {
       Error(error.ConfigError(reason: "test"))
@@ -369,6 +390,7 @@ fn leaky_error_strategy() -> Strategy(e) {
   strategy.new(
     provider: "test",
     default_scopes: [],
+    uses_nonce: False,
     authorize_url: fn(_config, _scopes, _state) { Ok("https://example.com") },
     exchange_code: fn(_config, _code, _code_verifier) {
       Error(error.ProviderError(

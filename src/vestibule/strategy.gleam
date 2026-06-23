@@ -106,6 +106,7 @@ pub opaque type Strategy(e) {
   Strategy(
     provider: String,
     default_scopes: List(String),
+    uses_nonce: Bool,
     authorize_url: fn(Config, List(String), String) ->
       Result(String, AuthError(e)),
     exchange_code: fn(Config, String, Option(String)) ->
@@ -124,9 +125,14 @@ pub opaque type Strategy(e) {
 /// `code_verifier` if one was generated. `refresh_token` swaps a refresh
 /// token for fresh credentials. `fetch_user` resolves the authenticated
 /// user from the exchange result.
+///
+/// `uses_nonce` should be `True` for OIDC strategies: the core will then
+/// generate an OIDC `nonce`, emit it on the authorize URL, and validate it
+/// against the `id_token` on callback. Plain OAuth2 strategies pass `False`.
 pub fn new(
   provider provider: String,
   default_scopes default_scopes: List(String),
+  uses_nonce uses_nonce: Bool,
   authorize_url authorize_url: fn(Config, List(String), String) ->
     Result(String, AuthError(e)),
   exchange_code exchange_code: fn(Config, String, Option(String)) ->
@@ -139,6 +145,7 @@ pub fn new(
   Strategy(
     provider: provider,
     default_scopes: default_scopes,
+    uses_nonce: uses_nonce,
     authorize_url: authorize_url,
     exchange_code: exchange_code,
     refresh_token: refresh_token,
@@ -149,6 +156,11 @@ pub fn new(
 /// Return the human-readable provider name (e.g., `"github"`, `"google"`).
 pub fn provider(strat: Strategy(e)) -> String {
   strat.provider
+}
+
+/// Whether this strategy uses the OIDC `nonce` (generate + validate).
+pub fn uses_nonce(strat: Strategy(e)) -> Bool {
+  strat.uses_nonce
 }
 
 /// Return the strategy's default scopes, used when the caller's

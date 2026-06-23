@@ -90,7 +90,12 @@ pub fn request_phase_sets_host_bound_cookie_test() {
 pub fn callback_phase_auth_result_with_options_uses_cookie_name_test() {
   let store = state_store.init_named("test_callback_custom_cookie_name")
   let session_id =
-    state_store.store(store, state: "state", code_verifier: "verifier")
+    state_store.store(
+      store,
+      state: "state",
+      code_verifier: "verifier",
+      nonce: option.None,
+    )
   let req =
     simulate.request(http.Get, "/auth/test/callback?state=state&code=code")
     |> simulate.cookie("vestibule_session", session_id, wisp.Signed)
@@ -114,7 +119,12 @@ pub fn callback_phase_auth_result_with_options_uses_cookie_name_test() {
 pub fn callback_phase_auth_result_malformed_post_body_returns_invalid_params_test() {
   let store = state_store.init_named("test_callback_malformed_post_body")
   let session_id =
-    state_store.store(store, state: "state", code_verifier: "verifier")
+    state_store.store(
+      store,
+      state: "state",
+      code_verifier: "verifier",
+      nonce: option.None,
+    )
   let req =
     simulate.request(http.Post, "/auth/test/callback?state=state&code=code")
     |> simulate.bit_array_body(<<255>>)
@@ -130,7 +140,12 @@ pub fn callback_phase_auth_result_malformed_post_body_returns_invalid_params_tes
 pub fn callback_phase_auth_result_missing_state_does_not_consume_session_test() {
   let store = state_store.init_named("test_callback_missing_state_reusable")
   let session_id =
-    state_store.store(store, state: "state", code_verifier: "verifier")
+    state_store.store(
+      store,
+      state: "state",
+      code_verifier: "verifier",
+      nonce: option.None,
+    )
   let req_missing_state =
     simulate.request(http.Get, "/auth/test/callback?code=code")
     |> simulate.cookie("__Host-vestibule_session", session_id, wisp.Signed)
@@ -161,6 +176,7 @@ fn test_strategy() -> Strategy(e) {
   strategy.new(
     provider: "test",
     default_scopes: [],
+    uses_nonce: False,
     authorize_url: fn(_config, _scopes, _state) { Ok("https://example.com") },
     exchange_code: fn(_config, _code, _code_verifier) {
       Error(error.ConfigError(reason: "test"))
@@ -178,6 +194,7 @@ fn leaky_error_strategy() -> Strategy(e) {
   strategy.new(
     provider: "test",
     default_scopes: [],
+    uses_nonce: False,
     authorize_url: fn(_config, _scopes, _state) { Ok("https://example.com") },
     exchange_code: fn(_config, _code, _code_verifier) {
       Error(error.ProviderError(
@@ -206,7 +223,12 @@ fn test_config() -> config.Config {
 pub fn callback_phase_default_error_response_does_not_render_provider_details_test() {
   let store = state_store.init_named("test_callback_generic_error_html")
   let session_id =
-    state_store.store(store, state: "state", code_verifier: "verifier")
+    state_store.store(
+      store,
+      state: "state",
+      code_verifier: "verifier",
+      nonce: option.None,
+    )
   let req =
     simulate.request(http.Get, "/auth/test/callback?state=state&code=code")
     |> simulate.cookie("__Host-vestibule_session", session_id, wisp.Signed)
@@ -240,7 +262,12 @@ pub fn callback_phase_default_error_response_does_not_render_provider_details_te
 pub fn callback_phase_auth_result_preserves_provider_error_details_test() {
   let store = state_store.init_named("test_callback_structured_error_details")
   let session_id =
-    state_store.store(store, state: "state", code_verifier: "verifier")
+    state_store.store(
+      store,
+      state: "state",
+      code_verifier: "verifier",
+      nonce: option.None,
+    )
   let req =
     simulate.request(http.Get, "/auth/test/callback?state=state&code=code")
     |> simulate.cookie("__Host-vestibule_session", session_id, wisp.Signed)

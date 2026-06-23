@@ -173,6 +173,7 @@ pub fn strategy(endpoints: DiscoveredEndpoints, me: String) -> Strategy(e) {
   strategy.new(
     provider: "indieauth",
     default_scopes: ["profile"],
+    uses_nonce: False,
     authorize_url: fn(cfg, scopes, state) {
       do_authorize_url(endpoints, me, cfg, scopes, state)
     },

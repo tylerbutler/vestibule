@@ -61,6 +61,7 @@ pub fn start_authorization(
         store,
         state: authorization_request.state(auth_request),
         code_verifier: authorization_request.code_verifier(auth_request),
+        nonce: authorization_request.nonce(auth_request),
         ttl_seconds: ttl_seconds,
       )
       |> result.map_error(StoreFailed),
@@ -249,7 +250,7 @@ pub fn finish_callback(
         ),
       )
   }
-  use #(expected_state, _code_verifier) <- result.try(peek_result)
+  use #(expected_state, _code_verifier, _nonce) <- result.try(peek_result)
 
   let validate_result =
     state.validate(received: received_state, expected: expected_state)
@@ -307,7 +308,7 @@ pub fn finish_callback(
         ),
       )
   }
-  use #(_, code_verifier) <- result.try(consume_result)
+  use #(_, code_verifier, expected_nonce) <- result.try(consume_result)
 
   let finished =
     vestibule.handle_callback(
@@ -316,6 +317,7 @@ pub fn finish_callback(
       callback_params: params,
       expected_state: expected_state,
       code_verifier: code_verifier,
+      expected_nonce: expected_nonce,
     )
     |> result.map_error(CallbackAuthFailed)
 

@@ -9,6 +9,7 @@ fn test_strategy(name: String) -> Strategy(e) {
   strategy.new(
     provider: name,
     default_scopes: [],
+    uses_nonce: False,
     authorize_url: fn(_config, _scopes, _state) { Ok("https://example.com") },
     exchange_code: fn(_config, _code, _code_verifier) {
       Error(error.ConfigError(reason: "test"))

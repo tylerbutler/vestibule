@@ -17,6 +17,7 @@
 
 import gleam/bool
 import gleam/dict
+import gleam/dynamic
 import gleam/dynamic/decode
 import gleam/http
 import gleam/http/request
@@ -262,6 +263,7 @@ pub fn strategy_from_config(
   strategy.new(
     provider: provider_name,
     default_scopes: scopes,
+    uses_nonce: True,
     authorize_url: build_authorize_url_fn(oidc_config.authorization_endpoint),
     exchange_code: build_exchange_code_fn(oidc_config.token_endpoint),
     refresh_token: build_refresh_token_fn(oidc_config.token_endpoint),
@@ -411,6 +413,30 @@ pub fn parse_userinfo_response(
 
 // --- Internal helpers ---
 
+/// Build exchange artifacts carrying the OIDC `id_token` when present, so the
+/// core can validate the `nonce` claim on callback.
+fn id_token_artifacts(body: String) -> dict.Dict(String, dynamic.Dynamic) {
+  case parse_id_token(body) {
+    Some(token) -> dict.from_list([#("id_token", dynamic.string(token))])
+    None -> dict.new()
+  }
+}
+
+fn parse_id_token(body: String) -> option.Option(String) {
+  let decoder = {
+    use id_token <- decode.optional_field(
+      "id_token",
+      None,
+      decode.optional(decode.string),
+    )
+    decode.success(id_token)
+  }
+  case json.parse(body, decoder) {
+    Ok(id_token) -> id_token
+    Error(_) -> None
+  }
+}
+
 fn strip_trailing_slash(url: String) -> String {
   use <- bool.guard(when: !string.ends_with(url, "/"), return: url)
   string.drop_end(url, 1)
@@ -512,7 +538,12 @@ fn build_exchange_code_fn(
           ),
         )
         parse_token_response(body)
-        |> result.map(strategy.exchange_result)
+        |> result.map(fn(creds) {
+          strategy.exchange_result_with_artifacts(
+            creds,
+            id_token_artifacts(body),
+          )
+        })
       }
       Error(_) ->
         Error(error.NetworkError(
