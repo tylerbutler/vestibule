@@ -28,7 +28,7 @@ pub fn validate_profile_url(raw_url: String) -> Result(String, AuthError(e)) {
   case uri.parse(url) {
     Ok(parsed) -> validate_profile_uri(parsed, url)
     Error(_) ->
-      Error(error.ConfigError(
+      Error(error.config(
         reason: "Invalid URL: could not parse \"" <> raw_url <> "\"",
       ))
   }
@@ -41,43 +41,43 @@ fn validate_profile_uri(
   use _ <- result.try(case parsed.scheme {
     Some("https") | Some("http") -> Ok(Nil)
     Some(scheme) ->
-      Error(error.ConfigError(
+      Error(error.config(
         reason: "Profile URL must use https or http scheme, got: " <> scheme,
       ))
-    None -> Error(error.ConfigError(reason: "Profile URL is missing a scheme"))
+    None -> Error(error.config(reason: "Profile URL is missing a scheme"))
   })
   use _ <- result.try(case parsed.host {
     Some(host) if host != "" ->
       case is_ip_address(host) {
         True ->
-          Error(error.ConfigError(
+          Error(error.config(
             reason: "Profile URL host must be a domain name, not an IP address: "
             <> host,
           ))
         False -> Ok(Nil)
       }
-    _ -> Error(error.ConfigError(reason: "Profile URL is missing a host"))
+    _ -> Error(error.config(reason: "Profile URL is missing a host"))
   })
   use _ <- result.try(case parsed.port {
     Some(_) ->
-      Error(error.ConfigError(reason: "Profile URL must not contain a port"))
+      Error(error.config(reason: "Profile URL must not contain a port"))
     None -> Ok(Nil)
   })
   use _ <- result.try(case parsed.fragment {
     Some(_) ->
-      Error(error.ConfigError(reason: "Profile URL must not contain a fragment"))
+      Error(error.config(reason: "Profile URL must not contain a fragment"))
     None -> Ok(Nil)
   })
   use _ <- result.try(case parsed.userinfo {
     Some(_) ->
-      Error(error.ConfigError(
+      Error(error.config(
         reason: "Profile URL must not contain username or password",
       ))
     None -> Ok(Nil)
   })
   case has_dot_segments(parsed.path) {
     True ->
-      Error(error.ConfigError(
+      Error(error.config(
         reason: "Profile URL must not contain . or .. path segments",
       ))
     False -> Ok(url)

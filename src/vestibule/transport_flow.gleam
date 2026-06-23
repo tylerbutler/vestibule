@@ -192,7 +192,7 @@ pub fn finish_callback(
   let state_result =
     dict.get(params, "state")
     |> result.replace_error(
-      CallbackAuthFailed(error.MissingCallbackParam("state")),
+      CallbackAuthFailed(error.missing_callback_param("state")),
     )
   case state_result {
     Ok(_) ->

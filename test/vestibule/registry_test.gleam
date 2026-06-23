@@ -11,13 +11,13 @@ fn test_strategy(name: String) -> Strategy(e) {
     Ok("https://example.com")
   })
   |> strategy.with_exchange_code(fn(_config, _code, _code_verifier) {
-    Error(error.ConfigError(reason: "test"))
+    Error(error.config(reason: "test"))
   })
   |> strategy.with_refresh(fn(_config, _refresh_token) {
-    Error(error.ConfigError(reason: "test"))
+    Error(error.config(reason: "test"))
   })
   |> strategy.with_fetch_user(fn(_config, _exchange) {
-    Error(error.ConfigError(reason: "test"))
+    Error(error.config(reason: "test"))
   })
 }
 

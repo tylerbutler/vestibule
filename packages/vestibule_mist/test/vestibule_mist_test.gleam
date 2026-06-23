@@ -33,24 +33,30 @@ pub fn signed_cookie_verify_with_wrong_secret_fails_test() {
   let other = <<"different-key-also-32-bytes-long":utf8>>
   let token =
     signed_cookie.sign(payload: "session-id-123", secret_key_base: secret)
-  signed_cookie.verify(token: token, secret_key_base: other)
-  |> expect.to_be_error()
+  let _ =
+    signed_cookie.verify(token: token, secret_key_base: other)
+    |> expect.to_be_error()
+  Nil
 }
 
 pub fn signed_cookie_verify_with_tampered_token_fails_test() {
   let secret = test_secret()
   let token =
     signed_cookie.sign(payload: "session-id-123", secret_key_base: secret)
-  signed_cookie.verify(token: token <> "x", secret_key_base: secret)
-  |> expect.to_be_error()
+  let _ =
+    signed_cookie.verify(token: token <> "x", secret_key_base: secret)
+    |> expect.to_be_error()
+  Nil
 }
 
 pub fn signed_cookie_verify_malformed_token_fails_test() {
-  signed_cookie.verify(
-    token: "not-a-valid-token",
-    secret_key_base: test_secret(),
-  )
-  |> expect.to_be_error()
+  let _ =
+    signed_cookie.verify(
+      token: "not-a-valid-token",
+      secret_key_base: test_secret(),
+    )
+    |> expect.to_be_error()
+  Nil
 }
 
 // === new_options ===
@@ -233,7 +239,7 @@ pub fn callback_missing_state_does_not_consume_session_test() {
     test_options(),
   )
   |> expect.to_equal(
-    Error(vestibule_mist.AuthFailed(error.MissingCallbackParam("state"))),
+    Error(vestibule_mist.AuthFailed(error.missing_callback_param("state"))),
   )
 
   vestibule_mist.callback_phase_auth_result_with_params(
@@ -245,7 +251,7 @@ pub fn callback_missing_state_does_not_consume_session_test() {
     test_options(),
   )
   |> expect.to_equal(
-    Error(vestibule_mist.AuthFailed(error.ConfigError(reason: "test"))),
+    Error(vestibule_mist.AuthFailed(error.config(reason: "test"))),
   )
 }
 
@@ -305,7 +311,7 @@ pub fn callback_auth_result_preserves_provider_error_details_test() {
   )
   |> expect.to_equal(
     Error(
-      vestibule_mist.AuthFailed(error.ProviderError(
+      vestibule_mist.AuthFailed(error.provider(
         code: "invalid_request",
         description: "provider-controlled phishing text secret-token",
         uri: option.None,
@@ -354,7 +360,7 @@ pub fn callback_custom_cookie_name_is_honored_test() {
     custom_options,
   )
   |> expect.to_equal(
-    Error(vestibule_mist.AuthFailed(error.ConfigError(reason: "test"))),
+    Error(vestibule_mist.AuthFailed(error.config(reason: "test"))),
   )
 }
 
@@ -374,13 +380,13 @@ fn test_strategy() -> Strategy(e) {
     Ok("https://example.com")
   })
   |> strategy.with_exchange_code(fn(_config, _code, _code_verifier) {
-    Error(error.ConfigError(reason: "test"))
+    Error(error.config(reason: "test"))
   })
   |> strategy.with_refresh(fn(_config, _refresh_token) {
-    Error(error.ConfigError(reason: "test"))
+    Error(error.config(reason: "test"))
   })
   |> strategy.with_fetch_user(fn(_config, _exchange) {
-    Error(error.ConfigError(reason: "test"))
+    Error(error.config(reason: "test"))
   })
 }
 
@@ -390,17 +396,17 @@ fn leaky_error_strategy() -> Strategy(e) {
     Ok("https://example.com")
   })
   |> strategy.with_exchange_code(fn(_config, _code, _code_verifier) {
-    Error(error.ProviderError(
+    Error(error.provider(
       code: "invalid_request",
       description: "provider-controlled phishing text secret-token",
       uri: option.None,
     ))
   })
   |> strategy.with_refresh(fn(_config, _refresh_token) {
-    Error(error.ConfigError(reason: "test"))
+    Error(error.config(reason: "test"))
   })
   |> strategy.with_fetch_user(fn(_config, _exchange) {
-    Error(error.ConfigError(reason: "test"))
+    Error(error.config(reason: "test"))
   })
 }
 

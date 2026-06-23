@@ -47,7 +47,7 @@ pub fn with_extra_params(
 ) -> Result(Config, AuthError(e)) {
   case find_reserved_param(params) {
     Ok(param) ->
-      Error(error.ConfigError(
+      Error(error.config(
         reason: "Reserved authorization parameter not allowed: " <> param,
       ))
     Error(Nil) -> Ok(Config(..config, extra_params: dict.from_list(params)))

@@ -74,9 +74,12 @@ case
     sign_in(auth)
   }
   // Possible CSRF or a stale tab: discard and restart the flow.
-  Error(error.StateMismatch) -> restart_sign_in()
-  // Provider, code-exchange, network, or decode failure.
-  Error(reason) -> show_auth_error(reason)
+  Error(err) ->
+    case error.kind(err) {
+      error.StateMismatchKind -> restart_sign_in()
+      // Provider, code-exchange, network, or decode failure.
+      _ -> show_auth_error(err)
+    }
 }`;
 
 export const wispCode = `import gleam/http
@@ -130,18 +133,23 @@ import vestibule/error
 case vestibule.handle_callback(strategy, cfg, params, expected_state, verifier) {
   Ok(auth) -> sign_in(auth)
 
-  // Wrong state: treat as hostile. Log server-side, restart the flow.
-  Error(error.StateMismatch) -> restart_sign_in()
+  // Classify the failure with error.kind/0; the ErrorKind enum carries an
+  // OtherKind catch-all, so new kinds never break this match.
+  Error(err) ->
+    case error.kind(err) {
+      // Wrong state: treat as hostile. Log server-side, restart the flow.
+      error.StateMismatchKind -> restart_sign_in()
 
-  // The user denied consent at the provider.
-  Error(error.ProviderError(code: "access_denied", ..)) -> back_to_login()
+      // The provider rejected the request (e.g. denied consent). Inspect
+      // error.provider_error(err) for the structured code/description.
+      error.ProviderKind -> back_to_login()
 
-  // Transient upstream failures are worth a retry prompt.
-  Error(error.NetworkError(_)) | Error(error.CodeExchangeFailed(_)) ->
-    offer_retry()
+      // Transient upstream failures are worth a retry prompt.
+      error.NetworkKind | error.CodeExchangeKind -> offer_retry()
 
-  // Catch-all: show a generic message, keep the detail in your logs.
-  Error(reason) -> show_auth_error(reason)
+      // Catch-all: show a generic message, keep error.message(err) in logs.
+      _ -> show_auth_error(err)
+    }
 }`;
 
 <section id="middleware-path" className="quick-paths" aria-label="Recommended quick start path">
@@ -267,10 +275,10 @@ case vestibule.handle_callback(strategy, cfg, params, expected_state, verifier) 
     <div>
       <h3>Why a callback fails</h3>
       <ul className="check-list">
-        <li><strong>StateMismatch</strong> — wrong or missing state; possible CSRF.</li>
-        <li><strong>ProviderError</strong> — the provider rejected the request (e.g. denied consent).</li>
-        <li><strong>MissingCallbackParam</strong> — the provider omitted a required value.</li>
-        <li><strong>NetworkError / CodeExchangeFailed</strong> — a transient upstream problem.</li>
+        <li><strong>StateMismatchKind</strong> — wrong or missing state; possible CSRF.</li>
+        <li><strong>ProviderKind</strong> — the provider rejected the request (e.g. denied consent).</li>
+        <li><strong>MissingCallbackParamKind</strong> — the provider omitted a required value.</li>
+        <li><strong>NetworkKind / CodeExchangeKind</strong> — a transient upstream problem.</li>
       </ul>
     </div>
     <div>

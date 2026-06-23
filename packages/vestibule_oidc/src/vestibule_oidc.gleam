@@ -127,7 +127,7 @@ pub fn fetch_configuration(
   use req <- result.try(
     request.to(discovery_url)
     |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Invalid discovery URL: " <> discovery_url)
+      error.config(reason: "Invalid discovery URL: " <> discovery_url)
     }),
   )
   let req =
@@ -150,7 +150,7 @@ pub fn fetch_configuration(
       case normalized_issuer == response_issuer {
         True -> Ok(config)
         False ->
-          Error(error.ConfigError(
+          Error(error.config(
             reason: "Issuer mismatch: expected "
             <> issuer_url
             <> " but got "
@@ -159,7 +159,7 @@ pub fn fetch_configuration(
       }
     }
     Error(_) ->
-      Error(error.NetworkError(
+      Error(error.network(
         reason: "Failed to fetch OIDC discovery document from " <> discovery_url,
       ))
   }
@@ -177,7 +177,7 @@ pub fn discovery_url(issuer_url: String) -> Result(String, AuthError(e)) {
   use issuer <- result.try(
     uri.parse(issuer_url)
     |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Invalid issuer URL: " <> issuer_url)
+      error.config(reason: "Invalid issuer URL: " <> issuer_url)
     }),
   )
 
@@ -241,7 +241,7 @@ pub fn parse_discovery_document(
         scopes_supported: scopes_supported,
       )
     Error(err) ->
-      Error(error.ConfigError(
+      Error(error.config(
         reason: "Failed to parse OIDC discovery document: "
         <> string.inspect(err),
       ))
@@ -403,7 +403,7 @@ pub fn parse_userinfo_response(
   case json.parse(body, decoder) {
     Ok(result) -> Ok(result)
     Error(err) ->
-      Error(error.UserInfoFailed(
+      Error(error.user_info(
         reason: "Failed to parse OIDC userinfo response: "
         <> string.inspect(err),
       ))
@@ -479,7 +479,7 @@ fn build_authorize_url_fn(
         Ok(uri.to_string(full_uri))
       }
       Error(_) ->
-        Error(error.ConfigError(
+        Error(error.config(
           reason: "Invalid authorization endpoint URL: "
           <> authorization_endpoint,
         ))
@@ -515,9 +515,7 @@ fn build_exchange_code_fn(
     use req <- result.try(
       request.to(token_endpoint)
       |> result.map_error(fn(_) {
-        error.ConfigError(
-          reason: "Invalid token endpoint URL: " <> token_endpoint,
-        )
+        error.config(reason: "Invalid token endpoint URL: " <> token_endpoint)
       }),
     )
     let req =
@@ -545,7 +543,7 @@ fn build_exchange_code_fn(
         })
       }
       Error(_) ->
-        Error(error.NetworkError(
+        Error(error.network(
           reason: "Failed to connect to OIDC token endpoint: " <> token_endpoint,
         ))
     }
@@ -591,9 +589,7 @@ fn build_refresh_token_fn(
     use req <- result.try(
       request.to(token_endpoint)
       |> result.map_error(fn(_) {
-        error.ConfigError(
-          reason: "Invalid token endpoint URL: " <> token_endpoint,
-        )
+        error.config(reason: "Invalid token endpoint URL: " <> token_endpoint)
       }),
     )
     let req =
@@ -615,7 +611,7 @@ fn build_refresh_token_fn(
         parse_token_response(body)
       }
       Error(_) ->
-        Error(error.NetworkError(
+        Error(error.network(
           reason: "Failed to connect to OIDC token endpoint: " <> token_endpoint,
         ))
     }

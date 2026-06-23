@@ -163,12 +163,12 @@ pub fn callback_phase_auth_result_missing_state_does_not_consume_session_test() 
     store,
   )
   |> expect.to_equal(
-    Error(vestibule_wisp.AuthFailed(error.MissingCallbackParam("state"))),
+    Error(vestibule_wisp.AuthFailed(error.missing_callback_param("state"))),
   )
 
   vestibule_wisp.callback_phase_auth_result(req_with_state, reg, "test", store)
   |> expect.to_equal(
-    Error(vestibule_wisp.AuthFailed(error.ConfigError(reason: "test"))),
+    Error(vestibule_wisp.AuthFailed(error.config(reason: "test"))),
   )
 }
 
@@ -178,13 +178,13 @@ fn test_strategy() -> Strategy(e) {
     Ok("https://example.com")
   })
   |> strategy.with_exchange_code(fn(_config, _code, _code_verifier) {
-    Error(error.ConfigError(reason: "test"))
+    Error(error.config(reason: "test"))
   })
   |> strategy.with_refresh(fn(_config, _refresh_token) {
-    Error(error.ConfigError(reason: "test"))
+    Error(error.config(reason: "test"))
   })
   |> strategy.with_fetch_user(fn(_config, _exchange) {
-    Error(error.ConfigError(reason: "test"))
+    Error(error.config(reason: "test"))
   })
 }
 
@@ -194,17 +194,17 @@ fn leaky_error_strategy() -> Strategy(e) {
     Ok("https://example.com")
   })
   |> strategy.with_exchange_code(fn(_config, _code, _code_verifier) {
-    Error(error.ProviderError(
+    Error(error.provider(
       code: "invalid_request",
       description: "provider-controlled phishing text secret-token",
       uri: option.None,
     ))
   })
   |> strategy.with_refresh(fn(_config, _refresh_token) {
-    Error(error.ConfigError(reason: "test"))
+    Error(error.config(reason: "test"))
   })
   |> strategy.with_fetch_user(fn(_config, _exchange) {
-    Error(error.ConfigError(reason: "test"))
+    Error(error.config(reason: "test"))
   })
 }
 
@@ -277,7 +277,7 @@ pub fn callback_phase_auth_result_preserves_provider_error_details_test() {
   vestibule_wisp.callback_phase_auth_result(req, reg, "test", store)
   |> expect.to_equal(
     Error(
-      vestibule_wisp.AuthFailed(error.ProviderError(
+      vestibule_wisp.AuthFailed(error.provider(
         code: "invalid_request",
         description: "provider-controlled phishing text secret-token",
         uri: option.None,

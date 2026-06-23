@@ -132,7 +132,7 @@ pub fn serialize_endpoints(
 /// Parse a string produced by `serialize_endpoints` back into the discovered
 /// endpoints and the canonical `me` URL.
 ///
-/// Returns `Error(error.ConfigError(..))` if the value is missing fields or is
+/// Returns `Error(error.config(..))` if the value is missing fields or is
 /// not the JSON produced by `serialize_endpoints`.
 pub fn parse_endpoints(
   value: String,
@@ -160,7 +160,7 @@ pub fn parse_endpoints(
     ))
   }
   json.parse(value, decoder)
-  |> result.replace_error(error.ConfigError(
+  |> result.replace_error(error.config(
     reason: "Failed to parse serialized IndieAuth endpoints",
   ))
 }

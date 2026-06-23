@@ -101,7 +101,7 @@ fn test_config() -> config.Config {
 pub fn refresh_token_unset_returns_refresh_unsupported_test() {
   strategy.new(provider: "no-refresh", default_scopes: [])
   |> strategy.refresh_token(cfg: test_config(), refresh_tok: "tok")
-  |> expect.to_equal(Error(error.RefreshUnsupported))
+  |> expect.to_equal(Error(error.refresh_unsupported()))
 }
 
 pub fn with_refresh_makes_refresh_supported_test() {

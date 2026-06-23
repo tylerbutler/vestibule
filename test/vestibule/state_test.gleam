@@ -22,15 +22,15 @@ pub fn validate_accepts_matching_state_test() {
 
 pub fn validate_rejects_mismatched_state_test() {
   state.validate(received: "abc123", expected: "def456")
-  |> expect.to_equal(Error(error.StateMismatch))
+  |> expect.to_equal(Error(error.state_mismatch()))
 }
 
 pub fn validate_rejects_empty_state_test() {
   state.validate(received: "", expected: "some-state")
-  |> expect.to_equal(Error(error.StateMismatch))
+  |> expect.to_equal(Error(error.state_mismatch()))
 }
 
 pub fn validate_rejects_whitespace_only_state_test() {
   state.validate(received: "   ", expected: "   ")
-  |> expect.to_equal(Error(error.StateMismatch))
+  |> expect.to_equal(Error(error.state_mismatch()))
 }

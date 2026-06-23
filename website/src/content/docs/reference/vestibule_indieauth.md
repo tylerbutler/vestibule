@@ -88,7 +88,7 @@ pub fn discover_endpoints_with_me(String) -> Result(#(discovery.DiscoveredEndpoi
 Parse a string produced by `serialize_endpoints` back into the discovered
 endpoints and the canonical `me` URL.
 
-Returns `Error(error.ConfigError(..))` if the value is missing fields or is
+Returns `Error(error.config(..))` if the value is missing fields or is
 not the JSON produced by `serialize_endpoints`.
 
 ```gleam

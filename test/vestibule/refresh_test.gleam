@@ -87,7 +87,7 @@ pub fn parse_refresh_response_error_invalid_grant_test() {
     provider_support.OptionalScope(" "),
   )
   |> expect.to_be_error()
-  |> expect.to_equal(error.ProviderError(
+  |> expect.to_equal(error.provider(
     code: "invalid_grant",
     description: "The refresh token has expired.",
     uri: None,
@@ -102,7 +102,7 @@ pub fn parse_refresh_response_error_invalid_client_test() {
     provider_support.OptionalScope(" "),
   )
   |> expect.to_be_error()
-  |> expect.to_equal(error.ProviderError(
+  |> expect.to_equal(error.provider(
     code: "invalid_client",
     description: "Client authentication failed.",
     uri: None,
@@ -116,7 +116,7 @@ pub fn parse_refresh_response_malformed_json_test() {
     provider_support.OptionalScope(" "),
   )
   |> expect.to_be_error()
-  |> expect.to_equal(error.DecodeError(
+  |> expect.to_equal(error.decode(
     context: "token response",
     reason: "UnexpectedByte(\"0x6F\")",
   ))

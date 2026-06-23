@@ -313,7 +313,8 @@ common attacks, but a few responsibilities remain with the consuming app.
   discover-built strategy) generate a 256-bit base64url `nonce`, send it
   on the authorization request, and constant-time validate it against the
   `id_token`'s `nonce` claim on callback. A mismatched or missing-but-
-  expected nonce is rejected with `AuthError.InvalidNonce`. This binds the
+  expected nonce is rejected with an `AuthError` of kind `InvalidNonceKind`
+  (see `error.kind`). This binds the
   id_token to the browser session that started the flow, defending against
   id_token replay/injection beyond what PKCE covers.
 - **Verified-email gating (OIDC, Google, Apple)** — `user_info.email`

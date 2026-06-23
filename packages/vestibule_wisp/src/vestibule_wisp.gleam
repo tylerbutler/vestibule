@@ -176,9 +176,7 @@ pub fn request_phase_with_options(
           ],
         ),
       )
-      error_response(error.ConfigError(
-        reason: "Failed to store OAuth session state",
-      ))
+      error_response(error.config(reason: "Failed to store OAuth session state"))
     }
     Ok(#(url, session_id)) -> {
       logger.emit(
@@ -447,13 +445,11 @@ fn callback_error_response(err: CallbackError(e)) -> Response {
   case err {
     UnknownProvider(_) -> wisp.not_found()
     MissingSessionCookie ->
-      error_response(error.ConfigError(reason: "Missing session cookie"))
+      error_response(error.config(reason: "Missing session cookie"))
     SessionExpired ->
-      error_response(error.ConfigError(
-        reason: "Session expired or already used",
-      ))
+      error_response(error.config(reason: "Session expired or already used"))
     InvalidCallbackParams ->
-      error_response(error.ConfigError(reason: "Invalid callback parameters"))
+      error_response(error.config(reason: "Invalid callback parameters"))
     AuthFailed(err) -> error_response(err)
   }
 }

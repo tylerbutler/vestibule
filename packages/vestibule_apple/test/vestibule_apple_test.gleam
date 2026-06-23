@@ -38,12 +38,14 @@ pub fn apple_try_init_named_returns_error_for_duplicate_cache_test() {
 
 pub fn strategy_provider_test() {
   let s = vestibule_apple.strategy(test_apple_cache("provider"))
-  strategy.provider(s) |> expect.to_equal("apple")
+  let _ = strategy.provider(s) |> expect.to_equal("apple")
+  Nil
 }
 
 pub fn strategy_default_scopes_test() {
   let s = vestibule_apple.strategy(test_apple_cache("scopes"))
-  strategy.default_scopes(s) |> expect.to_equal(["name", "email"])
+  let _ = strategy.default_scopes(s) |> expect.to_equal(["name", "email"])
+  Nil
 }
 
 // --- Token response parsing ---
@@ -52,55 +54,66 @@ pub fn parse_token_response_success_test() {
   let body =
     "{\"access_token\":\"a1b2c3.test_access_token\",\"token_type\":\"Bearer\",\"expires_in\":3600,\"refresh_token\":\"r4e5f6.test_refresh\",\"id_token\":\"header.payload.signature\"}"
   let assert Ok(exchange) = vestibule_apple.parse_token_response(body)
-  strategy.exchange_credentials(exchange)
-  |> expect.to_equal(
-    credentials.new(
-      token: "a1b2c3.test_access_token",
-      refresh_token: Some("r4e5f6.test_refresh"),
-      token_type: "Bearer",
-      expires_in: Some(3600),
-      scopes: [],
-    ),
-  )
+  let _ =
+    strategy.exchange_credentials(exchange)
+    |> expect.to_equal(
+      credentials.new(
+        token: "a1b2c3.test_access_token",
+        refresh_token: Some("r4e5f6.test_refresh"),
+        token_type: "Bearer",
+        expires_in: Some(3600),
+        scopes: [],
+      ),
+    )
   let assert Ok(id_token) =
     dict.get(strategy.exchange_artifacts(exchange), "id_token")
-  decode.run(id_token, decode.string)
-  |> expect.to_equal(Ok("header.payload.signature"))
+  let _ =
+    decode.run(id_token, decode.string)
+    |> expect.to_equal(Ok("header.payload.signature"))
+  Nil
 }
 
 pub fn parse_token_response_without_refresh_token_test() {
   let body =
     "{\"access_token\":\"test_token\",\"token_type\":\"Bearer\",\"expires_in\":3600,\"id_token\":\"h.p.s\"}"
   let assert Ok(exchange) = vestibule_apple.parse_token_response(body)
-  strategy.exchange_credentials(exchange)
-  |> credentials.token()
-  |> expect.to_equal("test_token")
-  strategy.exchange_credentials(exchange)
-  |> credentials.refresh_token()
-  |> expect.to_equal(None)
+  let _ =
+    strategy.exchange_credentials(exchange)
+    |> credentials.token()
+    |> expect.to_equal("test_token")
+  let _ =
+    strategy.exchange_credentials(exchange)
+    |> credentials.refresh_token()
+    |> expect.to_equal(None)
   let assert Ok(id_token) =
     dict.get(strategy.exchange_artifacts(exchange), "id_token")
-  decode.run(id_token, decode.string) |> expect.to_equal(Ok("h.p.s"))
+  let _ = decode.run(id_token, decode.string) |> expect.to_equal(Ok("h.p.s"))
+  Nil
 }
 
 pub fn parse_token_response_without_id_token_test() {
   let body =
     "{\"access_token\":\"test_token\",\"token_type\":\"Bearer\",\"expires_in\":3600}"
   let assert Ok(exchange) = vestibule_apple.parse_token_response(body)
-  strategy.exchange_credentials(exchange)
-  |> credentials.token()
-  |> expect.to_equal("test_token")
-  dict.get(strategy.exchange_artifacts(exchange), "id_token")
-  |> expect.to_be_error()
+  let _ =
+    strategy.exchange_credentials(exchange)
+    |> credentials.token()
+    |> expect.to_equal("test_token")
+  let _ =
+    dict.get(strategy.exchange_artifacts(exchange), "id_token")
+    |> expect.to_be_error()
+  Nil
 }
 
 pub fn parse_token_response_empty_scope_test() {
   let body =
     "{\"access_token\":\"test_token\",\"token_type\":\"Bearer\",\"expires_in\":3600,\"scope\":\"\"}"
   let assert Ok(exchange) = vestibule_apple.parse_token_response(body)
-  strategy.exchange_credentials(exchange)
-  |> credentials.scopes()
-  |> expect.to_equal([])
+  let _ =
+    strategy.exchange_credentials(exchange)
+    |> credentials.scopes()
+    |> expect.to_equal([])
+  Nil
 }
 
 pub fn parse_token_response_error_test() {

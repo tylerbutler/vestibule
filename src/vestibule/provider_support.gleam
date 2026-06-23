@@ -52,9 +52,9 @@ pub fn check_response_status_for_endpoint(
         ],
       )
       |> logger.emit()
-      Error(error.HttpError(
+      Error(error.http(
         status: response.status,
-        body: safe_error_body(response.body),
+        summary: safe_error_body(response.body),
       ))
     }
     False -> {
@@ -90,25 +90,21 @@ pub fn require_https(url: String) -> Result(Nil, AuthError(e)) {
         option.Some("https") ->
           case parsed.host {
             option.Some("") | option.None ->
-              Error(error.ConfigError(
-                reason: "URL must include a host: " <> url,
-              ))
+              Error(error.config(reason: "URL must include a host: " <> url))
             option.Some(_) -> Ok(Nil)
           }
         option.Some("http") ->
           case parsed.host {
             option.Some("localhost") | option.Some("127.0.0.1") -> Ok(Nil)
             _ ->
-              Error(error.ConfigError(
+              Error(error.config(
                 reason: "HTTPS required for endpoint URL: " <> url,
               ))
           }
         _ ->
-          Error(error.ConfigError(
-            reason: "HTTPS required for endpoint URL: " <> url,
-          ))
+          Error(error.config(reason: "HTTPS required for endpoint URL: " <> url))
       }
-    Error(_) -> Error(error.ConfigError(reason: "Invalid URL: " <> url))
+    Error(_) -> Error(error.config(reason: "Invalid URL: " <> url))
   }
 }
 
@@ -130,13 +126,11 @@ pub fn require_public_https(url: String) -> Result(Nil, AuthError(e)) {
         option.Some("https") ->
           case parsed.host {
             option.Some("") | option.None ->
-              Error(error.ConfigError(
-                reason: "URL must include a host: " <> url,
-              ))
+              Error(error.config(reason: "URL must include a host: " <> url))
             option.Some(host) ->
               case is_non_public_host(host) {
                 True ->
-                  Error(error.ConfigError(
+                  Error(error.config(
                     reason: "Endpoint host is not publicly routable (loopback, private, or link-local addresses are not allowed for discovered endpoints): "
                     <> url,
                   ))
@@ -144,11 +138,9 @@ pub fn require_public_https(url: String) -> Result(Nil, AuthError(e)) {
               }
           }
         _ ->
-          Error(error.ConfigError(
-            reason: "HTTPS required for endpoint URL: " <> url,
-          ))
+          Error(error.config(reason: "HTTPS required for endpoint URL: " <> url))
       }
-    Error(_) -> Error(error.ConfigError(reason: "Invalid URL: " <> url))
+    Error(_) -> Error(error.config(reason: "Invalid URL: " <> url))
   }
 }
 
@@ -278,7 +270,7 @@ pub fn fetch_json_with_auth(
   use req <- result.try(
     request.to(url)
     |> result.map_error(fn(_) {
-      error.ConfigError(
+      error.config(
         reason: "Invalid " <> provider_name <> " endpoint URL: " <> url,
       )
     }),
@@ -318,7 +310,7 @@ pub fn fetch_json_with_auth(
         ],
       )
       |> logger.emit()
-      Error(error.NetworkError(
+      Error(error.network(
         reason: "Failed to connect to " <> provider_name <> " API: " <> url,
       ))
     }
@@ -350,7 +342,7 @@ pub fn check_token_error(body: String) -> Result(String, AuthError(e)) {
   }
   case json.parse(body, error_decoder) {
     Ok(#(code, description, uri)) ->
-      Error(error.ProviderError(code: code, description: description, uri: uri))
+      Error(error.provider(code: code, description: description, uri: uri))
     _ -> Ok(body)
   }
 }
@@ -365,18 +357,18 @@ pub fn parse_redirect_uri(
   use parsed <- result.try(
     uri.parse(redirect_uri)
     |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Invalid redirect URI: " <> redirect_uri)
+      error.config(reason: "Invalid redirect URI: " <> redirect_uri)
     }),
   )
   let https_error =
-    Error(error.ConfigError(
+    Error(error.config(
       reason: "Redirect URI must use HTTPS (except localhost): " <> redirect_uri,
     ))
   case parsed.scheme {
     option.Some("https") ->
       case parsed.host {
         option.Some("") | option.None ->
-          Error(error.ConfigError(
+          Error(error.config(
             reason: "Redirect URI must include a host: " <> redirect_uri,
           ))
         option.Some(_) -> Ok(parsed)
@@ -454,10 +446,7 @@ fn parse_oauth_token_success(
   case json.parse(body, decoder) {
     Ok(credentials) -> Ok(credentials)
     Error(err) ->
-      Error(error.DecodeError(
-        context: "token response",
-        reason: string.inspect(err),
-      ))
+      Error(error.decode(context: "token response", reason: string.inspect(err)))
   }
 }
 

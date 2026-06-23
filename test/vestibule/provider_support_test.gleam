@@ -18,9 +18,10 @@ pub fn check_response_status_rejects_non_2xx_test() {
     |> provider_support.check_response_status()
 
   case result {
-    Error(error.HttpError(status:, body:)) -> {
-      status |> expect.to_equal(500)
-      body |> expect.to_equal("boom")
+    Error(err) -> {
+      error.kind(err) |> expect.to_equal(error.HttpKind)
+      error.http_status(err) |> expect.to_equal(Some(500))
+      error.http_summary(err) |> expect.to_equal(Some("boom"))
     }
     _ -> panic as "expected HttpError"
   }
@@ -33,9 +34,10 @@ pub fn http_error_truncates_long_body_test() {
     |> provider_support.check_response_status()
 
   case result {
-    Error(error.HttpError(status:, body:)) -> {
-      status |> expect.to_equal(400)
-      { string.length(body) <= 120 } |> expect.to_be_true()
+    Error(err) -> {
+      error.http_status(err) |> expect.to_equal(Some(400))
+      let summary = error.http_summary(err) |> option.unwrap("")
+      { string.length(summary) <= 120 } |> expect.to_be_true()
     }
     _ -> panic as "expected HttpError"
   }
@@ -55,9 +57,12 @@ pub fn require_https_rejects_remote_http_test() {
   let result = provider_support.require_https("http://example.com")
 
   case result {
-    Error(error.ConfigError(reason:)) ->
-      reason
-      |> expect.to_equal("HTTPS required for endpoint URL: http://example.com")
+    Error(err) -> {
+      error.kind(err) |> expect.to_equal(error.ConfigKind)
+      error.message(err)
+      |> string.contains("HTTPS required for endpoint URL: http://example.com")
+      |> expect.to_be_true()
+    }
     _ -> panic as "expected ConfigError"
   }
 }
@@ -66,8 +71,12 @@ pub fn require_https_rejects_https_without_host_test() {
   let result = provider_support.require_https("https:///callback")
 
   case result {
-    Error(error.ConfigError(reason:)) ->
-      reason |> expect.to_equal("URL must include a host: https:///callback")
+    Error(err) -> {
+      error.kind(err) |> expect.to_equal(error.ConfigKind)
+      error.message(err)
+      |> string.contains("URL must include a host: https:///callback")
+      |> expect.to_be_true()
+    }
     _ -> panic as "expected ConfigError"
   }
 }
@@ -164,11 +173,14 @@ pub fn parse_redirect_uri_rejects_remote_http_test() {
     provider_support.parse_redirect_uri("http://example.com/callback")
 
   case result {
-    Error(error.ConfigError(reason:)) ->
-      reason
-      |> expect.to_equal(
+    Error(err) -> {
+      error.kind(err) |> expect.to_equal(error.ConfigKind)
+      error.message(err)
+      |> string.contains(
         "Redirect URI must use HTTPS (except localhost): http://example.com/callback",
       )
+      |> expect.to_be_true()
+    }
     _ -> panic as "expected ConfigError"
   }
 }
@@ -177,9 +189,12 @@ pub fn parse_redirect_uri_rejects_https_without_host_test() {
   let result = provider_support.parse_redirect_uri("https:///callback")
 
   case result {
-    Error(error.ConfigError(reason:)) ->
-      reason
-      |> expect.to_equal("Redirect URI must include a host: https:///callback")
+    Error(err) -> {
+      error.kind(err) |> expect.to_equal(error.ConfigKind)
+      error.message(err)
+      |> string.contains("Redirect URI must include a host: https:///callback")
+      |> expect.to_be_true()
+    }
     _ -> panic as "expected ConfigError"
   }
 }
@@ -206,7 +221,7 @@ pub fn check_token_error_returns_provider_error_test() {
 
   result
   |> expect.to_equal(
-    Error(error.ProviderError(
+    Error(error.provider(
       code: "invalid_grant",
       description: "expired",
       uri: None,
@@ -222,7 +237,7 @@ pub fn check_token_error_preserves_error_uri_test() {
 
   result
   |> expect.to_equal(
-    Error(error.ProviderError(
+    Error(error.provider(
       code: "invalid_grant",
       description: "expired",
       uri: Some("https://example.com/error"),
@@ -313,7 +328,7 @@ pub fn parse_oauth_token_response_calls_check_token_error_first_test() {
     provider_support.RequiredScope(" "),
   )
   |> expect.to_equal(
-    Error(error.ProviderError(
+    Error(error.provider(
       code: "invalid_client",
       description: "bad secret",
       uri: None,
@@ -329,9 +344,14 @@ pub fn parse_oauth_token_response_malformed_json_is_decode_error_test() {
     )
 
   case result {
-    Error(error.DecodeError(context:, reason:)) -> {
-      context |> expect.to_equal("token response")
-      reason |> expect.to_equal("UnexpectedByte(\"0x6F\")")
+    Error(err) -> {
+      error.kind(err) |> expect.to_equal(error.DecodeKind)
+      error.message(err)
+      |> string.contains("token response")
+      |> expect.to_be_true()
+      error.message(err)
+      |> string.contains("UnexpectedByte(\"0x6F\")")
+      |> expect.to_be_true()
     }
     _ -> panic as "expected DecodeError"
   }
@@ -346,9 +366,14 @@ pub fn parse_oauth_token_response_requires_access_token_test() {
     )
 
   case result {
-    Error(error.DecodeError(context:, reason:)) -> {
-      context |> expect.to_equal("token response")
-      string.contains(reason, "access_token") |> expect.to_be_true()
+    Error(err) -> {
+      error.kind(err) |> expect.to_equal(error.DecodeKind)
+      error.message(err)
+      |> string.contains("token response")
+      |> expect.to_be_true()
+      error.message(err)
+      |> string.contains("access_token")
+      |> expect.to_be_true()
     }
     _ -> panic as "expected DecodeError"
   }
@@ -363,9 +388,12 @@ pub fn parse_oauth_token_response_requires_token_type_test() {
     )
 
   case result {
-    Error(error.DecodeError(context:, reason:)) -> {
-      context |> expect.to_equal("token response")
-      string.contains(reason, "token_type") |> expect.to_be_true()
+    Error(err) -> {
+      error.kind(err) |> expect.to_equal(error.DecodeKind)
+      error.message(err)
+      |> string.contains("token response")
+      |> expect.to_be_true()
+      error.message(err) |> string.contains("token_type") |> expect.to_be_true()
     }
     _ -> panic as "expected DecodeError"
   }
@@ -380,9 +408,12 @@ pub fn parse_oauth_token_response_required_scope_rejects_missing_scope_test() {
     )
 
   case result {
-    Error(error.DecodeError(context:, reason:)) -> {
-      context |> expect.to_equal("token response")
-      string.contains(reason, "scope") |> expect.to_be_true()
+    Error(err) -> {
+      error.kind(err) |> expect.to_equal(error.DecodeKind)
+      error.message(err)
+      |> string.contains("token response")
+      |> expect.to_be_true()
+      error.message(err) |> string.contains("scope") |> expect.to_be_true()
     }
     _ -> panic as "expected DecodeError"
   }
@@ -395,9 +426,10 @@ pub fn check_response_status_truncates_error_body_test() {
     |> provider_support.check_response_status()
 
   case result {
-    Error(error.HttpError(status:, body:)) -> {
-      status |> expect.to_equal(502)
-      { string.length(body) <= 120 } |> expect.to_be_true()
+    Error(err) -> {
+      error.http_status(err) |> expect.to_equal(Some(502))
+      let summary = error.http_summary(err) |> option.unwrap("")
+      { string.length(summary) <= 120 } |> expect.to_be_true()
     }
     _ -> panic as "expected HttpError"
   }
@@ -413,11 +445,14 @@ pub fn fetch_json_with_auth_rejects_remote_http_before_sending_token_test() {
     )
 
   case result {
-    Error(error.ConfigError(reason:)) ->
-      reason
-      |> expect.to_equal(
+    Error(err) -> {
+      error.kind(err) |> expect.to_equal(error.ConfigKind)
+      error.message(err)
+      |> string.contains(
         "HTTPS required for endpoint URL: http://example.com/userinfo",
       )
+      |> expect.to_be_true()
+    }
     _ -> panic as "expected ConfigError before sending bearer token"
   }
 }

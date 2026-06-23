@@ -1,4 +1,5 @@
 import gleam/dict
+import gleam/string
 import startest/expect
 import vestibule/config
 import vestibule/error
@@ -60,11 +61,14 @@ fn assert_reserved_param_rejected(param: String) {
     |> config.with_extra_params([#(param, "attacker-value")])
 
   case result {
-    Error(error.ConfigError(reason:)) ->
-      reason
-      |> expect.to_equal(
+    Error(err) -> {
+      error.kind(err) |> expect.to_equal(error.ConfigKind)
+      error.message(err)
+      |> string.contains(
         "Reserved authorization parameter not allowed: " <> param,
       )
+      |> expect.to_be_true()
+    }
     _ -> panic as "expected ConfigError for reserved authorization parameter"
   }
 }
