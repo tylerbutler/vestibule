@@ -7,7 +7,7 @@ import gleam/result
 import vestibule
 import vestibule/auth.{type Auth}
 import vestibule/authorization_request
-import vestibule/config.{type ClientConfig}
+import vestibule/config.{type AuthorizeOptions, type ClientConfig}
 import vestibule/error.{type AuthError}
 import vestibule/logger
 import vestibule/registry.{type Registry}
@@ -35,6 +35,7 @@ pub fn start_authorization(
   provider provider: String,
   store store: StateStore,
   ttl_seconds ttl_seconds: Int,
+  options options: AuthorizeOptions,
 ) -> Result(#(String, String), RequestFlowError(e)) {
   logger.emit(
     logger.new(
@@ -56,7 +57,7 @@ pub fn start_authorization(
       vestibule.create_authorization_request(
         strategy,
         cfg: config,
-        options: config.authorize_options(),
+        options: options,
       )
       |> result.map_error(AuthFailed),
     )

@@ -16,6 +16,7 @@ import gleam/uri
 import wisp.{type Request, type Response}
 
 import vestibule/auth.{type Auth}
+import vestibule/config
 import vestibule/error
 import vestibule/logger
 import vestibule/registry.{type Registry}
@@ -128,6 +129,7 @@ pub fn request_phase_with_options(
       provider: provider,
       store: state_store,
       ttl_seconds: options.session_ttl_seconds,
+      options: config.authorize_options(),
     )
   {
     Error(transport_flow.UnknownProvider(_)) -> {

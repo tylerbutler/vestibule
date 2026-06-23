@@ -27,6 +27,7 @@ import gleam/uri
 import mist.{type Connection, type ResponseData}
 
 import vestibule/auth.{type Auth}
+import vestibule/config
 import vestibule/error
 import vestibule/logger
 import vestibule/registry.{type Registry}
@@ -119,6 +120,7 @@ pub fn request_phase(
       provider: provider,
       store: store,
       ttl_seconds: options.session_ttl_seconds,
+      options: config.authorize_options(),
     )
   {
     Error(transport_flow.UnknownProvider(_)) -> {
