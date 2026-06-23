@@ -41,6 +41,7 @@ pub fn strategy() -> Strategy(e) {
   strategy.new(
     provider: "google",
     default_scopes: ["openid", "profile", "email"],
+    uses_nonce: True,
     authorize_url: do_authorize_url,
     exchange_code: do_exchange_code,
     refresh_token: do_refresh_token,
@@ -64,6 +65,7 @@ pub fn strategy_for_hosted_domain(hosted_domain: String) -> Strategy(e) {
   strategy.new(
     provider: "google",
     default_scopes: ["openid", "profile", "email"],
+    uses_nonce: True,
     authorize_url: fn(cfg, scopes, state) {
       do_authorize_url_with_hd(cfg, scopes, state, Some(hosted_domain))
     },
@@ -128,6 +130,30 @@ fn do_parse_token_response(
       |> logger.emit()
       Error(err)
     }
+  }
+}
+
+/// Build exchange artifacts carrying the OIDC `id_token` when present, so the
+/// core can validate the `nonce` claim on callback.
+fn id_token_artifacts(body: String) -> dict.Dict(String, dynamic.Dynamic) {
+  case parse_id_token(body) {
+    Some(token) -> dict.from_list([#("id_token", dynamic.string(token))])
+    None -> dict.new()
+  }
+}
+
+fn parse_id_token(body: String) -> Option(String) {
+  let decoder = {
+    use id_token <- decode.optional_field(
+      "id_token",
+      None,
+      decode.optional(decode.string),
+    )
+    decode.success(id_token)
+  }
+  case json.parse(body, decoder) {
+    Ok(id_token) -> id_token
+    Error(_) -> None
   }
 }
 
@@ -327,7 +353,9 @@ fn do_exchange_code(
         ),
       )
       parse_token_response(body)
-      |> result.map(strategy.exchange_result)
+      |> result.map(fn(creds) {
+        strategy.exchange_result_with_artifacts(creds, id_token_artifacts(body))
+      })
     }
     Error(_) -> {
       logger.new(

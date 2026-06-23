@@ -1,0 +1,4 @@
+project: vestibule
+kind: Breaking
+body: 'Generate and validate the OIDC `nonce`. OIDC strategies now emit a `nonce` on the authorization request and constant-time validate it against the `id_token`''s `nonce` claim on callback, rejecting mismatched or missing-but-expected values with the new `AuthError.InvalidNonce`. Adds the `vestibule/nonce` module, a `uses_nonce` flag on `strategy.new`, a `nonce` field/accessor on `AuthorizationRequest`, and an `expected_nonce` parameter on `handle_callback`; `state_store` now persists the nonce, so `store`/`try_store` take a `nonce` argument and `consume`/`peek` return `#(state, code_verifier, Option(nonce))`.'
+time: 2026-06-22T16:48:00.000000+00:00

@@ -8,6 +8,7 @@
 
 import gleam/bit_array
 import gleam/crypto
+import gleam/option.{type Option}
 import gleam/order
 import gleam/result
 import gleam/time/duration
@@ -29,6 +30,7 @@ type SessionState {
   SessionState(
     state: String,
     code_verifier: String,
+    nonce: Option(String),
     expires_at: timestamp.Timestamp,
   )
 }
@@ -74,38 +76,44 @@ pub fn try_init_named(name: String) -> Result(StateStore, StateStoreError) {
   }
 }
 
-/// Store a CSRF state value and PKCE code verifier, returning a session ID.
+/// Store a CSRF state value, PKCE code verifier, and optional OIDC nonce,
+/// returning a session ID.
 pub fn store(
   table: StateStore,
   state state: String,
   code_verifier code_verifier: String,
+  nonce nonce: Option(String),
 ) -> String {
   let assert Ok(session_id) =
-    try_store(table, state: state, code_verifier: code_verifier)
+    try_store(table, state: state, code_verifier: code_verifier, nonce: nonce)
     as "vestibule failed to store OAuth session state"
   session_id
 }
 
-/// Try to store a CSRF state value and PKCE code verifier, returning a session ID.
+/// Try to store a CSRF state value, PKCE code verifier, and optional OIDC
+/// nonce, returning a session ID.
 pub fn try_store(
   table: StateStore,
   state state: String,
   code_verifier code_verifier: String,
+  nonce nonce: Option(String),
 ) -> Result(String, StateStoreError) {
   try_store_with_ttl(
     table,
     state: state,
     code_verifier: code_verifier,
+    nonce: nonce,
     ttl_seconds: default_ttl_seconds,
   )
 }
 
-/// Try to store a CSRF state value and PKCE verifier with a TTL, returning a
-/// session ID.
+/// Try to store a CSRF state value, PKCE verifier, and optional OIDC nonce
+/// with a TTL, returning a session ID.
 pub fn try_store_with_ttl(
   table: StateStore,
   state state: String,
   code_verifier code_verifier: String,
+  nonce nonce: Option(String),
   ttl_seconds ttl_seconds: Int,
 ) -> Result(String, StateStoreError) {
   use _ <- result.try(
@@ -124,7 +132,7 @@ pub fn try_store_with_ttl(
     insert(
       table.table,
       session_id,
-      SessionState(state:, code_verifier:, expires_at:),
+      SessionState(state:, code_verifier:, nonce:, expires_at:),
     )
   {
     Ok(Nil) -> Ok(session_id)
@@ -132,26 +140,27 @@ pub fn try_store_with_ttl(
   }
 }
 
-/// Consume a CSRF state and code verifier by session ID.
+/// Consume a CSRF state, code verifier, and optional nonce by session ID.
 ///
 /// Returns `Error(Nil)` if not found, expired, or already consumed.
 pub fn consume(
   table: StateStore,
   session_id: String,
-) -> Result(#(String, String), Nil) {
+) -> Result(#(String, String, Option(String)), Nil) {
   case take(table.table, session_id) {
     Ok(session) -> validate_session(session)
     Error(_) -> Error(Nil)
   }
 }
 
-/// Look up a CSRF state and code verifier by session ID without consuming it.
+/// Look up a CSRF state, code verifier, and optional nonce by session ID
+/// without consuming it.
 ///
 /// Expired sessions are treated as missing and removed from the store.
 pub fn peek(
   table: StateStore,
   session_id: String,
-) -> Result(#(String, String), Nil) {
+) -> Result(#(String, String, Option(String)), Nil) {
   case lookup(table.table, session_id) {
     Ok(session) -> {
       case validate_session(session) {
@@ -195,10 +204,12 @@ fn map_cleanup_error(reason: String) -> StateStoreError {
   }
 }
 
-fn validate_session(session: SessionState) -> Result(#(String, String), Nil) {
-  let SessionState(state:, code_verifier:, expires_at:) = session
+fn validate_session(
+  session: SessionState,
+) -> Result(#(String, String, Option(String)), Nil) {
+  let SessionState(state:, code_verifier:, nonce:, expires_at:) = session
   case timestamp.compare(timestamp.system_time(), expires_at) {
-    order.Lt -> Ok(#(state, code_verifier))
+    order.Lt -> Ok(#(state, code_verifier, nonce))
     _ -> Error(Nil)
   }
 }

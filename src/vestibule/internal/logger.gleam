@@ -72,6 +72,7 @@ pub fn emit(event: Event) -> Nil {
 pub fn auth_error_category(err: AuthError(e)) -> String {
   case err {
     error.StateMismatch -> "state_mismatch"
+    error.InvalidNonce -> "invalid_nonce"
     error.MissingCallbackParam(_) -> "missing_callback_param"
     error.CodeExchangeFailed(_) -> "code_exchange_failed"
     error.UserInfoFailed(_) -> "user_info_failed"

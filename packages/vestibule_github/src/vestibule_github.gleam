@@ -29,6 +29,7 @@ pub fn strategy() -> Strategy(e) {
   strategy.new(
     provider: "github",
     default_scopes: ["user:email"],
+    uses_nonce: False,
     authorize_url: do_authorize_url,
     exchange_code: do_exchange_code,
     refresh_token: do_refresh_token,

@@ -307,6 +307,13 @@ common attacks, but a few responsibilities remain with the consuming app.
 - **JWT signature verification (Apple)** — Apple ID tokens are
   verified against Apple's published JWKS (ES256) and validated for
   `iss`, `aud`, and `exp` with a 60-second clock skew.
+- **OIDC `nonce`** — OIDC strategies (Google, Apple, Microsoft, and the
+  discover-built strategy) generate a 256-bit base64url `nonce`, send it
+  on the authorization request, and constant-time validate it against the
+  `id_token`'s `nonce` claim on callback. A mismatched or missing-but-
+  expected nonce is rejected with `AuthError.InvalidNonce`. This binds the
+  id_token to the browser session that started the flow, defending against
+  id_token replay/injection beyond what PKCE covers.
 - **Verified-email gating (OIDC, Google, Apple)** — `UserInfo.email`
   is only populated when the provider reports `email_verified`.
 
@@ -322,10 +329,6 @@ common attacks, but a few responsibilities remain with the consuming app.
   treat them like passwords.
 - **Cookie-secret rotation** invalidates in-flight OAuth flows that
   used the signed session cookie. Time rotations accordingly.
-- **OIDC `nonce`** is not currently generated or validated by the
-  discover-built strategy. If you need id_token replay protection
-  beyond PKCE, validate the `nonce` yourself when consuming the
-  `id_token` artifact returned in `ExchangeResult`.
 
 ## API Notes
 

@@ -27,6 +27,7 @@ fn test_strategy() -> Strategy(e) {
   strategy.new(
     provider: "test",
     default_scopes: ["scope"],
+    uses_nonce: False,
     authorize_url: fn(_config, scopes, st) {
       Ok(
         "https://test.example.com/auth?scope="
@@ -243,6 +244,7 @@ pub fn callback_rejects_state_mismatch_test() {
     callback_params: params,
     expected_state: "real_state",
     code_verifier: "verifier",
+    expected_nonce: None,
   )
   |> expect.to_equal(Error(error.StateMismatch))
 }
@@ -263,6 +265,7 @@ pub fn callback_rejects_missing_state_test() {
     callback_params: params,
     expected_state: "expected",
     code_verifier: "verifier",
+    expected_nonce: None,
   )
   |> expect.to_equal(Error(error.MissingCallbackParam("state")))
 }
@@ -282,6 +285,7 @@ pub fn callback_rejects_empty_params_test() {
     callback_params: dict.new(),
     expected_state: "expected",
     code_verifier: "verifier",
+    expected_nonce: None,
   )
   |> expect.to_equal(Error(error.MissingCallbackParam("state")))
 }
@@ -310,6 +314,7 @@ pub fn callback_detects_provider_error_test() {
     callback_params: params,
     expected_state: state_val,
     code_verifier: "verifier",
+    expected_nonce: None,
   )
   |> expect.to_be_error()
   |> expect.to_equal(error.ProviderError(
@@ -341,6 +346,7 @@ pub fn callback_preserves_provider_error_uri_test() {
     callback_params: params,
     expected_state: state_val,
     code_verifier: "verifier",
+    expected_nonce: None,
   )
   |> expect.to_be_error()
   |> expect.to_equal(error.ProviderError(
@@ -371,6 +377,7 @@ pub fn callback_rejects_provider_error_when_state_mismatch_test() {
     callback_params: params,
     expected_state: "expected_state",
     code_verifier: "verifier",
+    expected_nonce: None,
   )
   |> expect.to_equal(Error(error.StateMismatch))
 }
@@ -399,6 +406,7 @@ pub fn callback_ignores_extra_params_test() {
       callback_params: params,
       expected_state: state_val,
       code_verifier: "verifier",
+      expected_nonce: None,
     )
   let _ = result |> expect.to_be_ok()
   Nil

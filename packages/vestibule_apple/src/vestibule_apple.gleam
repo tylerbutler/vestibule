@@ -120,6 +120,7 @@ pub fn strategy(apple: AppleCache) -> Strategy(e) {
   strategy.new(
     provider: "apple",
     default_scopes: ["name", "email"],
+    uses_nonce: True,
     authorize_url: do_authorize_url,
     exchange_code: fn(config, code, code_verifier) {
       do_exchange_code(config, code, code_verifier)
