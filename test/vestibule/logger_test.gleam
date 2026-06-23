@@ -2,7 +2,7 @@ import gleam/list
 import gleam/option.{None, Some}
 import startest/expect
 import vestibule/error
-import vestibule/internal/logger
+import vestibule/logger
 
 pub fn event_builder_includes_required_fields_test() {
   let event =

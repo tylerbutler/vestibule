@@ -184,6 +184,7 @@ structured cookie/session errors are named `MissingOrInvalidSessionCookie` and
 | `vestibule_microsoft` | Microsoft OAuth strategy | `gleam add vestibule_microsoft` |
 | `vestibule_apple` | Apple Sign In strategy | `gleam add vestibule_apple` |
 | `vestibule_indieauth` | IndieAuth strategy (decentralized identity) | `gleam add vestibule_indieauth` |
+| `vestibule_oidc` | OpenID Connect discovery (auto-configure any OIDC provider) | `gleam add vestibule_oidc` |
 
 ## How It Works
 
@@ -242,15 +243,16 @@ cannot be overridden. Valid parameters are appended to the authorization URL.
 Common examples include Google's `access_type=offline` and `prompt=consent` for
 refresh tokens, or Microsoft's `prompt=select_account` and `login_hint`.
 
-Discover OpenID Connect providers from their issuer URL:
+Discover OpenID Connect providers from their issuer URL (requires the
+`vestibule_oidc` package — `gleam add vestibule_oidc`):
 
 ```gleam
-let assert Ok(strategy) = oidc.discover("https://accounts.google.com")
+let assert Ok(strategy) = vestibule_oidc.discover("https://accounts.google.com")
 ```
 
 ### Using Pocket ID (or any self-hosted OIDC provider)
 
-Because `oidc.discover` only needs an issuer URL, any standards-compliant
+Because `vestibule_oidc.discover` only needs an issuer URL, any standards-compliant
 OpenID Connect provider works the same way — including self-hosted ones such
 as [Pocket ID](https://pocket-id.org). Point `discover` at your instance's
 base URL and pair the resulting strategy with a `config.new` holding your
@@ -259,10 +261,10 @@ client credentials:
 ```gleam
 import vestibule
 import vestibule/config
-import vestibule/oidc
+import vestibule_oidc
 
 // Discovery reads https://your-pocket-id-instance/.well-known/openid-configuration
-let assert Ok(strategy) = oidc.discover("https://your-pocket-id-instance")
+let assert Ok(strategy) = vestibule_oidc.discover("https://your-pocket-id-instance")
 let cfg =
   config.new(
     "your-client-id",
@@ -344,7 +346,6 @@ the middleware packages:
 - `vestibule/config`
 - `vestibule/credentials`
 - `vestibule/error`
-- `vestibule/oidc`
 - `vestibule/registry`
 - `vestibule/state_store`
 - `vestibule/user_info`
@@ -354,6 +355,7 @@ provider strategies:
 
 - `vestibule/strategy`
 - `vestibule/provider_support`
+- `vestibule/logger`
 
 `strategy.exchange_code` returns an opaque `ExchangeResult` carrying the OAuth
 credentials plus any provider-specific artifacts. Build one with

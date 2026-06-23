@@ -15,7 +15,7 @@ import gleam/result
 import gleam/string
 
 import vestibule/error.{type AuthError}
-import vestibule/internal/logger
+import vestibule/logger
 import vestibule/provider_support
 import ywt/verify_key.{type VerifyKey}
 

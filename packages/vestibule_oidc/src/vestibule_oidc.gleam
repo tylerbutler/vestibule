@@ -8,11 +8,12 @@
 ////
 //// ```gleam
 //// // Auto-discover and create a strategy in one step:
-//// let assert Ok(strategy) = oidc.discover("https://accounts.google.com")
+//// import vestibule_oidc
+//// let assert Ok(strategy) = vestibule_oidc.discover("https://accounts.google.com")
 ////
 //// // Or fetch configuration separately for inspection:
-//// let assert Ok(config) = oidc.fetch_configuration("https://accounts.google.com")
-//// let strategy = oidc.strategy_from_config(config, "my-provider")
+//// let assert Ok(config) = vestibule_oidc.fetch_configuration("https://accounts.google.com")
+//// let strategy = vestibule_oidc.strategy_from_config(config, "my-provider")
 //// ```
 
 import gleam/bool
@@ -32,7 +33,7 @@ import gleam/uri
 import vestibule/config
 import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
-import vestibule/internal/logger
+import vestibule/logger
 import vestibule/provider_support
 import vestibule/strategy.{type Strategy, type UserResult}
 import vestibule/user_info
