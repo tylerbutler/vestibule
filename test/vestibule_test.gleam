@@ -22,7 +22,7 @@ pub fn main() -> Nil {
 // A fake strategy for testing the orchestrator
 fn test_strategy() -> Strategy(e) {
   strategy.new(provider: "test", default_scopes: ["default_scope"])
-  |> strategy.with_authorize_url(fn(_config, scopes, state) {
+  |> strategy.with_authorize_url(fn(_config, _options, scopes, state) {
     Ok(
       "https://test.com/auth?scope="
       <> string.join(scopes, " ")
@@ -76,7 +76,7 @@ fn test_strategy() -> Strategy(e) {
 
 fn artifact_strategy() -> Strategy(e) {
   strategy.new(provider: "artifact", default_scopes: [])
-  |> strategy.with_authorize_url(fn(_config, _scopes, state) {
+  |> strategy.with_authorize_url(fn(_config, _options, _scopes, state) {
     Ok("https://test.com/auth?state=" <> state)
   })
   |> strategy.with_exchange_code(fn(_config, _code, _code_verifier) {
@@ -112,7 +112,7 @@ fn fragment_strategy() -> Strategy(e) {
     provider: strategy.provider(base),
     default_scopes: strategy.default_scopes(base),
   )
-  |> strategy.with_authorize_url(fn(_config, _scopes, state) {
+  |> strategy.with_authorize_url(fn(_config, _options, _scopes, state) {
     Ok(
       "https://test.com/auth?state=" <> state <> "&existing=1#provider-fragment",
     )
@@ -133,10 +133,15 @@ pub fn create_authorization_request_returns_authorization_request_test() {
   let conf =
     config.new(
       client_id: "id",
-      client_secret: "secret",
+      auth: config.ClientSecret("secret"),
       redirect_uri: "http://localhost/cb",
     )
-  let assert Ok(req) = vestibule.create_authorization_request(strat, cfg: conf)
+  let assert Ok(req) =
+    vestibule.create_authorization_request(
+      strat,
+      cfg: conf,
+      options: config.authorize_options(),
+    )
   let url = authorization_request.url(req)
   let state = authorization_request.state(req)
   let verifier = authorization_request.code_verifier(req)
@@ -159,10 +164,15 @@ pub fn create_authorization_request_emits_nonce_for_oidc_strategy_test() {
   let conf =
     config.new(
       client_id: "id",
-      client_secret: "secret",
+      auth: config.ClientSecret("secret"),
       redirect_uri: "http://localhost/cb",
     )
-  let assert Ok(req) = vestibule.create_authorization_request(strat, cfg: conf)
+  let assert Ok(req) =
+    vestibule.create_authorization_request(
+      strat,
+      cfg: conf,
+      options: config.authorize_options(),
+    )
   let url = authorization_request.url(req)
   // OIDC strategy emits a nonce in the URL and stores it for validation.
   { string.contains(url, "nonce=") } |> expect.to_be_true()
@@ -175,11 +185,15 @@ pub fn create_authorization_request_appends_pkce_before_url_fragment_test() {
   let conf =
     config.new(
       client_id: "id",
-      client_secret: "secret",
+      auth: config.ClientSecret("secret"),
       redirect_uri: "http://localhost/cb",
     )
   let assert Ok(req) =
-    vestibule.create_authorization_request(fragment_strategy(), cfg: conf)
+    vestibule.create_authorization_request(
+      fragment_strategy(),
+      cfg: conf,
+      options: config.authorize_options(),
+    )
   let url = authorization_request.url(req)
 
   { string.contains(url, "&existing=1&code_challenge=") }
@@ -193,11 +207,14 @@ pub fn create_authorization_request_uses_config_scopes_when_present_test() {
   let conf =
     config.new(
       client_id: "id",
-      client_secret: "secret",
+      auth: config.ClientSecret("secret"),
       redirect_uri: "http://localhost/cb",
     )
+  let options =
+    config.authorize_options()
     |> config.with_scopes(["custom_scope"])
-  let assert Ok(req) = vestibule.create_authorization_request(strat, cfg: conf)
+  let assert Ok(req) =
+    vestibule.create_authorization_request(strat, cfg: conf, options: options)
   let url = authorization_request.url(req)
   { string.contains(url, "custom_scope") } |> expect.to_be_true()
   { string.contains(url, "default_scope") } |> expect.to_be_false()
@@ -208,10 +225,15 @@ pub fn create_authorization_request_uses_default_scopes_when_config_empty_test()
   let conf =
     config.new(
       client_id: "id",
-      client_secret: "secret",
+      auth: config.ClientSecret("secret"),
       redirect_uri: "http://localhost/cb",
     )
-  let assert Ok(req) = vestibule.create_authorization_request(strat, cfg: conf)
+  let assert Ok(req) =
+    vestibule.create_authorization_request(
+      strat,
+      cfg: conf,
+      options: config.authorize_options(),
+    )
   let url = authorization_request.url(req)
   { string.contains(url, "default_scope") } |> expect.to_be_true()
 }
@@ -221,7 +243,7 @@ pub fn handle_callback_succeeds_with_valid_params_test() {
   let conf =
     config.new(
       client_id: "id",
-      client_secret: "secret",
+      auth: config.ClientSecret("secret"),
       redirect_uri: "http://localhost/cb",
     )
   let state = "test_state_value"
@@ -247,7 +269,7 @@ pub fn handle_callback_populates_auth_extra_from_strategy_user_result_test() {
   let conf =
     config.new(
       client_id: "id",
-      client_secret: "secret",
+      auth: config.ClientSecret("secret"),
       redirect_uri: "http://localhost/cb",
     )
   let state = "test_state_value"
@@ -271,7 +293,7 @@ pub fn handle_callback_passes_exchange_artifacts_to_fetch_user_test() {
   let conf =
     config.new(
       client_id: "id",
-      client_secret: "secret",
+      auth: config.ClientSecret("secret"),
       redirect_uri: "http://localhost/cb",
     )
   let state = "test_state_value"
@@ -297,7 +319,7 @@ pub fn refresh_token_delegates_to_strategy_refresh_token_test() {
   let conf =
     config.new(
       client_id: "client-id",
-      client_secret: "secret",
+      auth: config.ClientSecret("secret"),
       redirect_uri: "http://localhost/cb",
     )
 
@@ -320,7 +342,7 @@ pub fn handle_callback_fails_on_state_mismatch_test() {
   let conf =
     config.new(
       client_id: "id",
-      client_secret: "secret",
+      auth: config.ClientSecret("secret"),
       redirect_uri: "http://localhost/cb",
     )
   let params = dict.from_list([#("code", "valid_code"), #("state", "wrong")])
@@ -342,7 +364,7 @@ pub fn missing_callback_state_is_structured_test() {
   let conf =
     config.new(
       client_id: "id",
-      client_secret: "secret",
+      auth: config.ClientSecret("secret"),
       redirect_uri: "http://localhost/cb",
     )
   let params = dict.from_list([#("code", "valid_code")])
@@ -363,7 +385,7 @@ pub fn handle_callback_fails_on_missing_code_test() {
   let conf =
     config.new(
       client_id: "id",
-      client_secret: "secret",
+      auth: config.ClientSecret("secret"),
       redirect_uri: "http://localhost/cb",
     )
   let state = "test_state"
@@ -386,7 +408,7 @@ pub fn missing_callback_code_is_structured_test() {
   let conf =
     config.new(
       client_id: "id",
-      client_secret: "secret",
+      auth: config.ClientSecret("secret"),
       redirect_uri: "http://localhost/cb",
     )
   let state = "test_state"
@@ -408,10 +430,15 @@ pub fn logging_does_not_change_core_result_shapes_test() {
   let conf =
     config.new(
       client_id: "id",
-      client_secret: "secret",
+      auth: config.ClientSecret("secret"),
       redirect_uri: "http://localhost/cb",
     )
-  let assert Ok(req) = vestibule.create_authorization_request(strat, cfg: conf)
+  let assert Ok(req) =
+    vestibule.create_authorization_request(
+      strat,
+      cfg: conf,
+      options: config.authorize_options(),
+    )
   let params =
     dict.from_list([
       #("code", "valid_code"),
@@ -441,7 +468,7 @@ pub fn logging_does_not_change_core_result_shapes_test() {
 fn nonce_strategy(id_token: String) -> Strategy(e) {
   strategy.new(provider: "nonce-test", default_scopes: ["openid"])
   |> strategy.with_nonce()
-  |> strategy.with_authorize_url(fn(_config, _scopes, state) {
+  |> strategy.with_authorize_url(fn(_config, _options, _scopes, state) {
     Ok("https://test.com/auth?state=" <> state)
   })
   |> strategy.with_exchange_code(fn(_config, code, _code_verifier) {
@@ -476,7 +503,7 @@ fn nonce_strategy(id_token: String) -> Strategy(e) {
 fn nonce_strategy_without_id_token() -> Strategy(e) {
   strategy.new(provider: "nonce-test", default_scopes: ["openid"])
   |> strategy.with_nonce()
-  |> strategy.with_authorize_url(fn(_config, _scopes, state) {
+  |> strategy.with_authorize_url(fn(_config, _options, _scopes, state) {
     Ok("https://test.com/auth?state=" <> state)
   })
   |> strategy.with_exchange_code(fn(_config, _code, _code_verifier) {
@@ -515,10 +542,10 @@ fn make_id_token(payload_json: String) -> String {
   "header." <> payload <> ".signature"
 }
 
-fn nonce_config() -> config.Config {
+fn nonce_config() -> config.ClientConfig {
   config.new(
     client_id: "id",
-    client_secret: "secret",
+    auth: config.ClientSecret("secret"),
     redirect_uri: "http://localhost/cb",
   )
 }

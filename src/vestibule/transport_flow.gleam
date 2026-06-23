@@ -7,7 +7,7 @@ import gleam/result
 import vestibule
 import vestibule/auth.{type Auth}
 import vestibule/authorization_request
-import vestibule/config.{type Config}
+import vestibule/config.{type ClientConfig}
 import vestibule/error.{type AuthError}
 import vestibule/logger
 import vestibule/registry.{type Registry}
@@ -53,7 +53,11 @@ pub fn start_authorization(
       |> result.map_error(fn(_) { UnknownProvider(provider) }),
     )
     use auth_request <- result.try(
-      vestibule.create_authorization_request(strategy, cfg: config)
+      vestibule.create_authorization_request(
+        strategy,
+        cfg: config,
+        options: config.authorize_options(),
+      )
       |> result.map_error(AuthFailed),
     )
     use session_id <- result.try(
@@ -132,7 +136,7 @@ pub fn start_authorization(
 pub fn ensure_callback_provider(
   provider_registry: Registry(e),
   provider: String,
-) -> Result(#(Strategy(e), Config), CallbackFlowError(e)) {
+) -> Result(#(Strategy(e), ClientConfig), CallbackFlowError(e)) {
   let lookup =
     registry.get(provider_registry, provider: provider)
     |> result.map_error(fn(_) { CallbackUnknownProvider(provider) })
@@ -170,7 +174,7 @@ pub fn ensure_callback_provider(
 /// Pass the strategy/config pair returned by `ensure_callback_provider` to
 /// reuse the provider lookup instead of querying the registry again.
 pub fn finish_callback(
-  strategy_config: #(Strategy(e), Config),
+  strategy_config: #(Strategy(e), ClientConfig),
   store store: StateStore,
   params params: Dict(String, String),
   session_id session_id: String,

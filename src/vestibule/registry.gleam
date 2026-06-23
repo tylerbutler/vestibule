@@ -3,14 +3,14 @@
 //// authorize/callback requests to the right provider.
 
 import gleam/dict.{type Dict}
-import vestibule/config.{type Config}
+import vestibule/config.{type ClientConfig}
 import vestibule/strategy.{type Strategy}
 
-/// A registry mapping provider names to Strategy + Config pairs.
+/// A registry mapping provider names to Strategy + ClientConfig pairs.
 ///
 /// The type parameter `e` must match across all registered strategies.
 pub opaque type Registry(e) {
-  Registry(providers: Dict(String, #(Strategy(e), Config)))
+  Registry(providers: Dict(String, #(Strategy(e), ClientConfig)))
 }
 
 /// Errors returned when registering a strategy.
@@ -41,7 +41,7 @@ pub fn new() -> Registry(e) {
 pub fn register(
   registry: Registry(e),
   strategy strategy: Strategy(e),
-  config config: Config,
+  config config: ClientConfig,
 ) -> Result(Registry(e), RegistryError) {
   let name = strategy.provider(strategy)
   case dict.has_key(registry.providers, name) {
@@ -64,7 +64,7 @@ pub fn register(
 pub fn register_or_replace(
   registry: Registry(e),
   strategy strategy: Strategy(e),
-  config config: Config,
+  config config: ClientConfig,
 ) -> Registry(e) {
   Registry(
     providers: dict.insert(registry.providers, strategy.provider(strategy), #(
@@ -78,7 +78,7 @@ pub fn register_or_replace(
 pub fn get(
   registry: Registry(e),
   provider provider: String,
-) -> Result(#(Strategy(e), Config), Nil) {
+) -> Result(#(Strategy(e), ClientConfig), Nil) {
   dict.get(registry.providers, provider)
 }
 

@@ -14,7 +14,7 @@ import gleam/option.{type Option}
 import gleam/string
 import gleam/uri
 
-import vestibule/config.{type Config}
+import vestibule/config.{type AuthorizeOptions, type ClientConfig}
 import vestibule/credentials
 import vestibule/error.{type AuthError}
 import vestibule/user_info.{type UserInfo}
@@ -115,22 +115,24 @@ pub opaque type Strategy(e) {
     default_scopes: List(String),
     uses_nonce: Bool,
     authorize_url: Option(
-      fn(Config, List(String), String) -> Result(String, AuthError(e)),
+      fn(ClientConfig, AuthorizeOptions, List(String), String) ->
+        Result(String, AuthError(e)),
     ),
     exchange_code: Option(
-      fn(Config, String, Option(String)) -> Result(ExchangeResult, AuthError(e)),
+      fn(ClientConfig, String, Option(String)) ->
+        Result(ExchangeResult, AuthError(e)),
     ),
     refresh_token: Option(
-      fn(Config, String) -> Result(credentials.Credentials, AuthError(e)),
+      fn(ClientConfig, String) -> Result(credentials.Credentials, AuthError(e)),
     ),
     fetch_user: Option(
-      fn(Config, ExchangeResult) -> Result(UserResult, AuthError(e)),
+      fn(ClientConfig, ExchangeResult) -> Result(UserResult, AuthError(e)),
     ),
   )
 }
 
 /// Begin building a `Strategy` for `provider` with the given `default_scopes`
-/// (used when the caller's `Config` does not specify any).
+/// (used when the caller's `AuthorizeOptions` does not specify any).
 ///
 /// The returned strategy has no capabilities attached yet. Use the `with_*`
 /// builders to add them:
@@ -161,7 +163,7 @@ pub fn new(
 /// provider-specific authorization URL from the config, scopes, and state.
 pub fn with_authorize_url(
   strat: Strategy(e),
-  authorize_url: fn(Config, List(String), String) ->
+  authorize_url: fn(ClientConfig, AuthorizeOptions, List(String), String) ->
     Result(String, AuthError(e)),
 ) -> Strategy(e) {
   Strategy(..strat, authorize_url: option.Some(authorize_url))
@@ -173,7 +175,7 @@ pub fn with_authorize_url(
 /// generated.
 pub fn with_exchange_code(
   strat: Strategy(e),
-  exchange_code: fn(Config, String, Option(String)) ->
+  exchange_code: fn(ClientConfig, String, Option(String)) ->
     Result(ExchangeResult, AuthError(e)),
 ) -> Strategy(e) {
   Strategy(..strat, exchange_code: option.Some(exchange_code))
@@ -183,7 +185,8 @@ pub fn with_exchange_code(
 /// authenticated user from the exchange result.
 pub fn with_fetch_user(
   strat: Strategy(e),
-  fetch_user: fn(Config, ExchangeResult) -> Result(UserResult, AuthError(e)),
+  fetch_user: fn(ClientConfig, ExchangeResult) ->
+    Result(UserResult, AuthError(e)),
 ) -> Strategy(e) {
   Strategy(..strat, fetch_user: option.Some(fetch_user))
 }
@@ -193,7 +196,7 @@ pub fn with_fetch_user(
 /// `refresh_token` with `RefreshUnsupported`.
 pub fn with_refresh(
   strat: Strategy(e),
-  refresh_token: fn(Config, String) ->
+  refresh_token: fn(ClientConfig, String) ->
     Result(credentials.Credentials, AuthError(e)),
 ) -> Strategy(e) {
   Strategy(..strat, refresh_token: option.Some(refresh_token))
@@ -217,7 +220,7 @@ pub fn uses_nonce(strat: Strategy(e)) -> Bool {
 }
 
 /// Return the strategy's default scopes, used when the caller's
-/// `Config` does not specify any.
+/// `AuthorizeOptions` does not specify any.
 pub fn default_scopes(strat: Strategy(e)) -> List(String) {
   strat.default_scopes
 }
@@ -228,12 +231,13 @@ pub fn default_scopes(strat: Strategy(e)) -> List(String) {
 /// `with_authorize_url`.
 pub fn build_authorize_url(
   strat: Strategy(e),
-  cfg cfg: Config,
+  cfg cfg: ClientConfig,
+  options options: AuthorizeOptions,
   scopes scopes: List(String),
   state state: String,
 ) -> Result(String, AuthError(e)) {
   case strat.authorize_url {
-    option.Some(authorize_url) -> authorize_url(cfg, scopes, state)
+    option.Some(authorize_url) -> authorize_url(cfg, options, scopes, state)
     option.None ->
       Error(error.config(
         reason: "Strategy \""
@@ -251,7 +255,7 @@ pub fn build_authorize_url(
 /// `with_exchange_code`.
 pub fn exchange_code(
   strat: Strategy(e),
-  cfg cfg: Config,
+  cfg cfg: ClientConfig,
   code code: String,
   code_verifier code_verifier: Option(String),
 ) -> Result(ExchangeResult, AuthError(e)) {
@@ -272,7 +276,7 @@ pub fn exchange_code(
 /// `with_refresh`.
 pub fn refresh_token(
   strat: Strategy(e),
-  cfg cfg: Config,
+  cfg cfg: ClientConfig,
   refresh_tok refresh_tok: String,
 ) -> Result(credentials.Credentials, AuthError(e)) {
   case strat.refresh_token {
@@ -287,7 +291,7 @@ pub fn refresh_token(
 /// `with_fetch_user`.
 pub fn fetch_user(
   strat: Strategy(e),
-  cfg cfg: Config,
+  cfg cfg: ClientConfig,
   exchange exchange: ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
   case strat.fetch_user {

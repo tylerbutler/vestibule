@@ -24,7 +24,7 @@ import vestibule/user_info
 
 fn test_strategy() -> Strategy(e) {
   strategy.new(provider: "test", default_scopes: ["scope"])
-  |> strategy.with_authorize_url(fn(_config, scopes, st) {
+  |> strategy.with_authorize_url(fn(_config, _options, scopes, st) {
     Ok(
       "https://test.example.com/auth?scope="
       <> string.join(scopes, " ")
@@ -180,11 +180,15 @@ pub fn create_authorization_request_always_includes_pkce_test() {
   let conf =
     config.new(
       client_id: "id",
-      client_secret: "secret",
+      auth: config.ClientSecret("secret"),
       redirect_uri: "https://localhost/cb",
     )
   let assert Ok(auth_req) =
-    vestibule.create_authorization_request(strat, cfg: conf)
+    vestibule.create_authorization_request(
+      strat,
+      cfg: conf,
+      options: config.authorize_options(),
+    )
   let url = authorization_request.url(auth_req)
   { string.contains(url, "code_challenge=") } |> expect.to_be_true()
   { string.contains(url, "code_challenge_method=S256") } |> expect.to_be_true()
@@ -196,11 +200,21 @@ pub fn create_authorization_request_produces_fresh_state_and_verifier_test() {
   let conf =
     config.new(
       client_id: "id",
-      client_secret: "secret",
+      auth: config.ClientSecret("secret"),
       redirect_uri: "https://localhost/cb",
     )
-  let assert Ok(req1) = vestibule.create_authorization_request(strat, cfg: conf)
-  let assert Ok(req2) = vestibule.create_authorization_request(strat, cfg: conf)
+  let assert Ok(req1) =
+    vestibule.create_authorization_request(
+      strat,
+      cfg: conf,
+      options: config.authorize_options(),
+    )
+  let assert Ok(req2) =
+    vestibule.create_authorization_request(
+      strat,
+      cfg: conf,
+      options: config.authorize_options(),
+    )
   { authorization_request.state(req1) != authorization_request.state(req2) }
   |> expect.to_be_true()
   {
@@ -221,7 +235,7 @@ pub fn callback_rejects_state_mismatch_test() {
   let conf =
     config.new(
       client_id: "id",
-      client_secret: "secret",
+      auth: config.ClientSecret("secret"),
       redirect_uri: "https://localhost/cb",
     )
   let params =
@@ -243,7 +257,7 @@ pub fn callback_rejects_missing_state_test() {
   let conf =
     config.new(
       client_id: "id",
-      client_secret: "secret",
+      auth: config.ClientSecret("secret"),
       redirect_uri: "https://localhost/cb",
     )
   let params = dict.from_list([#("code", "valid_code")])
@@ -264,7 +278,7 @@ pub fn callback_rejects_empty_params_test() {
   let conf =
     config.new(
       client_id: "id",
-      client_secret: "secret",
+      auth: config.ClientSecret("secret"),
       redirect_uri: "https://localhost/cb",
     )
   vestibule.handle_callback(
@@ -286,7 +300,7 @@ pub fn callback_detects_provider_error_test() {
   let conf =
     config.new(
       client_id: "id",
-      client_secret: "secret",
+      auth: config.ClientSecret("secret"),
       redirect_uri: "https://localhost/cb",
     )
   let state_val = "matching_state"
@@ -317,7 +331,7 @@ pub fn callback_preserves_provider_error_uri_test() {
   let conf =
     config.new(
       client_id: "id",
-      client_secret: "secret",
+      auth: config.ClientSecret("secret"),
       redirect_uri: "https://localhost/cb",
     )
   let state_val = "matching_state"
@@ -350,7 +364,7 @@ pub fn callback_rejects_provider_error_when_state_mismatch_test() {
   let conf =
     config.new(
       client_id: "id",
-      client_secret: "secret",
+      auth: config.ClientSecret("secret"),
       redirect_uri: "https://localhost/cb",
     )
   let params =
@@ -376,7 +390,7 @@ pub fn callback_ignores_extra_params_test() {
   let conf =
     config.new(
       client_id: "id",
-      client_secret: "secret",
+      auth: config.ClientSecret("secret"),
       redirect_uri: "https://localhost/cb",
     )
   let state_val = "test_state"

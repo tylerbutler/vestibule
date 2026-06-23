@@ -7,7 +7,7 @@ import vestibule/strategy.{type Strategy}
 
 fn test_strategy(name: String) -> Strategy(e) {
   strategy.new(provider: name, default_scopes: [])
-  |> strategy.with_authorize_url(fn(_config, _scopes, _state) {
+  |> strategy.with_authorize_url(fn(_config, _options, _scopes, _state) {
     Ok("https://example.com")
   })
   |> strategy.with_exchange_code(fn(_config, _code, _code_verifier) {
@@ -21,10 +21,10 @@ fn test_strategy(name: String) -> Strategy(e) {
   })
 }
 
-fn test_config() -> config.Config {
+fn test_config() -> config.ClientConfig {
   config.new(
     client_id: "client_id",
-    client_secret: "client_secret",
+    auth: config.ClientSecret("client_secret"),
     redirect_uri: "https://example.com/callback",
   )
 }
@@ -89,13 +89,13 @@ pub fn register_duplicate_does_not_replace_trusted_entry_test() {
   let trusted_cfg =
     config.new(
       client_id: "trusted_id",
-      client_secret: "trusted_secret",
+      auth: config.ClientSecret("trusted_secret"),
       redirect_uri: "https://example.com/callback",
     )
   let attacker_cfg =
     config.new(
       client_id: "attacker_id",
-      client_secret: "attacker_secret",
+      auth: config.ClientSecret("attacker_secret"),
       redirect_uri: "https://evil.example/callback",
     )
 
@@ -120,13 +120,13 @@ pub fn register_or_replace_overwrites_existing_test() {
   let first_cfg =
     config.new(
       client_id: "first_id",
-      client_secret: "first_secret",
+      auth: config.ClientSecret("first_secret"),
       redirect_uri: "https://example.com/callback",
     )
   let second_cfg =
     config.new(
       client_id: "second_id",
-      client_secret: "second_secret",
+      auth: config.ClientSecret("second_secret"),
       redirect_uri: "https://example.com/callback",
     )
 
