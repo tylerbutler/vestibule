@@ -16,7 +16,7 @@ import vestibule/pkce
 import vestibule/provider_support
 import vestibule/state
 import vestibule/strategy.{type Strategy}
-import vestibule/user_info.{UserInfo}
+import vestibule/user_info
 
 // ---------------------------------------------------------------------------
 // Helper: test strategy that captures inputs for verification
@@ -58,14 +58,7 @@ fn test_strategy() -> Strategy(e) {
     fetch_user: fn(_config, _exchange) {
       Ok(strategy.user_result(
         uid: "uid",
-        info: UserInfo(
-          name: None,
-          email: None,
-          nickname: None,
-          image: None,
-          description: None,
-          urls: dict.new(),
-        ),
+        info: user_info.new(),
         extra: dict.new(),
       ))
     },

@@ -13,7 +13,7 @@ setup:
   - Register the redirect URI your app uses for the callback.
   - Call discover with the user-supplied profile URL before starting the flow.
 highlights:
-  - Identity is a URL — auth.uid is the user's canonical me URL.
+  - Identity is a URL — auth.uid(auth) returns the user's canonical me URL.
   - Endpoints are discovered per user from their homepage (metadata, Link headers, then HTML link tags).
   - Public-client semantics — no client_secret is sent during token exchange.
   - PKCE is used for the authorization code flow.

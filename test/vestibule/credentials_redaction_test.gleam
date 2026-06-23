@@ -33,17 +33,10 @@ pub fn inspect_credentials_does_not_leak_tokens_test() {
 
 pub fn inspect_auth_does_not_leak_tokens_test() {
   let result =
-    auth.Auth(
+    auth.new(
       uid: "user-123",
       provider: "github",
-      info: user_info.UserInfo(
-        name: None,
-        email: None,
-        nickname: None,
-        image: None,
-        description: None,
-        urls: dict.new(),
-      ),
+      info: user_info.new(),
       credentials: sample_credentials(),
       extra: dict.new(),
     )

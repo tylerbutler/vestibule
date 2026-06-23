@@ -8,6 +8,7 @@ import gleam/option.{None, Some}
 import gleam/time/duration
 import startest
 import startest/expect
+import vestibule/user_info
 import vestibule_apple
 import vestibule_apple/jwks
 import vestibule_apple/jwt
@@ -86,7 +87,7 @@ pub fn verify_id_token_accepts_correct_key_test() {
     )
   let assert Ok(#(uid, info)) = result
   uid |> expect.to_equal("user-123")
-  info.email |> expect.to_equal(Some("user@example.com"))
+  user_info.email(info) |> expect.to_equal(Some("user@example.com"))
 }
 
 /// Security: verify_id_token rejects JWT with wrong issuer.
@@ -191,8 +192,8 @@ pub fn verify_id_token_unverified_email_not_returned_test() {
       keys: [verify_key.derived(key)],
       client_id: "com.example.app",
     )
-  info.email |> expect.to_equal(None)
-  info.nickname |> expect.to_equal(Some("user@example.com"))
+  user_info.email(info) |> expect.to_equal(None)
+  user_info.nickname(info) |> expect.to_equal(Some("user@example.com"))
 }
 
 // ===========================================================================

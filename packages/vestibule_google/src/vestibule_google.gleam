@@ -2,7 +2,7 @@
 ////
 //// Uses Google's discovery document to build authorize/token/userinfo
 //// endpoints, requests `openid email profile` by default, and validates
-//// `email_verified` before populating `UserInfo.email`.
+//// `email_verified` before populating the user's email (`user_info.email`).
 
 import gleam/dict
 import gleam/dynamic
@@ -205,14 +205,11 @@ pub fn parse_user_response_with_hd(
     }
     decode.success(#(
       sub,
-      user_info.UserInfo(
-        name: name,
-        email: verified_email,
-        nickname: email,
-        image: picture,
-        description: None,
-        urls: dict.new(),
-      ),
+      user_info.new()
+        |> user_info.with_name(name)
+        |> user_info.with_email(verified_email)
+        |> user_info.with_nickname(email)
+        |> user_info.with_image(picture),
       hd,
     ))
   }

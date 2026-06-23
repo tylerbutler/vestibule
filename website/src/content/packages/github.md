@@ -15,8 +15,8 @@ setup:
 highlights:
   - Requests user:email by default.
   - Token scopes are parsed from GitHub's comma-separated scope response.
-  - UserInfo.email is populated from the verified primary email endpoint when available.
-  - The GitHub profile URL is exposed under the html_url key in UserInfo.urls.
+  - user_info.email is populated from the verified primary email endpoint when available.
+  - The GitHub profile URL is exposed under the html_url key in user_info.urls.
 code: |
   import vestibule/config
   import vestibule_github
@@ -30,7 +30,7 @@ code: |
     )
 notes:
   - GitHub may omit public email from /user; the strategy performs a best-effort /user/emails lookup.
-  - If the email lookup fails, authentication can still succeed with UserInfo.email set to None.
+  - If the email lookup fails, authentication can still succeed with user_info.email returning None.
 navOrder: 35
 searchTerms:
   - github oauth app

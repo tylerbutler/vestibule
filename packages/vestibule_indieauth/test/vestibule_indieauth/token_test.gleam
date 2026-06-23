@@ -3,6 +3,7 @@ import startest
 import startest/expect
 
 import vestibule/credentials
+import vestibule/user_info
 
 import vestibule_indieauth/token
 
@@ -229,13 +230,13 @@ pub fn parse_userinfo_full_test() {
   uid
   |> expect.to_equal("https://user.example.net/")
 
-  info.name
+  user_info.name(info)
   |> expect.to_equal(Some("Example User"))
 
-  info.email
+  user_info.email(info)
   |> expect.to_equal(Some("user@example.net"))
 
-  info.image
+  user_info.image(info)
   |> expect.to_equal(Some("https://user.example.net/photo.jpg"))
 }
 
@@ -248,10 +249,10 @@ pub fn parse_userinfo_minimal_test() {
   uid
   |> expect.to_equal("https://user.example.net/")
 
-  info.name
+  user_info.name(info)
   |> expect.to_equal(None)
 
-  info.email
+  user_info.email(info)
   |> expect.to_equal(None)
 }
 

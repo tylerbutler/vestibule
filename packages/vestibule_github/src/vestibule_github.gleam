@@ -127,14 +127,12 @@ pub fn parse_user_response(
     }
     decode.success(#(
       int.to_string(id),
-      user_info.UserInfo(
-        name: name,
-        email: None,
-        nickname: option.Some(login),
-        image: avatar_url,
-        description: bio,
-        urls: urls,
-      ),
+      user_info.new()
+        |> user_info.with_name(name)
+        |> user_info.with_nickname(option.Some(login))
+        |> user_info.with_image(avatar_url)
+        |> user_info.with_description(bio)
+        |> user_info.with_urls(urls),
     ))
   }
   case json.parse(body, decoder) {
@@ -447,7 +445,7 @@ fn do_fetch_user(
   }
 
   let final_info = case email {
-    option.Some(_) -> user_info.UserInfo(..info, email: email)
+    option.Some(_) -> user_info.with_email(info, email)
     None -> info
   }
 

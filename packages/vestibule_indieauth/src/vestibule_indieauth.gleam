@@ -259,14 +259,8 @@ fn do_fetch_user(
       // Return minimal user info — the me URL is the identity
       Ok(strategy.user_result(
         uid: me,
-        info: user_info.UserInfo(
-          name: None,
-          email: None,
-          nickname: None,
-          image: None,
-          description: None,
-          urls: dict.from_list([#("url", me)]),
-        ),
+        info: user_info.new()
+          |> user_info.with_urls(dict.from_list([#("url", me)])),
         extra: dict.new(),
       ))
   }

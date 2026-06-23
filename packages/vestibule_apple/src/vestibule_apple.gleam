@@ -307,14 +307,9 @@ pub fn verify_id_token(
       }
       Ok(#(
         sub,
-        user_info.UserInfo(
-          name: None,
-          email: verified_email,
-          nickname: email,
-          image: None,
-          description: None,
-          urls: dict.new(),
-        ),
+        user_info.new()
+          |> user_info.with_email(verified_email)
+          |> user_info.with_nickname(email),
       ))
     }
     Error(jwt.InvalidSignature) | Error(jwt.NoMatchingKey) ->
