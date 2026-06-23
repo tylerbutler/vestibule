@@ -6,6 +6,7 @@ import startest/expect
 import vestibule/config
 import vestibule/credentials
 import vestibule/strategy
+import vestibule/user_info
 import vestibule_github
 
 pub fn main() -> Nil {
@@ -58,12 +59,12 @@ pub fn parse_user_response_full_test() {
   let result = vestibule_github.parse_user_response(json)
   let assert Ok(#(uid, info)) = result
   uid |> expect.to_equal("12345")
-  info.name |> expect.to_equal(Some("The Octocat"))
-  info.nickname |> expect.to_equal(Some("octocat"))
-  info.image
+  user_info.name(info) |> expect.to_equal(Some("The Octocat"))
+  user_info.nickname(info) |> expect.to_equal(Some("octocat"))
+  user_info.image(info)
   |> expect.to_equal(Some("https://avatars.githubusercontent.com/u/12345"))
-  info.description |> expect.to_equal(Some("A cat that codes"))
-  info.urls
+  user_info.description(info) |> expect.to_equal(Some("A cat that codes"))
+  user_info.urls(info)
   |> expect.to_equal(
     dict.from_list([
       #("html_url", "https://github.com/octocat"),
@@ -76,8 +77,8 @@ pub fn parse_user_response_minimal_test() {
   let result = vestibule_github.parse_user_response(json)
   let assert Ok(#(uid, info)) = result
   uid |> expect.to_equal("99")
-  info.name |> expect.to_equal(None)
-  info.email |> expect.to_equal(None)
+  user_info.name(info) |> expect.to_equal(None)
+  user_info.email(info) |> expect.to_equal(None)
 }
 
 pub fn parse_emails_response_test() {

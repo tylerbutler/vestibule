@@ -68,7 +68,7 @@ let assert Ok(auth) =
     "code verifier from session",
   )
 // Delete the stored state and code verifier after a successful callback.
-// auth.uid, auth.info.email, credentials.token(auth.credentials)
+// auth.uid(auth), user_info.email(auth.info(auth)), credentials.token(auth.credentials(auth))
 ```
 
 Store `state` and the PKCE `code_verifier` on the server, bound to the user's
@@ -109,7 +109,7 @@ case wisp.path_segments(req), req.method {
   | ["auth", provider, "callback"], http.Post
   ->
     vestibule_wisp.callback_phase(req, reg, provider, store, fn(auth) {
-      // auth.uid, auth.info.name, auth.info.email
+      // auth.uid(auth), user_info.name(auth.info(auth)), user_info.email(auth.info(auth))
       wisp.redirect("/dashboard")
     })
   _, _ -> wisp.not_found()
@@ -285,8 +285,8 @@ Register a client in your provider first:
   redirect URIs and OIDC issuers must use HTTPS; `http://localhost` and
   `http://127.0.0.1` are permitted for local development only.
 - **Scopes** — request `openid email profile` so vestibule can populate the
-  user's id, email, and name. Note that `UserInfo.email` is only filled in
-  when the provider reports `email_verified`.
+  user's id, email, and name. Note that the email accessor (`user_info.email`)
+  only returns a value when the provider reports `email_verified`.
 - **Client credentials** — copy the issued client ID and secret into
   `config.new`.
 
@@ -316,8 +316,8 @@ common attacks, but a few responsibilities remain with the consuming app.
   expected nonce is rejected with `AuthError.InvalidNonce`. This binds the
   id_token to the browser session that started the flow, defending against
   id_token replay/injection beyond what PKCE covers.
-- **Verified-email gating (OIDC, Google, Apple)** — `UserInfo.email`
-  is only populated when the provider reports `email_verified`.
+- **Verified-email gating (OIDC, Google, Apple)** — `user_info.email`
+  only returns a value when the provider reports `email_verified`.
 
 **Caller responsibilities**
 

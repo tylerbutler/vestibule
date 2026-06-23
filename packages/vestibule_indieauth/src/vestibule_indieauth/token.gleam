@@ -336,14 +336,11 @@ pub fn parse_userinfo_response(
     }
     decode.success(#(
       me,
-      user_info.UserInfo(
-        name: name,
-        email: email,
-        nickname: None,
-        image: photo,
-        description: None,
-        urls: urls,
-      ),
+      user_info.new()
+        |> user_info.with_name(name)
+        |> user_info.with_email(email)
+        |> user_info.with_image(photo)
+        |> user_info.with_urls(urls),
     ))
   }
 

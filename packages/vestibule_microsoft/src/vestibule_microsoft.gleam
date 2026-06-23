@@ -185,14 +185,11 @@ pub fn parse_user_response(
     let email = mail
     decode.success(#(
       id,
-      user_info.UserInfo(
-        name: display_name,
-        email: email,
-        nickname: Some(upn),
-        image: None,
-        description: job_title,
-        urls: dict.new(),
-      ),
+      user_info.new()
+        |> user_info.with_name(display_name)
+        |> user_info.with_email(email)
+        |> user_info.with_nickname(Some(upn))
+        |> user_info.with_description(job_title),
     ))
   }
   case json.parse(body, decoder) {

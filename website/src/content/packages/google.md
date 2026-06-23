@@ -13,7 +13,7 @@ setup:
   - Create a Web application OAuth client ID.
   - Add development and HTTPS production redirect URIs exactly.
 highlights:
-  - UserInfo.email is only populated when email_verified is true.
+  - user_info.email only returns a value when email_verified is true.
   - config.with_extra_params can request offline access.
   - strategy_for_hosted_domain validates the hd claim server-side.
   - The hd authorization parameter alone is only an account-picker hint.

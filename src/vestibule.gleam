@@ -14,7 +14,7 @@ import gleam/result
 import gleam/string
 import gleam/uri
 
-import vestibule/auth.{type Auth, Auth}
+import vestibule/auth.{type Auth}
 import vestibule/authorization_request.{type AuthorizationRequest}
 import vestibule/config.{type Config}
 import vestibule/credentials.{type Credentials}
@@ -384,7 +384,7 @@ pub fn handle_callback(
 
   // Assemble the Auth result
   let auth =
-    Auth(
+    auth.new(
       uid: strategy.user_result_uid(user),
       provider: strategy.provider(strat),
       info: strategy.user_result_info(user),

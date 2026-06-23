@@ -94,7 +94,7 @@ let assert Ok(auth_request) = vestibule.create_authorization_request(strategy, c
     <li>
       <strong>Scopes</strong> — request <code>openid email profile</code> so
       Vestibule can populate the user's id, email, and name.
-      <code>UserInfo.email</code> is only filled in when the provider reports
+      <code>user_info.email</code> only returns a value when the provider reports
       <code>email_verified</code>.
     </li>
     <li>

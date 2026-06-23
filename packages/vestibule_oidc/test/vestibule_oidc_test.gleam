@@ -6,6 +6,7 @@
 import gleam/option.{None, Some}
 import startest
 import startest/expect
+import vestibule/user_info
 import vestibule_oidc
 
 pub fn main() -> Nil {
@@ -92,7 +93,7 @@ pub fn oidc_userinfo_handles_xss_in_name_test() {
   let assert Ok(#(_, info)) = result
   // The XSS payload is stored as a plain string; escaping is the
   // responsibility of the presentation layer.
-  info.name
+  user_info.name(info)
   |> expect.to_equal(Some("<script>alert(1)</script>"))
 }
 
@@ -102,5 +103,5 @@ pub fn oidc_rejects_unverified_email_test() {
     "{\"sub\":\"user-1\",\"email\":\"unverified@example.com\",\"email_verified\":false}"
   let result = vestibule_oidc.parse_userinfo_response(json)
   let assert Ok(#(_, info)) = result
-  info.email |> expect.to_equal(None)
+  user_info.email(info) |> expect.to_equal(None)
 }

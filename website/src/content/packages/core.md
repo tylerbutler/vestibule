@@ -33,8 +33,8 @@ code: |
     )
 
   let assert Ok(auth_request) = vestibule.create_authorization_request(strategy, cfg)
-  // Store auth_request.state and auth_request.code_verifier server-side.
-  // Redirect the user to auth_request.url.
+  // Store authorization_request.state(auth_request) and authorization_request.code_verifier(auth_request) server-side.
+  // Redirect the user to authorization_request.url(auth_request).
 
   let params =
     dict.from_list([

@@ -69,7 +69,7 @@ case
   )
 {
   Ok(auth) -> {
-    // Delete the stored state and code_verifier, then map auth.uid
+    // Delete the stored state and code_verifier, then map auth.uid(auth)
     // to an account and start a session.
     sign_in(auth)
   }
@@ -107,7 +107,7 @@ case wisp.path_segments(req), req.method {
   ["auth", provider, "callback"], http.Get
   | ["auth", provider, "callback"], http.Post ->
     case vestibule_wisp.callback_phase_auth_result(req, reg, provider, store) {
-      // auth.uid identifies the user: map it to an account, then
+      // auth.uid(auth) identifies the user: map it to an account, then
       // start your own session.
       Ok(auth) -> start_session(auth)
 
@@ -185,7 +185,7 @@ case vestibule.handle_callback(strategy, cfg, params, expected_state, verifier) 
           failed callback.
         </li>
         <li>
-          <strong>Map <code>auth.uid</code> to your own account.</strong>
+          <strong>Map <code>auth.uid(auth)</code> to your own account.</strong>
           Vestibule authenticates the provider identity; your app owns sessions.
         </li>
       </ul>

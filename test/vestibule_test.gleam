@@ -7,12 +7,13 @@ import gleam/string
 import startest
 import startest/expect
 import vestibule
+import vestibule/auth
 import vestibule/authorization_request
 import vestibule/config
 import vestibule/credentials
 import vestibule/error
 import vestibule/strategy.{type Strategy}
-import vestibule/user_info.{UserInfo}
+import vestibule/user_info
 
 pub fn main() -> Nil {
   startest.run(startest.default_config())
@@ -66,14 +67,9 @@ fn test_strategy() -> Strategy(e) {
       |> expect.to_equal("test_token")
       Ok(strategy.user_result(
         uid: "user123",
-        info: UserInfo(
-          name: Some("Test User"),
-          email: Some("test@example.com"),
-          nickname: None,
-          image: None,
-          description: None,
-          urls: dict.new(),
-        ),
+        info: user_info.new()
+          |> user_info.with_name(Some("Test User"))
+          |> user_info.with_email(Some("test@example.com")),
         extra: dict.from_list([
           #("raw_provider", dynamic.string("from-provider")),
         ]),
@@ -113,14 +109,7 @@ fn artifact_strategy() -> Strategy(e) {
       let assert Ok(decoded) = decode.run(marker, decode.string)
       Ok(strategy.user_result(
         uid: decoded,
-        info: UserInfo(
-          name: None,
-          email: None,
-          nickname: None,
-          image: None,
-          description: None,
-          urls: dict.new(),
-        ),
+        info: user_info.new(),
         extra: dict.new(),
       ))
     },
@@ -264,11 +253,11 @@ pub fn handle_callback_succeeds_with_valid_params_test() {
       code_verifier: "test_verifier",
       expected_nonce: None,
     )
-  let assert Ok(auth) = result
-  auth.uid |> expect.to_equal("user123")
-  auth.provider |> expect.to_equal("test")
-  auth.info.name |> expect.to_equal(Some("Test User"))
-  credentials.token(auth.credentials) |> expect.to_equal("test_token")
+  let assert Ok(authed) = result
+  auth.uid(authed) |> expect.to_equal("user123")
+  auth.provider(authed) |> expect.to_equal("test")
+  user_info.name(auth.info(authed)) |> expect.to_equal(Some("Test User"))
+  credentials.token(auth.credentials(authed)) |> expect.to_equal("test_token")
 }
 
 pub fn handle_callback_populates_auth_extra_from_strategy_user_result_test() {
@@ -282,7 +271,7 @@ pub fn handle_callback_populates_auth_extra_from_strategy_user_result_test() {
   let state = "test_state_value"
   let params = dict.from_list([#("code", "valid_code"), #("state", state)])
 
-  let assert Ok(auth) =
+  let assert Ok(authed) =
     vestibule.handle_callback(
       strat,
       cfg: conf,
@@ -291,7 +280,7 @@ pub fn handle_callback_populates_auth_extra_from_strategy_user_result_test() {
       code_verifier: "test_verifier",
       expected_nonce: None,
     )
-  let assert Ok(raw_provider) = dict.get(auth.extra, "raw_provider")
+  let assert Ok(raw_provider) = dict.get(auth.extra(authed), "raw_provider")
   decode.run(raw_provider, decode.string)
   |> expect.to_equal(Ok("from-provider"))
 }
@@ -306,7 +295,7 @@ pub fn handle_callback_passes_exchange_artifacts_to_fetch_user_test() {
   let state = "test_state_value"
   let params = dict.from_list([#("code", "valid_code"), #("state", state)])
 
-  let assert Ok(auth) =
+  let assert Ok(authed) =
     vestibule.handle_callback(
       artifact_strategy(),
       cfg: conf,
@@ -316,8 +305,9 @@ pub fn handle_callback_passes_exchange_artifacts_to_fetch_user_test() {
       expected_nonce: None,
     )
 
-  auth.uid |> expect.to_equal("from-exchange")
-  credentials.token(auth.credentials) |> expect.to_equal("artifact_token")
+  auth.uid(authed) |> expect.to_equal("from-exchange")
+  credentials.token(auth.credentials(authed))
+  |> expect.to_equal("artifact_token")
 }
 
 pub fn refresh_token_delegates_to_strategy_refresh_token_test() {
@@ -496,14 +486,7 @@ fn nonce_strategy(id_token: String) -> Strategy(e) {
     fetch_user: fn(_cfg, _exchange) {
       Ok(strategy.user_result(
         uid: "user123",
-        info: UserInfo(
-          name: None,
-          email: None,
-          nickname: None,
-          image: None,
-          description: None,
-          urls: dict.new(),
-        ),
+        info: user_info.new(),
         extra: dict.new(),
       ))
     },
@@ -538,14 +521,7 @@ fn nonce_strategy_without_id_token() -> Strategy(e) {
     fetch_user: fn(_cfg, _exchange) {
       Ok(strategy.user_result(
         uid: "user123",
-        info: UserInfo(
-          name: None,
-          email: None,
-          nickname: None,
-          image: None,
-          description: None,
-          urls: dict.new(),
-        ),
+        info: user_info.new(),
         extra: dict.new(),
       ))
     },
