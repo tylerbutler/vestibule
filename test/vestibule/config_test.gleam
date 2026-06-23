@@ -28,7 +28,7 @@ pub fn client_secret_returns_secret_for_secret_auth_test() {
   config.client_secret(c) |> expect.to_equal(Ok("secret"))
 }
 
-pub fn client_secret_returns_assertion_value_for_assertion_auth_test() {
+pub fn client_secret_rejects_assertion_auth_test() {
   let c =
     config.new(
       client_id: "id",
@@ -36,7 +36,16 @@ pub fn client_secret_returns_assertion_value_for_assertion_auth_test() {
       auth: config.ClientAssertion("assertion"),
     )
 
-  config.client_secret(c) |> expect.to_equal(Ok("assertion"))
+  case config.client_secret(c) {
+    Error(err) -> {
+      error.kind(err) |> expect.to_equal(error.ConfigKind)
+      error.message(err)
+      |> expect.to_equal(
+        "Invalid configuration: Client authentication does not provide a client_secret",
+      )
+    }
+    _ -> panic as "expected ConfigError for client assertion"
+  }
 }
 
 pub fn client_secret_rejects_public_client_test() {

@@ -48,8 +48,8 @@ pub fn client_auth(config: ClientConfig) -> ClientAuth {
 /// Return a client secret value when the authentication method provides one.
 pub fn client_secret(config: ClientConfig) -> Result(String, AuthError(e)) {
   case config.auth {
-    ClientSecret(secret) | ClientAssertion(secret) -> Ok(secret)
-    PublicClient ->
+    ClientSecret(secret) -> Ok(secret)
+    PublicClient | ClientAssertion(_) ->
       Error(error.config(
         reason: "Client authentication does not provide a client_secret",
       ))
