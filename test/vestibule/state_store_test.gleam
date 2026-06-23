@@ -1,3 +1,4 @@
+import gleam/option.{None, Some}
 import gleam/string
 import startest/expect
 import vestibule/state_store
@@ -7,10 +8,10 @@ pub fn store_and_retrieve_state_and_verifier_test() {
   let state = "test-csrf-state-value"
   let verifier = "test-pkce-code-verifier"
   let session_id =
-    state_store.store(table, state: state, code_verifier: verifier)
+    state_store.store(table, state: state, code_verifier: verifier, nonce: None)
   state_store.consume(table, session_id)
   |> expect.to_be_ok()
-  |> expect.to_equal(#(state, verifier))
+  |> expect.to_equal(#(state, verifier, None))
 }
 
 pub fn retrieve_deletes_after_use_test() {
@@ -20,6 +21,7 @@ pub fn retrieve_deletes_after_use_test() {
       table,
       state: "one-time-state",
       code_verifier: "one-time-verifier",
+      nonce: None,
     )
   let _ = state_store.consume(table, session_id)
   state_store.consume(table, session_id)
@@ -33,6 +35,7 @@ pub fn consume_deletes_after_use_test() {
       table,
       state: "one-time-state",
       code_verifier: "one-time-verifier",
+      nonce: None,
     )
   state_store.consume(table, session_id)
   |> expect.to_be_ok()
@@ -63,12 +66,17 @@ pub fn try_store_returns_session_id_and_retrievable_value_test() {
   let state = "state"
   let verifier = "verifier"
   let assert Ok(session_id) =
-    state_store.try_store(table, state: state, code_verifier: verifier)
+    state_store.try_store(
+      table,
+      state: state,
+      code_verifier: verifier,
+      nonce: None,
+    )
 
   { string.length(session_id) > 0 } |> expect.to_be_true()
   state_store.consume(table, session_id)
   |> expect.to_be_ok()
-  |> expect.to_equal(#(state, verifier))
+  |> expect.to_equal(#(state, verifier, None))
 }
 
 pub fn try_store_with_ttl_stores_retrievable_value_test() {
@@ -81,12 +89,13 @@ pub fn try_store_with_ttl_stores_retrievable_value_test() {
       table,
       state: state,
       code_verifier: verifier,
+      nonce: None,
       ttl_seconds: 600,
     )
 
   state_store.consume(table, session_id)
   |> expect.to_be_ok()
-  |> expect.to_equal(#(state, verifier))
+  |> expect.to_equal(#(state, verifier, None))
 }
 
 pub fn retrieve_consumes_expired_session_test() {
@@ -97,6 +106,7 @@ pub fn retrieve_consumes_expired_session_test() {
       table,
       state: "state",
       code_verifier: "verifier",
+      nonce: None,
       ttl_seconds: 0,
     )
 
@@ -114,6 +124,7 @@ pub fn storing_new_session_removes_expired_sessions_test() {
       table,
       state: "expired-state",
       code_verifier: "verifier",
+      nonce: None,
       ttl_seconds: 0,
     )
 
@@ -124,10 +135,25 @@ pub fn storing_new_session_removes_expired_sessions_test() {
       table,
       state: "fresh-state",
       code_verifier: "verifier",
+      nonce: None,
       ttl_seconds: 600,
     )
 
   count_store_entries(name) |> expect.to_equal(1)
+}
+
+pub fn store_persists_and_returns_nonce_test() {
+  let table = state_store.init_named("test_store_nonce")
+  let session_id =
+    state_store.store(
+      table,
+      state: "state-with-nonce",
+      code_verifier: "verifier",
+      nonce: Some("test-nonce-value"),
+    )
+  state_store.consume(table, session_id)
+  |> expect.to_be_ok()
+  |> expect.to_equal(#("state-with-nonce", "verifier", Some("test-nonce-value")))
 }
 
 @external(erlang, "vestibule_state_store_test_ffi", "state_store_survives_creator_process_exit")

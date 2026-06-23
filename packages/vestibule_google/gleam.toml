@@ -30,3 +30,6 @@ warnings_as_errors = true
 # leave their subject/pipe-receiver first arg unlabelled.
 label_possible = "off"
 error_context_lost = "off"
+# OIDC id_token parsing intentionally treats a malformed/absent token as "no
+# id_token" (returns None); the json.parse error is deliberately discarded.
+thrown_away_error = "off"

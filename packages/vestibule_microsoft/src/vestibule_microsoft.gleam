@@ -85,6 +85,7 @@ fn build_strategy(
   strategy.new(
     provider: "microsoft",
     default_scopes: default_scopes,
+    uses_nonce: True,
     authorize_url: fn(cfg, scopes, state) {
       do_authorize_url(authority, cfg, scopes, state)
     },

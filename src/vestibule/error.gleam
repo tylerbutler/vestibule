@@ -9,6 +9,9 @@ import gleam/option
 pub type AuthError(e) {
   /// State parameter mismatch — possible CSRF attack.
   StateMismatch
+  /// OIDC `nonce` mismatch or missing-but-expected — possible id_token
+  /// replay/injection attack.
+  InvalidNonce
   /// Required OAuth callback parameter was missing.
   MissingCallbackParam(name: String)
   /// Failed to exchange authorization code for tokens.
