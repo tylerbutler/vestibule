@@ -26,15 +26,11 @@ import vestibule/user_info.{type UserInfo}
 
 /// Create a GitHub authentication strategy.
 pub fn strategy() -> Strategy(e) {
-  strategy.new(
-    provider: "github",
-    default_scopes: ["user:email"],
-    uses_nonce: False,
-    authorize_url: do_authorize_url,
-    exchange_code: do_exchange_code,
-    refresh_token: do_refresh_token,
-    fetch_user: do_fetch_user,
-  )
+  strategy.new(provider: "github", default_scopes: ["user:email"])
+  |> strategy.with_authorize_url(do_authorize_url)
+  |> strategy.with_exchange_code(do_exchange_code)
+  |> strategy.with_refresh(do_refresh_token)
+  |> strategy.with_fetch_user(do_fetch_user)
 }
 
 /// Parse a GitHub token exchange response into Credentials.

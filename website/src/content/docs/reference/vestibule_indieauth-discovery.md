@@ -4,7 +4,7 @@ description: "Reference for vestibule_indieauth/discovery."
 nav:
   group: Reference
   groupOrder: 20
-  order: 29
+  order: 30
   label: "vestibule_indieauth/discovery"
 toc:
   - href: "#types"

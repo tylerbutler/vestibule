@@ -54,8 +54,14 @@ pub fn create_authorization_request(
 Phase 2: Handle the OAuth callback from the provider.
 
 Validates the state parameter, exchanges the authorization code
-for credentials (including the PKCE code verifier), and fetches
-normalized user information.
+for credentials (including the PKCE code verifier), validates the OIDC
+`nonce` against the returned `id_token` (when the strategy uses one), and
+fetches normalized user information.
+
+`expected_nonce` is the OIDC nonce stored during the request phase, or
+`None` for plain OAuth2 strategies. When the strategy uses a nonce and an
+expected value is present, the `nonce` claim in the `id_token` artifact must
+match or the callback fails with `InvalidNonce`.
 
 **Caller responsibilities:** This function checks that the callback
 state matches `expected_state`, but does not enforce single-use or
@@ -71,7 +77,8 @@ pub fn handle_callback(
   cfg: config.Config,
   callback_params: dict.Dict(String, String),
   expected_state: String,
-  code_verifier: String
+  code_verifier: String,
+  expected_nonce: option.Option(String)
 ) -> Result(auth.Auth, error.AuthError(a))
 ```
 

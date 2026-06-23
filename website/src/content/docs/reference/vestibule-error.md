@@ -31,6 +31,7 @@ that only use standard variants are polymorphic in `e`.
 ```gleam
 pub type AuthError(a) {
   StateMismatch
+  InvalidNonce
   MissingCallbackParam(name: String)
   CodeExchangeFailed(reason: String)
   UserInfoFailed(reason: String)
@@ -49,6 +50,7 @@ pub type AuthError(a) {
   )
   NetworkError(reason: String)
   ConfigError(reason: String)
+  RefreshUnsupported
   Custom(a)
 }
 ```
@@ -58,6 +60,11 @@ pub type AuthError(a) {
 ##### `StateMismatch`
 
 State parameter mismatch — possible CSRF attack.
+
+##### `InvalidNonce`
+
+OIDC `nonce` mismatch or missing-but-expected — possible id_token
+replay/injection attack.
 
 ##### `MissingCallbackParam(name: String)`
 
@@ -100,6 +107,13 @@ HTTP request failed.
 ##### `ConfigError(reason: String)`
 
 Invalid configuration.
+
+##### `RefreshUnsupported`
+
+The strategy does not support refreshing access tokens.
+
+Returned when `strategy.refresh_token` is called on a strategy that was
+built without a refresh capability (no `with_refresh`).
 
 ##### `Custom(a)`
 

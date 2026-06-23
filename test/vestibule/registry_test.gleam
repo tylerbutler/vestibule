@@ -6,21 +6,19 @@ import vestibule/registry
 import vestibule/strategy.{type Strategy}
 
 fn test_strategy(name: String) -> Strategy(e) {
-  strategy.new(
-    provider: name,
-    default_scopes: [],
-    uses_nonce: False,
-    authorize_url: fn(_config, _scopes, _state) { Ok("https://example.com") },
-    exchange_code: fn(_config, _code, _code_verifier) {
-      Error(error.ConfigError(reason: "test"))
-    },
-    refresh_token: fn(_config, _refresh_token) {
-      Error(error.ConfigError(reason: "test"))
-    },
-    fetch_user: fn(_config, _exchange) {
-      Error(error.ConfigError(reason: "test"))
-    },
-  )
+  strategy.new(provider: name, default_scopes: [])
+  |> strategy.with_authorize_url(fn(_config, _scopes, _state) {
+    Ok("https://example.com")
+  })
+  |> strategy.with_exchange_code(fn(_config, _code, _code_verifier) {
+    Error(error.ConfigError(reason: "test"))
+  })
+  |> strategy.with_refresh(fn(_config, _refresh_token) {
+    Error(error.ConfigError(reason: "test"))
+  })
+  |> strategy.with_fetch_user(fn(_config, _exchange) {
+    Error(error.ConfigError(reason: "test"))
+  })
 }
 
 fn test_config() -> config.Config {

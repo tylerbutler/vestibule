@@ -1,10 +1,10 @@
 ---
 title: "vestibule/strategy"
-description: "Provider-strategy interface. A `Strategy(e)` is an opaque record bundling the four functions every OAuth/OIDC provider must implement: build authorize URL, exchange code, refresh token, and fetch user."
+description: "Provider-strategy interface. A `Strategy(e)` is an opaque record bundling the provider-specific functions an OAuth/OIDC provider implements: build authorize URL, exchange code, fetch user, and an optional refresh token."
 nav:
   group: Reference
   groupOrder: 20
-  order: 20
+  order: 21
   label: "vestibule/strategy"
 toc:
   - href: "#types"
@@ -21,12 +21,13 @@ searchTerms:
 # `vestibule/strategy`
 
 Provider-strategy interface. A `Strategy(e)` is an opaque record
-bundling the four functions every OAuth/OIDC provider must implement:
-build authorize URL, exchange code, refresh token, and fetch user.
+bundling the provider-specific functions an OAuth/OIDC provider
+implements: build authorize URL, exchange code, fetch user, and an
+optional refresh token.
 
 Provider packages (`vestibule_google`, `vestibule_apple`, ...) build
-these with `strategy.new`; the core library invokes them through the
-exposed accessors.
+these with `strategy.new` plus the `with_*` capability builders; the
+core library invokes them through the exposed accessors.
 
 ## Types
 
@@ -52,11 +53,17 @@ authenticate with a single OAuth/OIDC provider.
 The type parameter `e` corresponds to the custom error type in
 `AuthError(e)`. Built-in strategies are polymorphic in `e`.
 
-Opaque so that vestibule can add fields (or swap the internal
-representation, e.g., to an injectable HTTP client) without breaking
-provider packages. Construct with `new` and invoke with the
-`build_authorize_url`, `exchange_code`, `refresh_token`, and
-`fetch_user` helpers.
+Opaque so that vestibule can add optional capabilities without breaking
+provider packages. Construct with `new` and attach capabilities with the
+`with_authorize_url`, `with_exchange_code`, `with_fetch_user`,
+`with_refresh`, and `with_nonce` builders. Invoke through the
+`build_authorize_url`, `exchange_code`, `refresh_token`, and `fetch_user`
+helpers.
+
+The core capabilities (`authorize_url`, `exchange_code`, `fetch_user`) are
+stored as `Option`; invoking one that was never configured fails with a
+`ConfigError`. `refresh_token` is optional: a strategy built without
+`with_refresh` fails with `RefreshUnsupported`.
 
 ```gleam
 pub type Strategy(a)
@@ -108,6 +115,9 @@ pub fn authorization_header(credentials: credentials.Credentials) -> Result(Stri
 
 Build the provider's authorization URL.
 
+Returns `ConfigError` if the strategy was built without
+`with_authorize_url`.
+
 ```gleam
 pub fn build_authorize_url(
   Strategy(a),
@@ -140,6 +150,9 @@ pub fn exchange_artifacts(ExchangeResult) -> dict.Dict(String, dynamic.Dynamic)
 Exchange an authorization code for credentials and any provider-specific
 artifacts. Pass the PKCE `code_verifier` if one was generated for the
 authorization request.
+
+Returns `ConfigError` if the strategy was built without
+`with_exchange_code`.
 
 ```gleam
 pub fn exchange_code(
@@ -181,6 +194,9 @@ pub fn exchange_result_with_artifacts(
 
 Fetch user info using the obtained exchange result.
 
+Returns `ConfigError` if the strategy was built without
+`with_fetch_user`.
+
 ```gleam
 pub fn fetch_user(
   Strategy(a),
@@ -191,23 +207,24 @@ pub fn fetch_user(
 
 ### `new`
 
-Build a `Strategy`.
+Begin building a `Strategy` for `provider` with the given `default_scopes`
+(used when the caller's `Config` does not specify any).
 
-`authorize_url` builds the provider-specific authorization URL.
-`exchange_code` exchanges an authorization code for credentials and
-optional provider-specific artifacts; the third parameter is the PKCE
-`code_verifier` if one was generated. `refresh_token` swaps a refresh
-token for fresh credentials. `fetch_user` resolves the authenticated
-user from the exchange result.
+The returned strategy has no capabilities attached yet. Use the `with_*`
+builders to add them:
+
+```gleam
+strategy.new(provider: "github", default_scopes: ["user:email"])
+|> strategy.with_authorize_url(do_authorize_url)
+|> strategy.with_exchange_code(do_exchange_code)
+|> strategy.with_fetch_user(do_fetch_user)
+|> strategy.with_refresh(do_refresh_token)
+```
 
 ```gleam
 pub fn new(
   provider: String,
-  default_scopes: List(String),
-  authorize_url: fn(config.Config, List(String), String) -> Result(String, error.AuthError(a)),
-  exchange_code: fn(config.Config, String, option.Option(String)) -> Result(ExchangeResult, error.AuthError(a)),
-  refresh_token: fn(config.Config, String) -> Result(credentials.Credentials, error.AuthError(a)),
-  fetch_user: fn(config.Config, ExchangeResult) -> Result(UserResult, error.AuthError(a))
+  default_scopes: List(String)
 ) -> Strategy(a)
 ```
 
@@ -222,6 +239,9 @@ pub fn provider(Strategy(a)) -> String
 ### `refresh_token`
 
 Refresh credentials using a refresh token.
+
+Returns `RefreshUnsupported` if the strategy was built without
+`with_refresh`.
 
 ```gleam
 pub fn refresh_token(
@@ -265,4 +285,73 @@ Return the provider's unique user id.
 
 ```gleam
 pub fn user_result_uid(UserResult) -> String
+```
+
+### `uses_nonce`
+
+Whether this strategy uses the OIDC `nonce` (generate + validate).
+
+```gleam
+pub fn uses_nonce(Strategy(a)) -> Bool
+```
+
+### `with_authorize_url`
+
+Attach the authorize-URL builder. `authorize_url` builds the
+provider-specific authorization URL from the config, scopes, and state.
+
+```gleam
+pub fn with_authorize_url(
+  Strategy(a),
+  fn(config.Config, List(String), String) -> Result(String, error.AuthError(a))
+) -> Strategy(a)
+```
+
+### `with_exchange_code`
+
+Attach the code-exchange capability. `exchange_code` exchanges an
+authorization code for credentials and optional provider-specific
+artifacts; the third parameter is the PKCE `code_verifier` if one was
+generated.
+
+```gleam
+pub fn with_exchange_code(
+  Strategy(a),
+  fn(config.Config, String, option.Option(String)) -> Result(ExchangeResult, error.AuthError(a))
+) -> Strategy(a)
+```
+
+### `with_fetch_user`
+
+Attach the user-resolution capability. `fetch_user` resolves the
+authenticated user from the exchange result.
+
+```gleam
+pub fn with_fetch_user(
+  Strategy(a),
+  fn(config.Config, ExchangeResult) -> Result(UserResult, error.AuthError(a))
+) -> Strategy(a)
+```
+
+### `with_nonce`
+
+Mark this strategy as using the OIDC `nonce`. The core will then generate
+an OIDC `nonce`, emit it on the authorize URL, and validate it against the
+`id_token` on callback. Plain OAuth2 strategies should omit this.
+
+```gleam
+pub fn with_nonce(Strategy(a)) -> Strategy(a)
+```
+
+### `with_refresh`
+
+Attach an optional token-refresh capability. `refresh_token` swaps a
+refresh token for fresh credentials. Strategies built without this fail
+`refresh_token` with `RefreshUnsupported`.
+
+```gleam
+pub fn with_refresh(
+  Strategy(a),
+  fn(config.Config, String) -> Result(credentials.Credentials, error.AuthError(a))
+) -> Strategy(a)
 ```

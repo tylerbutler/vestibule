@@ -4,7 +4,7 @@ description: "Google OAuth 2.0 / OIDC strategy."
 nav:
   group: Reference
   groupOrder: 20
-  order: 27
+  order: 28
   label: "vestibule_google"
 toc:
   - href: "#functions"
@@ -22,7 +22,7 @@ Google OAuth 2.0 / OIDC strategy.
 
 Uses Google's discovery document to build authorize/token/userinfo
 endpoints, requests `openid email profile` by default, and validates
-`email_verified` before populating `UserInfo.email`.
+`email_verified` before populating the user's email (`user_info.email`).
 
 ## Functions
 

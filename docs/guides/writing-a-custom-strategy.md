@@ -69,28 +69,35 @@ pub opaque type Strategy(e) {
   Strategy(
     provider: String,
     default_scopes: List(String),
-    authorize_url: fn(Config, List(String), String) ->
-      Result(String, AuthError(e)),
-    exchange_code: fn(Config, String, Option(String)) ->
-      Result(ExchangeResult, AuthError(e)),
-    refresh_token: fn(Config, String) -> Result(Credentials, AuthError(e)),
-    fetch_user: fn(Config, ExchangeResult) -> Result(UserResult, AuthError(e)),
+    uses_nonce: Bool,
+    authorize_url: Option(
+      fn(Config, List(String), String) -> Result(String, AuthError(e)),
+    ),
+    exchange_code: Option(
+      fn(Config, String, Option(String)) ->
+        Result(ExchangeResult, AuthError(e)),
+    ),
+    refresh_token: Option(
+      fn(Config, String) -> Result(Credentials, AuthError(e)),
+    ),
+    fetch_user: Option(
+      fn(Config, ExchangeResult) -> Result(UserResult, AuthError(e)),
+    ),
   )
 }
 ```
 
-Because the types are opaque, use these helpers instead of record syntax:
+Because the type is opaque, you never touch those fields directly. Start with
+`strategy.new` and attach each capability with a `with_*` builder:
 
 ```gleam
-// Build a Strategy (instead of the Strategy(...) record constructor):
-strategy.new(
-  provider: "twitch",
-  default_scopes: ["user:read:email"],
-  authorize_url: do_authorize_url,
-  exchange_code: do_exchange_code,
-  refresh_token: do_refresh_token,
-  fetch_user: do_fetch_user,
-)
+// Build a Strategy with the capability builders:
+strategy.new(provider: "twitch", default_scopes: ["user:read:email"])
+|> strategy.with_authorize_url(do_authorize_url)
+|> strategy.with_exchange_code(do_exchange_code)
+|> strategy.with_fetch_user(do_fetch_user)
+|> strategy.with_refresh(do_refresh_token)
+// |> strategy.with_nonce()   // add this for OIDC providers that issue an id_token
 
 // Build a UserResult:
 strategy.user_result(uid: uid, info: info, extra: dict.new())
@@ -104,19 +111,28 @@ strategy.exchange_credentials(exchange)  // -> Credentials
 strategy.exchange_artifacts(exchange)    // -> Dict(String, Dynamic)
 ```
 
-### Field-by-field breakdown
+`with_authorize_url`, `with_exchange_code`, and `with_fetch_user` are required
+for a working strategy; calling the corresponding orchestrator step on a
+strategy that omitted one fails with a `ConfigError`. `with_refresh` and
+`with_nonce` are optional: a strategy built without `with_refresh` reports
+`RefreshUnsupported` from `vestibule.refresh_token`, and `with_nonce` only
+applies to OIDC providers.
+
+### Capability-by-capability breakdown
 
 **`provider: String`** -- A lowercase identifier for this provider. This ends up in the `Auth` record's `provider` field, so your application can distinguish which provider authenticated the user. Use a simple name like `"twitch"`, `"github"`, or `"discord"`.
 
 **`default_scopes: List(String)`** -- The scopes to request when the user has not configured custom scopes. These should be the minimum scopes needed to fetch basic user information. For example, GitHub uses `["user:email"]` and Google uses `["openid", "profile", "email"]`.
 
-**`authorize_url: fn(Config, List(String), String) -> Result(String, AuthError(e))`** -- Given the application config, resolved scopes, and CSRF state string, return the full authorization URL. Vestibule will append the PKCE parameters after your function returns. You must include `response_type=code`, `client_id`, `redirect_uri`, `scope`, and `state` in the URL.
+**`with_authorize_url(fn(Config, List(String), String) -> Result(String, AuthError(e)))`** -- Given the application config, resolved scopes, and CSRF state string, return the full authorization URL. Vestibule will append the PKCE parameters after your function returns. You must include `response_type=code`, `client_id`, `redirect_uri`, `scope`, and `state` in the URL.
 
-**`exchange_code: fn(Config, String, Option(String)) -> Result(ExchangeResult, AuthError(e))`** -- Given the config, authorization code, and optional PKCE code verifier, POST to the token endpoint and return parsed credentials plus any provider-specific token response artifacts. The code verifier will be `Some(verifier)` when PKCE is in use (which is always, in the current implementation). Use `strategy.exchange_result(credentials)` when the provider has no artifacts to carry forward.
+**`with_exchange_code(fn(Config, String, Option(String)) -> Result(ExchangeResult, AuthError(e)))`** -- Given the config, authorization code, and optional PKCE code verifier, POST to the token endpoint and return parsed credentials plus any provider-specific token response artifacts. The code verifier will be `Some(verifier)` when PKCE is in use (which is always, in the current implementation). Use `strategy.exchange_result(credentials)` when the provider has no artifacts to carry forward.
 
-**`refresh_token: fn(Config, String) -> Result(Credentials, AuthError(e))`** -- Given the config and a refresh token string, POST to the provider's token endpoint and return updated `Credentials`. Providers differ on refresh-token rotation, scopes, and error formats, so refresh stays strategy-owned.
+**`with_refresh(fn(Config, String) -> Result(Credentials, AuthError(e)))`** -- *Optional.* Given the config and a refresh token string, POST to the provider's token endpoint and return updated `Credentials`. Providers differ on refresh-token rotation, scopes, and error formats, so refresh stays strategy-owned. Omit this builder for providers that do not support refresh; `vestibule.refresh_token` then returns `RefreshUnsupported`.
 
-**`fetch_user: fn(Config, ExchangeResult) -> Result(UserResult, AuthError(e))`** -- Given the config and successful exchange result, fetch the provider's user info API and return a `UserResult` built with `strategy.user_result(uid:, info:, extra:)`. The exchange result contains standard credentials and any token response artifacts your provider needs while resolving the user (read them with `strategy.exchange_credentials` and `strategy.exchange_artifacts`). The UID should be the provider's stable unique identifier for the user (e.g., a numeric ID or a `sub` claim). Use `extra: dict.new()` when the provider has no extra data to expose.
+**`with_fetch_user(fn(Config, ExchangeResult) -> Result(UserResult, AuthError(e)))`** -- Given the config and successful exchange result, fetch the provider's user info API and return a `UserResult` built with `strategy.user_result(uid:, info:, extra:)`. The exchange result contains standard credentials and any token response artifacts your provider needs while resolving the user (read them with `strategy.exchange_credentials` and `strategy.exchange_artifacts`). The UID should be the provider's stable unique identifier for the user (e.g., a numeric ID or a `sub` claim). Use `extra: dict.new()` when the provider has no extra data to expose.
+
+**`with_nonce()`** -- *Optional.* Marks the strategy as an OIDC provider that issues an `id_token`. Vestibule then generates an OIDC `nonce`, emits it on the authorization URL, and validates it against the returned `id_token` on callback. Omit it for plain OAuth2 providers.
 
 ### The generic error type
 
@@ -523,14 +539,11 @@ Now create the public `strategy()` constructor that assembles all the pieces:
 ```gleam
 /// Create a Twitch authentication strategy.
 pub fn strategy() -> Strategy(e) {
-  strategy.new(
-    provider: "twitch",
-    default_scopes: ["user:read:email"],
-    authorize_url: do_authorize_url,
-    exchange_code: do_exchange_code,
-    refresh_token: do_refresh_token,
-    fetch_user: do_fetch_user,
-  )
+  strategy.new(provider: "twitch", default_scopes: ["user:read:email"])
+  |> strategy.with_authorize_url(do_authorize_url)
+  |> strategy.with_exchange_code(do_exchange_code)
+  |> strategy.with_fetch_user(do_fetch_user)
+  |> strategy.with_refresh(do_refresh_token)
 }
 ```
 

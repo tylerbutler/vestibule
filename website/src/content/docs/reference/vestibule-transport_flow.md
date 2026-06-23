@@ -4,7 +4,7 @@ description: "Transport-independent OAuth request and callback flow helpers."
 nav:
   group: Reference
   groupOrder: 20
-  order: 21
+  order: 22
   label: "vestibule/transport_flow"
 toc:
   - href: "#types"

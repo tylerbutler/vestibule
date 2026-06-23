@@ -28,6 +28,11 @@ pub type AuthError(e) {
   NetworkError(reason: String)
   /// Invalid configuration.
   ConfigError(reason: String)
+  /// The strategy does not support refreshing access tokens.
+  ///
+  /// Returned when `strategy.refresh_token` is called on a strategy that was
+  /// built without a refresh capability (no `with_refresh`).
+  RefreshUnsupported
   /// Provider-specific custom error.
   Custom(e)
 }

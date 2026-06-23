@@ -27,16 +27,24 @@ searchTerms:
 
 import CodeBlock from "../../../components/CodeBlock.astro";
 
-export const strategyType = `pub type Strategy(e) {
+export const strategyType = `pub opaque type Strategy(e) {
   Strategy(
     provider: String,
     default_scopes: List(String),
-    authorize_url: fn(Config, List(String), String) ->
-      Result(String, AuthError(e)),
-    exchange_code: fn(Config, String, Option(String)) ->
-      Result(ExchangeResult, AuthError(e)),
-    refresh_token: fn(Config, String) -> Result(Credentials, AuthError(e)),
-    fetch_user: fn(Config, ExchangeResult) -> Result(UserResult, AuthError(e)),
+    uses_nonce: Bool,
+    authorize_url: Option(
+      fn(Config, List(String), String) -> Result(String, AuthError(e)),
+    ),
+    exchange_code: Option(
+      fn(Config, String, Option(String)) ->
+        Result(ExchangeResult, AuthError(e)),
+    ),
+    refresh_token: Option(
+      fn(Config, String) -> Result(Credentials, AuthError(e)),
+    ),
+    fetch_user: Option(
+      fn(Config, ExchangeResult) -> Result(UserResult, AuthError(e)),
+    ),
   )
 }`;
 
@@ -117,14 +125,11 @@ fn do_fetch_user(
 }`;
 
 export const strategyValue = `pub fn strategy() -> Strategy(e) {
-  strategy.new(
-    provider: "twitch",
-    default_scopes: ["user:read:email"],
-    authorize_url: do_authorize_url,
-    exchange_code: do_exchange_code,
-    refresh_token: do_refresh_token,
-    fetch_user: do_fetch_user,
-  )
+  strategy.new(provider: "twitch", default_scopes: ["user:read:email"])
+  |> strategy.with_authorize_url(do_authorize_url)
+  |> strategy.with_exchange_code(do_exchange_code)
+  |> strategy.with_fetch_user(do_fetch_user)
+  |> strategy.with_refresh(do_refresh_token)
 }`;
 
 <section id="core-boundary" className="security-callout">

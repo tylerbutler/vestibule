@@ -1,6 +1,6 @@
 ---
 title: "vestibule/authorization_request"
-description: "An opaque value carrying everything the middleware needs to start an authorization flow: the URL to redirect the browser to, the CSRF `state`, and the PKCE `code_verifier` that must be stored for the callback."
+description: "An opaque value carrying everything the middleware needs to start an authorization flow: the URL to redirect the browser to, the CSRF `state`, the PKCE `code_verifier`, and an optional OIDC `nonce`, all of which must be stored for the callback."
 nav:
   group: Reference
   groupOrder: 20
@@ -22,8 +22,8 @@ searchTerms:
 
 An opaque value carrying everything the middleware needs to start an
 authorization flow: the URL to redirect the browser to, the CSRF
-`state`, and the PKCE `code_verifier` that must be stored for the
-callback.
+`state`, the PKCE `code_verifier`, and an optional OIDC `nonce`, all of
+which must be stored for the callback.
 
 ## Types
 
@@ -34,9 +34,9 @@ Represents the result of generating an authorization URL.
 Contains all values needed for the OAuth2 authorization phase,
 including PKCE parameters that must be stored for the callback phase.
 
-Opaque so that new artifacts (e.g., an OIDC `nonce`) can be added
-without breaking consumers. Construct with `new` and read fields via
-the `url`, `state`, and `code_verifier` accessors.
+Opaque so that new artifacts can be added without breaking consumers.
+Construct with `new` and read fields via the `url`, `state`,
+`code_verifier`, and `nonce` accessors.
 
 ```gleam
 pub type AuthorizationRequest
@@ -56,12 +56,26 @@ pub fn code_verifier(AuthorizationRequest) -> String
 
 Build an `AuthorizationRequest`.
 
+`nonce` is `Some` for OIDC strategies that emit an id_token `nonce`, and
+`None` for plain OAuth2 strategies.
+
 ```gleam
 pub fn new(
   url: String,
   state: String,
-  code_verifier: String
+  code_verifier: String,
+  nonce: option.Option(String)
 ) -> AuthorizationRequest
+```
+
+### `nonce`
+
+The OIDC `nonce` (must be stored for id_token validation).
+
+`Some` for OIDC strategies, `None` for plain OAuth2 strategies.
+
+```gleam
+pub fn nonce(AuthorizationRequest) -> option.Option(String)
 ```
 
 ### `state`
