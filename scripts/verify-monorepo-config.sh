@@ -39,7 +39,7 @@ check "workspace has no package excludes" \
     not_contains workspace.toml "exclude = ["
 
 check "justfile uses an explicit topological package list" \
-    contains justfile 'packages := ". vestibule_apple vestibule_github vestibule_google vestibule_microsoft vestibule_wisp vestibule_mist"'
+    contains justfile 'packages := ". vestibule_apple vestibule_github vestibule_google vestibule_indieauth vestibule_microsoft vestibule_oidc vestibule_wisp vestibule_mist"'
 check "justfile loops over packages for deps" \
     matches justfile 'for pkg in \{\{ packages \}\}; do[[:space:]]*$'
 check "justfile no longer delegates package checks to scripts" \
@@ -49,7 +49,7 @@ check "justfile no longer delegates package tests to scripts" \
 check "justfile omits JavaScript tests while Vestibule is Erlang-only" \
     not_contains justfile "test-js:"
 check "justfile CI matches lattice shape" \
-    contains justfile "ci: format-check check test build-strict"
+    contains justfile "ci: format-check lint check test build-strict"
 
 for job in format check build test docs; do
     check "CI has $job job" \
@@ -92,7 +92,9 @@ for path in \
     packages/vestibule_apple/gleam.toml \
     packages/vestibule_github/gleam.toml \
     packages/vestibule_google/gleam.toml \
+    packages/vestibule_indieauth/gleam.toml \
     packages/vestibule_microsoft/gleam.toml \
+    packages/vestibule_oidc/gleam.toml \
     packages/vestibule_wisp/gleam.toml \
     packages/vestibule_mist/gleam.toml
 do

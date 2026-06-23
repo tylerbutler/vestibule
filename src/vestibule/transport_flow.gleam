@@ -9,7 +9,7 @@ import vestibule/auth.{type Auth}
 import vestibule/authorization_request
 import vestibule/config.{type Config}
 import vestibule/error.{type AuthError}
-import vestibule/internal/logger
+import vestibule/logger
 import vestibule/registry.{type Registry}
 import vestibule/state
 import vestibule/state_store.{type StateStore, type StateStoreError}

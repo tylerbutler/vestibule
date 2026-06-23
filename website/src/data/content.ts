@@ -65,7 +65,7 @@ const staticSearchEntries: SearchEntry[] = [
     href: "/docs/packages",
     category: "Packages",
     description: "Choose the right Vestibule package for a Gleam OAuth integration.",
-    terms: "packages compare core middleware providers wisp mist github google microsoft apple indieauth"
+    terms: "packages compare core middleware providers wisp mist github google microsoft apple indieauth oidc openid connect"
   },
   {
     title: "Search docs",

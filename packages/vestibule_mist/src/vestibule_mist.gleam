@@ -28,7 +28,7 @@ import mist.{type Connection, type ResponseData}
 
 import vestibule/auth.{type Auth}
 import vestibule/error
-import vestibule/internal/logger
+import vestibule/logger
 import vestibule/registry.{type Registry}
 import vestibule/state_store.{type StateStore}
 import vestibule/transport_flow

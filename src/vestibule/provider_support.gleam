@@ -13,7 +13,7 @@ import gleam/result
 import gleam/string
 import gleam/uri
 import vestibule/error.{type AuthError}
-import vestibule/internal/logger
+import vestibule/logger
 
 import vestibule/credentials
 

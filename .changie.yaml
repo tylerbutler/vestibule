@@ -88,6 +88,13 @@ projects:
           - path: packages/vestibule_microsoft/gleam.toml
             find: 'version = ".*"'
             replace: 'version = "{{.VersionNoPrefix}}"'
+    - label: vestibule_oidc
+      key: vestibule_oidc
+      changelog: packages/vestibule_oidc/CHANGELOG.md
+      replacements:
+          - path: packages/vestibule_oidc/gleam.toml
+            find: 'version = ".*"'
+            replace: 'version = "{{.VersionNoPrefix}}"'
     - label: vestibule_wisp
       key: vestibule_wisp
       changelog: packages/vestibule_wisp/CHANGELOG.md

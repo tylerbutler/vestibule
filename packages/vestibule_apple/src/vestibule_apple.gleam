@@ -52,7 +52,7 @@ import glow_auth/uri/uri_builder
 import vestibule/config.{type Config}
 import vestibule/credentials
 import vestibule/error.{type AuthError}
-import vestibule/internal/logger
+import vestibule/logger
 import vestibule/provider_support
 import vestibule/strategy.{type ExchangeResult, type Strategy, type UserResult}
 import vestibule/user_info

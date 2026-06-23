@@ -16,7 +16,7 @@ import vestibule/authorization_request.{type AuthorizationRequest}
 import vestibule/config.{type Config}
 import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
-import vestibule/internal/logger
+import vestibule/logger
 import vestibule/pkce
 import vestibule/state
 import vestibule/strategy.{type Strategy}
