@@ -82,23 +82,20 @@ fn build_strategy(
     Some(_) -> ["openid", "User.Read"]
     None -> ["User.Read"]
   }
-  strategy.new(
-    provider: "microsoft",
-    default_scopes: default_scopes,
-    uses_nonce: True,
-    authorize_url: fn(cfg, scopes, state) {
-      do_authorize_url(authority, cfg, scopes, state)
-    },
-    exchange_code: fn(cfg, code, code_verifier) {
-      do_exchange_code(authority, cfg, code, code_verifier)
-    },
-    refresh_token: fn(cfg, refresh_tok) {
-      do_refresh_token(authority, cfg, refresh_tok)
-    },
-    fetch_user: fn(cfg, exchange) {
-      do_fetch_user(expected_tenant, cfg, exchange)
-    },
-  )
+  strategy.new(provider: "microsoft", default_scopes: default_scopes)
+  |> strategy.with_nonce()
+  |> strategy.with_authorize_url(fn(cfg, scopes, state) {
+    do_authorize_url(authority, cfg, scopes, state)
+  })
+  |> strategy.with_exchange_code(fn(cfg, code, code_verifier) {
+    do_exchange_code(authority, cfg, code, code_verifier)
+  })
+  |> strategy.with_refresh(fn(cfg, refresh_tok) {
+    do_refresh_token(authority, cfg, refresh_tok)
+  })
+  |> strategy.with_fetch_user(fn(cfg, exchange) {
+    do_fetch_user(expected_tenant, cfg, exchange)
+  })
 }
 
 fn authority_base(authority: String) -> String {

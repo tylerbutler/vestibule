@@ -4,7 +4,7 @@ description: "Normalized user profile returned by a provider's userinfo endpoint
 nav:
   group: Reference
   groupOrder: 20
-  order: 22
+  order: 23
   label: "vestibule/user_info"
 toc:
   - href: "#types"

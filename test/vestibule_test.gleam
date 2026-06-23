@@ -21,99 +21,89 @@ pub fn main() -> Nil {
 
 // A fake strategy for testing the orchestrator
 fn test_strategy() -> Strategy(e) {
-  strategy.new(
-    provider: "test",
-    default_scopes: ["default_scope"],
-    uses_nonce: False,
-    authorize_url: fn(_config, scopes, state) {
-      Ok(
-        "https://test.com/auth?scope="
-        <> string.join(scopes, " ")
-        <> "&state="
-        <> state,
-      )
-    },
-    exchange_code: fn(_config, code, _code_verifier) {
-      case code {
-        "valid_code" ->
-          Ok(
-            strategy.exchange_result(
-              credentials.new(
-                token: "test_token",
-                refresh_token: None,
-                token_type: "bearer",
-                expires_in: None,
-                scopes: ["default_scope"],
-              ),
+  strategy.new(provider: "test", default_scopes: ["default_scope"])
+  |> strategy.with_authorize_url(fn(_config, scopes, state) {
+    Ok(
+      "https://test.com/auth?scope="
+      <> string.join(scopes, " ")
+      <> "&state="
+      <> state,
+    )
+  })
+  |> strategy.with_exchange_code(fn(_config, code, _code_verifier) {
+    case code {
+      "valid_code" ->
+        Ok(
+          strategy.exchange_result(
+            credentials.new(
+              token: "test_token",
+              refresh_token: None,
+              token_type: "bearer",
+              expires_in: None,
+              scopes: ["default_scope"],
             ),
-          )
-        _ -> Error(error.CodeExchangeFailed(reason: "bad code"))
-      }
-    },
-    refresh_token: fn(cfg, refresh_tok) {
-      Ok(
-        credentials.new(
-          token: "delegated:" <> refresh_tok <> ":" <> config.client_id(cfg),
-          refresh_token: Some("rotated_by_strategy"),
-          token_type: "bearer",
-          expires_in: Some(3600),
-          scopes: ["delegated_scope"],
-        ),
-      )
-    },
-    fetch_user: fn(_cfg, exchange) {
-      strategy.exchange_credentials(exchange)
-      |> credentials.token()
-      |> expect.to_equal("test_token")
-      Ok(strategy.user_result(
-        uid: "user123",
-        info: user_info.new()
-          |> user_info.with_name(Some("Test User"))
-          |> user_info.with_email(Some("test@example.com")),
-        extra: dict.from_list([
-          #("raw_provider", dynamic.string("from-provider")),
-        ]),
-      ))
-    },
-  )
+          ),
+        )
+      _ -> Error(error.CodeExchangeFailed(reason: "bad code"))
+    }
+  })
+  |> strategy.with_refresh(fn(cfg, refresh_tok) {
+    Ok(
+      credentials.new(
+        token: "delegated:" <> refresh_tok <> ":" <> config.client_id(cfg),
+        refresh_token: Some("rotated_by_strategy"),
+        token_type: "bearer",
+        expires_in: Some(3600),
+        scopes: ["delegated_scope"],
+      ),
+    )
+  })
+  |> strategy.with_fetch_user(fn(_cfg, exchange) {
+    strategy.exchange_credentials(exchange)
+    |> credentials.token()
+    |> expect.to_equal("test_token")
+    Ok(strategy.user_result(
+      uid: "user123",
+      info: user_info.new()
+        |> user_info.with_name(Some("Test User"))
+        |> user_info.with_email(Some("test@example.com")),
+      extra: dict.from_list([
+        #("raw_provider", dynamic.string("from-provider")),
+      ]),
+    ))
+  })
 }
 
 fn artifact_strategy() -> Strategy(e) {
-  strategy.new(
-    provider: "artifact",
-    default_scopes: [],
-    uses_nonce: False,
-    authorize_url: fn(_config, _scopes, state) {
-      Ok("https://test.com/auth?state=" <> state)
-    },
-    exchange_code: fn(_config, _code, _code_verifier) {
-      Ok(strategy.exchange_result_with_artifacts(
-        credentials.new(
-          token: "artifact_token",
-          refresh_token: None,
-          token_type: "bearer",
-          expires_in: None,
-          scopes: [],
-        ),
-        dict.from_list([
-          #("exchange_marker", dynamic.string("from-exchange")),
-        ]),
-      ))
-    },
-    refresh_token: fn(_config, _refresh_tok) {
-      Error(error.ConfigError(reason: "refresh not implemented"))
-    },
-    fetch_user: fn(_cfg, exchange) {
-      let assert Ok(marker) =
-        dict.get(strategy.exchange_artifacts(exchange), "exchange_marker")
-      let assert Ok(decoded) = decode.run(marker, decode.string)
-      Ok(strategy.user_result(
-        uid: decoded,
-        info: user_info.new(),
-        extra: dict.new(),
-      ))
-    },
-  )
+  strategy.new(provider: "artifact", default_scopes: [])
+  |> strategy.with_authorize_url(fn(_config, _scopes, state) {
+    Ok("https://test.com/auth?state=" <> state)
+  })
+  |> strategy.with_exchange_code(fn(_config, _code, _code_verifier) {
+    Ok(strategy.exchange_result_with_artifacts(
+      credentials.new(
+        token: "artifact_token",
+        refresh_token: None,
+        token_type: "bearer",
+        expires_in: None,
+        scopes: [],
+      ),
+      dict.from_list([#("exchange_marker", dynamic.string("from-exchange"))]),
+    ))
+  })
+  |> strategy.with_refresh(fn(_config, _refresh_tok) {
+    Error(error.ConfigError(reason: "refresh not implemented"))
+  })
+  |> strategy.with_fetch_user(fn(_cfg, exchange) {
+    let assert Ok(marker) =
+      dict.get(strategy.exchange_artifacts(exchange), "exchange_marker")
+    let assert Ok(decoded) = decode.run(marker, decode.string)
+    Ok(strategy.user_result(
+      uid: decoded,
+      info: user_info.new(),
+      extra: dict.new(),
+    ))
+  })
 }
 
 fn fragment_strategy() -> Strategy(e) {
@@ -121,29 +111,21 @@ fn fragment_strategy() -> Strategy(e) {
   strategy.new(
     provider: strategy.provider(base),
     default_scopes: strategy.default_scopes(base),
-    uses_nonce: False,
-    authorize_url: fn(_config, _scopes, state) {
-      Ok(
-        "https://test.com/auth?state="
-        <> state
-        <> "&existing=1#provider-fragment",
-      )
-    },
-    exchange_code: fn(cfg, code, verifier) {
-      strategy.exchange_code(
-        base,
-        cfg: cfg,
-        code: code,
-        code_verifier: verifier,
-      )
-    },
-    refresh_token: fn(cfg, tok) {
-      strategy.refresh_token(base, cfg: cfg, refresh_tok: tok)
-    },
-    fetch_user: fn(cfg, exchange) {
-      strategy.fetch_user(base, cfg: cfg, exchange: exchange)
-    },
   )
+  |> strategy.with_authorize_url(fn(_config, _scopes, state) {
+    Ok(
+      "https://test.com/auth?state=" <> state <> "&existing=1#provider-fragment",
+    )
+  })
+  |> strategy.with_exchange_code(fn(cfg, code, verifier) {
+    strategy.exchange_code(base, cfg: cfg, code: code, code_verifier: verifier)
+  })
+  |> strategy.with_refresh(fn(cfg, tok) {
+    strategy.refresh_token(base, cfg: cfg, refresh_tok: tok)
+  })
+  |> strategy.with_fetch_user(fn(cfg, exchange) {
+    strategy.fetch_user(base, cfg: cfg, exchange: exchange)
+  })
 }
 
 pub fn create_authorization_request_returns_authorization_request_test() {
@@ -457,54 +439,15 @@ pub fn logging_does_not_change_core_result_shapes_test() {
 
 /// A strategy that uses the OIDC nonce and returns `id_token` in artifacts.
 fn nonce_strategy(id_token: String) -> Strategy(e) {
-  strategy.new(
-    provider: "nonce-test",
-    default_scopes: ["openid"],
-    uses_nonce: True,
-    authorize_url: fn(_config, _scopes, state) {
-      Ok("https://test.com/auth?state=" <> state)
-    },
-    exchange_code: fn(_config, code, _code_verifier) {
-      case code {
-        "valid_code" ->
-          Ok(strategy.exchange_result_with_artifacts(
-            credentials.new(
-              token: "test_token",
-              refresh_token: None,
-              token_type: "bearer",
-              expires_in: None,
-              scopes: ["openid"],
-            ),
-            id_token_artifacts(id_token),
-          ))
-        _ -> Error(error.CodeExchangeFailed(reason: "bad code"))
-      }
-    },
-    refresh_token: fn(_config, _refresh_tok) {
-      Error(error.ConfigError(reason: "refresh not implemented"))
-    },
-    fetch_user: fn(_cfg, _exchange) {
-      Ok(strategy.user_result(
-        uid: "user123",
-        info: user_info.new(),
-        extra: dict.new(),
-      ))
-    },
-  )
-}
-
-/// A nonce strategy whose exchange returns no `id_token` artifact.
-fn nonce_strategy_without_id_token() -> Strategy(e) {
-  strategy.new(
-    provider: "nonce-test",
-    default_scopes: ["openid"],
-    uses_nonce: True,
-    authorize_url: fn(_config, _scopes, state) {
-      Ok("https://test.com/auth?state=" <> state)
-    },
-    exchange_code: fn(_config, _code, _code_verifier) {
-      Ok(
-        strategy.exchange_result(
+  strategy.new(provider: "nonce-test", default_scopes: ["openid"])
+  |> strategy.with_nonce()
+  |> strategy.with_authorize_url(fn(_config, _scopes, state) {
+    Ok("https://test.com/auth?state=" <> state)
+  })
+  |> strategy.with_exchange_code(fn(_config, code, _code_verifier) {
+    case code {
+      "valid_code" ->
+        Ok(strategy.exchange_result_with_artifacts(
           credentials.new(
             token: "test_token",
             refresh_token: None,
@@ -512,20 +455,53 @@ fn nonce_strategy_without_id_token() -> Strategy(e) {
             expires_in: None,
             scopes: ["openid"],
           ),
+          id_token_artifacts(id_token),
+        ))
+      _ -> Error(error.CodeExchangeFailed(reason: "bad code"))
+    }
+  })
+  |> strategy.with_refresh(fn(_config, _refresh_tok) {
+    Error(error.ConfigError(reason: "refresh not implemented"))
+  })
+  |> strategy.with_fetch_user(fn(_cfg, _exchange) {
+    Ok(strategy.user_result(
+      uid: "user123",
+      info: user_info.new(),
+      extra: dict.new(),
+    ))
+  })
+}
+
+/// A nonce strategy whose exchange returns no `id_token` artifact.
+fn nonce_strategy_without_id_token() -> Strategy(e) {
+  strategy.new(provider: "nonce-test", default_scopes: ["openid"])
+  |> strategy.with_nonce()
+  |> strategy.with_authorize_url(fn(_config, _scopes, state) {
+    Ok("https://test.com/auth?state=" <> state)
+  })
+  |> strategy.with_exchange_code(fn(_config, _code, _code_verifier) {
+    Ok(
+      strategy.exchange_result(
+        credentials.new(
+          token: "test_token",
+          refresh_token: None,
+          token_type: "bearer",
+          expires_in: None,
+          scopes: ["openid"],
         ),
-      )
-    },
-    refresh_token: fn(_config, _refresh_tok) {
-      Error(error.ConfigError(reason: "refresh not implemented"))
-    },
-    fetch_user: fn(_cfg, _exchange) {
-      Ok(strategy.user_result(
-        uid: "user123",
-        info: user_info.new(),
-        extra: dict.new(),
-      ))
-    },
-  )
+      ),
+    )
+  })
+  |> strategy.with_refresh(fn(_config, _refresh_tok) {
+    Error(error.ConfigError(reason: "refresh not implemented"))
+  })
+  |> strategy.with_fetch_user(fn(_cfg, _exchange) {
+    Ok(strategy.user_result(
+      uid: "user123",
+      info: user_info.new(),
+      extra: dict.new(),
+    ))
+  })
 }
 
 fn id_token_artifacts(id_token: String) -> dict.Dict(String, dynamic.Dynamic) {

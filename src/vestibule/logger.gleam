@@ -81,6 +81,7 @@ pub fn auth_error_category(err: AuthError(e)) -> String {
     error.DecodeError(_, _) -> "decode_error"
     error.NetworkError(_) -> "network_error"
     error.ConfigError(_) -> "config_error"
+    error.RefreshUnsupported -> "refresh_unsupported"
     error.Custom(_) -> "custom_error"
   }
 }

@@ -170,21 +170,19 @@ pub fn parse_endpoints(
 /// Use this with `discover_endpoints` when you want to separate
 /// discovery from strategy creation.
 pub fn strategy(endpoints: DiscoveredEndpoints, me: String) -> Strategy(e) {
-  strategy.new(
-    provider: "indieauth",
-    default_scopes: ["profile"],
-    uses_nonce: False,
-    authorize_url: fn(cfg, scopes, state) {
-      do_authorize_url(endpoints, me, cfg, scopes, state)
-    },
-    exchange_code: fn(cfg, code, code_verifier) {
-      do_exchange_code(endpoints, cfg, code, code_verifier)
-    },
-    refresh_token: fn(cfg, refresh_tok) {
-      do_refresh_token(endpoints, cfg, refresh_tok)
-    },
-    fetch_user: fn(_cfg, exchange) { do_fetch_user(endpoints, me, exchange) },
-  )
+  strategy.new(provider: "indieauth", default_scopes: ["profile"])
+  |> strategy.with_authorize_url(fn(cfg, scopes, state) {
+    do_authorize_url(endpoints, me, cfg, scopes, state)
+  })
+  |> strategy.with_exchange_code(fn(cfg, code, code_verifier) {
+    do_exchange_code(endpoints, cfg, code, code_verifier)
+  })
+  |> strategy.with_refresh(fn(cfg, refresh_tok) {
+    do_refresh_token(endpoints, cfg, refresh_tok)
+  })
+  |> strategy.with_fetch_user(fn(_cfg, exchange) {
+    do_fetch_user(endpoints, me, exchange)
+  })
 }
 
 fn do_authorize_url(

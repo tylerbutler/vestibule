@@ -1,0 +1,4 @@
+project: vestibule
+kind: Breaking
+body: '`strategy.new` is now a two-argument builder: `strategy.new(provider:, default_scopes:)` followed by `with_authorize_url`, `with_exchange_code`, `with_fetch_user`, the optional `with_refresh`, and the optional `with_nonce` (replacing the old `uses_nonce` argument). Provider capabilities are now extensible without future breaking constructor changes. Strategies built without `with_refresh` return the new `AuthError` variant `RefreshUnsupported` from `vestibule.refresh_token`; a missing required capability (authorize URL, code exchange, or user fetch) fails with `ConfigError`. Custom strategies must migrate from the old 7-argument `strategy.new` to the builder API.'
+time: 2026-06-22T19:00:00-07:00

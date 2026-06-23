@@ -4,7 +4,7 @@ description: "In-memory registry that maps provider names (\"google\", \"apple\"
 nav:
   group: Reference
   groupOrder: 20
-  order: 18
+  order: 19
   label: "vestibule/registry"
 toc:
   - href: "#types"

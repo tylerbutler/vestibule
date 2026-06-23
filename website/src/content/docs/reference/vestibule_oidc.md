@@ -1,11 +1,11 @@
 ---
-title: "vestibule/oidc"
+title: "vestibule_oidc"
 description: "OpenID Connect Discovery support for auto-configuring strategies."
 nav:
   group: Reference
   groupOrder: 20
-  order: 16
-  label: "vestibule/oidc"
+  order: 36
+  label: "vestibule_oidc"
 toc:
   - href: "#types"
     label: "Types"
@@ -15,10 +15,10 @@ searchTerms:
   - api
   - reference
   - module
-  - vestibule/oidc
+  - vestibule_oidc
 ---
 
-# `vestibule/oidc`
+# `vestibule_oidc`
 
 OpenID Connect Discovery support for auto-configuring strategies.
 
@@ -30,11 +30,12 @@ and build a `Strategy` from the discovered endpoints.
 
 ```gleam
 // Auto-discover and create a strategy in one step:
-let assert Ok(strategy) = oidc.discover("https://accounts.google.com")
+import vestibule_oidc
+let assert Ok(strategy) = vestibule_oidc.discover("https://accounts.google.com")
 
 // Or fetch configuration separately for inspection:
-let assert Ok(config) = oidc.fetch_configuration("https://accounts.google.com")
-let strategy = oidc.strategy_from_config(config, "my-provider")
+let assert Ok(config) = vestibule_oidc.fetch_configuration("https://accounts.google.com")
+let strategy = vestibule_oidc.strategy_from_config(config, "my-provider")
 ```
 
 ## Types

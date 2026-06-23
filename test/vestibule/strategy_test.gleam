@@ -1,7 +1,9 @@
 import gleam/http/request
 import gleam/option
 import startest/expect
+import vestibule/config
 import vestibule/credentials
+import vestibule/error
 import vestibule/strategy
 
 pub fn authorization_header_accepts_mixed_case_bearer_test() {
@@ -86,4 +88,67 @@ pub fn credentials_accessors_return_token_fields_test() {
   credentials.token_type(creds) |> expect.to_equal("Bearer")
   credentials.expires_in(creds) |> expect.to_equal(option.Some(3600))
   credentials.scopes(creds) |> expect.to_equal(["read:user"])
+}
+
+fn test_config() -> config.Config {
+  config.new(
+    client_id: "id",
+    client_secret: "secret",
+    redirect_uri: "https://example.com/cb",
+  )
+}
+
+pub fn refresh_token_unset_returns_refresh_unsupported_test() {
+  strategy.new(provider: "no-refresh", default_scopes: [])
+  |> strategy.refresh_token(cfg: test_config(), refresh_tok: "tok")
+  |> expect.to_equal(Error(error.RefreshUnsupported))
+}
+
+pub fn with_refresh_makes_refresh_supported_test() {
+  let creds =
+    credentials.new(
+      token: "fresh",
+      refresh_token: option.None,
+      token_type: "bearer",
+      expires_in: option.None,
+      scopes: [],
+    )
+
+  strategy.new(provider: "has-refresh", default_scopes: [])
+  |> strategy.with_refresh(fn(_cfg, _tok) { Ok(creds) })
+  |> strategy.refresh_token(cfg: test_config(), refresh_tok: "tok")
+  |> expect.to_equal(Ok(creds))
+}
+
+pub fn unset_authorize_url_returns_config_error_test() {
+  let _ =
+    strategy.new(provider: "bare", default_scopes: [])
+    |> strategy.build_authorize_url(cfg: test_config(), scopes: [], state: "s")
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn unset_exchange_code_returns_config_error_test() {
+  let _ =
+    strategy.new(provider: "bare", default_scopes: [])
+    |> strategy.exchange_code(
+      cfg: test_config(),
+      code: "c",
+      code_verifier: option.None,
+    )
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn with_nonce_enables_uses_nonce_test() {
+  strategy.new(provider: "oidc", default_scopes: [])
+  |> strategy.with_nonce()
+  |> strategy.uses_nonce()
+  |> expect.to_be_true()
+}
+
+pub fn new_defaults_uses_nonce_to_false_test() {
+  strategy.new(provider: "plain", default_scopes: [])
+  |> strategy.uses_nonce()
+  |> expect.to_be_false()
 }

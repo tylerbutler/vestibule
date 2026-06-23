@@ -38,15 +38,18 @@ import vestibule/user_info
 /// To restrict sign-in to a single Workspace domain, use
 /// `strategy_for_hosted_domain`.
 pub fn strategy() -> Strategy(e) {
-  strategy.new(
-    provider: "google",
-    default_scopes: ["openid", "profile", "email"],
-    uses_nonce: True,
-    authorize_url: do_authorize_url,
-    exchange_code: do_exchange_code,
-    refresh_token: do_refresh_token,
-    fetch_user: fn(_cfg, exchange) { fetch_user_enforcing(exchange, None) },
-  )
+  strategy.new(provider: "google", default_scopes: [
+    "openid",
+    "profile",
+    "email",
+  ])
+  |> strategy.with_nonce()
+  |> strategy.with_authorize_url(do_authorize_url)
+  |> strategy.with_exchange_code(do_exchange_code)
+  |> strategy.with_refresh(do_refresh_token)
+  |> strategy.with_fetch_user(fn(_cfg, exchange) {
+    fetch_user_enforcing(exchange, None)
+  })
 }
 
 /// Create a Google strategy that enforces a Workspace hosted domain.
@@ -62,19 +65,20 @@ pub fn strategy() -> Strategy(e) {
 /// `config.with_extra_params([#("hd", ...)])` is purely a UI hint and must not
 /// be relied on for authorization.
 pub fn strategy_for_hosted_domain(hosted_domain: String) -> Strategy(e) {
-  strategy.new(
-    provider: "google",
-    default_scopes: ["openid", "profile", "email"],
-    uses_nonce: True,
-    authorize_url: fn(cfg, scopes, state) {
-      do_authorize_url_with_hd(cfg, scopes, state, Some(hosted_domain))
-    },
-    exchange_code: do_exchange_code,
-    refresh_token: do_refresh_token,
-    fetch_user: fn(_cfg, exchange) {
-      fetch_user_enforcing(exchange, Some(hosted_domain))
-    },
-  )
+  strategy.new(provider: "google", default_scopes: [
+    "openid",
+    "profile",
+    "email",
+  ])
+  |> strategy.with_nonce()
+  |> strategy.with_authorize_url(fn(cfg, scopes, state) {
+    do_authorize_url_with_hd(cfg, scopes, state, Some(hosted_domain))
+  })
+  |> strategy.with_exchange_code(do_exchange_code)
+  |> strategy.with_refresh(do_refresh_token)
+  |> strategy.with_fetch_user(fn(_cfg, exchange) {
+    fetch_user_enforcing(exchange, Some(hosted_domain))
+  })
 }
 
 /// Parse Google token response JSON.

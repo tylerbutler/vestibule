@@ -4,7 +4,7 @@ description: "Mist middleware that wires a `Registry` of `Strategy` values into 
 nav:
   group: Reference
   groupOrder: 20
-  order: 33
+  order: 34
   label: "vestibule_mist"
 toc:
   - href: "#types"

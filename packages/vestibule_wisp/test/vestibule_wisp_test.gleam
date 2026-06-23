@@ -173,43 +173,39 @@ pub fn callback_phase_auth_result_missing_state_does_not_consume_session_test() 
 }
 
 fn test_strategy() -> Strategy(e) {
-  strategy.new(
-    provider: "test",
-    default_scopes: [],
-    uses_nonce: False,
-    authorize_url: fn(_config, _scopes, _state) { Ok("https://example.com") },
-    exchange_code: fn(_config, _code, _code_verifier) {
-      Error(error.ConfigError(reason: "test"))
-    },
-    refresh_token: fn(_config, _refresh_token) {
-      Error(error.ConfigError(reason: "test"))
-    },
-    fetch_user: fn(_config, _exchange) {
-      Error(error.ConfigError(reason: "test"))
-    },
-  )
+  strategy.new(provider: "test", default_scopes: [])
+  |> strategy.with_authorize_url(fn(_config, _scopes, _state) {
+    Ok("https://example.com")
+  })
+  |> strategy.with_exchange_code(fn(_config, _code, _code_verifier) {
+    Error(error.ConfigError(reason: "test"))
+  })
+  |> strategy.with_refresh(fn(_config, _refresh_token) {
+    Error(error.ConfigError(reason: "test"))
+  })
+  |> strategy.with_fetch_user(fn(_config, _exchange) {
+    Error(error.ConfigError(reason: "test"))
+  })
 }
 
 fn leaky_error_strategy() -> Strategy(e) {
-  strategy.new(
-    provider: "test",
-    default_scopes: [],
-    uses_nonce: False,
-    authorize_url: fn(_config, _scopes, _state) { Ok("https://example.com") },
-    exchange_code: fn(_config, _code, _code_verifier) {
-      Error(error.ProviderError(
-        code: "invalid_request",
-        description: "provider-controlled phishing text secret-token",
-        uri: option.None,
-      ))
-    },
-    refresh_token: fn(_config, _refresh_token) {
-      Error(error.ConfigError(reason: "test"))
-    },
-    fetch_user: fn(_config, _exchange) {
-      Error(error.ConfigError(reason: "test"))
-    },
-  )
+  strategy.new(provider: "test", default_scopes: [])
+  |> strategy.with_authorize_url(fn(_config, _scopes, _state) {
+    Ok("https://example.com")
+  })
+  |> strategy.with_exchange_code(fn(_config, _code, _code_verifier) {
+    Error(error.ProviderError(
+      code: "invalid_request",
+      description: "provider-controlled phishing text secret-token",
+      uri: option.None,
+    ))
+  })
+  |> strategy.with_refresh(fn(_config, _refresh_token) {
+    Error(error.ConfigError(reason: "test"))
+  })
+  |> strategy.with_fetch_user(fn(_config, _exchange) {
+    Error(error.ConfigError(reason: "test"))
+  })
 }
 
 fn test_config() -> config.Config {

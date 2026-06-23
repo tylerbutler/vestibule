@@ -475,6 +475,7 @@ fn failure_level(err: AuthError(e)) -> logger.Level {
     | error.CodeExchangeFailed(_)
     | error.UserInfoFailed(_)
     | error.ProviderError(_, _, _)
+    | error.RefreshUnsupported
     | error.Custom(_) -> logger.Warning
   }
 }

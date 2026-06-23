@@ -23,46 +23,42 @@ import vestibule/user_info
 // ---------------------------------------------------------------------------
 
 fn test_strategy() -> Strategy(e) {
-  strategy.new(
-    provider: "test",
-    default_scopes: ["scope"],
-    uses_nonce: False,
-    authorize_url: fn(_config, scopes, st) {
-      Ok(
-        "https://test.example.com/auth?scope="
-        <> string.join(scopes, " ")
-        <> "&state="
-        <> st,
-      )
-    },
-    exchange_code: fn(_config, code, _verifier) {
-      case code {
-        "valid_code" ->
-          Ok(
-            strategy.exchange_result(
-              credentials.new(
-                token: "tok",
-                refresh_token: None,
-                token_type: "bearer",
-                expires_in: None,
-                scopes: [],
-              ),
+  strategy.new(provider: "test", default_scopes: ["scope"])
+  |> strategy.with_authorize_url(fn(_config, scopes, st) {
+    Ok(
+      "https://test.example.com/auth?scope="
+      <> string.join(scopes, " ")
+      <> "&state="
+      <> st,
+    )
+  })
+  |> strategy.with_exchange_code(fn(_config, code, _verifier) {
+    case code {
+      "valid_code" ->
+        Ok(
+          strategy.exchange_result(
+            credentials.new(
+              token: "tok",
+              refresh_token: None,
+              token_type: "bearer",
+              expires_in: None,
+              scopes: [],
             ),
-          )
-        _ -> Error(error.CodeExchangeFailed(reason: "bad code"))
-      }
-    },
-    refresh_token: fn(_config, _refresh_token) {
-      Error(error.ConfigError(reason: "refresh not implemented"))
-    },
-    fetch_user: fn(_config, _exchange) {
-      Ok(strategy.user_result(
-        uid: "uid",
-        info: user_info.new(),
-        extra: dict.new(),
-      ))
-    },
-  )
+          ),
+        )
+      _ -> Error(error.CodeExchangeFailed(reason: "bad code"))
+    }
+  })
+  |> strategy.with_refresh(fn(_config, _refresh_token) {
+    Error(error.ConfigError(reason: "refresh not implemented"))
+  })
+  |> strategy.with_fetch_user(fn(_config, _exchange) {
+    Ok(strategy.user_result(
+      uid: "uid",
+      info: user_info.new(),
+      extra: dict.new(),
+    ))
+  })
 }
 
 // ===========================================================================

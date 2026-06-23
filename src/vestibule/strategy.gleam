@@ -1,10 +1,11 @@
 //// Provider-strategy interface. A `Strategy(e)` is an opaque record
-//// bundling the four functions every OAuth/OIDC provider must implement:
-//// build authorize URL, exchange code, refresh token, and fetch user.
+//// bundling the provider-specific functions an OAuth/OIDC provider
+//// implements: build authorize URL, exchange code, fetch user, and an
+//// optional refresh token.
 ////
 //// Provider packages (`vestibule_google`, `vestibule_apple`, ...) build
-//// these with `strategy.new`; the core library invokes them through the
-//// exposed accessors.
+//// these with `strategy.new` plus the `with_*` capability builders; the
+//// core library invokes them through the exposed accessors.
 
 import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
@@ -97,60 +98,112 @@ pub fn exchange_artifacts(exchange: ExchangeResult) -> Dict(String, Dynamic) {
 /// The type parameter `e` corresponds to the custom error type in
 /// `AuthError(e)`. Built-in strategies are polymorphic in `e`.
 ///
-/// Opaque so that vestibule can add fields (or swap the internal
-/// representation, e.g., to an injectable HTTP client) without breaking
-/// provider packages. Construct with `new` and invoke with the
-/// `build_authorize_url`, `exchange_code`, `refresh_token`, and
-/// `fetch_user` helpers.
+/// Opaque so that vestibule can add optional capabilities without breaking
+/// provider packages. Construct with `new` and attach capabilities with the
+/// `with_authorize_url`, `with_exchange_code`, `with_fetch_user`,
+/// `with_refresh`, and `with_nonce` builders. Invoke through the
+/// `build_authorize_url`, `exchange_code`, `refresh_token`, and `fetch_user`
+/// helpers.
+///
+/// The core capabilities (`authorize_url`, `exchange_code`, `fetch_user`) are
+/// stored as `Option`; invoking one that was never configured fails with a
+/// `ConfigError`. `refresh_token` is optional: a strategy built without
+/// `with_refresh` fails with `RefreshUnsupported`.
 pub opaque type Strategy(e) {
   Strategy(
     provider: String,
     default_scopes: List(String),
     uses_nonce: Bool,
-    authorize_url: fn(Config, List(String), String) ->
-      Result(String, AuthError(e)),
-    exchange_code: fn(Config, String, Option(String)) ->
-      Result(ExchangeResult, AuthError(e)),
-    refresh_token: fn(Config, String) ->
-      Result(credentials.Credentials, AuthError(e)),
-    fetch_user: fn(Config, ExchangeResult) -> Result(UserResult, AuthError(e)),
+    authorize_url: Option(
+      fn(Config, List(String), String) -> Result(String, AuthError(e)),
+    ),
+    exchange_code: Option(
+      fn(Config, String, Option(String)) -> Result(ExchangeResult, AuthError(e)),
+    ),
+    refresh_token: Option(
+      fn(Config, String) -> Result(credentials.Credentials, AuthError(e)),
+    ),
+    fetch_user: Option(
+      fn(Config, ExchangeResult) -> Result(UserResult, AuthError(e)),
+    ),
   )
 }
 
-/// Build a `Strategy`.
+/// Begin building a `Strategy` for `provider` with the given `default_scopes`
+/// (used when the caller's `Config` does not specify any).
 ///
-/// `authorize_url` builds the provider-specific authorization URL.
-/// `exchange_code` exchanges an authorization code for credentials and
-/// optional provider-specific artifacts; the third parameter is the PKCE
-/// `code_verifier` if one was generated. `refresh_token` swaps a refresh
-/// token for fresh credentials. `fetch_user` resolves the authenticated
-/// user from the exchange result.
+/// The returned strategy has no capabilities attached yet. Use the `with_*`
+/// builders to add them:
 ///
-/// `uses_nonce` should be `True` for OIDC strategies: the core will then
-/// generate an OIDC `nonce`, emit it on the authorize URL, and validate it
-/// against the `id_token` on callback. Plain OAuth2 strategies pass `False`.
+/// ```gleam
+/// strategy.new(provider: "github", default_scopes: ["user:email"])
+/// |> strategy.with_authorize_url(do_authorize_url)
+/// |> strategy.with_exchange_code(do_exchange_code)
+/// |> strategy.with_fetch_user(do_fetch_user)
+/// |> strategy.with_refresh(do_refresh_token)
+/// ```
 pub fn new(
   provider provider: String,
   default_scopes default_scopes: List(String),
-  uses_nonce uses_nonce: Bool,
-  authorize_url authorize_url: fn(Config, List(String), String) ->
-    Result(String, AuthError(e)),
-  exchange_code exchange_code: fn(Config, String, Option(String)) ->
-    Result(ExchangeResult, AuthError(e)),
-  refresh_token refresh_token: fn(Config, String) ->
-    Result(credentials.Credentials, AuthError(e)),
-  fetch_user fetch_user: fn(Config, ExchangeResult) ->
-    Result(UserResult, AuthError(e)),
 ) -> Strategy(e) {
   Strategy(
     provider: provider,
     default_scopes: default_scopes,
-    uses_nonce: uses_nonce,
-    authorize_url: authorize_url,
-    exchange_code: exchange_code,
-    refresh_token: refresh_token,
-    fetch_user: fetch_user,
+    uses_nonce: False,
+    authorize_url: option.None,
+    exchange_code: option.None,
+    refresh_token: option.None,
+    fetch_user: option.None,
   )
+}
+
+/// Attach the authorize-URL builder. `authorize_url` builds the
+/// provider-specific authorization URL from the config, scopes, and state.
+pub fn with_authorize_url(
+  strat: Strategy(e),
+  authorize_url: fn(Config, List(String), String) ->
+    Result(String, AuthError(e)),
+) -> Strategy(e) {
+  Strategy(..strat, authorize_url: option.Some(authorize_url))
+}
+
+/// Attach the code-exchange capability. `exchange_code` exchanges an
+/// authorization code for credentials and optional provider-specific
+/// artifacts; the third parameter is the PKCE `code_verifier` if one was
+/// generated.
+pub fn with_exchange_code(
+  strat: Strategy(e),
+  exchange_code: fn(Config, String, Option(String)) ->
+    Result(ExchangeResult, AuthError(e)),
+) -> Strategy(e) {
+  Strategy(..strat, exchange_code: option.Some(exchange_code))
+}
+
+/// Attach the user-resolution capability. `fetch_user` resolves the
+/// authenticated user from the exchange result.
+pub fn with_fetch_user(
+  strat: Strategy(e),
+  fetch_user: fn(Config, ExchangeResult) -> Result(UserResult, AuthError(e)),
+) -> Strategy(e) {
+  Strategy(..strat, fetch_user: option.Some(fetch_user))
+}
+
+/// Attach an optional token-refresh capability. `refresh_token` swaps a
+/// refresh token for fresh credentials. Strategies built without this fail
+/// `refresh_token` with `RefreshUnsupported`.
+pub fn with_refresh(
+  strat: Strategy(e),
+  refresh_token: fn(Config, String) ->
+    Result(credentials.Credentials, AuthError(e)),
+) -> Strategy(e) {
+  Strategy(..strat, refresh_token: option.Some(refresh_token))
+}
+
+/// Mark this strategy as using the OIDC `nonce`. The core will then generate
+/// an OIDC `nonce`, emit it on the authorize URL, and validate it against the
+/// `id_token` on callback. Plain OAuth2 strategies should omit this.
+pub fn with_nonce(strat: Strategy(e)) -> Strategy(e) {
+  Strategy(..strat, uses_nonce: True)
 }
 
 /// Return the human-readable provider name (e.g., `"github"`, `"google"`).
@@ -170,43 +223,82 @@ pub fn default_scopes(strat: Strategy(e)) -> List(String) {
 }
 
 /// Build the provider's authorization URL.
+///
+/// Returns `ConfigError` if the strategy was built without
+/// `with_authorize_url`.
 pub fn build_authorize_url(
   strat: Strategy(e),
   cfg cfg: Config,
   scopes scopes: List(String),
   state state: String,
 ) -> Result(String, AuthError(e)) {
-  strat.authorize_url(cfg, scopes, state)
+  case strat.authorize_url {
+    option.Some(authorize_url) -> authorize_url(cfg, scopes, state)
+    option.None ->
+      Error(error.ConfigError(
+        reason: "Strategy \""
+        <> strat.provider
+        <> "\" has no authorize_url capability (missing with_authorize_url).",
+      ))
+  }
 }
 
 /// Exchange an authorization code for credentials and any provider-specific
 /// artifacts. Pass the PKCE `code_verifier` if one was generated for the
 /// authorization request.
+///
+/// Returns `ConfigError` if the strategy was built without
+/// `with_exchange_code`.
 pub fn exchange_code(
   strat: Strategy(e),
   cfg cfg: Config,
   code code: String,
   code_verifier code_verifier: Option(String),
 ) -> Result(ExchangeResult, AuthError(e)) {
-  strat.exchange_code(cfg, code, code_verifier)
+  case strat.exchange_code {
+    option.Some(exchange_code) -> exchange_code(cfg, code, code_verifier)
+    option.None ->
+      Error(error.ConfigError(
+        reason: "Strategy \""
+        <> strat.provider
+        <> "\" has no exchange_code capability (missing with_exchange_code).",
+      ))
+  }
 }
 
 /// Refresh credentials using a refresh token.
+///
+/// Returns `RefreshUnsupported` if the strategy was built without
+/// `with_refresh`.
 pub fn refresh_token(
   strat: Strategy(e),
   cfg cfg: Config,
   refresh_tok refresh_tok: String,
 ) -> Result(credentials.Credentials, AuthError(e)) {
-  strat.refresh_token(cfg, refresh_tok)
+  case strat.refresh_token {
+    option.Some(refresh_token) -> refresh_token(cfg, refresh_tok)
+    option.None -> Error(error.RefreshUnsupported)
+  }
 }
 
 /// Fetch user info using the obtained exchange result.
+///
+/// Returns `ConfigError` if the strategy was built without
+/// `with_fetch_user`.
 pub fn fetch_user(
   strat: Strategy(e),
   cfg cfg: Config,
   exchange exchange: ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
-  strat.fetch_user(cfg, exchange)
+  case strat.fetch_user {
+    option.Some(fetch_user) -> fetch_user(cfg, exchange)
+    option.None ->
+      Error(error.ConfigError(
+        reason: "Strategy \""
+        <> strat.provider
+        <> "\" has no fetch_user capability (missing with_fetch_user).",
+      ))
+  }
 }
 
 /// Build the Authorization header value from credentials.
