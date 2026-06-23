@@ -162,7 +162,7 @@ pub fn handle_callback(
   // Extract state (needed for CSRF validation)
   let state_result =
     dict.get(callback_params, "state")
-    |> result.replace_error(error.MissingCallbackParam("state"))
+    |> result.replace_error(error.missing_callback_param("state"))
   case state_result {
     Ok(_) ->
       logger.emit(
@@ -256,7 +256,7 @@ pub fn handle_callback(
   // Extract authorization code
   let code_result =
     dict.get(callback_params, "code")
-    |> result.replace_error(error.MissingCallbackParam("code"))
+    |> result.replace_error(error.missing_callback_param("code"))
   case code_result {
     Ok(_) ->
       logger.emit(
@@ -464,19 +464,18 @@ pub fn refresh_token(
 }
 
 fn failure_level(err: AuthError(e)) -> logger.Level {
-  case err {
-    error.NetworkError(_)
-    | error.HttpError(_, _)
-    | error.DecodeError(_, _)
-    | error.ConfigError(_) -> logger.Error
-    error.StateMismatch
-    | error.InvalidNonce
-    | error.MissingCallbackParam(_)
-    | error.CodeExchangeFailed(_)
-    | error.UserInfoFailed(_)
-    | error.ProviderError(_, _, _)
-    | error.RefreshUnsupported
-    | error.Custom(_) -> logger.Warning
+  case error.kind(err) {
+    error.NetworkKind | error.HttpKind | error.DecodeKind | error.ConfigKind ->
+      logger.Error
+    error.StateMismatchKind
+    | error.InvalidNonceKind
+    | error.MissingCallbackParamKind
+    | error.CodeExchangeKind
+    | error.UserInfoKind
+    | error.ProviderKind
+    | error.RefreshUnsupportedKind
+    | error.CustomKind
+    | error.OtherKind -> logger.Warning
   }
 }
 
@@ -490,11 +489,7 @@ fn check_provider_error(
         dict.get(params, "error_description")
         |> result.unwrap("")
       let uri = dict.get(params, "error_uri") |> option.from_result()
-      Error(error.ProviderError(
-        code: error_code,
-        description: description,
-        uri: uri,
-      ))
+      Error(error.provider(code: error_code, description: description, uri: uri))
     }
     Error(Nil) -> Ok(Nil)
   }
@@ -570,8 +565,8 @@ fn extract_id_token(
   case dict.get(strategy.exchange_artifacts(exchange), "id_token") {
     Ok(dyn) ->
       decode.run(dyn, decode.string)
-      |> result.replace_error(error.InvalidNonce)
-    Error(Nil) -> Error(error.InvalidNonce)
+      |> result.replace_error(error.invalid_nonce())
+    Error(Nil) -> Error(error.invalid_nonce())
   }
 }
 
@@ -591,8 +586,8 @@ fn read_nonce_claim(id_token: String) -> Result(String, AuthError(e)) {
   }
   case json.parse(payload, decoder) {
     Ok(option.Some(value)) -> Ok(value)
-    Ok(option.None) -> Error(error.InvalidNonce)
-    Error(_) -> Error(error.InvalidNonce)
+    Ok(option.None) -> Error(error.invalid_nonce())
+    Error(_) -> Error(error.invalid_nonce())
   }
 }
 
@@ -603,10 +598,10 @@ fn decode_jwt_payload(id_token: String) -> Result(String, AuthError(e)) {
         Ok(bits) ->
           case bit_array.to_string(bits) {
             Ok(json_payload) -> Ok(json_payload)
-            Error(_) -> Error(error.InvalidNonce)
+            Error(_) -> Error(error.invalid_nonce())
           }
-        Error(_) -> Error(error.InvalidNonce)
+        Error(_) -> Error(error.invalid_nonce())
       }
-    _ -> Error(error.InvalidNonce)
+    _ -> Error(error.invalid_nonce())
   }
 }

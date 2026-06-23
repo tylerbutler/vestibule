@@ -235,7 +235,7 @@ pub fn build_authorize_url(
   case strat.authorize_url {
     option.Some(authorize_url) -> authorize_url(cfg, scopes, state)
     option.None ->
-      Error(error.ConfigError(
+      Error(error.config(
         reason: "Strategy \""
         <> strat.provider
         <> "\" has no authorize_url capability (missing with_authorize_url).",
@@ -258,7 +258,7 @@ pub fn exchange_code(
   case strat.exchange_code {
     option.Some(exchange_code) -> exchange_code(cfg, code, code_verifier)
     option.None ->
-      Error(error.ConfigError(
+      Error(error.config(
         reason: "Strategy \""
         <> strat.provider
         <> "\" has no exchange_code capability (missing with_exchange_code).",
@@ -277,7 +277,7 @@ pub fn refresh_token(
 ) -> Result(credentials.Credentials, AuthError(e)) {
   case strat.refresh_token {
     option.Some(refresh_token) -> refresh_token(cfg, refresh_tok)
-    option.None -> Error(error.RefreshUnsupported)
+    option.None -> Error(error.refresh_unsupported())
   }
 }
 
@@ -293,7 +293,7 @@ pub fn fetch_user(
   case strat.fetch_user {
     option.Some(fetch_user) -> fetch_user(cfg, exchange)
     option.None ->
-      Error(error.ConfigError(
+      Error(error.config(
         reason: "Strategy \""
         <> strat.provider
         <> "\" has no fetch_user capability (missing with_fetch_user).",
@@ -314,7 +314,7 @@ pub fn authorization_header(
   case string.lowercase(credentials.token_type(creds)) {
     "bearer" -> Ok("Bearer " <> credentials.token(creds))
     other ->
-      Error(error.ConfigError(
+      Error(error.config(
         reason: "Unsupported token type: "
         <> other
         <> ". Only Bearer tokens are supported.",

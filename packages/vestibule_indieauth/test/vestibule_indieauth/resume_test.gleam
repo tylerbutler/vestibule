@@ -42,13 +42,15 @@ pub fn serialize_parse_round_trip_with_none_test() {
 }
 
 pub fn parse_rejects_garbage_test() {
-  vestibule_indieauth.parse_endpoints("not json")
-  |> expect.to_be_error()
+  let _ =
+    vestibule_indieauth.parse_endpoints("not json")
+    |> expect.to_be_error()
   Nil
 }
 
 pub fn parse_rejects_missing_fields_test() {
-  vestibule_indieauth.parse_endpoints("{\"me\":\"https://me.example.com/\"}")
-  |> expect.to_be_error()
+  let _ =
+    vestibule_indieauth.parse_endpoints("{\"me\":\"https://me.example.com/\"}")
+    |> expect.to_be_error()
   Nil
 }

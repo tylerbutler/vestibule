@@ -57,7 +57,7 @@ pub fn exchange_code(
 
   use req <- result.try(
     request.to(token_endpoint)
-    |> result.replace_error(error.ConfigError(
+    |> result.replace_error(error.config(
       reason: "Invalid token endpoint URL: " <> token_endpoint,
     )),
   )
@@ -84,7 +84,7 @@ pub fn exchange_code(
       parse_token_response(body)
     }
     Error(_) ->
-      Error(error.NetworkError(
+      Error(error.network(
         reason: "Failed to connect to IndieAuth token endpoint: "
         <> token_endpoint,
       ))
@@ -109,7 +109,7 @@ pub fn refresh(
 
   use req <- result.try(
     request.to(token_endpoint)
-    |> result.replace_error(error.ConfigError(
+    |> result.replace_error(error.config(
       reason: "Invalid token endpoint URL: " <> token_endpoint,
     )),
   )
@@ -133,7 +133,7 @@ pub fn refresh(
       parse_token_response(body)
     }
     Error(_) ->
-      Error(error.NetworkError(
+      Error(error.network(
         reason: "Failed to connect to IndieAuth token endpoint: "
         <> token_endpoint,
       ))
@@ -165,7 +165,7 @@ pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
   }
   case json.parse(body, error_decoder) {
     Ok(#(code, description)) ->
-      Error(error.ProviderError(code: code, description: description, uri: None))
+      Error(error.provider(code: code, description: description, uri: None))
     _ -> parse_token_success(body)
   }
 }
@@ -200,7 +200,7 @@ fn parse_token_success(body: String) -> Result(Credentials, AuthError(e)) {
   case json.parse(body, decoder) {
     Ok(creds) -> Ok(creds)
     Error(err) ->
-      Error(error.CodeExchangeFailed(
+      Error(error.code_exchange(
         reason: "Failed to parse IndieAuth token response: "
         <> string.inspect(err),
       ))
@@ -260,7 +260,7 @@ pub fn parse_profile_from_token_response(
   case json.parse(body, decoder) {
     Ok(profile) -> Ok(profile)
     Error(err) ->
-      Error(error.UserInfoFailed(
+      Error(error.user_info(
         reason: "Failed to parse IndieAuth profile: " <> string.inspect(err),
       ))
   }
@@ -275,7 +275,7 @@ pub fn fetch_userinfo(
 
   use req <- result.try(
     request.to(userinfo_url)
-    |> result.replace_error(error.ConfigError(
+    |> result.replace_error(error.config(
       reason: "Invalid userinfo endpoint URL: " <> userinfo_url,
     )),
   )
@@ -297,7 +297,7 @@ pub fn fetch_userinfo(
       parse_userinfo_response(body)
     }
     Error(_) ->
-      Error(error.NetworkError(
+      Error(error.network(
         reason: "Failed to fetch IndieAuth userinfo: " <> userinfo_url,
       ))
   }
@@ -347,7 +347,7 @@ pub fn parse_userinfo_response(
   case json.parse(body, decoder) {
     Ok(result) -> Ok(result)
     Error(err) ->
-      Error(error.UserInfoFailed(
+      Error(error.user_info(
         reason: "Failed to parse IndieAuth userinfo response: "
         <> string.inspect(err),
       ))

@@ -74,7 +74,7 @@ Create a Google strategy that enforces a Workspace hosted domain.
 
 Authentication fails unless Google's userinfo response carries an `hd`
 (hosted-domain) claim exactly matching `hosted_domain`. A missing or
-mismatched `hd` yields `error.UserInfoFailed`. The validated domain is
+mismatched `hd` yields `error.user_info`. The validated domain is
 surfaced under the `"hd"` key of `UserResult`'s `extra` dict.
 
 `hosted_domain` is also added to the authorization URL as an account-picker
@@ -93,7 +93,7 @@ Validate the returned hosted-domain claim against the required domain.
 
 When `required` is `None` the returned claim (if any) passes through
 unchanged. When a domain is required, the claim must be present and match
-exactly, otherwise authentication fails with `error.UserInfoFailed`. This
+exactly, otherwise authentication fails with `error.user_info`. This
 is the enforcement primitive behind `strategy_for_hosted_domain`.
 
 ```gleam

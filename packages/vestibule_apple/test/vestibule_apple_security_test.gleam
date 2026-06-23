@@ -86,8 +86,9 @@ pub fn verify_id_token_accepts_correct_key_test() {
       client_id: "com.example.app",
     )
   let assert Ok(#(uid, info)) = result
-  uid |> expect.to_equal("user-123")
-  user_info.email(info) |> expect.to_equal(Some("user@example.com"))
+  let _ = uid |> expect.to_equal("user-123")
+  let _ = user_info.email(info) |> expect.to_equal(Some("user@example.com"))
+  Nil
 }
 
 /// Security: verify_id_token rejects JWT with wrong issuer.
@@ -192,8 +193,9 @@ pub fn verify_id_token_unverified_email_not_returned_test() {
       keys: [verify_key.derived(key)],
       client_id: "com.example.app",
     )
-  user_info.email(info) |> expect.to_equal(None)
-  user_info.nickname(info) |> expect.to_equal(Some("user@example.com"))
+  let _ = user_info.email(info) |> expect.to_equal(None)
+  let _ = user_info.nickname(info) |> expect.to_equal(Some("user@example.com"))
+  Nil
 }
 
 // ===========================================================================
@@ -218,7 +220,8 @@ pub fn parse_jwks_rejects_invalid_json_test() {
 pub fn parse_jwks_accepts_empty_keys_test() {
   let result = jwks.parse_jwks("{\"keys\":[]}")
   let assert Ok(keys) = result
-  keys |> expect.to_equal([])
+  let _ = keys |> expect.to_equal([])
+  Nil
 }
 
 // ===========================================================================

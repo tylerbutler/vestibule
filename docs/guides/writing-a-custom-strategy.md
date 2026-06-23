@@ -113,10 +113,10 @@ strategy.exchange_artifacts(exchange)    // -> Dict(String, Dynamic)
 
 `with_authorize_url`, `with_exchange_code`, and `with_fetch_user` are required
 for a working strategy; calling the corresponding orchestrator step on a
-strategy that omitted one fails with a `ConfigError`. `with_refresh` and
-`with_nonce` are optional: a strategy built without `with_refresh` reports
-`RefreshUnsupported` from `vestibule.refresh_token`, and `with_nonce` only
-applies to OIDC providers.
+strategy that omitted one fails with `error.config(reason:)`. `with_refresh`
+and `with_nonce` are optional: a strategy built without `with_refresh` reports
+`error.refresh_unsupported()` from `vestibule.refresh_token`, and `with_nonce`
+only applies to OIDC providers.
 
 ### Capability-by-capability breakdown
 
@@ -128,7 +128,7 @@ applies to OIDC providers.
 
 **`with_exchange_code(fn(Config, String, Option(String)) -> Result(ExchangeResult, AuthError(e)))`** -- Given the config, authorization code, and optional PKCE code verifier, POST to the token endpoint and return parsed credentials plus any provider-specific token response artifacts. The code verifier will be `Some(verifier)` when PKCE is in use (which is always, in the current implementation). Use `strategy.exchange_result(credentials)` when the provider has no artifacts to carry forward.
 
-**`with_refresh(fn(Config, String) -> Result(Credentials, AuthError(e)))`** -- *Optional.* Given the config and a refresh token string, POST to the provider's token endpoint and return updated `Credentials`. Providers differ on refresh-token rotation, scopes, and error formats, so refresh stays strategy-owned. Omit this builder for providers that do not support refresh; `vestibule.refresh_token` then returns `RefreshUnsupported`.
+**`with_refresh(fn(Config, String) -> Result(Credentials, AuthError(e)))`** -- *Optional.* Given the config and a refresh token string, POST to the provider's token endpoint and return updated `Credentials`. Providers differ on refresh-token rotation, scopes, and error formats, so refresh stays strategy-owned. Omit this builder for providers that do not support refresh; `vestibule.refresh_token` then returns an error built with `error.refresh_unsupported()`.
 
 **`with_fetch_user(fn(Config, ExchangeResult) -> Result(UserResult, AuthError(e)))`** -- Given the config and successful exchange result, fetch the provider's user info API and return a `UserResult` built with `strategy.user_result(uid:, info:, extra:)`. The exchange result contains standard credentials and any token response artifacts your provider needs while resolving the user (read them with `strategy.exchange_credentials` and `strategy.exchange_artifacts`). The UID should be the provider's stable unique identifier for the user (e.g., a numeric ID or a `sub` claim). Use `extra: dict.new()` when the provider has no extra data to expose.
 
@@ -136,26 +136,51 @@ applies to OIDC providers.
 
 ### The generic error type
 
-`Strategy(e)` is parameterized over `e`, which flows into `AuthError(e)` through the `Custom(e)` variant:
+`Strategy(e)` is parameterized over `e`, which flows into `AuthError(e)`
+through `error.custom(e)`. `AuthError(e)` is opaque: construct values with
+functions from `vestibule/error`, and inspect them with accessors such as
+`error.kind`, `error.phase`, and `error.message`.
 
 ```gleam
-pub type AuthError(e) {
-  StateMismatch
-  MissingCallbackParam(name: String)
-  CodeExchangeFailed(reason: String)
-  UserInfoFailed(reason: String)
-  ProviderError(code: String, description: String, uri: Option(String))
-  HttpError(status: Int, body: String)
-  DecodeError(context: String, reason: String)
-  NetworkError(reason: String)
-  ConfigError(reason: String)
-  Custom(e)
-}
+// Constructors:
+error.state_mismatch()
+error.invalid_nonce()
+error.missing_callback_param(name)
+error.code_exchange(reason: reason)
+error.user_info(reason: reason)
+error.provider(code: code, description: description, uri: uri)
+error.http(status: status, summary: summary)
+error.decode(context: context, reason: reason)
+error.network(reason: reason)
+error.config(reason: reason)
+error.refresh_unsupported()
+error.custom(payload)
+
+// ErrorKind values from error.kind(err):
+StateMismatchKind
+InvalidNonceKind
+MissingCallbackParamKind
+CodeExchangeKind
+UserInfoKind
+ProviderKind
+HttpKind
+DecodeKind
+NetworkKind
+ConfigKind
+RefreshUnsupportedKind
+CustomKind
+OtherKind
 ```
 
-Most strategies only use the built-in variants (`CodeExchangeFailed`, `NetworkError`, etc.) and never construct a `Custom` value. In that case, the strategy is polymorphic in `e` -- meaning it works with any error type the caller chooses. This is how all the built-in strategies work: their `strategy()` functions return `Strategy(e)` with a free type variable.
+Most strategies only use the built-in constructors (`error.code_exchange`,
+`error.network`, etc.) and never call `error.custom`. In that case, the
+strategy is polymorphic in `e` -- meaning it works with any error type the
+caller chooses. This is how all the built-in strategies work: their
+`strategy()` functions return `Strategy(e)` with a free type variable.
 
-If your provider has domain-specific error conditions that do not fit the built-in variants, you can define your own error type and wrap it with `Custom`:
+If your provider has domain-specific error conditions that do not fit the
+built-in constructors, you can define your own error type and wrap it with
+`error.custom`:
 
 ```gleam
 pub type TwitchError {
@@ -170,9 +195,21 @@ pub fn strategy() -> Strategy(TwitchError) {
 ```
 
 If you need to combine strategies that use different custom error types, map the
-inner error yourself when constructing the `Custom` variant (for example, with
+inner error yourself when calling `error.custom` (for example, with
 `result.map_error`) -- vestibule does not ship a built-in error-conversion
-helper.
+helper. Applications can recover the payload with `error.custom_payload(err)`.
+
+When you need to branch on built-in failures, match on `error.kind(err)` and
+always include `OtherKind` or `_` so future kinds remain safe:
+
+```gleam
+case error.kind(err) {
+  ProviderKind -> handle_provider_error(err)
+  HttpKind -> handle_http_error(err)
+  OtherKind -> handle_unknown_error(err)
+  _ -> handle_unknown_error(err)
+}
+```
 
 ## Step-by-Step: Building a Strategy
 
@@ -311,7 +348,7 @@ fn do_exchange_code(
       |> result.map(strategy.exchange_result)
     }
     Error(_) ->
-      Error(error.NetworkError(
+      Error(error.network(
         reason: "Failed to connect to Twitch token endpoint",
       ))
   }
@@ -335,7 +372,7 @@ pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
   }
   case json.parse(body, error_decoder) {
     Ok(#(code, description)) ->
-      Error(error.ProviderError(
+      Error(error.provider(
         code: code,
         description: description,
         uri: None,
@@ -370,7 +407,7 @@ fn parse_success_token(body: String) -> Result(Credentials, AuthError(e)) {
   case json.parse(body, decoder) {
     Ok(creds) -> Ok(creds)
     _ ->
-      Error(error.CodeExchangeFailed(
+      Error(error.code_exchange(
         reason: "Failed to parse Twitch token response",
       ))
   }
@@ -412,7 +449,7 @@ fn do_refresh_token(
       parse_token_response(body)
     }
     Error(_) ->
-      Error(error.NetworkError(
+      Error(error.network(
         reason: "Failed to connect to Twitch token endpoint",
       ))
   }
@@ -439,7 +476,7 @@ fn do_fetch_user(
   use user_req <- result.try(
     request.to("https://api.twitch.tv/helix/users")
     |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Invalid Twitch user endpoint URL")
+      error.config(reason: "Invalid Twitch user endpoint URL")
     }),
   )
   let user_req =
@@ -454,7 +491,7 @@ fn do_fetch_user(
       Ok(strategy.user_result(uid: uid, info: info, extra: dict.new()))
     }
     Error(_) ->
-      Error(error.NetworkError(
+      Error(error.network(
         reason: "Failed to connect to Twitch Helix API",
       ))
   }
@@ -523,7 +560,7 @@ pub fn parse_user_response(
   case json.parse(body, decoder) {
     Ok(result) -> Ok(result)
     _ ->
-      Error(error.UserInfoFailed(
+      Error(error.user_info(
         reason: "Failed to parse Twitch user response",
       ))
   }
@@ -588,7 +625,10 @@ let decoder = {
 }
 case json.parse(body, decoder) {
   Ok(value) -> Ok(value)
-  _ -> Error(error.SomeVariant(reason: "Failed to parse response"))
+  _ -> Error(error.decode(
+    context: "token response",
+    reason: "Failed to parse response",
+  ))
 }
 ```
 
@@ -617,8 +657,8 @@ let error_decoder = {
 ```
 
 Map these into
-`error.ProviderError(code: code, description: description, uri: None)` unless
-the provider also returns an error documentation URI.
+`error.provider(code: code, description: description, uri: None)` unless the
+provider also returns an error documentation URI.
 
 ### Fetching extra data
 

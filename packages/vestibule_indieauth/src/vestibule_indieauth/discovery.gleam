@@ -46,7 +46,7 @@ pub fn discover_endpoints(
 ) -> Result(DiscoveredEndpoints, AuthError(e)) {
   use req <- result.try(
     request.to(profile_url)
-    |> result.replace_error(error.ConfigError(
+    |> result.replace_error(error.config(
       reason: "Invalid profile URL: " <> profile_url,
     )),
   )
@@ -56,7 +56,7 @@ pub fn discover_endpoints(
 
   use response <- result.try(
     httpc.send(req)
-    |> result.replace_error(error.NetworkError(
+    |> result.replace_error(error.network(
       reason: "Failed to fetch profile URL: " <> profile_url,
     )),
   )
@@ -73,7 +73,7 @@ pub fn discover_endpoints(
       }
     }
     status ->
-      Error(error.NetworkError(
+      Error(error.network(
         reason: "Profile URL returned HTTP "
         <> int.to_string(status)
         <> ": "
@@ -99,7 +99,7 @@ fn fetch_metadata(
 ) -> Result(DiscoveredEndpoints, AuthError(e)) {
   use req <- result.try(
     request.to(metadata_url)
-    |> result.replace_error(error.ConfigError(
+    |> result.replace_error(error.config(
       reason: "Invalid metadata URL: " <> metadata_url,
     )),
   )
@@ -108,7 +108,7 @@ fn fetch_metadata(
 
   use response <- result.try(
     httpc.send(req)
-    |> result.replace_error(error.NetworkError(
+    |> result.replace_error(error.network(
       reason: "Failed to fetch IndieAuth metadata: " <> metadata_url,
     )),
   )
@@ -116,7 +116,7 @@ fn fetch_metadata(
   case response.status {
     status if status >= 200 && status < 300 -> parse_metadata(response.body)
     status ->
-      Error(error.NetworkError(
+      Error(error.network(
         reason: "Metadata endpoint returned HTTP "
         <> int.to_string(status)
         <> ": "
@@ -157,7 +157,7 @@ pub fn parse_metadata(
   case json.parse(body, decoder) {
     Ok(endpoints) -> Ok(endpoints)
     Error(err) ->
-      Error(error.ConfigError(
+      Error(error.config(
         reason: "Failed to parse IndieAuth metadata: " <> string.inspect(err),
       ))
   }
@@ -191,12 +191,12 @@ fn discover_from_link_rels(
         userinfo_endpoint: None,
       ))
     Some(_), None ->
-      Error(error.ConfigError(
+      Error(error.config(
         reason: "Found authorization_endpoint but no token_endpoint at "
         <> base_url,
       ))
     None, _ ->
-      Error(error.ConfigError(
+      Error(error.config(
         reason: "Could not discover IndieAuth endpoints at "
         <> base_url
         <> ". No indieauth-metadata or authorization_endpoint found.",

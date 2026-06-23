@@ -44,7 +44,7 @@ fn test_strategy() -> Strategy(e) {
             ),
           ),
         )
-      _ -> Error(error.CodeExchangeFailed(reason: "bad code"))
+      _ -> Error(error.code_exchange(reason: "bad code"))
     }
   })
   |> strategy.with_refresh(fn(cfg, refresh_tok) {
@@ -92,7 +92,7 @@ fn artifact_strategy() -> Strategy(e) {
     ))
   })
   |> strategy.with_refresh(fn(_config, _refresh_tok) {
-    Error(error.ConfigError(reason: "refresh not implemented"))
+    Error(error.config(reason: "refresh not implemented"))
   })
   |> strategy.with_fetch_user(fn(_cfg, exchange) {
     let assert Ok(marker) =
@@ -355,7 +355,7 @@ pub fn missing_callback_state_is_structured_test() {
     code_verifier: "test_verifier",
     expected_nonce: None,
   )
-  |> expect.to_equal(Error(error.MissingCallbackParam("state")))
+  |> expect.to_equal(Error(error.missing_callback_param("state")))
 }
 
 pub fn handle_callback_fails_on_missing_code_test() {
@@ -400,7 +400,7 @@ pub fn missing_callback_code_is_structured_test() {
     code_verifier: "test_verifier",
     expected_nonce: None,
   )
-  |> expect.to_equal(Error(error.MissingCallbackParam("code")))
+  |> expect.to_equal(Error(error.missing_callback_param("code")))
 }
 
 pub fn logging_does_not_change_core_result_shapes_test() {
@@ -457,11 +457,11 @@ fn nonce_strategy(id_token: String) -> Strategy(e) {
           ),
           id_token_artifacts(id_token),
         ))
-      _ -> Error(error.CodeExchangeFailed(reason: "bad code"))
+      _ -> Error(error.code_exchange(reason: "bad code"))
     }
   })
   |> strategy.with_refresh(fn(_config, _refresh_tok) {
-    Error(error.ConfigError(reason: "refresh not implemented"))
+    Error(error.config(reason: "refresh not implemented"))
   })
   |> strategy.with_fetch_user(fn(_cfg, _exchange) {
     Ok(strategy.user_result(
@@ -493,7 +493,7 @@ fn nonce_strategy_without_id_token() -> Strategy(e) {
     )
   })
   |> strategy.with_refresh(fn(_config, _refresh_tok) {
-    Error(error.ConfigError(reason: "refresh not implemented"))
+    Error(error.config(reason: "refresh not implemented"))
   })
   |> strategy.with_fetch_user(fn(_cfg, _exchange) {
     Ok(strategy.user_result(
@@ -556,7 +556,7 @@ pub fn handle_callback_rejects_mismatched_nonce_test() {
     expected_nonce: Some("the-nonce"),
   )
   |> result_error_kind()
-  |> expect.to_equal(Some(error.InvalidNonce))
+  |> expect.to_equal(Some(error.invalid_nonce()))
 }
 
 pub fn handle_callback_rejects_missing_nonce_claim_test() {
@@ -571,7 +571,7 @@ pub fn handle_callback_rejects_missing_nonce_claim_test() {
     expected_nonce: Some("the-nonce"),
   )
   |> result_error_kind()
-  |> expect.to_equal(Some(error.InvalidNonce))
+  |> expect.to_equal(Some(error.invalid_nonce()))
 }
 
 pub fn handle_callback_rejects_missing_id_token_when_nonce_expected_test() {
@@ -585,7 +585,7 @@ pub fn handle_callback_rejects_missing_id_token_when_nonce_expected_test() {
     expected_nonce: Some("the-nonce"),
   )
   |> result_error_kind()
-  |> expect.to_equal(Some(error.InvalidNonce))
+  |> expect.to_equal(Some(error.invalid_nonce()))
 }
 
 pub fn handle_callback_skips_nonce_for_plain_oauth_strategy_test() {

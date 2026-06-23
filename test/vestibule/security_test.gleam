@@ -46,11 +46,11 @@ fn test_strategy() -> Strategy(e) {
             ),
           ),
         )
-      _ -> Error(error.CodeExchangeFailed(reason: "bad code"))
+      _ -> Error(error.code_exchange(reason: "bad code"))
     }
   })
   |> strategy.with_refresh(fn(_config, _refresh_token) {
-    Error(error.ConfigError(reason: "refresh not implemented"))
+    Error(error.config(reason: "refresh not implemented"))
   })
   |> strategy.with_fetch_user(fn(_config, _exchange) {
     Ok(strategy.user_result(
@@ -68,13 +68,13 @@ fn test_strategy() -> Strategy(e) {
 /// Security: empty state values must always be rejected.
 pub fn state_validate_rejects_both_empty_test() {
   state.validate(received: "", expected: "")
-  |> expect.to_equal(Error(error.StateMismatch))
+  |> expect.to_equal(Error(error.state_mismatch()))
 }
 
 /// Security: whitespace-only state values must be rejected.
 pub fn state_validate_rejects_whitespace_only_test() {
   state.validate(received: "   ", expected: "   ")
-  |> expect.to_equal(Error(error.StateMismatch))
+  |> expect.to_equal(Error(error.state_mismatch()))
 }
 
 /// Security: generated states must have sufficient entropy.
@@ -115,7 +115,7 @@ pub fn state_validate_rejects_near_miss_test() {
   let prefix = string.drop_end(s, 1)
   let tampered = prefix <> "X"
   state.validate(received: tampered, expected: s)
-  |> expect.to_equal(Error(error.StateMismatch))
+  |> expect.to_equal(Error(error.state_mismatch()))
 }
 
 /// Security: swapped state values must be rejected.
@@ -123,7 +123,7 @@ pub fn state_validate_rejects_swapped_values_test() {
   let a = state.generate()
   let b = state.generate()
   state.validate(received: a, expected: b)
-  |> expect.to_equal(Error(error.StateMismatch))
+  |> expect.to_equal(Error(error.state_mismatch()))
 }
 
 // ===========================================================================
@@ -234,7 +234,7 @@ pub fn callback_rejects_state_mismatch_test() {
     code_verifier: "verifier",
     expected_nonce: None,
   )
-  |> expect.to_equal(Error(error.StateMismatch))
+  |> expect.to_equal(Error(error.state_mismatch()))
 }
 
 /// Security: missing state parameter must be rejected.
@@ -255,7 +255,7 @@ pub fn callback_rejects_missing_state_test() {
     code_verifier: "verifier",
     expected_nonce: None,
   )
-  |> expect.to_equal(Error(error.MissingCallbackParam("state")))
+  |> expect.to_equal(Error(error.missing_callback_param("state")))
 }
 
 /// Security: empty callback params must be rejected.
@@ -275,7 +275,7 @@ pub fn callback_rejects_empty_params_test() {
     code_verifier: "verifier",
     expected_nonce: None,
   )
-  |> expect.to_equal(Error(error.MissingCallbackParam("state")))
+  |> expect.to_equal(Error(error.missing_callback_param("state")))
 }
 
 /// Security: provider error responses must be detected.
@@ -305,7 +305,7 @@ pub fn callback_detects_provider_error_test() {
     expected_nonce: None,
   )
   |> expect.to_be_error()
-  |> expect.to_equal(error.ProviderError(
+  |> expect.to_equal(error.provider(
     code: "access_denied",
     description: "User denied access",
     uri: None,
@@ -337,7 +337,7 @@ pub fn callback_preserves_provider_error_uri_test() {
     expected_nonce: None,
   )
   |> expect.to_be_error()
-  |> expect.to_equal(error.ProviderError(
+  |> expect.to_equal(error.provider(
     code: "access_denied",
     description: "User denied access",
     uri: Some("https://example.com/access-denied"),
@@ -367,7 +367,7 @@ pub fn callback_rejects_provider_error_when_state_mismatch_test() {
     code_verifier: "verifier",
     expected_nonce: None,
   )
-  |> expect.to_equal(Error(error.StateMismatch))
+  |> expect.to_equal(Error(error.state_mismatch()))
 }
 
 /// Security: extra unexpected parameters should not cause crashes.
@@ -436,7 +436,7 @@ pub fn refresh_response_handles_error_without_description_test() {
     provider_support.OptionalScope(" "),
   )
   |> expect.to_be_error()
-  |> expect.to_equal(error.ProviderError(
+  |> expect.to_equal(error.provider(
     code: "invalid_grant",
     description: "",
     uri: None,
@@ -468,7 +468,7 @@ pub fn state_validate_handles_null_bytes_test() {
     |> expect.to_be_ok()
 
   state.validate(received: "abc\u{0000}def", expected: "abcXdef")
-  |> expect.to_equal(Error(error.StateMismatch))
+  |> expect.to_equal(Error(error.state_mismatch()))
 }
 
 /// Security: Unicode normalization should not affect state comparison.
@@ -478,7 +478,7 @@ pub fn state_validate_is_byte_level_comparison_test() {
   // These are the same visual character but different byte sequences
   // e-acute: U+00E9 (single codepoint) vs e + combining acute U+0065 U+0301
   state.validate(received: "\u{00E9}", expected: "e\u{0301}")
-  |> expect.to_equal(Error(error.StateMismatch))
+  |> expect.to_equal(Error(error.state_mismatch()))
 }
 
 /// Security: very long state values should not crash.
@@ -489,7 +489,7 @@ pub fn state_validate_handles_long_values_test() {
     |> expect.to_be_ok()
 
   state.validate(received: long, expected: long <> "x")
-  |> expect.to_equal(Error(error.StateMismatch))
+  |> expect.to_equal(Error(error.state_mismatch()))
 }
 
 // ===========================================================================

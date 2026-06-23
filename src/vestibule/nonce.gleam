@@ -10,7 +10,7 @@ import gleam/bool
 import gleam/crypto
 import gleam/string
 
-import vestibule/error.{type AuthError, InvalidNonce}
+import vestibule/error.{type AuthError}
 
 /// Generate a cryptographically random nonce.
 /// Returns 32 bytes of random data, base64url-encoded (no padding).
@@ -27,13 +27,13 @@ pub fn validate(
 ) -> Result(Nil, AuthError(e)) {
   use <- bool.guard(
     when: is_blank(received) || is_blank(expected),
-    return: Error(InvalidNonce),
+    return: Error(error.invalid_nonce()),
   )
   let received_bits = <<received:utf8>>
   let expected_bits = <<expected:utf8>>
   case crypto.secure_compare(received_bits, expected_bits) {
     True -> Ok(Nil)
-    False -> Error(InvalidNonce)
+    False -> Error(error.invalid_nonce())
   }
 }
 

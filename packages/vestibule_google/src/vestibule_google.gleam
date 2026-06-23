@@ -56,7 +56,7 @@ pub fn strategy() -> Strategy(e) {
 ///
 /// Authentication fails unless Google's userinfo response carries an `hd`
 /// (hosted-domain) claim exactly matching `hosted_domain`. A missing or
-/// mismatched `hd` yields `error.UserInfoFailed`. The validated domain is
+/// mismatched `hd` yields `error.user_info`. The validated domain is
 /// surfaced under the `"hd"` key of `UserResult`'s `extra` dict.
 ///
 /// `hosted_domain` is also added to the authorization URL as an account-picker
@@ -220,7 +220,7 @@ pub fn parse_user_response_with_hd(
   case json.parse(body, decoder) {
     Ok(result) -> Ok(result)
     Error(err) ->
-      Error(error.UserInfoFailed(
+      Error(error.user_info(
         reason: "Failed to parse Google user response: " <> string.inspect(err),
       ))
   }
@@ -230,7 +230,7 @@ pub fn parse_user_response_with_hd(
 ///
 /// When `required` is `None` the returned claim (if any) passes through
 /// unchanged. When a domain is required, the claim must be present and match
-/// exactly, otherwise authentication fails with `error.UserInfoFailed`. This
+/// exactly, otherwise authentication fails with `error.user_info`. This
 /// is the enforcement primitive behind `strategy_for_hosted_domain`.
 pub fn validate_hosted_domain(
   required required: Option(String),
@@ -242,7 +242,7 @@ pub fn validate_hosted_domain(
       case expected == actual {
         True -> Ok(Some(actual))
         False ->
-          Error(error.UserInfoFailed(
+          Error(error.user_info(
             reason: "Google hosted domain mismatch: expected \""
             <> expected
             <> "\" but the account belongs to \""
@@ -251,7 +251,7 @@ pub fn validate_hosted_domain(
           ))
       }
     Some(expected), None ->
-      Error(error.UserInfoFailed(
+      Error(error.user_info(
         reason: "Google did not return a hosted domain (hd) claim; cannot enforce hosted-domain restriction to \""
         <> expected
         <> "\"",
@@ -276,7 +276,7 @@ fn do_authorize_url_with_hd(
   use site <- result.try(
     uri.parse("https://accounts.google.com")
     |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Failed to parse Google OAuth base URL")
+      error.config(reason: "Failed to parse Google OAuth base URL")
     }),
   )
   use redirect <- result.try(
@@ -314,7 +314,7 @@ fn do_exchange_code(
   use site <- result.try(
     uri.parse("https://oauth2.googleapis.com")
     |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Failed to parse Google OAuth base URL")
+      error.config(reason: "Failed to parse Google OAuth base URL")
     }),
   )
   use redirect <- result.try(
@@ -371,9 +371,7 @@ fn do_exchange_code(
         ],
       )
       |> logger.emit()
-      Error(error.NetworkError(
-        reason: "Failed to connect to Google token endpoint",
-      ))
+      Error(error.network(reason: "Failed to connect to Google token endpoint"))
     }
   }
 }
@@ -385,7 +383,7 @@ fn do_refresh_token(
   use site <- result.try(
     uri.parse("https://oauth2.googleapis.com")
     |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Failed to parse Google OAuth base URL")
+      error.config(reason: "Failed to parse Google OAuth base URL")
     }),
   )
   let client =
@@ -439,9 +437,7 @@ fn do_refresh_token(
         ],
       )
       |> logger.emit()
-      Error(error.NetworkError(
-        reason: "Failed to connect to Google token endpoint",
-      ))
+      Error(error.network(reason: "Failed to connect to Google token endpoint"))
     }
   }
 }

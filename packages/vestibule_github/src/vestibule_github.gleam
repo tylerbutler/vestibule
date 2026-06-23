@@ -134,7 +134,7 @@ pub fn parse_user_response(
   case json.parse(body, decoder) {
     Ok(result) -> Ok(result)
     Error(err) ->
-      Error(error.UserInfoFailed(
+      Error(error.user_info(
         reason: "Failed to parse GitHub user response: " <> string.inspect(err),
       ))
   }
@@ -174,7 +174,7 @@ fn do_authorize_url(
   use site <- result.try(
     uri.parse("https://github.com")
     |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Failed to parse GitHub OAuth base URL")
+      error.config(reason: "Failed to parse GitHub OAuth base URL")
     }),
   )
   use redirect <- result.try(
@@ -210,7 +210,7 @@ fn do_exchange_code(
   use site <- result.try(
     uri.parse("https://github.com")
     |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Failed to parse GitHub OAuth base URL")
+      error.config(reason: "Failed to parse GitHub OAuth base URL")
     }),
   )
   use redirect <- result.try(
@@ -266,9 +266,7 @@ fn do_exchange_code(
         ],
       )
       |> logger.emit()
-      Error(error.NetworkError(
-        reason: "Failed to connect to GitHub token endpoint",
-      ))
+      Error(error.network(reason: "Failed to connect to GitHub token endpoint"))
     }
   }
 }
@@ -280,7 +278,7 @@ fn do_refresh_token(
   use site <- result.try(
     uri.parse("https://github.com")
     |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Failed to parse GitHub OAuth base URL")
+      error.config(reason: "Failed to parse GitHub OAuth base URL")
     }),
   )
   let client =
@@ -330,9 +328,7 @@ fn do_refresh_token(
         ],
       )
       |> logger.emit()
-      Error(error.NetworkError(
-        reason: "Failed to connect to GitHub token endpoint",
-      ))
+      Error(error.network(reason: "Failed to connect to GitHub token endpoint"))
     }
   }
 }
@@ -349,7 +345,7 @@ fn do_fetch_user(
   use user_req <- result.try(
     request.to("https://api.github.com/user")
     |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Failed to parse GitHub user URL")
+      error.config(reason: "Failed to parse GitHub user URL")
     }),
   )
   let user_req =
@@ -382,7 +378,7 @@ fn do_fetch_user(
         ],
       )
       |> logger.emit()
-      Error(error.NetworkError(reason: "Failed to fetch GitHub user info"))
+      Error(error.network(reason: "Failed to fetch GitHub user info"))
     }
   })
   use user_body <- result.try(

@@ -8,7 +8,6 @@ import bravo
 import bravo/uset.{type USet}
 import gleam/http/request
 import gleam/httpc
-import gleam/int
 import gleam/json
 import gleam/option
 import gleam/result
@@ -90,7 +89,7 @@ fn fetch_keys() -> Result(List(VerifyKey), AuthError(e)) {
   use req <- result.try(
     request.to(apple_jwks_url)
     |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Invalid Apple JWKS URL: " <> apple_jwks_url)
+      error.config(reason: "Invalid Apple JWKS URL: " <> apple_jwks_url)
     }),
   )
   let req = req |> request.set_header("accept", "application/json")
@@ -112,11 +111,8 @@ fn fetch_keys() -> Result(List(VerifyKey), AuthError(e)) {
           endpoint: "jwks",
         )
         |> result.map_error(fn(err) {
-          case err {
-            error.HttpError(status: status, body: body) ->
-              error.NetworkError(
-                reason: "HTTP " <> int.to_string(status) <> ": " <> body,
-              )
+          case error.kind(err) {
+            error.HttpKind -> error.network(reason: error.message(err))
             _ -> err
           }
         }),
@@ -136,7 +132,7 @@ fn fetch_keys() -> Result(List(VerifyKey), AuthError(e)) {
         ],
       )
       |> logger.emit()
-      Error(error.NetworkError(
+      Error(error.network(
         reason: "Failed to fetch Apple JWKS from " <> apple_jwks_url,
       ))
     }
@@ -148,7 +144,7 @@ pub fn parse_jwks(body: String) -> Result(List(VerifyKey), AuthError(e)) {
   case json.parse(body, verify_key.set_decoder()) {
     Ok(keys) -> Ok(keys)
     Error(err) ->
-      Error(error.ConfigError(
+      Error(error.config(
         reason: "Failed to parse Apple JWKS response: " <> string.inspect(err),
       ))
   }

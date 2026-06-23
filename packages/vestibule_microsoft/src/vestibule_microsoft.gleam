@@ -192,7 +192,7 @@ pub fn parse_user_response(
   case json.parse(body, decoder) {
     Ok(result) -> Ok(result)
     Error(err) ->
-      Error(error.UserInfoFailed(
+      Error(error.user_info(
         reason: "Failed to parse Microsoft user response: "
         <> string.inspect(err),
       ))
@@ -208,7 +208,7 @@ fn do_authorize_url(
   use site <- result.try(
     uri.parse(authority_base(authority))
     |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Failed to parse Microsoft OAuth base URL")
+      error.config(reason: "Failed to parse Microsoft OAuth base URL")
     }),
   )
   use redirect <- result.try(
@@ -245,7 +245,7 @@ fn do_exchange_code(
   use site <- result.try(
     uri.parse(authority_base(authority))
     |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Failed to parse Microsoft OAuth base URL")
+      error.config(reason: "Failed to parse Microsoft OAuth base URL")
     }),
   )
   use redirect <- result.try(
@@ -299,7 +299,7 @@ fn do_exchange_code(
         ],
       )
       |> logger.emit()
-      Error(error.NetworkError(
+      Error(error.network(
         reason: "Failed to connect to Microsoft token endpoint",
       ))
     }
@@ -351,7 +351,7 @@ fn do_refresh_token(
   use site <- result.try(
     uri.parse(authority_base(authority))
     |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Failed to parse Microsoft OAuth base URL")
+      error.config(reason: "Failed to parse Microsoft OAuth base URL")
     }),
   )
   let client =
@@ -401,7 +401,7 @@ fn do_refresh_token(
         ],
       )
       |> logger.emit()
-      Error(error.NetworkError(
+      Error(error.network(
         reason: "Failed to connect to Microsoft token endpoint",
       ))
     }
@@ -458,12 +458,12 @@ fn exchange_id_token(
       case decode.run(value, decode.string) {
         Ok(token) -> Ok(token)
         Error(_) ->
-          Error(error.UserInfoFailed(
+          Error(error.user_info(
             reason: "Microsoft tenant enforcement requires an ID token, but the token response did not include one. Ensure the `openid` scope is requested.",
           ))
       }
     Error(_) ->
-      Error(error.UserInfoFailed(
+      Error(error.user_info(
         reason: "Microsoft tenant enforcement requires an ID token, but the token response did not include one. Ensure the `openid` scope is requested.",
       ))
   }
@@ -488,7 +488,7 @@ pub fn verify_tenant(
   case string.lowercase(tid) == string.lowercase(expected_tenant) {
     True -> Ok(tid)
     False ->
-      Error(error.UserInfoFailed(
+      Error(error.user_info(
         reason: "Microsoft tenant mismatch: ID token was issued by tenant "
         <> tid
         <> " but this strategy is locked to tenant "
@@ -514,11 +514,11 @@ pub fn id_token_tenant(id_token: String) -> Result(String, AuthError(e)) {
   case json.parse(payload, decoder) {
     Ok(Some(tid)) -> Ok(tid)
     Ok(None) ->
-      Error(error.UserInfoFailed(
+      Error(error.user_info(
         reason: "Microsoft ID token is missing the `tid` (tenant id) claim",
       ))
     Error(_) ->
-      Error(error.UserInfoFailed(
+      Error(error.user_info(
         reason: "Failed to parse Microsoft ID token payload",
       ))
   }
@@ -532,17 +532,17 @@ fn decode_jwt_payload(id_token: String) -> Result(String, AuthError(e)) {
           case bit_array.to_string(bits) {
             Ok(json_payload) -> Ok(json_payload)
             Error(_) ->
-              Error(error.UserInfoFailed(
+              Error(error.user_info(
                 reason: "Microsoft ID token payload is not valid UTF-8",
               ))
           }
         Error(_) ->
-          Error(error.UserInfoFailed(
+          Error(error.user_info(
             reason: "Microsoft ID token payload is not valid base64url",
           ))
       }
     _ ->
-      Error(error.UserInfoFailed(
+      Error(error.user_info(
         reason: "Malformed Microsoft ID token: expected a JWT with a payload segment",
       ))
   }

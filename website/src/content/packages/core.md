@@ -54,8 +54,11 @@ code: |
     )
   {
     Ok(auth) -> sign_in(auth)
-    Error(error.StateMismatch) -> restart_sign_in()
-    Error(reason) -> show_auth_error(reason)
+    Error(err) ->
+      case error.kind(err) {
+        error.StateMismatchKind -> restart_sign_in()
+        _ -> show_auth_error(err)
+      }
   }
 notes:
   - Production redirect URIs and OIDC issuers must use HTTPS.

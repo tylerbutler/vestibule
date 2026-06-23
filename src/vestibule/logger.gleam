@@ -70,19 +70,20 @@ pub fn emit(event: Event) -> Nil {
 }
 
 pub fn auth_error_category(err: AuthError(e)) -> String {
-  case err {
-    error.StateMismatch -> "state_mismatch"
-    error.InvalidNonce -> "invalid_nonce"
-    error.MissingCallbackParam(_) -> "missing_callback_param"
-    error.CodeExchangeFailed(_) -> "code_exchange_failed"
-    error.UserInfoFailed(_) -> "user_info_failed"
-    error.ProviderError(_, _, _) -> "provider_error"
-    error.HttpError(_, _) -> "http_error"
-    error.DecodeError(_, _) -> "decode_error"
-    error.NetworkError(_) -> "network_error"
-    error.ConfigError(_) -> "config_error"
-    error.RefreshUnsupported -> "refresh_unsupported"
-    error.Custom(_) -> "custom_error"
+  case error.kind(err) {
+    error.StateMismatchKind -> "state_mismatch"
+    error.InvalidNonceKind -> "invalid_nonce"
+    error.MissingCallbackParamKind -> "missing_callback_param"
+    error.CodeExchangeKind -> "code_exchange_failed"
+    error.UserInfoKind -> "user_info_failed"
+    error.ProviderKind -> "provider_error"
+    error.HttpKind -> "http_error"
+    error.DecodeKind -> "decode_error"
+    error.NetworkKind -> "network_error"
+    error.ConfigKind -> "config_error"
+    error.RefreshUnsupportedKind -> "refresh_unsupported"
+    error.CustomKind -> "custom_error"
+    error.OtherKind -> "other_error"
   }
 }
 

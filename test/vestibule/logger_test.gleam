@@ -43,14 +43,14 @@ pub fn event_builder_omits_absent_provider_test() {
 }
 
 pub fn auth_error_category_is_stable_and_redacted_test() {
-  logger.auth_error_category(error.ProviderError(
+  logger.auth_error_category(error.provider(
     code: "invalid_grant",
     description: "secret-bearing provider text",
     uri: Some("https://provider.example/error"),
   ))
   |> expect.to_equal("provider_error")
 
-  logger.auth_error_category(error.NetworkError(reason: "connect failed"))
+  logger.auth_error_category(error.network(reason: "connect failed"))
   |> expect.to_equal("network_error")
 }
 

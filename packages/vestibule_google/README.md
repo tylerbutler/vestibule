@@ -41,7 +41,8 @@ let strategy = vestibule_google.strategy_for_hosted_domain("corp.example")
 ```
 
 This validates Google's `hd` (hosted-domain) claim from the userinfo response.
-Authentication fails with `error.UserInfoFailed` when the claim is missing
+Authentication fails with a `UserInfoKind` `AuthError` (see `error.kind`) when
+the claim is missing
 (e.g. a consumer `gmail.com` account) or does not match `"corp.example"`. The
 validated domain is surfaced under the `"hd"` key of `UserResult`'s `extra`
 dict. The domain is also added to the authorization URL as an account-picker

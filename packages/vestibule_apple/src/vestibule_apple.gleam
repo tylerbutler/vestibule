@@ -31,7 +31,6 @@
 import gleam/dict
 import gleam/dynamic
 import gleam/dynamic/decode
-import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -246,9 +245,7 @@ fn parse_success_token(body: String) -> Result(ExchangeResult, AuthError(e)) {
         id_token_artifacts(id_token),
       ))
     _ ->
-      Error(error.CodeExchangeFailed(
-        reason: "Failed to parse Apple token response",
-      ))
+      Error(error.code_exchange(reason: "Failed to parse Apple token response"))
   }
 }
 
@@ -312,19 +309,19 @@ pub fn verify_id_token(
       ))
     }
     Error(jwt.InvalidSignature) | Error(jwt.NoMatchingKey) ->
-      Error(error.UserInfoFailed(
+      Error(error.user_info(
         reason: "Apple ID token signature verification failed",
       ))
     Error(jwt.TokenExpired(_)) ->
-      Error(error.UserInfoFailed(reason: "Apple ID token has expired"))
+      Error(error.user_info(reason: "Apple ID token has expired"))
     Error(jwt.InvalidIssuer(_, _)) ->
-      Error(error.UserInfoFailed(reason: "Apple ID token issuer is invalid"))
+      Error(error.user_info(reason: "Apple ID token issuer is invalid"))
     Error(jwt.InvalidAudience(_, _)) ->
-      Error(error.UserInfoFailed(
+      Error(error.user_info(
         reason: "Apple ID token audience does not match client_id",
       ))
     Error(_) ->
-      Error(error.UserInfoFailed(reason: "Failed to verify Apple ID token"))
+      Error(error.user_info(reason: "Failed to verify Apple ID token"))
   }
 }
 
@@ -358,11 +355,8 @@ fn check_apple_http(
     endpoint: endpoint,
   )
   |> result.map_error(fn(err) {
-    case err {
-      error.HttpError(status: status, body: body) ->
-        error.NetworkError(
-          reason: "HTTP " <> int.to_string(status) <> ": " <> body,
-        )
+    case error.kind(err) {
+      error.HttpKind -> error.network(reason: error.message(err))
       _ -> err
     }
   })
@@ -376,7 +370,7 @@ fn do_authorize_url(
   use site <- result.try(
     uri.parse("https://appleid.apple.com")
     |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Failed to parse Apple OAuth base URL")
+      error.config(reason: "Failed to parse Apple OAuth base URL")
     }),
   )
   use redirect <- result.try(
@@ -417,7 +411,7 @@ fn do_exchange_code(
   use site <- result.try(
     uri.parse("https://appleid.apple.com")
     |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Failed to parse Apple OAuth base URL")
+      error.config(reason: "Failed to parse Apple OAuth base URL")
     }),
   )
   use redirect <- result.try(
@@ -465,9 +459,7 @@ fn do_exchange_code(
         ],
       )
       |> logger.emit()
-      Error(error.NetworkError(
-        reason: "Failed to connect to Apple token endpoint",
-      ))
+      Error(error.network(reason: "Failed to connect to Apple token endpoint"))
     }
   }
 }
@@ -479,7 +471,7 @@ fn do_refresh_token(
   use site <- result.try(
     uri.parse("https://appleid.apple.com")
     |> result.map_error(fn(_) {
-      error.ConfigError(reason: "Failed to parse Apple OAuth base URL")
+      error.config(reason: "Failed to parse Apple OAuth base URL")
     }),
   )
   let client =
@@ -530,9 +522,7 @@ fn do_refresh_token(
         ],
       )
       |> logger.emit()
-      Error(error.NetworkError(
-        reason: "Failed to connect to Apple token endpoint",
-      ))
+      Error(error.network(reason: "Failed to connect to Apple token endpoint"))
     }
   }
 }
@@ -546,14 +536,14 @@ fn do_fetch_user(
   // returned as an exchange artifact.
   use artifact <- result.try(
     dict.get(strategy.exchange_artifacts(exchange), "id_token")
-    |> result.replace_error(error.UserInfoFailed(
+    |> result.replace_error(error.user_info(
       reason: "No Apple ID token found in exchange artifacts.",
     )),
   )
   use id_token <- result.try(
     decode.run(artifact, decode.string)
     |> result.map_error(fn(_) {
-      error.UserInfoFailed(reason: "Apple ID token artifact is not a string")
+      error.user_info(reason: "Apple ID token artifact is not a string")
     }),
   )
   use keys <- result.try(jwks.get_keys(apple.jwks))
