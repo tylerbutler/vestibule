@@ -596,6 +596,7 @@ Usage from an application:
 
 ```gleam
 import vestibule
+import vestibule/authorization_request
 import vestibule/config
 import vestibule_twitch
 
@@ -614,8 +615,9 @@ pub fn start_auth() {
       cfg: twitch_config,
       options: options,
     )
-  // Store auth_request.state and auth_request.code_verifier in session
-  // Redirect user to auth_request.url
+  // Store authorization_request.state(auth_request) and
+  // authorization_request.code_verifier(auth_request) in session
+  // Redirect user to authorization_request.url(auth_request)
 }
 ```
 

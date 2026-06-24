@@ -108,26 +108,34 @@ User clicks "Sign in with GitHub"   Provider redirects back with ?code=...
 
 ### 4.2 Core Design: Strategy as Data
 
-Unlike Ueberauth's behaviour/macro approach, strategies are **records of functions** — idiomatic Gleam, no magic:
+Unlike Ueberauth's behaviour/macro approach, strategies are opaque values built from provider callbacks — idiomatic Gleam, no magic. Users do not construct `Strategy` directly; provider packages assemble one with `strategy.new(...)` and the `strategy.with_*` builders:
 
 ```gleam
-/// A strategy is a record containing the functions needed
-/// to authenticate with a specific provider.
-pub type Strategy {
-  Strategy(
-    /// Human-readable provider name (e.g., "github", "google")
-    provider: String,
-    /// Build the authorization URL to redirect the user to
-    authorize_url: fn(ClientConfig, AuthorizeOptions, List(String), String) ->
-      Result(String, AuthError),
-    /// Exchange an authorization code for credentials
-    exchange_code: fn(ClientConfig, String, Option(String)) ->
-      Result(ExchangeResult, AuthError),
-    /// Fetch user info using the obtained exchange result
-    fetch_user: fn(ClientConfig, ExchangeResult) ->
-      Result(UserResult, AuthError),
-  )
-}
+/// A strategy contains the functions needed to authenticate with a provider.
+pub opaque type Strategy(e)
+
+pub fn new(
+  provider provider: String,
+  default_scopes default_scopes: List(String),
+) -> Strategy(e)
+
+pub fn with_authorize_url(
+  strat: Strategy(e),
+  authorize_url: fn(ClientConfig, AuthorizeOptions, List(String), String) ->
+    Result(String, AuthError(e)),
+) -> Strategy(e)
+
+pub fn with_exchange_code(
+  strat: Strategy(e),
+  exchange_code: fn(ClientConfig, String, Option(String)) ->
+    Result(ExchangeResult, AuthError(e)),
+) -> Strategy(e)
+
+pub fn with_fetch_user(
+  strat: Strategy(e),
+  fetch_user: fn(ClientConfig, ExchangeResult) ->
+    Result(UserResult, AuthError(e)),
+) -> Strategy(e)
 ```
 
 ### 4.3 Core Types
@@ -197,9 +205,9 @@ pub opaque type AuthorizeOptions
 The callback phase produces:
 
 ```gleam
-pub type AuthResult {
+pub type AuthResult(e) {
   Success(auth: Auth)
-  Failure(errors: List(AuthError))
+  Failure(errors: List(AuthError(e)))
 }
 ```
 
@@ -215,10 +223,10 @@ pub type AuthResult {
 /// Create an authorization request for a given strategy.
 /// State and PKCE verifier are generated internally for CSRF and PKCE.
 pub fn create_authorization_request(
-  strategy: Strategy,
+  strategy: Strategy(e),
   cfg cfg: ClientConfig,
   options options: AuthorizeOptions,
-) -> Result(AuthorizationRequest, AuthError)
+) -> Result(AuthorizationRequest, AuthError(e))
 // Returns URL, state, code_verifier, and optional nonce — caller stores transient values in session
 ```
 
@@ -242,13 +250,13 @@ pub fn create_authorization_request(
 /// Handle the callback from the provider.
 /// Validates state, exchanges code for tokens, fetches user info.
 pub fn handle_callback(
-  strategy: Strategy,
+  strategy: Strategy(e),
   cfg cfg: ClientConfig,
   callback_params callback_params: Dict(String, String),
   expected_state expected_state: String,
   code_verifier code_verifier: String,
   expected_nonce expected_nonce: Option(String),
-) -> Result(Auth, AuthError)
+) -> Result(Auth, AuthError(e))
 ```
 
 #### FR-5: Error Handling
@@ -694,31 +702,48 @@ pub fn handle_request(req: Request, ctx: Context) -> Response {
 ### Writing a Custom Strategy
 
 ```gleam
-import vestibule as auth
-import vestibule/strategy.{type Strategy, Strategy}
-import gleam/http/request
-import gleam/json
+import gleam/option.{type Option}
+import vestibule/config.{type AuthorizeOptions, type ClientConfig}
+import vestibule/error.{type AuthError}
+import vestibule/strategy
+import vestibule/strategy.{type ExchangeResult, type Strategy, type UserResult}
 
 /// Create a Twitch authentication strategy.
-pub fn strategy() -> Strategy {
-  Strategy(
-    provider: "twitch",
-    authorize_url: fn(cfg, options, scopes, state) {
-      // Build Twitch-specific authorize URL with cfg, options, scopes, and state
-      // ...
-      Ok(url)
-    },
-    exchange_code: fn(cfg, code, code_verifier) {
-      // Exchange code for Twitch token, passing the optional PKCE verifier
-      // ...
-      Ok(exchange_result)
-    },
-    fetch_user: fn(cfg, exchange) {
-      // Fetch user from Twitch API using cfg and exchange result
-      // ...
-      Ok(user_result)
-    },
-  )
+pub fn strategy() -> Strategy(e) {
+  strategy.new(provider: "twitch", default_scopes: ["user:read:email"])
+  |> strategy.with_authorize_url(do_authorize_url)
+  |> strategy.with_exchange_code(do_exchange_code)
+  |> strategy.with_fetch_user(do_fetch_user)
+}
+
+fn do_authorize_url(
+  cfg: ClientConfig,
+  options: AuthorizeOptions,
+  scopes: List(String),
+  state: String,
+) -> Result(String, AuthError(e)) {
+  // Build Twitch-specific authorize URL with cfg, options, scopes, and state.
+  // ...
+  Ok(url)
+}
+
+fn do_exchange_code(
+  cfg: ClientConfig,
+  code: String,
+  code_verifier: Option(String),
+) -> Result(ExchangeResult, AuthError(e)) {
+  // Exchange code for Twitch token, passing the optional PKCE verifier.
+  // ...
+  Ok(exchange_result)
+}
+
+fn do_fetch_user(
+  cfg: ClientConfig,
+  exchange: ExchangeResult,
+) -> Result(UserResult, AuthError(e)) {
+  // Fetch user from Twitch API using cfg and exchange result.
+  // ...
+  Ok(user_result)
 }
 ```
 

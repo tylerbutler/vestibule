@@ -20,6 +20,7 @@ gleam add vestibule_indieauth
 import gleam/dict
 import gleam/option
 import vestibule
+import vestibule/authorization_request
 import vestibule/config
 import vestibule_indieauth
 
@@ -45,8 +46,9 @@ let assert Ok(auth_request) =
     cfg: cfg,
     options: options,
   )
-// Store auth_request.state and auth_request.code_verifier in session
-// Redirect user to auth_request.url
+// Store authorization_request.state(auth_request) and
+// authorization_request.code_verifier(auth_request) in session
+// Redirect user to authorization_request.url(auth_request)
 
 // Phase 2: Handle the callback
 let params =
