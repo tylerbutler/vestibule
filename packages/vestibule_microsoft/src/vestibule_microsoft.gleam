@@ -17,6 +17,7 @@
 //// authentication when the token was issued by a different tenant.
 
 import gleam/bit_array
+import gleam/bool
 import gleam/dict
 import gleam/dynamic
 import gleam/dynamic/decode
@@ -230,10 +231,8 @@ fn do_authorize_url(
 }
 
 fn scopes_with_openid(scopes: List(String)) -> List(String) {
-  case list.contains(scopes, "openid") {
-    True -> scopes
-    False -> ["openid", ..scopes]
-  }
+  use <- bool.guard(when: list.contains(scopes, "openid"), return: scopes)
+  ["openid", ..scopes]
 }
 
 fn do_exchange_code(
