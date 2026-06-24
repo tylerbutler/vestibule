@@ -19,7 +19,7 @@ let strategy = vestibule_apple.strategy(apple)
 
 `init()` initializes the JWKS cache used to verify Apple ID tokens. It no
 longer initializes an ID-token handoff cache; the `id_token` returned by Apple
-during code exchange is carried through vestibule's `ExchangeResult.artifacts`
+during code exchange is available through `strategy.exchange_artifacts(exchange)`
 and consumed directly while resolving the user.
 
 If you need to handle duplicate initialization explicitly, use the checked

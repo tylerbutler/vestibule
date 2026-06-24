@@ -21,7 +21,9 @@ import gleam/dict
 import gleam/option
 import vestibule
 import vestibule/authorization_request
+import vestibule/auth
 import vestibule/config
+import vestibule/user_info
 import vestibule_indieauth
 
 // Phase 0: Discover the user's IndieAuth endpoints
@@ -67,8 +69,9 @@ let assert Ok(auth) =
     "code verifier from session",
     expected_nonce: option.None,
   )
-// auth.uid is the user's canonical URL (e.g., "https://user.example.com/")
-// auth.info.name, auth.info.email, auth.info.image — from profile
+// auth.uid(auth) is the user's canonical URL (e.g., "https://user.example.com/")
+// user_info.name(auth.info(auth)), user_info.email(auth.info(auth)),
+// user_info.image(auth.info(auth)) come from the profile
 ```
 
 ## How It Works
@@ -86,7 +89,7 @@ let assert Ok(auth) =
 
 - **No client secret** — IndieAuth clients are public; use `config.PublicClient`
 - **client_id is your app's URL** — Not an opaque ID from a developer console
-- **User identity is a URL** — The `auth.uid` field contains the user's canonical URL
+- **User identity is a URL** — `auth.uid(auth)` returns the user's canonical URL
 - **Endpoints are per-user** — Each user may have different authorization/token endpoints
 - **Discovery required** — Call `discover()` before starting the auth flow
 
