@@ -40,7 +40,7 @@ pub fn main() -> Nil {
           strategy: vestibule_github.strategy(),
           config: config.new(
             client_id: id,
-            client_secret: secret,
+            auth: config.ClientSecret(secret),
             redirect_uri: callback_base <> "/auth/github/callback",
           ),
         )
@@ -61,7 +61,7 @@ pub fn main() -> Nil {
           strategy: vestibule_microsoft.strategy(),
           config: config.new(
             client_id: id,
-            client_secret: secret,
+            auth: config.ClientSecret(secret),
             redirect_uri: callback_base <> "/auth/microsoft/callback",
           ),
         )
@@ -82,7 +82,7 @@ pub fn main() -> Nil {
           strategy: vestibule_google.strategy(),
           config: config.new(
             client_id: id,
-            client_secret: secret,
+            auth: config.ClientSecret(secret),
             redirect_uri: callback_base <> "/auth/google/callback",
           ),
         )

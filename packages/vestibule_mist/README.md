@@ -45,6 +45,7 @@ session cookie and will return `MissingOrInvalidSessionCookie`.
 Initialize the state store once per BEAM VM at application startup:
 
 ```gleam
+import vestibule/config
 import vestibule/state_store
 
 let assert Ok(store) = state_store.try_init()
@@ -57,7 +58,14 @@ Then dispatch from your mist handler:
 fn handle_request(req: Request(Connection)) -> Response(ResponseData) {
   case request.path_segments(req), req.method {
     ["auth", provider], http.Get ->
-      vestibule_mist.request_phase(req, reg, provider, store, options)
+      vestibule_mist.request_phase(
+        req,
+        reg,
+        provider,
+        store,
+        authorize_options: config.authorize_options(),
+        options: options,
+      )
 
     ["auth", provider, "callback"], http.Get
     | ["auth", provider, "callback"], http.Post ->

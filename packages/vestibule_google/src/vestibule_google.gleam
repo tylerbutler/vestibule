@@ -62,7 +62,7 @@ pub fn strategy() -> Strategy(e) {
 /// `hosted_domain` is also added to the authorization URL as an account-picker
 /// hint, but that hint is advisory only — enforcement happens server-side when
 /// the userinfo response is validated. Setting `hd` via
-/// `config.with_extra_params([#("hd", ...)])` is purely a UI hint and must not
+/// `config.authorize_options() |> config.with_extra_params([#("hd", ...)])` is purely a UI hint and must not
 /// be relied on for authorization.
 pub fn strategy_for_hosted_domain(hosted_domain: String) -> Strategy(e) {
   strategy.new(provider: "google", default_scopes: [

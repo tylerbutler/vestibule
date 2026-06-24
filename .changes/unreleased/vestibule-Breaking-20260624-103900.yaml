@@ -1,0 +1,4 @@
+project: vestibule
+kind: Breaking
+body: 'Split durable client configuration from per-request authorization options.'
+time: 2026-06-24T10:39:00-07:00

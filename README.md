@@ -41,13 +41,19 @@ import vestibule_github
 let strategy = vestibule_github.strategy()
 let cfg =
   config.new(
-    "client_id",
-    "client_secret",
-    "http://localhost:8000/auth/github/callback",
+    client_id: "client_id",
+    redirect_uri: "http://localhost:8000/auth/github/callback",
+    auth: config.ClientSecret("client_secret"),
   )
+let options = config.authorize_options()
 
 // Phase 1: Generate authorization URL and redirect user
-let assert Ok(auth_request) = vestibule.create_authorization_request(strategy, cfg)
+let assert Ok(auth_request) =
+  vestibule.create_authorization_request(
+    strategy,
+    cfg: cfg,
+    options: options,
+  )
 // Store auth_request.state and auth_request.code_verifier server-side,
 // bound to this user's session, with an expiration time.
 // Redirect user to auth_request.url
@@ -71,6 +77,11 @@ let assert Ok(auth) =
 // auth.uid(auth), user_info.email(auth.info(auth)), credentials.token(auth.credentials(auth))
 ```
 
+`ClientConfig` is durable app/provider configuration: client ID, redirect URI,
+and client authentication. Reuse it across requests. `AuthorizeOptions` carries
+per-request authorization choices, such as scopes or provider-specific query
+parameters. Create fresh options for each authorization request.
+
 Store `state` and the PKCE `code_verifier` on the server, bound to the user's
 session. Expire them quickly, reject callbacks with missing or mismatched
 values, and delete both values after a successful callback so they cannot be
@@ -93,9 +104,9 @@ let assert Ok(reg) =
   |> registry.register(
     vestibule_github.strategy(),
     config.new(
-      "client_id",
-      "client_secret",
-      "http://localhost:8000/auth/github/callback",
+      client_id: "client_id",
+      redirect_uri: "http://localhost:8000/auth/github/callback",
+      auth: config.ClientSecret("client_secret"),
     ),
   )
 let store = state_store.init()
@@ -103,7 +114,13 @@ let store = state_store.init()
 // In your router
 case wisp.path_segments(req), req.method {
   ["auth", provider], http.Get ->
-    vestibule_wisp.request_phase(req, reg, provider, store)
+    vestibule_wisp.request_phase(
+      req,
+      reg,
+      provider,
+      store,
+      authorize_options: config.authorize_options(),
+    )
   // Accept both GET and POST — Apple uses response_mode=form_post
   ["auth", provider, "callback"], http.Get
   | ["auth", provider, "callback"], http.Post
@@ -150,6 +167,7 @@ import gleam/http
 import gleam/http/request.{type Request}
 import gleam/http/response.{type Response}
 import mist.{type Connection, type ResponseData}
+import vestibule/config
 import vestibule/state_store
 import vestibule_mist
 
@@ -159,7 +177,14 @@ let options = vestibule_mist.new_options(secret_key_base)
 fn handle_request(req: Request(Connection)) -> Response(ResponseData) {
   case request.path_segments(req), req.method {
     ["auth", provider], http.Get ->
-      vestibule_mist.request_phase(req, reg, provider, store, options)
+      vestibule_mist.request_phase(
+        req,
+        reg,
+        provider,
+        store,
+        authorize_options: config.authorize_options(),
+        options: options,
+      )
     ["auth", provider, "callback"], http.Get
     | ["auth", provider, "callback"], http.Post ->
       vestibule_mist.callback_phase(req, reg, provider, store, options, on_success)
@@ -222,15 +247,12 @@ let assert Ok(updated) =
   vestibule.refresh_token(strategy, cfg, refresh_token)
 ```
 
-Add provider-specific authorization parameters when a provider requires them:
+Add provider-specific authorization parameters to per-request options when a
+provider requires them:
 
 ```gleam
-let assert Ok(google_cfg) =
-  config.new(
-    "google-client-id",
-    "google-client-secret",
-    "http://localhost:8000/auth/google/callback",
-  )
+let assert Ok(options) =
+  config.authorize_options()
   |> config.with_extra_params([
     #("access_type", "offline"),
     #("prompt", "consent"),
@@ -267,12 +289,18 @@ import vestibule_oidc
 let assert Ok(strategy) = vestibule_oidc.discover("https://your-pocket-id-instance")
 let cfg =
   config.new(
-    "your-client-id",
-    "your-client-secret",
-    "http://localhost:8000/auth/oidc/callback",
+    client_id: "your-client-id",
+    redirect_uri: "http://localhost:8000/auth/oidc/callback",
+    auth: config.ClientSecret("your-client-secret"),
   )
+let options = config.authorize_options()
 
-let assert Ok(auth_request) = vestibule.authorize_url(strategy, cfg)
+let assert Ok(auth_request) =
+  vestibule.create_authorization_request(
+    strategy,
+    cfg: cfg,
+    options: options,
+  )
 ```
 
 The discovered strategy plugs into the same two-phase flow, registry, and

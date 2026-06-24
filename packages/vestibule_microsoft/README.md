@@ -17,9 +17,9 @@ import vestibule_microsoft
 let strategy = vestibule_microsoft.strategy()
 let cfg =
   config.new(
-    "microsoft-client-id",
-    "microsoft-client-secret",
-    "http://localhost:8000/auth/microsoft/callback",
+    client_id: "microsoft-client-id",
+    redirect_uri: "http://localhost:8000/auth/microsoft/callback",
+    auth: config.ClientSecret("microsoft-client-secret"),
   )
 ```
 
@@ -28,7 +28,7 @@ The strategy uses Microsoft Graph `/me` for profile data and keeps
 
 ## Default scopes
 
-`User.Read`. Override with `config.with_scopes`.
+`User.Read`. Override per request with `config.with_scopes` on `AuthorizeOptions`.
 
 ## Azure portal setup
 
@@ -94,15 +94,11 @@ If you need lower-level control, `verify_tenant(expected_tenant, id_token)` and
 
 ## Extra authorization parameters
 
-Use `config.with_extra_params` for Microsoft-specific authorization options:
+Use `config.with_extra_params` on per-request options for Microsoft-specific authorization options:
 
 ```gleam
-let cfg =
-  config.new(
-    "microsoft-client-id",
-    "microsoft-client-secret",
-    "http://localhost:8000/auth/microsoft/callback",
-  )
+let assert Ok(options) =
+  config.authorize_options()
   |> config.with_extra_params([
     #("prompt", "select_account"),
     #("login_hint", "person@example.com"),

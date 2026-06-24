@@ -2,6 +2,7 @@ import gleam/http
 import wisp.{type Request, type Response}
 
 import pages
+import vestibule/config
 import vestibule/registry.{type Registry}
 import vestibule_wisp
 import vestibule/state_store.{type StateStore}
@@ -26,6 +27,7 @@ pub fn handle_request(req: Request, ctx: Context(e)) -> Response {
         reg: ctx.registry,
         provider: provider,
         state_store: ctx.state_store,
+        authorize_options: config.authorize_options(),
       )
 
     // Phase 2: Handle callback (GET for most providers, POST for Apple form_post)

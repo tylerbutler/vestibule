@@ -1,0 +1,4 @@
+project: vestibule_microsoft
+kind: Breaking
+body: 'Update APIs for vestibule ClientConfig and AuthorizeOptions split.'
+time: 2026-06-24T10:39:05-07:00
