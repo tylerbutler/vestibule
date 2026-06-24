@@ -121,7 +121,8 @@ Returns `ConfigError` if the strategy was built without
 ```gleam
 pub fn build_authorize_url(
   Strategy(a),
-  cfg: config.Config,
+  cfg: config.ClientConfig,
+  options: config.AuthorizeOptions,
   scopes: List(String),
   state: String
 ) -> Result(String, error.AuthError(a))
@@ -130,7 +131,7 @@ pub fn build_authorize_url(
 ### `default_scopes`
 
 Return the strategy's default scopes, used when the caller's
-`Config` does not specify any.
+`AuthorizeOptions` does not specify any.
 
 ```gleam
 pub fn default_scopes(Strategy(a)) -> List(String)
@@ -157,7 +158,7 @@ Returns `ConfigError` if the strategy was built without
 ```gleam
 pub fn exchange_code(
   Strategy(a),
-  cfg: config.Config,
+  cfg: config.ClientConfig,
   code: String,
   code_verifier: option.Option(String)
 ) -> Result(ExchangeResult, error.AuthError(a))
@@ -200,7 +201,7 @@ Returns `ConfigError` if the strategy was built without
 ```gleam
 pub fn fetch_user(
   Strategy(a),
-  cfg: config.Config,
+  cfg: config.ClientConfig,
   exchange: ExchangeResult
 ) -> Result(UserResult, error.AuthError(a))
 ```
@@ -208,7 +209,7 @@ pub fn fetch_user(
 ### `new`
 
 Begin building a `Strategy` for `provider` with the given `default_scopes`
-(used when the caller's `Config` does not specify any).
+(used when the caller's `AuthorizeOptions` does not specify any).
 
 The returned strategy has no capabilities attached yet. Use the `with_*`
 builders to add them:
@@ -246,7 +247,7 @@ Returns `RefreshUnsupported` if the strategy was built without
 ```gleam
 pub fn refresh_token(
   Strategy(a),
-  cfg: config.Config,
+  cfg: config.ClientConfig,
   refresh_tok: String
 ) -> Result(credentials.Credentials, error.AuthError(a))
 ```
@@ -298,12 +299,13 @@ pub fn uses_nonce(Strategy(a)) -> Bool
 ### `with_authorize_url`
 
 Attach the authorize-URL builder. `authorize_url` builds the
-provider-specific authorization URL from the config, scopes, and state.
+provider-specific authorization URL from durable provider config,
+per-request authorization options, scopes, and state.
 
 ```gleam
 pub fn with_authorize_url(
   Strategy(a),
-  fn(config.Config, List(String), String) -> Result(String, error.AuthError(a))
+  fn(config.ClientConfig, config.AuthorizeOptions, List(String), String) -> Result(String, error.AuthError(a))
 ) -> Strategy(a)
 ```
 
@@ -317,7 +319,7 @@ generated.
 ```gleam
 pub fn with_exchange_code(
   Strategy(a),
-  fn(config.Config, String, option.Option(String)) -> Result(ExchangeResult, error.AuthError(a))
+  fn(config.ClientConfig, String, option.Option(String)) -> Result(ExchangeResult, error.AuthError(a))
 ) -> Strategy(a)
 ```
 
@@ -329,7 +331,7 @@ authenticated user from the exchange result.
 ```gleam
 pub fn with_fetch_user(
   Strategy(a),
-  fn(config.Config, ExchangeResult) -> Result(UserResult, error.AuthError(a))
+  fn(config.ClientConfig, ExchangeResult) -> Result(UserResult, error.AuthError(a))
 ) -> Strategy(a)
 ```
 
@@ -352,6 +354,6 @@ refresh token for fresh credentials. Strategies built without this fail
 ```gleam
 pub fn with_refresh(
   Strategy(a),
-  fn(config.Config, String) -> Result(credentials.Credentials, error.AuthError(a))
+  fn(config.ClientConfig, String) -> Result(credentials.Credentials, error.AuthError(a))
 ) -> Strategy(a)
 ```

@@ -211,6 +211,7 @@ pub fn request_phase(
   registry.Registry(b),
   String,
   state_store.StateStore,
+  authorize_options: config.AuthorizeOptions,
   Options
 ) -> response.Response(mist.ResponseData)
 ```
