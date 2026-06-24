@@ -43,7 +43,7 @@ pub type ClientAuth {
 Durable OAuth client configuration.
 
 ```gleam
-pub type ClientConfig
+pub opaque type ClientConfig
 ```
 
 ### `AuthorizeOptions`
@@ -51,7 +51,7 @@ pub type ClientConfig
 Per-authorization request options.
 
 ```gleam
-pub type AuthorizeOptions
+pub opaque type AuthorizeOptions
 ```
 
 ## Functions

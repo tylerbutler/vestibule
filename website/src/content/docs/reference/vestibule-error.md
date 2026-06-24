@@ -55,7 +55,7 @@ Inspect values of this type with [`kind`](#kind), [`phase`](#phase),
 [`custom_payload`](#custom_payload).
 
 ```gleam
-pub type AuthError(a)
+pub opaque type AuthError(a)
 ```
 
 ### `ErrorKind`

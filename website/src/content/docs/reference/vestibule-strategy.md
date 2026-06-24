@@ -42,7 +42,7 @@ user, such as an OpenID Connect `id_token`.
 Opaque to keep provider-specific artifacts evolution-safe.
 
 ```gleam
-pub type ExchangeResult
+pub opaque type ExchangeResult
 ```
 
 ### `Strategy`
@@ -67,7 +67,7 @@ built without `with_refresh` fails with an AuthError of kind
 `RefreshUnsupportedKind`.
 
 ```gleam
-pub type Strategy(a)
+pub opaque type Strategy(a)
 ```
 
 ### `UserResult`
@@ -79,7 +79,7 @@ implementations. Construct with `user_result` and read with the
 `uid` / `info` / `extra` accessors.
 
 ```gleam
-pub type UserResult
+pub opaque type UserResult
 ```
 
 ## Functions
