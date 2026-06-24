@@ -142,20 +142,13 @@ pub fn with_fetch_user(
 
 ```gleam
 /// The normalized result of a successful authentication.
-pub type Auth {
-  Auth(
-    /// Unique identifier from the provider (e.g., GitHub user ID)
-    uid: String,
-    /// Provider name matching the strategy
-    provider: String,
-    /// Normalized user information
-    info: UserInfo,
-    /// OAuth credentials (tokens, expiry)
-    credentials: Credentials,
-    /// Provider-specific extra data
-    extra: Dict(String, Dynamic),
-  )
-}
+pub opaque type Auth
+
+// Build values with auth.new(uid:, provider:, info:, credentials:, extra:).
+// Read values with auth.uid(auth_result), auth.provider(auth_result),
+// auth.info(auth_result), auth.credentials(auth_result), and
+// auth.extra(auth_result). Auth is opaque so the field set can grow without
+// breaking callers that construct or pattern-match the value.
 
 /// Normalized user information across all providers.
 pub type UserInfo {
@@ -635,10 +628,12 @@ This library is **complementary, not competing**:
 
 ```gleam
 import gleam/io
-import gleam/result
+import gleam/option
 import wisp.{type Request, type Response}
 import vestibule as auth
 import vestibule/error
+import vestibule/credentials
+import vestibule/user_info
 import vestibule/strategy/github
 
 pub type Context {
@@ -683,9 +678,11 @@ pub fn handle_request(req: Request, ctx: Context) -> Response {
 
       case auth.complete(ctx.auth_registry, provider, params, state) {
         Ok(authed) -> {
-          // authed.uid, authed.info.email, authed.credentials.token
+          // auth.uid(authed), user_info.email(auth.info(authed)),
+          // credentials.token(auth.credentials(authed))
           // Create or find user, establish session, redirect
-          io.println("Authenticated: " <> authed.info.name |> result.unwrap("unknown"))
+          let name = auth.info(authed) |> user_info.name |> option.unwrap("unknown")
+          io.println("Authenticated: " <> name)
           wisp.redirect("/dashboard")
         }
         Error(err) -> {

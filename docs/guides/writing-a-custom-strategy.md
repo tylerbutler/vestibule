@@ -100,7 +100,7 @@ only applies to OIDC providers.
 
 ### Capability-by-capability breakdown
 
-**`provider: String`** -- A lowercase identifier for this provider. This ends up in the `Auth` record's `provider` field, so your application can distinguish which provider authenticated the user. Use a simple name like `"twitch"`, `"github"`, or `"discord"`.
+**`provider: String`** -- A lowercase identifier for this provider. This is returned by `auth.provider(auth_result)`, so your application can distinguish which provider authenticated the user. Use a simple name like `"twitch"`, `"github"`, or `"discord"`.
 
 **`default_scopes: List(String)`** -- The scopes to request when the user has not configured custom scopes. These should be the minimum scopes needed to fetch basic user information. For example, GitHub uses `["user:email"]` and Google uses `["openid", "profile", "email"]`.
 
