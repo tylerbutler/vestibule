@@ -76,7 +76,7 @@ Normalized user details returned by a strategy.
 
 Opaque so that new fields can be added without breaking strategy
 implementations. Construct with `user_result` and read with the
-`uid` / `info` / `extra` accessors.
+`user_result_uid`, `user_result_info`, and `user_result_extra` accessors.
 
 ```gleam
 pub opaque type UserResult
