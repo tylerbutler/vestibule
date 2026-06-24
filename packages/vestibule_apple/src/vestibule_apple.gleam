@@ -48,7 +48,7 @@ import glow_auth/authorize_uri
 import glow_auth/token_request
 import glow_auth/uri/uri_builder
 
-import vestibule/config.{type Config}
+import vestibule/config.{type AuthorizeOptions, type ClientConfig}
 import vestibule/credentials
 import vestibule/error.{type AuthError}
 import vestibule/logger
@@ -363,7 +363,8 @@ fn check_apple_http(
 }
 
 fn do_authorize_url(
-  cfg: Config,
+  cfg: ClientConfig,
+  options: AuthorizeOptions,
   scopes: List(String),
   state: String,
 ) -> Result(String, AuthError(e)) {
@@ -377,11 +378,7 @@ fn do_authorize_url(
     provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
   )
   let client =
-    glow_auth.Client(
-      id: config.client_id(cfg),
-      secret: config.client_secret(cfg),
-      site: site,
-    )
+    glow_auth.Client(id: config.client_id(cfg), secret: "", site: site)
   let url =
     authorize_uri.build(
       client,
@@ -394,17 +391,17 @@ fn do_authorize_url(
     |> uri.to_string()
   // Add response_mode=form_post (Apple requires this)
   let url = url <> "&response_mode=form_post"
-  // Append any extra params from config
+  // Append any extra params from options
   let url =
     provider_support.append_query_params(
       url,
-      dict.to_list(config.extra_params(cfg)),
+      dict.to_list(config.extra_params(options)),
     )
   Ok(url)
 }
 
 fn do_exchange_code(
-  cfg: Config,
+  cfg: ClientConfig,
   code: String,
   code_verifier: Option(String),
 ) -> Result(ExchangeResult, AuthError(e)) {
@@ -417,10 +414,11 @@ fn do_exchange_code(
   use redirect <- result.try(
     provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
   )
+  use client_secret <- result.try(config.client_secret(cfg))
   let client =
     glow_auth.Client(
       id: config.client_id(cfg),
-      secret: config.client_secret(cfg),
+      secret: client_secret,
       site: site,
     )
   let req =
@@ -465,7 +463,7 @@ fn do_exchange_code(
 }
 
 fn do_refresh_token(
-  cfg: Config,
+  cfg: ClientConfig,
   refresh_tok: String,
 ) -> Result(credentials.Credentials, AuthError(e)) {
   use site <- result.try(
@@ -474,10 +472,11 @@ fn do_refresh_token(
       error.config(reason: "Failed to parse Apple OAuth base URL")
     }),
   )
+  use client_secret <- result.try(config.client_secret(cfg))
   let client =
     glow_auth.Client(
       id: config.client_id(cfg),
-      secret: config.client_secret(cfg),
+      secret: client_secret,
       site: site,
     )
   let req =
@@ -529,7 +528,7 @@ fn do_refresh_token(
 
 fn do_fetch_user(
   apple: AppleCache,
-  cfg: Config,
+  cfg: ClientConfig,
   exchange: ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
   // Apple has no userinfo endpoint. User info comes from the id_token JWT

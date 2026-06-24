@@ -30,7 +30,7 @@ import gleam/result
 import gleam/string
 import gleam/uri
 
-import vestibule/config.{type Config}
+import vestibule/config.{type AuthorizeOptions, type ClientConfig}
 import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/strategy.{type Strategy, type UserResult}
@@ -171,8 +171,8 @@ pub fn parse_endpoints(
 /// discovery from strategy creation.
 pub fn strategy(endpoints: DiscoveredEndpoints, me: String) -> Strategy(e) {
   strategy.new(provider: "indieauth", default_scopes: ["profile"])
-  |> strategy.with_authorize_url(fn(cfg, scopes, state) {
-    do_authorize_url(endpoints, me, cfg, scopes, state)
+  |> strategy.with_authorize_url(fn(cfg, options, scopes, state) {
+    do_authorize_url(endpoints, me, cfg, options, scopes, state)
   })
   |> strategy.with_exchange_code(fn(cfg, code, code_verifier) {
     do_exchange_code(endpoints, cfg, code, code_verifier)
@@ -188,7 +188,8 @@ pub fn strategy(endpoints: DiscoveredEndpoints, me: String) -> Strategy(e) {
 fn do_authorize_url(
   endpoints: DiscoveredEndpoints,
   me: String,
-  cfg: Config,
+  cfg: ClientConfig,
+  _options: AuthorizeOptions,
   scopes: List(String),
   state: String,
 ) -> Result(String, AuthError(e)) {
@@ -213,7 +214,7 @@ fn do_authorize_url(
 
 fn do_exchange_code(
   endpoints: DiscoveredEndpoints,
-  cfg: Config,
+  cfg: ClientConfig,
   code: String,
   code_verifier: Option(String),
 ) -> Result(strategy.ExchangeResult, AuthError(e)) {
@@ -229,7 +230,7 @@ fn do_exchange_code(
 
 fn do_refresh_token(
   endpoints: DiscoveredEndpoints,
-  cfg: Config,
+  cfg: ClientConfig,
   refresh_tok: String,
 ) -> Result(Credentials, AuthError(e)) {
   token.refresh(endpoints.token_endpoint, config.client_id(cfg), refresh_tok)

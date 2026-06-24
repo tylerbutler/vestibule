@@ -92,13 +92,14 @@ pub fn strategy_for_tenant_authorize_url_uses_tenant_endpoint_test() {
   let conf =
     config.new(
       client_id: "client-id",
-      client_secret: "secret",
       redirect_uri: "http://localhost/callback",
+      auth: config.ClientSecret("secret"),
     )
   let assert Ok(url) =
     strategy.build_authorize_url(
       strat,
       cfg: conf,
+      options: config.authorize_options(),
       scopes: ["openid", "User.Read"],
       state: "state",
     )
@@ -123,13 +124,14 @@ pub fn common_strategy_authorize_url_uses_common_endpoint_test() {
   let conf =
     config.new(
       client_id: "client-id",
-      client_secret: "secret",
       redirect_uri: "http://localhost/callback",
+      auth: config.ClientSecret("secret"),
     )
   let assert Ok(url) =
     strategy.build_authorize_url(
       strat,
       cfg: conf,
+      options: config.authorize_options(),
       scopes: ["User.Read"],
       state: "state",
     )
@@ -234,13 +236,14 @@ pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
   let conf =
     config.new(
       client_id: "client-id",
-      client_secret: "secret",
       redirect_uri: "not a uri",
+      auth: config.ClientSecret("secret"),
     )
   let _ =
     strategy.build_authorize_url(
       strat,
       cfg: conf,
+      options: config.authorize_options(),
       scopes: ["User.Read"],
       state: "state",
     )
@@ -250,17 +253,20 @@ pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
 
 pub fn authorize_url_includes_extra_params_test() {
   let strat = vestibule_microsoft.strategy()
-  let assert Ok(conf) =
+  let conf =
     config.new(
       client_id: "client-id",
-      client_secret: "secret",
       redirect_uri: "http://localhost/callback",
+      auth: config.ClientSecret("secret"),
     )
+  let assert Ok(options) =
+    config.authorize_options()
     |> config.with_extra_params([#("prompt", "select_account")])
   let assert Ok(url) =
     strategy.build_authorize_url(
       strat,
       cfg: conf,
+      options: options,
       scopes: ["User.Read"],
       state: "state",
     )

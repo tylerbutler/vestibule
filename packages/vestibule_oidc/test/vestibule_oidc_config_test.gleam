@@ -516,13 +516,14 @@ pub fn strategy_from_config_authorize_url_test() {
   let conf =
     config.new(
       client_id: "my-client-id",
-      client_secret: "my-secret",
       redirect_uri: "http://localhost/callback",
+      auth: config.ClientSecret("my-secret"),
     )
   let result =
     strategy.build_authorize_url(
       strat,
       cfg: conf,
+      options: config.authorize_options(),
       scopes: ["openid", "profile"],
       state: "test-state",
     )
@@ -547,17 +548,20 @@ pub fn strategy_from_config_authorize_url_with_extra_params_test() {
       scopes_supported: ["openid"],
     )
   let strat = vestibule_oidc.strategy_from_config(oidc_config, "example")
-  let assert Ok(conf) =
+  let conf =
     config.new(
       client_id: "client-id",
-      client_secret: "secret",
       redirect_uri: "http://localhost/cb",
+      auth: config.ClientSecret("secret"),
     )
+  let assert Ok(options) =
+    config.authorize_options()
     |> config.with_extra_params([#("prompt", "consent")])
   let assert Ok(url) =
     strategy.build_authorize_url(
       strat,
       cfg: conf,
+      options: options,
       scopes: ["openid"],
       state: "state-123",
     )
@@ -577,13 +581,14 @@ pub fn strategy_from_config_invalid_redirect_uri_returns_error_test() {
   let conf =
     config.new(
       client_id: "client-id",
-      client_secret: "secret",
       redirect_uri: "not a uri",
+      auth: config.ClientSecret("secret"),
     )
   let _ =
     strategy.build_authorize_url(
       strat,
       cfg: conf,
+      options: config.authorize_options(),
       scopes: ["openid"],
       state: "state-123",
     )

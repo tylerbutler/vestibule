@@ -16,7 +16,7 @@ import glow_auth/authorize_uri
 import glow_auth/token_request
 import glow_auth/uri/uri_builder
 
-import vestibule/config.{type Config}
+import vestibule/config.{type AuthorizeOptions, type ClientConfig}
 import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/logger
@@ -167,7 +167,8 @@ pub fn parse_primary_email(body: String) -> Option(String) {
 }
 
 fn do_authorize_url(
-  cfg: Config,
+  cfg: ClientConfig,
+  options: AuthorizeOptions,
   scopes: List(String),
   state: String,
 ) -> Result(String, AuthError(e)) {
@@ -181,11 +182,7 @@ fn do_authorize_url(
     provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
   )
   let client =
-    glow_auth.Client(
-      id: config.client_id(cfg),
-      secret: config.client_secret(cfg),
-      site: site,
-    )
+    glow_auth.Client(id: config.client_id(cfg), secret: "", site: site)
   let url =
     authorize_uri.build(
       client,
@@ -197,13 +194,13 @@ fn do_authorize_url(
     |> authorize_uri.to_code_authorization_uri()
     |> uri.to_string()
     |> provider_support.append_query_params(
-      dict.to_list(config.extra_params(cfg)),
+      dict.to_list(config.extra_params(options)),
     )
   Ok(url)
 }
 
 fn do_exchange_code(
-  cfg: Config,
+  cfg: ClientConfig,
   code: String,
   code_verifier: Option(String),
 ) -> Result(strategy.ExchangeResult, AuthError(e)) {
@@ -216,10 +213,11 @@ fn do_exchange_code(
   use redirect <- result.try(
     provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
   )
+  use client_secret <- result.try(config.client_secret(cfg))
   let client =
     glow_auth.Client(
       id: config.client_id(cfg),
-      secret: config.client_secret(cfg),
+      secret: client_secret,
       site: site,
     )
   let req =
@@ -272,7 +270,7 @@ fn do_exchange_code(
 }
 
 fn do_refresh_token(
-  cfg: Config,
+  cfg: ClientConfig,
   refresh_tok: String,
 ) -> Result(Credentials, AuthError(e)) {
   use site <- result.try(
@@ -281,10 +279,11 @@ fn do_refresh_token(
       error.config(reason: "Failed to parse GitHub OAuth base URL")
     }),
   )
+  use client_secret <- result.try(config.client_secret(cfg))
   let client =
     glow_auth.Client(
       id: config.client_id(cfg),
-      secret: config.client_secret(cfg),
+      secret: client_secret,
       site: site,
     )
   let req =
@@ -334,7 +333,7 @@ fn do_refresh_token(
 }
 
 fn do_fetch_user(
-  _cfg: Config,
+  _cfg: ClientConfig,
   exchange: strategy.ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
   let creds = strategy.exchange_credentials(exchange)
