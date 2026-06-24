@@ -53,41 +53,18 @@ Your strategy is responsible for:
 
 ## The Strategy Type
 
-Here are the type definitions from `vestibule/strategy.gleam`. `UserResult`,
-`ExchangeResult`, and `Strategy(e)` are **opaque** -- you cannot construct them
-with a record literal or read their fields directly. Instead, build them with
-the `strategy.*` constructor functions and read them with the `strategy.*`
-accessors shown below.
+Here are the public types from `vestibule/strategy.gleam`. `UserResult`,
+`ExchangeResult`, and `strategy.Strategy(e)` are **opaque** -- you cannot
+construct them with a record literal or read their fields directly. Instead,
+build them with the `strategy.*` constructor functions and read them with the
+`strategy.*` accessors shown below.
 
 ```gleam
-pub opaque type UserResult {
-  UserResult(uid: String, info: UserInfo, extra: Dict(String, Dynamic))
-}
+pub opaque type UserResult
 
-pub opaque type ExchangeResult {
-  ExchangeResult(credentials: Credentials, artifacts: Dict(String, Dynamic))
-}
+pub opaque type ExchangeResult
 
-pub opaque type Strategy(e) {
-  Strategy(
-    provider: String,
-    default_scopes: List(String),
-    uses_nonce: Bool,
-    authorize_url: Option(
-      fn(ClientConfig, AuthorizeOptions, List(String), String) -> Result(String, AuthError(e)),
-    ),
-    exchange_code: Option(
-      fn(ClientConfig, String, Option(String)) ->
-        Result(ExchangeResult, AuthError(e)),
-    ),
-    refresh_token: Option(
-      fn(ClientConfig, String) -> Result(Credentials, AuthError(e)),
-    ),
-    fetch_user: Option(
-      fn(ClientConfig, ExchangeResult) -> Result(UserResult, AuthError(e)),
-    ),
-  )
-}
+pub opaque type Strategy(e)
 ```
 
 Because the type is opaque, you never touch those fields directly. Start with
@@ -936,7 +913,7 @@ Test patterns to cover:
 - **Token error** from the provider
 - **User info with full data** -- verify all `UserInfo` fields map correctly
 - **User info with minimal data** -- verify optional fields default to `None`
-- **Malformed JSON** -- verify you get an appropriate error variant back
+- **Malformed JSON** -- verify you get the appropriate AuthError kind back
 
 ### Manual testing with the example app
 

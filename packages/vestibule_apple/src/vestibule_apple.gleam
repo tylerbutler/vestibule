@@ -344,8 +344,8 @@ fn string_bool_decoder() -> decode.Decoder(Bool) {
 }
 
 // Calls check_response_status_for_endpoint (emitting structured logs) but
-// maps HttpError back to the legacy NetworkError shape to preserve the
-// public error contract that predates the HttpError variant.
+// maps HttpKind back to NetworkKind behavior to preserve Apple strategy
+// behavior from before the HTTP error kind existed.
 fn check_apple_http(
   response: response.Response(String),
   endpoint: String,

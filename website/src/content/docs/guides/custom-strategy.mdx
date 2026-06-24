@@ -27,26 +27,24 @@ searchTerms:
 
 import CodeBlock from "../../../components/CodeBlock.astro";
 
-export const strategyType = `pub opaque type Strategy(e) {
-  Strategy(
-    provider: String,
-    default_scopes: List(String),
-    uses_nonce: Bool,
-    authorize_url: Option(
-      fn(ClientConfig, AuthorizeOptions, List(String), String) -> Result(String, AuthError(e)),
-    ),
-    exchange_code: Option(
-      fn(ClientConfig, String, Option(String)) ->
-        Result(ExchangeResult, AuthError(e)),
-    ),
-    refresh_token: Option(
-      fn(ClientConfig, String) -> Result(Credentials, AuthError(e)),
-    ),
-    fetch_user: Option(
-      fn(ClientConfig, ExchangeResult) -> Result(UserResult, AuthError(e)),
-    ),
-  )
-}`;
+export const strategyType = `pub opaque type Strategy(e)
+
+pub fn new(
+  provider provider: String,
+  default_scopes default_scopes: List(String),
+) -> Strategy(e)
+
+pub fn with_authorize_url(
+  strategy: Strategy(e),
+  authorize_url: fn(ClientConfig, AuthorizeOptions, List(String), String) ->
+    Result(String, AuthError(e)),
+) -> Strategy(e)
+
+pub fn with_exchange_code(
+  strategy: Strategy(e),
+  exchange_code: fn(ClientConfig, String, Option(String)) ->
+    Result(ExchangeResult, AuthError(e)),
+) -> Strategy(e)`;
 
 export const authorizeUrl = `fn do_authorize_url(
   cfg: ClientConfig,
@@ -156,8 +154,9 @@ export const strategyValue = `pub fn strategy() -> Strategy(e) {
 <section id="strategy-type">
   <h2>The Strategy type</h2>
   <p>
-    The provider name, default scopes, and four functions define the full
-    contract. The custom error type flows through <code>AuthError(e)</code>.
+    The provider name, default scopes, and builder functions define the full
+    contract. The custom error payload type flows through{" "}
+    <code>AuthError(e)</code>.
   </p>
   <CodeBlock code={strategyType} lang="gleam" />
 </section>
@@ -207,10 +206,10 @@ export const strategyValue = `pub fn strategy() -> Strategy(e) {
     <div>
       <h2>Expose the final strategy value</h2>
       <p>
-        Export a <code>strategy()</code> function that returns
-        <code>Strategy(e)</code> when the provider only needs built-in error
-        variants, or <code>Strategy(YourError)</code> when it exposes custom
-        domain-specific errors.
+        Export a <code>strategy()</code> function that returns{" "}
+        <code>strategy.Strategy(e)</code> when the provider only needs built-in
+        error kinds, or <code>strategy.Strategy(YourError)</code> when it wraps
+        a custom domain-specific error payload with <code>error.custom</code>.
       </p>
       <CodeBlock code={strategyValue} lang="gleam" />
     </div>
