@@ -8,6 +8,7 @@ import vestibule/error
 import vestibule/strategy
 import vestibule/user_info
 import vestibule_oidc
+import vestibule_oidc/internal/token_request_params
 
 // --- OidcConfig construction ---
 
@@ -594,6 +595,106 @@ pub fn strategy_from_config_invalid_redirect_uri_returns_error_test() {
     )
     |> expect.to_be_error()
   Nil
+}
+
+pub fn token_request_params_include_client_secret_when_configured_test() {
+  let conf =
+    config.new(
+      client_id: "client-id",
+      redirect_uri: "https://app.example.com/callback",
+      auth: config.ClientSecret("secret"),
+    )
+
+  token_request_params.authorization_code(
+    conf,
+    code: "code-123",
+    redirect_uri: "https://app.example.com/callback",
+    code_verifier: Some("verifier-123"),
+  )
+  |> expect.to_equal([
+    #("grant_type", "authorization_code"),
+    #("code", "code-123"),
+    #("redirect_uri", "https://app.example.com/callback"),
+    #("client_id", "client-id"),
+    #("client_secret", "secret"),
+    #("code_verifier", "verifier-123"),
+  ])
+
+  token_request_params.refresh(conf, refresh_token: "refresh-123")
+  |> expect.to_equal([
+    #("grant_type", "refresh_token"),
+    #("refresh_token", "refresh-123"),
+    #("client_id", "client-id"),
+    #("client_secret", "secret"),
+  ])
+}
+
+pub fn token_request_params_omit_client_secret_for_public_client_test() {
+  let conf =
+    config.new(
+      client_id: "client-id",
+      redirect_uri: "https://app.example.com/callback",
+      auth: config.PublicClient,
+    )
+
+  token_request_params.authorization_code(
+    conf,
+    code: "code-123",
+    redirect_uri: "https://app.example.com/callback",
+    code_verifier: None,
+  )
+  |> expect.to_equal([
+    #("grant_type", "authorization_code"),
+    #("code", "code-123"),
+    #("redirect_uri", "https://app.example.com/callback"),
+    #("client_id", "client-id"),
+  ])
+
+  token_request_params.refresh(conf, refresh_token: "refresh-123")
+  |> expect.to_equal([
+    #("grant_type", "refresh_token"),
+    #("refresh_token", "refresh-123"),
+    #("client_id", "client-id"),
+  ])
+}
+
+pub fn token_request_params_include_client_assertion_without_secret_test() {
+  let conf =
+    config.new(
+      client_id: "client-id",
+      redirect_uri: "https://app.example.com/callback",
+      auth: config.ClientAssertion("assertion-jwt"),
+    )
+
+  token_request_params.authorization_code(
+    conf,
+    code: "code-123",
+    redirect_uri: "https://app.example.com/callback",
+    code_verifier: None,
+  )
+  |> expect.to_equal([
+    #("grant_type", "authorization_code"),
+    #("code", "code-123"),
+    #("redirect_uri", "https://app.example.com/callback"),
+    #("client_id", "client-id"),
+    #(
+      "client_assertion_type",
+      "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+    ),
+    #("client_assertion", "assertion-jwt"),
+  ])
+
+  token_request_params.refresh(conf, refresh_token: "refresh-123")
+  |> expect.to_equal([
+    #("grant_type", "refresh_token"),
+    #("refresh_token", "refresh-123"),
+    #("client_id", "client-id"),
+    #(
+      "client_assertion_type",
+      "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+    ),
+    #("client_assertion", "assertion-jwt"),
+  ])
 }
 
 fn example_config() {

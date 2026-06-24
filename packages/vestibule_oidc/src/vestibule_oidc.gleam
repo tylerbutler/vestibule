@@ -37,6 +37,7 @@ import vestibule/logger
 import vestibule/provider_support
 import vestibule/strategy.{type Strategy, type UserResult}
 import vestibule/user_info
+import vestibule_oidc/internal/token_request_params
 
 /// Configuration discovered from an OpenID Connect provider's
 /// `/.well-known/openid-configuration` endpoint.
@@ -502,19 +503,13 @@ fn build_exchange_code_fn(
     use redirect <- result.try(
       provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
     )
-    use client_secret <- result.try(config.client_secret(cfg))
-    let base_params = [
-      #("grant_type", "authorization_code"),
-      #("code", code),
-      #("redirect_uri", uri.to_string(redirect)),
-      #("client_id", config.client_id(cfg)),
-      #("client_secret", client_secret),
-    ]
-    let params = case code_verifier {
-      option.Some(verifier) ->
-        list.append(base_params, [#("code_verifier", verifier)])
-      option.None -> base_params
-    }
+    let params =
+      token_request_params.authorization_code(
+        cfg,
+        code: code,
+        redirect_uri: uri.to_string(redirect),
+        code_verifier: code_verifier,
+      )
     let body = uri.query_to_string(params)
 
     use req <- result.try(
@@ -583,14 +578,9 @@ fn build_refresh_token_fn(
     Credentials,
     AuthError(e),
   ) {
-    use client_secret <- result.try(config.client_secret(cfg))
     let body =
-      uri.query_to_string([
-        #("grant_type", "refresh_token"),
-        #("refresh_token", refresh_tok),
-        #("client_id", config.client_id(cfg)),
-        #("client_secret", client_secret),
-      ])
+      token_request_params.refresh(cfg, refresh_token: refresh_tok)
+      |> uri.query_to_string
 
     use req <- result.try(
       request.to(token_endpoint)

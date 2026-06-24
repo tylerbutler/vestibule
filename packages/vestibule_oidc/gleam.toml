@@ -4,6 +4,7 @@ description = "OpenID Connect discovery for vestibule — auto-configure strateg
 licences = ["MIT"]
 repository = { type = "github", user = "tylerbutler", repo = "vestibule", path = "packages/vestibule_oidc" }
 gleam = ">= 1.7.0"
+internal_modules = ["vestibule_oidc/internal/*"]
 
 [dependencies]
 vestibule = { path = "../.." }
