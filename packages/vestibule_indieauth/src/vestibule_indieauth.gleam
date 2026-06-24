@@ -203,6 +203,25 @@ fn do_authorize_url(
   state: String,
 ) -> Result(String, AuthError(e)) {
   let scope = string.join(scopes, " ")
+  let extra_params = config.extra_params(options)
+  case dict.get(extra_params, "me") {
+    Ok(_) ->
+      Error(error.config(
+        reason: "Reserved authorization parameter not allowed: me",
+      ))
+    Error(Nil) ->
+      build_authorize_url(endpoints, me, cfg, scope, state, extra_params)
+  }
+}
+
+fn build_authorize_url(
+  endpoints: DiscoveredEndpoints,
+  me: String,
+  cfg: ClientConfig,
+  scope: String,
+  state: String,
+  extra_params: dict.Dict(String, String),
+) -> Result(String, AuthError(e)) {
   let params = [
     #("response_type", "code"),
     #("client_id", config.client_id(cfg)),
@@ -210,7 +229,7 @@ fn do_authorize_url(
     #("state", state),
     #("scope", scope),
     #("me", me),
-    ..dict.to_list(config.extra_params(options))
+    ..dict.to_list(extra_params)
   ]
   let query =
     params
