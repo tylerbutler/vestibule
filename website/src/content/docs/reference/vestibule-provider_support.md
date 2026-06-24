@@ -133,7 +133,8 @@ pub fn parse_redirect_uri(String) -> Result(uri.Uri, error.AuthError(a))
 
 Validate that a URL uses HTTPS.
 HTTP is allowed for localhost and 127.0.0.1 (development use).
-Returns Ok(Nil) if valid, or a ConfigError describing the issue.
+Returns Ok(Nil) if valid, or an AuthError of kind `ConfigKind` describing the
+issue.
 
 ```gleam
 pub fn require_https(String) -> Result(Nil, error.AuthError(a))
@@ -151,7 +152,8 @@ token/userinfo endpoints — where an attacker-controlled issuer could
 otherwise publish an internal URL and trigger Server-Side Request
 Forgery (SSRF) against loopback or internal services.
 
-Returns Ok(Nil) if valid, or a ConfigError describing the issue.
+Returns Ok(Nil) if valid, or an AuthError of kind `ConfigKind` describing the
+issue.
 
 ```gleam
 pub fn require_public_https(String) -> Result(Nil, error.AuthError(a))

@@ -132,7 +132,7 @@ pub fn create_authorization_request(
 /// `expected_nonce` is the OIDC nonce stored during the request phase, or
 /// `None` for plain OAuth2 strategies. When the strategy uses a nonce and an
 /// expected value is present, the `nonce` claim in the `id_token` artifact must
-/// match or the callback fails with `InvalidNonce`.
+/// match or the callback fails with an AuthError of kind `InvalidNonceKind`.
 ///
 /// **Caller responsibilities:** This function checks that the callback
 /// state matches `expected_state`, but does not enforce single-use or
@@ -544,7 +544,8 @@ fn append_raw_query(url: String, query: String) -> String {
 ///
 /// A no-op for plain OAuth2 strategies (`uses_nonce: False`) or when no nonce
 /// was stored. When a nonce is expected, a missing `id_token` artifact, a
-/// missing `nonce` claim, or a mismatch all fail with `InvalidNonce`.
+/// missing `nonce` claim, or a mismatch all fail with an AuthError of kind
+/// `InvalidNonceKind`.
 fn validate_callback_nonce(
   strat: Strategy(e),
   exchange: strategy.ExchangeResult,

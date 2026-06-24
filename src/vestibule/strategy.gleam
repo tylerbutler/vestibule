@@ -107,8 +107,9 @@ pub fn exchange_artifacts(exchange: ExchangeResult) -> Dict(String, Dynamic) {
 ///
 /// The core capabilities (`authorize_url`, `exchange_code`, `fetch_user`) are
 /// stored as `Option`; invoking one that was never configured fails with a
-/// `ConfigError`. `refresh_token` is optional: a strategy built without
-/// `with_refresh` fails with `RefreshUnsupported`.
+/// an AuthError of kind `ConfigKind`. `refresh_token` is optional: a strategy
+/// built without `with_refresh` fails with an AuthError of kind
+/// `RefreshUnsupportedKind`.
 pub opaque type Strategy(e) {
   Strategy(
     provider: String,
@@ -193,7 +194,7 @@ pub fn with_fetch_user(
 
 /// Attach an optional token-refresh capability. `refresh_token` swaps a
 /// refresh token for fresh credentials. Strategies built without this fail
-/// `refresh_token` with `RefreshUnsupported`.
+/// `refresh_token` with an AuthError of kind `RefreshUnsupportedKind`.
 pub fn with_refresh(
   strat: Strategy(e),
   refresh_token: fn(ClientConfig, String) ->
@@ -227,7 +228,7 @@ pub fn default_scopes(strat: Strategy(e)) -> List(String) {
 
 /// Build the provider's authorization URL.
 ///
-/// Returns `ConfigError` if the strategy was built without
+/// Returns an AuthError of kind `ConfigKind` if the strategy was built without
 /// `with_authorize_url`.
 pub fn build_authorize_url(
   strat: Strategy(e),
@@ -251,7 +252,7 @@ pub fn build_authorize_url(
 /// artifacts. Pass the PKCE `code_verifier` if one was generated for the
 /// authorization request.
 ///
-/// Returns `ConfigError` if the strategy was built without
+/// Returns an AuthError of kind `ConfigKind` if the strategy was built without
 /// `with_exchange_code`.
 pub fn exchange_code(
   strat: Strategy(e),
@@ -272,7 +273,7 @@ pub fn exchange_code(
 
 /// Refresh credentials using a refresh token.
 ///
-/// Returns `RefreshUnsupported` if the strategy was built without
+/// Returns an AuthError of kind `RefreshUnsupportedKind` if the strategy was built without
 /// `with_refresh`.
 pub fn refresh_token(
   strat: Strategy(e),
@@ -287,7 +288,7 @@ pub fn refresh_token(
 
 /// Fetch user info using the obtained exchange result.
 ///
-/// Returns `ConfigError` if the strategy was built without
+/// Returns an AuthError of kind `ConfigKind` if the strategy was built without
 /// `with_fetch_user`.
 pub fn fetch_user(
   strat: Strategy(e),

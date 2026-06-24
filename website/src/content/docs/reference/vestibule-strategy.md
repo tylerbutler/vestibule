@@ -62,8 +62,9 @@ helpers.
 
 The core capabilities (`authorize_url`, `exchange_code`, `fetch_user`) are
 stored as `Option`; invoking one that was never configured fails with a
-`ConfigError`. `refresh_token` is optional: a strategy built without
-`with_refresh` fails with `RefreshUnsupported`.
+an AuthError of kind `ConfigKind`. `refresh_token` is optional: a strategy
+built without `with_refresh` fails with an AuthError of kind
+`RefreshUnsupportedKind`.
 
 ```gleam
 pub type Strategy(a)
@@ -115,7 +116,7 @@ pub fn authorization_header(credentials: credentials.Credentials) -> Result(Stri
 
 Build the provider's authorization URL.
 
-Returns `ConfigError` if the strategy was built without
+Returns an AuthError of kind `ConfigKind` if the strategy was built without
 `with_authorize_url`.
 
 ```gleam
@@ -152,7 +153,7 @@ Exchange an authorization code for credentials and any provider-specific
 artifacts. Pass the PKCE `code_verifier` if one was generated for the
 authorization request.
 
-Returns `ConfigError` if the strategy was built without
+Returns an AuthError of kind `ConfigKind` if the strategy was built without
 `with_exchange_code`.
 
 ```gleam
@@ -195,7 +196,7 @@ pub fn exchange_result_with_artifacts(
 
 Fetch user info using the obtained exchange result.
 
-Returns `ConfigError` if the strategy was built without
+Returns an AuthError of kind `ConfigKind` if the strategy was built without
 `with_fetch_user`.
 
 ```gleam
@@ -241,7 +242,7 @@ pub fn provider(Strategy(a)) -> String
 
 Refresh credentials using a refresh token.
 
-Returns `RefreshUnsupported` if the strategy was built without
+Returns an AuthError of kind `RefreshUnsupportedKind` if the strategy was built without
 `with_refresh`.
 
 ```gleam
@@ -349,7 +350,7 @@ pub fn with_nonce(Strategy(a)) -> Strategy(a)
 
 Attach an optional token-refresh capability. `refresh_token` swaps a
 refresh token for fresh credentials. Strategies built without this fail
-`refresh_token` with `RefreshUnsupported`.
+`refresh_token` with an AuthError of kind `RefreshUnsupportedKind`.
 
 ```gleam
 pub fn with_refresh(

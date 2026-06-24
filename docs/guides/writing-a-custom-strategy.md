@@ -19,7 +19,10 @@ whose final public shape is tracked in issue #85.
 
 ### What is a strategy?
 
-A strategy is a Gleam record containing four functions and some metadata. There are no behaviours, traits, or interfaces involved -- just a value of type `Strategy(e)` that you construct and pass to vestibule's core functions.
+A strategy is an opaque value built with `strategy.new` and the `strategy.with_*`
+builders. There are no behaviours, traits, or interfaces involved -- just a
+value of type `Strategy(e)` that you construct and pass to vestibule's core
+functions.
 
 Each strategy tells vestibule how to talk to a specific OAuth2 provider: how to build the authorization URL, how to exchange an authorization code for tokens, how to refresh tokens, and how to fetch user information.
 

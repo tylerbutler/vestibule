@@ -35,7 +35,8 @@ in this module:
   (code / description / uri) when the provider returned a standard OAuth error.
 - [`http_status`](#http_status) and [`missing_param`](#missing_param) expose
   the few additional structured fields some errors carry.
-- [`custom`](#custom) returns the provider-defined payload for custom errors.
+- [`custom_payload`](#custom_payload) returns the provider-defined payload for
+  custom errors.
 
 Construct errors with the constructor functions ([`config`](#config),
 [`network`](#network), [`provider`](#provider), and friends). The type
@@ -51,7 +52,7 @@ An opaque authentication error.
 Inspect values of this type with [`kind`](#kind), [`phase`](#phase),
 [`message`](#message), [`provider_error`](#provider_error),
 [`http_status`](#http_status), [`missing_param`](#missing_param), and
-[`custom`](#custom).
+[`custom_payload`](#custom_payload).
 
 ```gleam
 pub type AuthError(a)

@@ -82,7 +82,8 @@ fn safe_error_body(body: String) -> String {
 
 /// Validate that a URL uses HTTPS.
 /// HTTP is allowed for localhost and 127.0.0.1 (development use).
-/// Returns Ok(Nil) if valid, or a ConfigError describing the issue.
+/// Returns Ok(Nil) if valid, or an AuthError of kind `ConfigKind` describing
+/// the issue.
 pub fn require_https(url: String) -> Result(Nil, AuthError(e)) {
   case uri.parse(url) {
     Ok(parsed) ->
@@ -118,7 +119,8 @@ pub fn require_https(url: String) -> Result(Nil, AuthError(e)) {
 /// otherwise publish an internal URL and trigger Server-Side Request
 /// Forgery (SSRF) against loopback or internal services.
 ///
-/// Returns Ok(Nil) if valid, or a ConfigError describing the issue.
+/// Returns Ok(Nil) if valid, or an AuthError of kind `ConfigKind` describing
+/// the issue.
 pub fn require_public_https(url: String) -> Result(Nil, AuthError(e)) {
   case uri.parse(url) {
     Ok(parsed) ->

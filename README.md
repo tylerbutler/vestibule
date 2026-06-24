@@ -222,7 +222,9 @@ Vestibule uses a two-phase OAuth2 flow inspired by Elixir's Ueberauth:
 1. **Request phase** — Generate an authorization URL with CSRF state and PKCE, redirect the user to the provider
 2. **Callback phase** — Validate state, exchange the authorization code for tokens, fetch user info, return a normalized `Auth` result
 
-Strategies are records of functions — no behaviours, macros, or magic. Each strategy tells vestibule how to talk to a specific provider.
+Strategies are opaque values built with `strategy.new` and the `strategy.with_*`
+builders — no behaviours, macros, or magic. Each strategy tells vestibule how to
+talk to a specific provider.
 
 ## More Features
 

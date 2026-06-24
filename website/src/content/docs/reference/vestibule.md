@@ -62,7 +62,7 @@ fetches normalized user information.
 `expected_nonce` is the OIDC nonce stored during the request phase, or
 `None` for plain OAuth2 strategies. When the strategy uses a nonce and an
 expected value is present, the `nonce` claim in the `id_token` artifact must
-match or the callback fails with `InvalidNonce`.
+match or the callback fails with an AuthError of kind `InvalidNonceKind`.
 
 **Caller responsibilities:** This function checks that the callback
 state matches `expected_state`, but does not enforce single-use or
