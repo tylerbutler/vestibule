@@ -189,7 +189,7 @@ fn do_authorize_url(
   endpoints: DiscoveredEndpoints,
   me: String,
   cfg: ClientConfig,
-  _options: AuthorizeOptions,
+  options: AuthorizeOptions,
   scopes: List(String),
   state: String,
 ) -> Result(String, AuthError(e)) {
@@ -201,6 +201,7 @@ fn do_authorize_url(
     #("state", state),
     #("scope", scope),
     #("me", me),
+    ..dict.to_list(config.extra_params(options))
   ]
   let query =
     params

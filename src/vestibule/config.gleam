@@ -118,5 +118,6 @@ fn reserved_authorization_params() -> List(String) {
     "code_challenge",
     "code_challenge_method",
     "nonce",
+    "response_mode",
   ]
 }

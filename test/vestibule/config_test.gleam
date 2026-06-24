@@ -102,6 +102,7 @@ pub fn with_extra_params_rejects_reserved_authorization_params_test() {
   assert_reserved_param_rejected("code_challenge")
   assert_reserved_param_rejected("code_challenge_method")
   assert_reserved_param_rejected("nonce")
+  assert_reserved_param_rejected("response_mode")
 }
 
 fn assert_reserved_param_rejected(param: String) {
