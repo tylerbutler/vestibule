@@ -23,7 +23,8 @@ let cfg =
   )
 ```
 
-Google userinfo only populates `UserInfo.email` when `email_verified` is true.
+Google userinfo only makes the email accessor for `auth.info(auth_result)`
+return `Some(email)` when `email_verified` is true.
 
 ## Hosted-domain (Workspace) enforcement
 

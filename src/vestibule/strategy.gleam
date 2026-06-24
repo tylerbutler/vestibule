@@ -23,7 +23,7 @@ import vestibule/user_info.{type UserInfo}
 ///
 /// Opaque so that new fields can be added without breaking strategy
 /// implementations. Construct with `user_result` and read with the
-/// `uid` / `info` / `extra` accessors.
+/// `user_result_uid`, `user_result_info`, and `user_result_extra` accessors.
 pub opaque type UserResult {
   UserResult(uid: String, info: UserInfo, extra: Dict(String, Dynamic))
 }

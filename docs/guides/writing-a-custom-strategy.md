@@ -32,7 +32,7 @@ Vestibule authenticates users in two phases:
 
 1. **Request phase** -- Your application calls `vestibule.create_authorization_request(strategy, cfg:, options:)`. Vestibule generates a CSRF state token and PKCE code verifier, calls your strategy's `authorize_url` function to build the provider-specific URL, then appends the PKCE `code_challenge` parameter. You get back an `AuthorizationRequest` containing the URL, state, and code verifier. Store the state and code verifier in the user's session, then redirect them to the URL.
 
-2. **Callback phase** -- The provider redirects the user back to your application with a `code` and `state` parameter. Your application calls `vestibule.handle_callback(strategy, cfg, params, expected_state, code_verifier, expected_nonce:)`. Vestibule validates the CSRF state, calls your strategy's `exchange_code` function (passing the PKCE code verifier), then calls your strategy's `fetch_user` function with the config and `ExchangeResult`. You get back an `Auth` record with the user's UID, normalized info, provider extras, and OAuth credentials.
+2. **Callback phase** -- The provider redirects the user back to your application with a `code` and `state` parameter. Your application calls `vestibule.handle_callback(strategy, cfg, params, expected_state, code_verifier, expected_nonce:)`. Vestibule validates the CSRF state, calls your strategy's `exchange_code` function (passing the PKCE code verifier), then calls your strategy's `fetch_user` function with the config and `ExchangeResult`. You get back an opaque `Auth` value with accessors for the user's UID, normalized info, provider extras, and OAuth credentials.
 
 ### What the core library handles for you
 
@@ -252,7 +252,7 @@ import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/provider_support
 import vestibule/strategy.{type Strategy, type UserResult}
-import vestibule/user_info.{type UserInfo, UserInfo}
+import vestibule/user_info.{type UserInfo}
 
 fn do_authorize_url(
   cfg: ClientConfig,
@@ -485,7 +485,7 @@ fn do_fetch_user(
   }
 }
 
-/// Parse a Twitch /helix/users response into a uid and UserInfo.
+/// Parse a Twitch /helix/users response into a uid and normalized user info.
 /// Supported parser helper for consumers and tests.
 pub fn parse_user_response(
   body: String,
@@ -515,16 +515,15 @@ pub fn parse_user_response(
     )
     decode.success(#(
       id,
-      UserInfo(
-        name: display_name,
-        email: email,
-        nickname: Some(login),
-        image: profile_image_url,
-        description: description,
-        urls: dict.from_list([
-          #("twitch_url", "https://twitch.tv/" <> login),
-        ]),
-      ),
+      user_info.new()
+      |> user_info.with_name(display_name)
+      |> user_info.with_email(email)
+      |> user_info.with_nickname(Some(login))
+      |> user_info.with_image(profile_image_url)
+      |> user_info.with_description(description)
+      |> user_info.with_urls(dict.from_list([
+        #("twitch_url", "https://twitch.tv/" <> login),
+      ])),
     ))
   }
   let decoder = {
@@ -534,14 +533,7 @@ pub fn parse_user_response(
       [] ->
         decode.success(#(
           "",
-          UserInfo(
-            name: None,
-            email: None,
-            nickname: None,
-            image: None,
-            description: None,
-            urls: dict.new(),
-          ),
+          user_info.new(),
         ))
     }
   }
@@ -683,7 +675,7 @@ fn do_fetch_user(
   }
 
   let final_info = case email {
-    Some(_) -> UserInfo(..info, email: email)
+    Some(_) -> info |> user_info.with_email(email)
     None -> info
   }
 
@@ -827,7 +819,7 @@ pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
   )
 }
 
-/// Parse a Twitch /helix/users response into a uid and UserInfo.
+/// Parse a Twitch /helix/users response into a uid and normalized user info.
 /// Supported parser helper for consumers and tests.
 pub fn parse_user_response(body: String) -> Result(#(String, UserInfo), AuthError(e)) {
   // ...
@@ -848,6 +840,7 @@ import gleam/option.{None, Some}
 import startest
 import startest/expect
 import vestibule/credentials
+import vestibule/user_info as ui
 import vestibule_twitch
 
 pub fn main() -> Nil {
@@ -884,15 +877,15 @@ pub fn parse_user_response_full_test() {
     "{\"data\":[{\"id\":\"44322889\",\"login\":\"dallas\",\"display_name\":\"dallas\",\"profile_image_url\":\"https://static-cdn.jtvnw.net/jtv_user_pictures/dallas-profile.png\",\"description\":\"Just a chill streamer\",\"email\":\"dallas@example.com\"}]}"
   let assert Ok(#(uid, info)) = vestibule_twitch.parse_user_response(body)
   uid |> expect.to_equal("44322889")
-  info.name |> expect.to_equal(Some("dallas"))
-  info.nickname |> expect.to_equal(Some("dallas"))
-  info.email |> expect.to_equal(Some("dallas@example.com"))
-  info.image
+  ui.name(info) |> expect.to_equal(Some("dallas"))
+  ui.nickname(info) |> expect.to_equal(Some("dallas"))
+  ui.email(info) |> expect.to_equal(Some("dallas@example.com"))
+  ui.image(info)
   |> expect.to_equal(
     Some("https://static-cdn.jtvnw.net/jtv_user_pictures/dallas-profile.png"),
   )
-  info.description |> expect.to_equal(Some("Just a chill streamer"))
-  info.urls
+  ui.description(info) |> expect.to_equal(Some("Just a chill streamer"))
+  ui.urls(info)
   |> expect.to_equal(dict.from_list([#("twitch_url", "https://twitch.tv/dallas")]))
 }
 
@@ -901,9 +894,9 @@ pub fn parse_user_response_minimal_test() {
     "{\"data\":[{\"id\":\"12345\",\"login\":\"testuser\"}]}"
   let assert Ok(#(uid, info)) = vestibule_twitch.parse_user_response(body)
   uid |> expect.to_equal("12345")
-  info.name |> expect.to_equal(None)
-  info.email |> expect.to_equal(None)
-  info.nickname |> expect.to_equal(Some("testuser"))
+  ui.name(info) |> expect.to_equal(None)
+  ui.email(info) |> expect.to_equal(None)
+  ui.nickname(info) |> expect.to_equal(Some("testuser"))
 }
 ```
 
@@ -939,16 +932,16 @@ A brief catalog of differences across providers that may inform your implementat
 
 ### Google
 
-- **Scope separator**: Space-separated (standard OAuth2). Scopes are full URLs like `https://www.googleapis.com/auth/userinfo.email`.
+- **Scope separator**: Space-separated (standard OAuth2). Scopes are full URLs like Google's userinfo email scope.
 - **OIDC-compliant**: Supports OpenID Connect discovery, so you can also use vestibule's `oidc.discover("https://accounts.google.com")` instead of the dedicated strategy.
 - **Refresh tokens**: Only returned on the first authorization. Subsequent authorizations return only an access token unless you pass `prompt=consent` and `access_type=offline` as extra params.
-- **Email verification**: The userinfo response includes `email_verified` as a boolean. The Google strategy only populates `UserInfo.email` when this is `true`.
+- **Email verification**: The userinfo response includes `email_verified` as a boolean. The Google strategy only returns `Some(email)` from the user info email accessor when this is `true`.
 
 ### Microsoft
 
 - **Multi-tenant**: Uses the `/common` tenant path (`login.microsoftonline.com/common/oauth2/v2.0`) to accept any Microsoft account. Replace `common` with a specific tenant ID to restrict to a single organization.
 - **User info API**: Uses the Microsoft Graph API (`graph.microsoft.com/v1.0/me`) rather than a standard OIDC userinfo endpoint. Field names are camelCase (`displayName`, `userPrincipalName`).
-- **Profile photos**: Microsoft Graph `/me` does not return profile photos without additional permissions. The built-in strategy sets `UserInfo.image` to `None`; fetch photos separately from Microsoft Graph if your app needs them.
+- **Profile photos**: Microsoft Graph `/me` does not return profile photos without additional permissions. The built-in strategy returns `None` from the user info image accessor; fetch photos separately from Microsoft Graph if your app needs them.
 - **Scope format**: Space-separated, but scopes are permission-style names like `User.Read` rather than URLs.
 
 ### Apple

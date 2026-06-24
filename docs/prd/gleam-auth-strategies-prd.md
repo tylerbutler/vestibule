@@ -68,7 +68,7 @@ Build a strategy-based authentication library for Gleam that provides a consiste
 
 | Priority | Goal |
 |----------|------|
-| **P0** | Strategy interface (record of functions) for OAuth2 providers |
+| **P0** | Opaque strategy value built with provider callback builders for OAuth2 providers |
 | **P0** | Normalized `Auth` result type (uid, provider, user info, credentials) |
 | **P0** | CSRF state parameter generation and validation |
 | **P0** | Built-in strategies: GitHub, Google, Microsoft |
@@ -147,20 +147,17 @@ pub opaque type Auth
 // Build values with auth.new(uid:, provider:, info:, credentials:, extra:).
 // Read values with auth.uid(auth_result), auth.provider(auth_result),
 // auth.info(auth_result), auth.credentials(auth_result), and
-// auth.extra(auth_result). Auth is opaque so the field set can grow without
-// breaking callers that construct or pattern-match the value.
+// auth.extra(auth_result). Auth is opaque so the field set can grow.
 
 /// Normalized user information across all providers.
-pub type UserInfo {
-  UserInfo(
-    name: Option(String),
-    email: Option(String),
-    nickname: Option(String),
-    image: Option(String),
-    description: Option(String),
-    urls: Dict(String, String),
-  )
-}
+pub opaque type UserInfo
+
+// Build values with user_info.new() plus user_info.with_name(...),
+// user_info.with_email(...), user_info.with_nickname(...),
+// user_info.with_image(...), user_info.with_description(...), and
+// user_info.with_urls(...). Read values with the corresponding accessors,
+// such as name(info), email(info), nickname(info), image(info),
+// description(info), and urls(info), from the user_info module.
 
 /// OAuth credentials from the provider.
 pub type Credentials {
@@ -633,7 +630,7 @@ import wisp.{type Request, type Response}
 import vestibule as auth
 import vestibule/error
 import vestibule/credentials
-import vestibule/user_info
+import vestibule/user_info as ui
 import vestibule/strategy/github
 
 pub type Context {
@@ -678,10 +675,10 @@ pub fn handle_request(req: Request, ctx: Context) -> Response {
 
       case auth.complete(ctx.auth_registry, provider, params, state) {
         Ok(authed) -> {
-          // auth.uid(authed), user_info.email(auth.info(authed)),
+          // auth.uid(authed), auth.info(authed) |> ui.email,
           // credentials.token(auth.credentials(authed))
           // Create or find user, establish session, redirect
-          let name = auth.info(authed) |> user_info.name |> option.unwrap("unknown")
+          let name = auth.info(authed) |> ui.name |> option.unwrap("unknown")
           io.println("Authenticated: " <> name)
           wisp.redirect("/dashboard")
         }

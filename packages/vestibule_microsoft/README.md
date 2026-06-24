@@ -112,5 +112,5 @@ identifier, and `domain_hint` to streamline home-realm discovery for a tenant.
 ## Profile images
 
 Microsoft Graph `/me` does not include profile photos. The built-in strategy
-sets `UserInfo.image` to `None`; if your app needs photos, request the
+returns `None` from the image accessor; if your app needs photos, request the
 additional Microsoft Graph photo permissions and fetch the photo separately.
