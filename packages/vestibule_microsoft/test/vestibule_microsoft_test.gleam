@@ -119,6 +119,14 @@ pub fn strategy_for_tenant_default_scopes_include_openid_test() {
   Nil
 }
 
+pub fn common_strategy_default_scopes_include_openid_test() {
+  let strat = vestibule_microsoft.strategy()
+  let _ =
+    strategy.default_scopes(strat)
+    |> expect.to_equal(["openid", "User.Read"])
+  Nil
+}
+
 pub fn common_strategy_authorize_url_uses_common_endpoint_test() {
   let strat = vestibule_microsoft.strategy()
   let conf =
@@ -138,6 +146,27 @@ pub fn common_strategy_authorize_url_uses_common_endpoint_test() {
   let _ =
     { string.contains(url, "login.microsoftonline.com/common/oauth2/v2.0") }
     |> expect.to_be_true()
+  Nil
+}
+
+pub fn custom_scopes_add_openid_for_nonce_test() {
+  let strat = vestibule_microsoft.strategy()
+  let conf =
+    config.new(
+      client_id: "client-id",
+      redirect_uri: "http://localhost/callback",
+      auth: config.ClientSecret("secret"),
+    )
+  let assert Ok(url) =
+    strategy.build_authorize_url(
+      strat,
+      cfg: conf,
+      options: config.authorize_options(),
+      scopes: ["User.Read"],
+      state: "state",
+    )
+  let _ = { string.contains(url, "openid") } |> expect.to_be_true()
+  let _ = { string.contains(url, "User.Read") } |> expect.to_be_true()
   Nil
 }
 

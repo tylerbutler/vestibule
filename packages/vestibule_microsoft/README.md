@@ -28,7 +28,9 @@ The strategy uses Microsoft Graph `/me` for profile data and keeps
 
 ## Default scopes
 
-`User.Read`. Override per request with `config.with_scopes` on `AuthorizeOptions`.
+`openid User.Read`. Request different Microsoft permissions per request with
+`config.with_scopes` on `AuthorizeOptions`; `openid` is still included for nonce
+validation.
 
 ## Azure portal setup
 
@@ -44,9 +46,9 @@ The strategy uses Microsoft Graph `/me` for profile data and keeps
 4. After creation, copy the **Application (client) ID**.
 5. **Certificates & secrets → New client secret** → copy the secret
    `Value` (not the ID). It is shown once.
-6. **API permissions**: the default `User.Read` (delegated) is enough
-   for the built-in Graph `/me` parsing; click **Grant admin consent**
-   if your tenant requires it.
+6. **API permissions**: the default `openid` plus `User.Read` (delegated)
+   scopes are enough for nonce validation and the built-in Graph `/me` parsing;
+   click **Grant admin consent** if your tenant requires it.
 
 ## Tenant behavior
 

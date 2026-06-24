@@ -6,7 +6,7 @@ summary: Microsoft OAuth strategy using Microsoft Graph /me, with helpers for te
 install:
   - gleam add vestibule_microsoft
 useWhen: Use Microsoft when users authenticate with Microsoft personal, work, or school accounts.
-defaultScopes: User.Read by default; tenant validation also requests openid.
+defaultScopes: openid User.Read
 setup:
   - Create a Microsoft Entra ID app registration.
   - Choose supported account types that match your tenant behavior.

@@ -1,6 +1,6 @@
 //// Microsoft Identity Platform (v2.0) strategy.
 ////
-//// Requests `User.Read` by default. Tokens are exchanged against
+//// Requests `openid User.Read` by default. Tokens are exchanged against
 //// `/oauth2/v2.0/token`; user info comes from Microsoft Graph `/me`.
 ////
 //// ## Tenant isolation
@@ -77,12 +77,7 @@ fn build_strategy(
   authority: String,
   expected_tenant: Option(String),
 ) -> Strategy(e) {
-  // Tenant-locked strategies need an ID token (`openid` scope) to read `tid`.
-  let default_scopes = case expected_tenant {
-    Some(_) -> ["openid", "User.Read"]
-    None -> ["User.Read"]
-  }
-  strategy.new(provider: "microsoft", default_scopes: default_scopes)
+  strategy.new(provider: "microsoft", default_scopes: ["openid", "User.Read"])
   |> strategy.with_nonce()
   |> strategy.with_authorize_url(fn(cfg, options, scopes, state) {
     do_authorize_url(authority, cfg, options, scopes, state)
@@ -217,6 +212,7 @@ fn do_authorize_url(
   )
   let client =
     glow_auth.Client(id: config.client_id(cfg), secret: "", site: site)
+  let scopes = scopes_with_openid(scopes)
   let url =
     authorize_uri.build(
       client,
@@ -231,6 +227,13 @@ fn do_authorize_url(
       dict.to_list(config.extra_params(options)),
     )
   Ok(url)
+}
+
+fn scopes_with_openid(scopes: List(String)) -> List(String) {
+  case list.contains(scopes, "openid") {
+    True -> scopes
+    False -> ["openid", ..scopes]
+  }
 }
 
 fn do_exchange_code(
