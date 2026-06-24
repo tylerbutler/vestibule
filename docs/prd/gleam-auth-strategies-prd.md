@@ -181,14 +181,12 @@ pub type Credentials {
 }
 
 /// Authentication failure.
-pub type AuthError {
-  StateMismatch
-  CodeExchangeFailed(reason: String)
-  UserInfoFailed(reason: String)
-  ProviderError(code: String, description: String)
-  NetworkError(reason: String)
-  ConfigError(reason: String)
-}
+pub opaque type AuthError(e)
+
+// Build errors with constructor functions such as error.state_mismatch(),
+// error.code_exchange(...), and error.provider(...). Inspect errors with
+// error.kind(err), error.phase(err), error.message(err), and related accessors
+// instead of pattern matching on public variants.
 
 /// Durable provider configuration.
 pub opaque type ClientConfig
@@ -640,6 +638,7 @@ import gleam/io
 import gleam/result
 import wisp.{type Request, type Response}
 import vestibule as auth
+import vestibule/error
 import vestibule/strategy/github
 
 pub type Context {
@@ -689,8 +688,12 @@ pub fn handle_request(req: Request, ctx: Context) -> Response {
           io.println("Authenticated: " <> authed.info.name |> result.unwrap("unknown"))
           wisp.redirect("/dashboard")
         }
-        Error(auth.StateMismatch) -> wisp.bad_request()
-        Error(e) -> wisp.internal_server_error()
+        Error(err) -> {
+          case error.kind(err) {
+            error.StateMismatchKind -> wisp.bad_request()
+            _ -> wisp.internal_server_error()
+          }
+        }
       }
     }
 
