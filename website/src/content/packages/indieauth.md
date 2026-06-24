@@ -30,12 +30,18 @@ code: |
   // client_id is your app's URL; no client_secret is required.
   let cfg =
     config.new(
-      "https://myapp.example.com/",
-      "",
-      "https://myapp.example.com/auth/indieauth/callback",
+      client_id: "https://myapp.example.com/",
+      redirect_uri: "https://myapp.example.com/auth/indieauth/callback",
+      auth: config.PublicClient,
     )
 
-  let assert Ok(auth_request) = vestibule.authorize_url(strategy, cfg)
+  let options = config.authorize_options()
+  let assert Ok(auth_request) =
+    vestibule.create_authorization_request(
+      strategy,
+      cfg: cfg,
+      options: options,
+    )
 notes:
   - Discovery performs HTTP requests, so the strategy targets the Erlang (BEAM) runtime only.
   - Each user may resolve to different authorization and token endpoints; always discover per login.

@@ -29,15 +29,21 @@ code: |
 
   let cfg =
     config.new(
-      "your-client-id",
-      "your-client-secret",
-      "https://myapp.example.com/auth/oidc/callback",
+      client_id: "your-client-id",
+      redirect_uri: "https://myapp.example.com/auth/oidc/callback",
+      auth: config.ClientSecret("your-client-secret"),
     )
 
-  let assert Ok(auth_request) = vestibule.authorize_url(strategy, cfg)
+  let options = config.authorize_options()
+  let assert Ok(auth_request) =
+    vestibule.create_authorization_request(
+      strategy,
+      cfg: cfg,
+      options: options,
+    )
 notes:
   - Discovery performs HTTP requests, so the strategy targets the Erlang (BEAM) runtime only.
-  - The OIDC nonce is not generated or validated; validate id_token replay protection yourself if required.
+  - Store authorization_request.nonce(auth_request) and pass it as `expected_nonce` during callback handling.
   - For multi-tenant apps, sanitize user-supplied issuer URLs before calling discover to prevent SSRF.
 navOrder: 70
 searchTerms:

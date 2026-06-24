@@ -33,6 +33,7 @@ export const coreInstallCode = `gleam add vestibule
 gleam add vestibule_github`;
 
 export const coreCode = `import gleam/dict
+import gleam/option
 import vestibule
 import vestibule/config
 import vestibule/error
@@ -41,12 +42,18 @@ import vestibule_github
 let strategy = vestibule_github.strategy()
 let cfg =
   config.new(
-    "client_id",
-    "client_secret",
-    "http://localhost:8000/auth/github/callback",
+    client_id: "client_id",
+    redirect_uri: "http://localhost:8000/auth/github/callback",
+    auth: config.ClientSecret("client_secret"),
   )
 
-let assert Ok(auth_request) = vestibule.create_authorization_request(strategy, cfg)
+let options = config.authorize_options()
+let assert Ok(auth_request) =
+  vestibule.create_authorization_request(
+    strategy,
+    cfg: cfg,
+    options: options,
+  )
 // Store auth_request.state and auth_request.code_verifier server-side,
 // bound to this user's session, with an expiration time.
 // Redirect user to auth_request.url.
@@ -66,6 +73,7 @@ case
     params,
     "expected state from session",
     "code verifier from session",
+    expected_nonce: option.None,
   )
 {
   Ok(auth) -> {
@@ -95,9 +103,9 @@ let assert Ok(reg) =
   |> registry.register(
     vestibule_github.strategy(),
     config.new(
-      "client_id",
-      "client_secret",
-      "http://localhost:8000/auth/github/callback",
+      client_id: "client_id",
+      redirect_uri: "http://localhost:8000/auth/github/callback",
+      auth: config.ClientSecret("client_secret"),
     ),
   )
 
@@ -105,7 +113,13 @@ let store = state_store.init()
 
 case wisp.path_segments(req), req.method {
   ["auth", provider], http.Get ->
-    vestibule_wisp.request_phase(req, reg, provider, store)
+    vestibule_wisp.request_phase(
+      req,
+      reg,
+      provider,
+      store,
+      authorize_options: config.authorize_options(),
+    )
 
   ["auth", provider, "callback"], http.Get
   | ["auth", provider, "callback"], http.Post ->
@@ -127,10 +141,20 @@ case wisp.path_segments(req), req.method {
     wisp.not_found()
 }`;
 
-export const callbackFailureCode = `import vestibule
+export const callbackFailureCode = `import gleam/option
+import vestibule
 import vestibule/error
 
-case vestibule.handle_callback(strategy, cfg, params, expected_state, verifier) {
+case
+  vestibule.handle_callback(
+    strategy,
+    cfg,
+    params,
+    expected_state,
+    verifier,
+    expected_nonce: option.None,
+  )
+{
   Ok(auth) -> sign_in(auth)
 
   // Classify the failure with error.kind/0; the ErrorKind enum carries an

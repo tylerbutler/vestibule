@@ -1,4 +1,5 @@
 project: vestibule_indieauth
 kind: Breaking
-body: 'Update APIs for vestibule ClientConfig and AuthorizeOptions split.'
+body: >-
+  Update APIs for the vestibule `ClientConfig` and `AuthorizeOptions` split. Build configs with `config.new(client_id: id, redirect_uri: uri, auth: config.ClientSecret(secret))`; public-client providers should use `auth: config.PublicClient` instead of passing an empty secret. Move request-specific scopes and extra params to `config.authorize_options() |> ...` and pass them with `options:` to `vestibule.create_authorization_request`.
 time: 2026-06-24T10:39:04-07:00

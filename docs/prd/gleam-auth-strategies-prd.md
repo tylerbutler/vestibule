@@ -182,12 +182,18 @@ pub type AuthError {
   ConfigError(reason: String)
 }
 
-/// Provider configuration.
-pub type Config {
-  Config(
+/// Durable provider configuration.
+pub type ClientConfig {
+  ClientConfig(
     client_id: String,
-    client_secret: String,
     redirect_uri: String,
+    auth: ClientAuth,
+  )
+}
+
+/// Per-request authorization options.
+pub type AuthorizeOptions {
+  AuthorizeOptions(
     scopes: List(String),
     extra_params: Dict(String, String),
   )
@@ -367,24 +373,34 @@ pub fn get(
 ```gleam
 // Level 1: Quick setup with defaults
 let github = github.strategy()
-let config = auth.config(
+let config = config.new(
   client_id: "...",
-  client_secret: "...",
   redirect_uri: "http://localhost:3000/auth/github/callback",
+  auth: config.ClientSecret("..."),
 )
 
 // Level 2: Custom scopes
-let config = auth.config(
-  client_id: "...",
-  client_secret: "...",
-  redirect_uri: "...",
-)
-|> auth.with_scopes(["user:email", "read:org"])
+let config =
+  config.new(
+    client_id: "...",
+    redirect_uri: "...",
+    auth: config.ClientSecret("..."),
+  )
+let options =
+  config.authorize_options()
+  |> config.with_scopes(["user:email", "read:org"])
 
 // Level 3: Full control
-let config = auth.config(...)
-|> auth.with_scopes([...])
-|> auth.with_extra_params([#("allow_signup", "false")])
+let config =
+  config.new(
+    client_id: "...",
+    redirect_uri: "...",
+    auth: config.ClientSecret("..."),
+  )
+let assert Ok(options) =
+  config.authorize_options()
+  |> config.with_scopes(["user:email", "read:org"])
+  |> config.with_extra_params([#("allow_signup", "false")])
 ```
 
 ### 7.2 Build on glow_auth
@@ -634,10 +650,10 @@ pub fn setup() -> Context {
   let registry = auth.new_registry()
     |> auth.register(
       github.strategy(),
-      auth.config(
+      config.new(
         client_id: "your_client_id",
-        client_secret: "your_client_secret",
         redirect_uri: "http://localhost:3000/auth/github/callback",
+        auth: config.ClientSecret("your_client_secret"),
       ),
     )
 

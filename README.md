@@ -34,6 +34,7 @@ two-phase flow directly:
 
 ```gleam
 import gleam/dict
+import gleam/option
 import vestibule
 import vestibule/config
 import vestibule_github
@@ -72,6 +73,7 @@ let assert Ok(auth) =
     params,
     "expected state from session",
     "code verifier from session",
+    expected_nonce: option.None,
   )
 // Delete the stored state and code verifier after a successful callback.
 // auth.uid(auth), user_info.email(auth.info(auth)), credentials.token(auth.credentials(auth))

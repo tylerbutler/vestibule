@@ -33,23 +33,24 @@ export const strategyType = `pub opaque type Strategy(e) {
     default_scopes: List(String),
     uses_nonce: Bool,
     authorize_url: Option(
-      fn(Config, List(String), String) -> Result(String, AuthError(e)),
+      fn(ClientConfig, AuthorizeOptions, List(String), String) -> Result(String, AuthError(e)),
     ),
     exchange_code: Option(
-      fn(Config, String, Option(String)) ->
+      fn(ClientConfig, String, Option(String)) ->
         Result(ExchangeResult, AuthError(e)),
     ),
     refresh_token: Option(
-      fn(Config, String) -> Result(Credentials, AuthError(e)),
+      fn(ClientConfig, String) -> Result(Credentials, AuthError(e)),
     ),
     fetch_user: Option(
-      fn(Config, ExchangeResult) -> Result(UserResult, AuthError(e)),
+      fn(ClientConfig, ExchangeResult) -> Result(UserResult, AuthError(e)),
     ),
   )
 }`;
 
 export const authorizeUrl = `fn do_authorize_url(
-  cfg: Config,
+  cfg: ClientConfig,
+  options: AuthorizeOptions,
   scopes: List(String),
   state: String,
 ) -> Result(String, AuthError(e)) {
@@ -58,10 +59,11 @@ export const authorizeUrl = `fn do_authorize_url(
     provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
   )
 
+  use secret <- result.try(config.client_secret(cfg))
   let client =
     glow_auth.Client(
       id: config.client_id(cfg),
-      secret: config.client_secret(cfg),
+      secret: secret,
       site: site,
     )
 
@@ -75,6 +77,9 @@ export const authorizeUrl = `fn do_authorize_url(
     |> authorize_uri.set_state(state)
     |> authorize_uri.to_code_authorization_uri()
     |> uri.to_string()
+    |> provider_support.append_query_params(
+      dict.to_list(config.extra_params(options)),
+    )
 
   Ok(url)
 }`;
@@ -94,7 +99,7 @@ gleam_json = ">= 3.1.0 and < 4.0.0"
 glow_auth = ">= 1.0.1 and < 2.0.0"`;
 
 export const exchangeAndFetch = `fn do_exchange_code(
-  cfg: Config,
+  cfg: ClientConfig,
   code: String,
   code_verifier: Option(String),
 ) -> Result(strategy.ExchangeResult, AuthError(e)) {
@@ -108,7 +113,7 @@ export const exchangeAndFetch = `fn do_exchange_code(
 }
 
 fn do_fetch_user(
-  _cfg: Config,
+  _cfg: ClientConfig,
   exchange: strategy.ExchangeResult,
 ) -> Result(strategy.UserResult, AuthError(e)) {
   use auth_header <- result.try(

@@ -19,6 +19,7 @@ highlights:
   - Provider strategies live in focused companion packages.
 code: |
   import gleam/dict
+  import gleam/option
   import vestibule
   import vestibule/config
   import vestibule/error
@@ -27,12 +28,18 @@ code: |
   let strategy = vestibule_github.strategy()
   let cfg =
     config.new(
-      "client_id",
-      "client_secret",
-      "http://localhost:8000/auth/github/callback",
+      client_id: "client_id",
+      redirect_uri: "http://localhost:8000/auth/github/callback",
+      auth: config.ClientSecret("client_secret"),
     )
 
-  let assert Ok(auth_request) = vestibule.create_authorization_request(strategy, cfg)
+  let options = config.authorize_options()
+  let assert Ok(auth_request) =
+    vestibule.create_authorization_request(
+      strategy,
+      cfg: cfg,
+      options: options,
+    )
   // Store authorization_request.state(auth_request) and authorization_request.code_verifier(auth_request) server-side.
   // Redirect the user to authorization_request.url(auth_request).
 
@@ -51,6 +58,7 @@ code: |
       params,
       "expected state from session",
       "code verifier from session",
+      expected_nonce: option.None,
     )
   {
     Ok(auth) -> sign_in(auth)
@@ -63,7 +71,7 @@ code: |
 notes:
   - Production redirect URIs and OIDC issuers must use HTTPS.
   - Redact Auth and Credentials values in logs; bearer tokens are secrets.
-  - OIDC nonce validation is currently left to the consuming app when it needs id_token replay protection beyond PKCE.
+  - Pass `expected_nonce: option.None` for plain OAuth2 callbacks; OIDC flows should pass the stored nonce from the request phase.
 navOrder: 10
 searchTerms:
   - github

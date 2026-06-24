@@ -44,8 +44,13 @@ const supportedProviders = [
   }
 ];
 const directFlow = `// Request phase: failure here means misconfiguration, so assert is fine.
+let options = config.authorize_options()
 let assert Ok(auth_request) =
-  vestibule.create_authorization_request(strategy, cfg)
+  vestibule.create_authorization_request(
+    strategy,
+    cfg: cfg,
+    options: options,
+  )
 // Store auth_request.state and auth_request.code_verifier, then
 // redirect to auth_request.url.
 
@@ -58,6 +63,7 @@ case
     params,
     expected_state,
     code_verifier,
+    expected_nonce: option.None,
   )
 {
   Ok(auth) -> sign_in(auth)

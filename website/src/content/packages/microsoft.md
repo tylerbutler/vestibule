@@ -30,9 +30,9 @@ code: |
 
   let cfg =
     config.new(
-      "microsoft-client-id",
-      "microsoft-client-secret",
-      "http://localhost:8000/auth/microsoft/callback",
+      client_id: "microsoft-client-id",
+      redirect_uri: "http://localhost:8000/auth/microsoft/callback",
+      auth: config.ClientSecret("microsoft-client-secret"),
     )
 notes:
   - Pass the tenant GUID, not a verified domain, when restricting to one tenant.

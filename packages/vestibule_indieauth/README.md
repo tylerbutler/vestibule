@@ -18,6 +18,7 @@ gleam add vestibule_indieauth
 
 ```gleam
 import gleam/dict
+import gleam/option
 import vestibule
 import vestibule/config
 import vestibule_indieauth
@@ -62,6 +63,7 @@ let assert Ok(auth) =
     params,
     "expected state from session",
     "code verifier from session",
+    expected_nonce: option.None,
   )
 // auth.uid is the user's canonical URL (e.g., "https://user.example.com/")
 // auth.info.name, auth.info.email, auth.info.image — from profile

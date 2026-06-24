@@ -31,14 +31,25 @@ This performs the full discovery flow:
 1. Validates and canonicalizes the user URL
 2. Fetches the URL and follows redirects
 3. Discovers authorization and token endpoints
-4. Returns a `Strategy(e)` ready for use with `vestibule.authorize_url`
+4. Returns a `Strategy(e)` ready for use with `vestibule.create_authorization_request`
 
 ## Example
 
 ```gleam
 let assert Ok(strategy) = vestibule_indieauth.discover("https://user.example.com")
-let cfg = config.new("https://myapp.com/", "", "https://myapp.com/callback")
-let assert Ok(auth_request) = vestibule.authorize_url(strategy, cfg)
+let cfg =
+  config.new(
+    client_id: "https://myapp.com/",
+    redirect_uri: "https://myapp.com/callback",
+    auth: config.PublicClient,
+  )
+let options = config.authorize_options()
+let assert Ok(auth_request) =
+  vestibule.create_authorization_request(
+    strategy,
+    cfg: cfg,
+    options: options,
+  )
 ```
 
 ```gleam

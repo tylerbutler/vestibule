@@ -41,12 +41,18 @@ import vestibule/oidc
 let assert Ok(strategy) = oidc.discover("https://your-pocket-id-instance")
 let cfg =
   config.new(
-    "your-client-id",
-    "your-client-secret",
-    "http://localhost:8000/auth/oidc/callback",
+    client_id: "your-client-id",
+    redirect_uri: "http://localhost:8000/auth/oidc/callback",
+    auth: config.ClientSecret("your-client-secret"),
   )
 
-let assert Ok(auth_request) = vestibule.create_authorization_request(strategy, cfg)`;
+let options = config.authorize_options()
+let assert Ok(auth_request) =
+  vestibule.create_authorization_request(
+    strategy,
+    cfg: cfg,
+    options: options,
+  )`;
 
 <section id="discover">
   <h2>Discover a provider</h2>

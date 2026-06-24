@@ -57,7 +57,12 @@ import vestibule_indieauth/url
 ///
 /// ```gleam
 /// let assert Ok(strategy) = vestibule_indieauth.discover("https://user.example.com")
-/// let cfg = config.new("https://myapp.com/", "", "https://myapp.com/callback")
+/// let cfg =
+///   config.new(
+///     client_id: "https://myapp.com/",
+///     redirect_uri: "https://myapp.com/callback",
+///     auth: config.PublicClient,
+///   )
 /// let options = config.authorize_options()
 /// let assert Ok(auth_request) =
 ///   vestibule.create_authorization_request(strategy, cfg: cfg, options: options)
