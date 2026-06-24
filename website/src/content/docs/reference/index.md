@@ -45,7 +45,7 @@ This reference is generated from Gleam's docs metadata for the Vestibule package
 | `vestibule` | [`vestibule`](/docs/reference/vestibule) | Vestibule — a strategy-based authentication library for Gleam. |
 | `vestibule` | [`vestibule/auth`](/docs/reference/vestibule-auth) | Authentication result types returned to the calling application after a successful OAuth/OIDC flow. |
 | `vestibule` | [`vestibule/authorization_request`](/docs/reference/vestibule-authorization_request) | An opaque value carrying everything the middleware needs to start an authorization flow: the URL to redirect the browser to, the CSRF `state`, the PKCE `code_verifier`, and an optional OIDC `nonce`, all of which must be stored for the callback. |
-| `vestibule` | [`vestibule/config`](/docs/reference/vestibule-config) | OAuth provider configuration. Each `ProviderConfig` carries the `client_id`, `client_secret`, `redirect_uri`, and optional per-strategy overrides used to build authorization requests and exchange codes. |
+| `vestibule` | [`vestibule/config`](/docs/reference/vestibule-config) | OAuth client configuration and authorization options. `ClientConfig` holds durable client ID, redirect URI, and `ClientAuth`; `AuthorizeOptions` holds per-request scopes and extra authorization parameters. |
 | `vestibule` | [`vestibule/credentials`](/docs/reference/vestibule-credentials) | Bearer credentials returned by a provider after a successful token exchange or refresh. |
 | `vestibule` | [`vestibule/error`](/docs/reference/vestibule-error) | Authentication error types. |
 | `vestibule` | [`vestibule/logger`](/docs/reference/vestibule-logger) | Reference for vestibule/logger. |

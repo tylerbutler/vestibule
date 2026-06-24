@@ -118,14 +118,14 @@ pub type Strategy {
     /// Human-readable provider name (e.g., "github", "google")
     provider: String,
     /// Build the authorization URL to redirect the user to
-    authorize_url: fn(Config, List(String), String) ->
+    authorize_url: fn(ClientConfig, AuthorizeOptions, List(String), String) ->
       Result(String, AuthError),
     /// Exchange an authorization code for credentials
-    exchange_code: fn(Config, String) ->
-      Result(Credentials, AuthError),
-    /// Fetch user info using the obtained credentials
-    fetch_user: fn(Credentials) ->
-      Result(UserInfo, AuthError),
+    exchange_code: fn(ClientConfig, String, Option(String)) ->
+      Result(ExchangeResult, AuthError),
+    /// Fetch user info using the obtained exchange result
+    fetch_user: fn(ClientConfig, ExchangeResult) ->
+      Result(UserResult, AuthError),
   )
 }
 ```
@@ -183,21 +183,13 @@ pub type AuthError {
 }
 
 /// Durable provider configuration.
-pub type ClientConfig {
-  ClientConfig(
-    client_id: String,
-    redirect_uri: String,
-    auth: ClientAuth,
-  )
-}
+pub opaque type ClientConfig
 
 /// Per-request authorization options.
-pub type AuthorizeOptions {
-  AuthorizeOptions(
-    scopes: List(String),
-    extra_params: Dict(String, String),
-  )
-}
+pub opaque type AuthorizeOptions
+
+// Build values with config.new(...), config.authorize_options(),
+// config.with_scopes(...), and config.with_extra_params(...).
 ```
 
 ### 4.4 Result Type
@@ -220,13 +212,14 @@ pub type AuthResult {
 #### FR-1: Authorization URL Generation
 
 ```gleam
-/// Generate the authorization URL for a given strategy.
-/// State parameter is generated internally for CSRF protection.
-pub fn authorize_url(
+/// Create an authorization request for a given strategy.
+/// State and PKCE verifier are generated internally for CSRF and PKCE.
+pub fn create_authorization_request(
   strategy: Strategy,
-  config: Config,
-) -> Result(#(String, String), AuthError)
-// Returns #(url, state) — caller stores state in session
+  cfg cfg: ClientConfig,
+  options options: AuthorizeOptions,
+) -> Result(AuthorizationRequest, AuthError)
+// Returns URL, state, code_verifier, and optional nonce — caller stores transient values in session
 ```
 
 #### FR-2: State Parameter
@@ -238,7 +231,7 @@ pub fn authorize_url(
 #### FR-3: Scope Handling
 
 - Default scopes SHOULD be defined per strategy
-- Config scopes MUST override defaults when provided
+- AuthorizeOptions scopes MUST override defaults when provided
 - Scope format MUST match provider expectations (space-separated vs comma-separated)
 
 ### 5.2 Callback Phase
@@ -250,9 +243,11 @@ pub fn authorize_url(
 /// Validates state, exchanges code for tokens, fetches user info.
 pub fn handle_callback(
   strategy: Strategy,
-  config: Config,
-  callback_params: Dict(String, String),
-  expected_state: String,
+  cfg cfg: ClientConfig,
+  callback_params callback_params: Dict(String, String),
+  expected_state expected_state: String,
+  code_verifier code_verifier: String,
+  expected_nonce expected_nonce: Option(String),
 ) -> Result(Auth, AuthError)
 ```
 
@@ -291,14 +286,14 @@ pub fn new() -> Registry
 
 pub fn register(
   registry: Registry,
-  strategy: Strategy,
-  config: Config,
-) -> Registry
+  strategy strategy: Strategy,
+  config config: ClientConfig,
+) -> Result(Registry, RegistryError)
 
 pub fn get(
   registry: Registry,
-  provider: String,
-) -> Result(#(Strategy, Config), Nil)
+  provider provider: String,
+) -> Result(#(Strategy, ClientConfig), Nil)
 ```
 
 ### 5.4 Built-in Strategies
@@ -440,10 +435,10 @@ However, for initial launch, bundling the top 3 providers in the core package re
 
 ```
 src/
-├── {lib_name}.gleam                # Public API: authorize_url, handle_callback
+├── {lib_name}.gleam                # Public API: create_authorization_request, handle_callback
 ├── {lib_name}/
 │   ├── auth.gleam                  # Auth, AuthResult types
-│   ├── config.gleam                # Config type and builders
+│   ├── config.gleam                # ClientConfig, ClientAuth, AuthorizeOptions, and builders
 │   ├── credentials.gleam           # Credentials type
 │   ├── user_info.gleam             # UserInfo type
 │   ├── strategy.gleam              # Strategy type definition
@@ -497,10 +492,10 @@ This library is **complementary, not competing**:
 
 ### Phase 1: Core + GitHub (MVP) ✅
 
-- [x] Core types: Auth, UserInfo, Credentials, AuthError, Config
+- [x] Core types: Auth, UserInfo, Credentials, AuthError, ClientConfig, AuthorizeOptions
 - [x] Strategy type definition
 - [x] State parameter generation and validation
-- [x] authorize_url and handle_callback functions
+- [x] create_authorization_request and handle_callback functions
 - [x] GitHub strategy (with email fetching)
 - [x] Basic Wisp middleware helper
 - [x] Integration with glow_auth
@@ -512,7 +507,7 @@ This library is **complementary, not competing**:
 - [x] Google strategy (with PKCE)
 - [x] Microsoft strategy
 - [x] Provider registry
-- [x] Configurable scopes and extra params
+- [x] AuthorizeOptions scopes and extra params
 - [x] Comprehensive error messages
 - [x] Example Wisp application
 
@@ -539,7 +534,7 @@ This library is **complementary, not competing**:
 
 - State parameter generation (randomness, length)
 - State validation (match, mismatch, constant-time)
-- Config construction and scope merging
+- ClientConfig construction and AuthorizeOptions scope merging
 - User info normalization from provider-specific JSON
 - Error type construction
 
@@ -708,20 +703,20 @@ import gleam/json
 pub fn strategy() -> Strategy {
   Strategy(
     provider: "twitch",
-    authorize_url: fn(config, scopes, state) {
-      // Build Twitch-specific authorize URL
+    authorize_url: fn(cfg, options, scopes, state) {
+      // Build Twitch-specific authorize URL with cfg, options, scopes, and state
       // ...
       Ok(url)
     },
-    exchange_code: fn(config, code) {
-      // Exchange code for Twitch token
+    exchange_code: fn(cfg, code, code_verifier) {
+      // Exchange code for Twitch token, passing the optional PKCE verifier
       // ...
-      Ok(credentials)
+      Ok(exchange_result)
     },
-    fetch_user: fn(credentials) {
-      // Fetch user from Twitch API
+    fetch_user: fn(cfg, exchange) {
+      // Fetch user from Twitch API using cfg and exchange result
       // ...
-      Ok(user_info)
+      Ok(user_result)
     },
   )
 }

@@ -31,7 +31,7 @@ Apple's OAuth implementation has several key differences from standard providers
   strategy just adds the parameter to the authorization URL.
 - **Client secret is a JWT**: Apple requires the client_secret to be a signed
   JWT. The caller is responsible for generating this JWT and providing it in
-  the Config. This strategy passes it through to the token endpoint.
+  the `ClientConfig` as `config.ClientSecret(jwt)`. This strategy passes it through to the token endpoint.
 - **User info only on first auth**: Apple only sends the full user object
   (with name) on the first authorization. Subsequent authorizations only
   include `sub` and `email` in the ID token.
