@@ -160,15 +160,14 @@ pub opaque type UserInfo
 // description(info), and urls(info), from the user_info module.
 
 /// OAuth credentials from the provider.
-pub type Credentials {
-  Credentials(
-    token: String,
-    refresh_token: Option(String),
-    token_type: String,
-    expires_in: Option(Int),
-    scopes: List(String),
-  )
-}
+pub opaque type Credentials
+
+// Build values with credentials.new(token:, refresh_token:, token_type:,
+// expires_in:, scopes:). Read values with credentials.token(creds),
+// credentials.refresh_token(creds), credentials.token_type(creds),
+// credentials.expires_in(creds), and credentials.scopes(creds).
+// Credentials is opaque so token storage and fields can evolve without
+// exposing raw token fields.
 
 /// Authentication failure.
 pub opaque type AuthError(e)

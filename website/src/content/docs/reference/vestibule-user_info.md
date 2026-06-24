@@ -34,7 +34,7 @@ callers that construct or pattern-match the value. Build instances with
 `new` plus the `with_*` helpers, and read fields with the accessors.
 
 ```gleam
-pub type UserInfo
+pub opaque type UserInfo
 ```
 
 ## Functions

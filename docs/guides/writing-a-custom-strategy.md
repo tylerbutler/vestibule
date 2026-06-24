@@ -720,7 +720,7 @@ The `Credentials` type has five fields. Map your provider's token response to th
 | `expires_in` | `expires_in` | Seconds until expiry, or `None` |
 | `scopes` | `scope` | Parse according to the provider's format |
 
-`Credentials.expires_in` stores the provider `expires_in` value (seconds from now), not an absolute timestamp.
+`credentials.expires_in(creds)` returns the provider `expires_in` value (seconds from now), not an absolute timestamp.
 
 ## Publishing as a Hex Package
 
