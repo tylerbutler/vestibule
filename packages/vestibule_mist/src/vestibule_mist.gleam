@@ -27,7 +27,7 @@ import gleam/uri
 import mist.{type Connection, type ResponseData}
 
 import vestibule/auth.{type Auth}
-import vestibule/config
+import vestibule/config.{type AuthorizeOptions}
 import vestibule/error
 import vestibule/logger
 import vestibule/registry.{type Registry}
@@ -96,10 +96,11 @@ pub fn new_options(secret_key_base: BitArray) -> Options {
 /// metadata (scheme, cookies) is inspected.
 pub fn request_phase(
   _req: Request(body),
-  reg: Registry(e),
-  provider: String,
-  store: StateStore,
-  options: Options,
+  reg reg: Registry(e),
+  provider provider: String,
+  store store: StateStore,
+  authorize_options authorize_options: AuthorizeOptions,
+  options options: Options,
 ) -> Response(ResponseData) {
   logger.emit(
     logger.new(
@@ -120,7 +121,7 @@ pub fn request_phase(
       provider: provider,
       store: store,
       ttl_seconds: options.session_ttl_seconds,
-      options: config.authorize_options(),
+      options: authorize_options,
     )
   {
     Error(transport_flow.UnknownProvider(_)) -> {
