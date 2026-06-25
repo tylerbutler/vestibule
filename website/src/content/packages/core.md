@@ -71,7 +71,7 @@ code: |
 notes:
   - Production redirect URIs and OIDC issuers must use HTTPS.
   - Redact Auth and Credentials values in logs; bearer tokens are secrets.
-  - Pass `expected_nonce: option.None` for plain OAuth2 callbacks; OIDC flows should pass the stored nonce from the request phase.
+  - "Pass `expected_nonce: option.None` for plain OAuth2 callbacks; OIDC flows should pass the stored nonce from the request phase."
 navOrder: 10
 searchTerms:
   - github

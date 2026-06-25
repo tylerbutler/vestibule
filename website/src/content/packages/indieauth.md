@@ -9,7 +9,7 @@ useWhen: Use IndieAuth when you want users to authenticate with their own domain
 defaultScopes: "profile"
 setup:
   - Host your application at a stable HTTPS URL — this URL is your client_id.
-  - Use `auth: config.PublicClient`; IndieAuth clients are public and do not send a client secret.
+  - "Use `auth: config.PublicClient`; IndieAuth clients are public and do not send a client secret."
   - Register the redirect URI your app uses for the callback.
   - Call discover with the user-supplied profile URL before starting the flow.
 highlights:

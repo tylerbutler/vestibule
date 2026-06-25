@@ -26,114 +26,13 @@ searchTerms:
 ---
 
 import CodeBlock from "../../../components/CodeBlock.astro";
-
-export const strategyType = `pub opaque type Strategy(e)
-
-pub fn new(
-  provider provider: String,
-  default_scopes default_scopes: List(String),
-) -> Strategy(e)
-
-pub fn with_authorize_url(
-  strategy: Strategy(e),
-  authorize_url: fn(ClientConfig, AuthorizeOptions, List(String), String) ->
-    Result(String, AuthError(e)),
-) -> Strategy(e)
-
-pub fn with_exchange_code(
-  strategy: Strategy(e),
-  exchange_code: fn(ClientConfig, String, Option(String)) ->
-    Result(ExchangeResult, AuthError(e)),
-) -> Strategy(e)`;
-
-export const authorizeUrl = `fn do_authorize_url(
-  cfg: ClientConfig,
-  options: AuthorizeOptions,
-  scopes: List(String),
-  state: String,
-) -> Result(String, AuthError(e)) {
-  let assert Ok(site) = uri.parse("https://id.twitch.tv")
-  use redirect <- result.try(
-    provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
-  )
-
-  use secret <- result.try(config.client_secret(cfg))
-  let client =
-    glow_auth.Client(
-      id: config.client_id(cfg),
-      secret: secret,
-      site: site,
-    )
-
-  let url =
-    authorize_uri.build(
-      client,
-      uri_builder.RelativePath("/oauth2/authorize"),
-      redirect,
-    )
-    |> authorize_uri.set_scope(string.join(scopes, " "))
-    |> authorize_uri.set_state(state)
-    |> authorize_uri.to_code_authorization_uri()
-    |> uri.to_string()
-    |> provider_support.append_query_params(
-      dict.to_list(config.extra_params(options)),
-    )
-
-  Ok(url)
-}`;
-
-export const packageToml = `name = "vestibule_twitch"
-version = "0.1.0"
-description = "Twitch OAuth strategy for Vestibule"
-licences = ["MIT"]
-gleam = ">= 1.7.0"
-
-[dependencies]
-vestibule = ">= 1.0.0 and < 2.0.0"
-gleam_stdlib = ">= 0.48.0 and < 2.0.0"
-gleam_http = ">= 4.3.0 and < 5.0.0"
-gleam_httpc = ">= 5.0.0 and < 6.0.0"
-gleam_json = ">= 3.1.0 and < 4.0.0"
-glow_auth = ">= 1.0.1 and < 2.0.0"`;
-
-export const exchangeAndFetch = `fn do_exchange_code(
-  cfg: ClientConfig,
-  code: String,
-  code_verifier: Option(String),
-) -> Result(strategy.ExchangeResult, AuthError(e)) {
-  // Build and send the provider token request, then parse credentials.
-  use body <- result.try(post_token_request(cfg, code, code_verifier))
-  provider_support.parse_oauth_token_response(
-    body,
-    provider_support.OptionalScope(" "),
-  )
-  |> result.map(strategy.exchange_result)
-}
-
-fn do_fetch_user(
-  _cfg: ClientConfig,
-  exchange: strategy.ExchangeResult,
-) -> Result(strategy.UserResult, AuthError(e)) {
-  use auth_header <- result.try(
-    strategy.authorization_header(strategy.exchange_credentials(exchange)),
-  )
-  use #(uid, info) <- result.try(provider_support.fetch_json_with_auth(
-    "https://id.twitch.tv/oauth2/userinfo",
-    auth_header,
-    parse_user_response,
-    "Twitch userinfo",
-  ))
-
-  Ok(strategy.user_result(uid: uid, info: info, extra: dict.new()))
-}`;
-
-export const strategyValue = `pub fn strategy() -> Strategy(e) {
-  strategy.new(provider: "twitch", default_scopes: ["user:read:email"])
-  |> strategy.with_authorize_url(do_authorize_url)
-  |> strategy.with_exchange_code(do_exchange_code)
-  |> strategy.with_fetch_user(do_fetch_user)
-  |> strategy.with_refresh(do_refresh_token)
-}`;
+import {
+  authorizeUrl,
+  exchangeAndFetch,
+  packageToml,
+  strategyType,
+  strategyValue,
+} from "../../../data/doc-snippets";
 
 <section id="core-boundary" className="security-callout">
   <div>
