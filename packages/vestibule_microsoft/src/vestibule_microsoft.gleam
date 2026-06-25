@@ -1,6 +1,6 @@
 //// Microsoft Identity Platform (v2.0) strategy.
 ////
-//// Requests `User.Read` by default. Tokens are exchanged against
+//// Requests `openid User.Read` by default. Tokens are exchanged against
 //// `/oauth2/v2.0/token`; user info comes from Microsoft Graph `/me`.
 ////
 //// ## Tenant isolation
@@ -17,6 +17,7 @@
 //// authentication when the token was issued by a different tenant.
 
 import gleam/bit_array
+import gleam/bool
 import gleam/dict
 import gleam/dynamic
 import gleam/dynamic/decode
@@ -35,7 +36,7 @@ import glow_auth/authorize_uri
 import glow_auth/token_request
 import glow_auth/uri/uri_builder
 
-import vestibule/config.{type Config}
+import vestibule/config.{type AuthorizeOptions, type ClientConfig}
 import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/logger
@@ -77,15 +78,10 @@ fn build_strategy(
   authority: String,
   expected_tenant: Option(String),
 ) -> Strategy(e) {
-  // Tenant-locked strategies need an ID token (`openid` scope) to read `tid`.
-  let default_scopes = case expected_tenant {
-    Some(_) -> ["openid", "User.Read"]
-    None -> ["User.Read"]
-  }
-  strategy.new(provider: "microsoft", default_scopes: default_scopes)
+  strategy.new(provider: "microsoft", default_scopes: ["openid", "User.Read"])
   |> strategy.with_nonce()
-  |> strategy.with_authorize_url(fn(cfg, scopes, state) {
-    do_authorize_url(authority, cfg, scopes, state)
+  |> strategy.with_authorize_url(fn(cfg, options, scopes, state) {
+    do_authorize_url(authority, cfg, options, scopes, state)
   })
   |> strategy.with_exchange_code(fn(cfg, code, code_verifier) {
     do_exchange_code(authority, cfg, code, code_verifier)
@@ -201,7 +197,8 @@ pub fn parse_user_response(
 
 fn do_authorize_url(
   authority: String,
-  cfg: Config,
+  cfg: ClientConfig,
+  options: AuthorizeOptions,
   scopes: List(String),
   state: String,
 ) -> Result(String, AuthError(e)) {
@@ -215,11 +212,8 @@ fn do_authorize_url(
     provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
   )
   let client =
-    glow_auth.Client(
-      id: config.client_id(cfg),
-      secret: config.client_secret(cfg),
-      site: site,
-    )
+    glow_auth.Client(id: config.client_id(cfg), secret: "", site: site)
+  let scopes = scopes_with_openid(scopes)
   let url =
     authorize_uri.build(
       client,
@@ -231,14 +225,19 @@ fn do_authorize_url(
     |> authorize_uri.to_code_authorization_uri()
     |> uri.to_string()
     |> provider_support.append_query_params(
-      dict.to_list(config.extra_params(cfg)),
+      dict.to_list(config.extra_params(options)),
     )
   Ok(url)
 }
 
+fn scopes_with_openid(scopes: List(String)) -> List(String) {
+  use <- bool.guard(when: list.contains(scopes, "openid"), return: scopes)
+  ["openid", ..scopes]
+}
+
 fn do_exchange_code(
   authority: String,
-  cfg: Config,
+  cfg: ClientConfig,
   code: String,
   code_verifier: Option(String),
 ) -> Result(strategy.ExchangeResult, AuthError(e)) {
@@ -251,10 +250,11 @@ fn do_exchange_code(
   use redirect <- result.try(
     provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
   )
+  use client_secret <- result.try(config.client_secret(cfg))
   let client =
     glow_auth.Client(
       id: config.client_id(cfg),
-      secret: config.client_secret(cfg),
+      secret: client_secret,
       site: site,
     )
   let req =
@@ -345,7 +345,7 @@ fn id_token_artifacts(
 
 fn do_refresh_token(
   authority: String,
-  cfg: Config,
+  cfg: ClientConfig,
   refresh_tok: String,
 ) -> Result(Credentials, AuthError(e)) {
   use site <- result.try(
@@ -354,10 +354,11 @@ fn do_refresh_token(
       error.config(reason: "Failed to parse Microsoft OAuth base URL")
     }),
   )
+  use client_secret <- result.try(config.client_secret(cfg))
   let client =
     glow_auth.Client(
       id: config.client_id(cfg),
-      secret: config.client_secret(cfg),
+      secret: client_secret,
       site: site,
     )
   let req =
@@ -410,7 +411,7 @@ fn do_refresh_token(
 
 fn do_fetch_user(
   expected_tenant: Option(String),
-  _cfg: Config,
+  _cfg: ClientConfig,
   exchange: strategy.ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
   use _ <- result.try(enforce_tenant(expected_tenant, exchange))

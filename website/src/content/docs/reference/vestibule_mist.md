@@ -208,9 +208,10 @@ metadata (scheme, cookies) is inspected.
 ```gleam
 pub fn request_phase(
   request.Request(a),
-  registry.Registry(b),
-  String,
-  state_store.StateStore,
-  Options
+  reg: registry.Registry(b),
+  provider: String,
+  store: state_store.StateStore,
+  authorize_options: config.AuthorizeOptions,
+  options: Options,
 ) -> response.Response(mist.ResponseData)
 ```

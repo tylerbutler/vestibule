@@ -37,6 +37,7 @@ import vestibule/logger
 import vestibule/provider_support
 import vestibule/strategy.{type Strategy, type UserResult}
 import vestibule/user_info
+import vestibule_oidc/internal/token_request_params
 
 /// Configuration discovered from an OpenID Connect provider's
 /// `/.well-known/openid-configuration` endpoint.
@@ -454,11 +455,14 @@ fn extract_hostname(url: String) -> String {
 
 fn build_authorize_url_fn(
   authorization_endpoint: String,
-) -> fn(config.Config, List(String), String) -> Result(String, AuthError(e)) {
-  fn(cfg: config.Config, scopes: List(String), state: String) -> Result(
-    String,
-    AuthError(e),
-  ) {
+) -> fn(config.ClientConfig, config.AuthorizeOptions, List(String), String) ->
+  Result(String, AuthError(e)) {
+  fn(
+    cfg: config.ClientConfig,
+    options: config.AuthorizeOptions,
+    scopes: List(String),
+    state: String,
+  ) -> Result(String, AuthError(e)) {
     use redirect <- result.try(
       provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
     )
@@ -471,9 +475,9 @@ fn build_authorize_url_fn(
           #("scope", string.join(scopes, " ")),
           #("state", state),
         ]
-        // Merge any extra params from config
+        // Merge any extra params from options
         let all_params =
-          list.append(params, dict.to_list(config.extra_params(cfg)))
+          list.append(params, dict.to_list(config.extra_params(options)))
         let query = uri.query_to_string(all_params)
         let full_uri = uri.Uri(..base_uri, query: Some(query))
         Ok(uri.to_string(full_uri))
@@ -489,27 +493,23 @@ fn build_authorize_url_fn(
 
 fn build_exchange_code_fn(
   token_endpoint: String,
-) -> fn(config.Config, String, option.Option(String)) ->
+) -> fn(config.ClientConfig, String, option.Option(String)) ->
   Result(strategy.ExchangeResult, AuthError(e)) {
-  fn(cfg: config.Config, code: String, code_verifier: option.Option(String)) -> Result(
-    strategy.ExchangeResult,
-    AuthError(e),
-  ) {
+  fn(
+    cfg: config.ClientConfig,
+    code: String,
+    code_verifier: option.Option(String),
+  ) -> Result(strategy.ExchangeResult, AuthError(e)) {
     use redirect <- result.try(
       provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
     )
-    let base_params = [
-      #("grant_type", "authorization_code"),
-      #("code", code),
-      #("redirect_uri", uri.to_string(redirect)),
-      #("client_id", config.client_id(cfg)),
-      #("client_secret", config.client_secret(cfg)),
-    ]
-    let params = case code_verifier {
-      option.Some(verifier) ->
-        list.append(base_params, [#("code_verifier", verifier)])
-      option.None -> base_params
-    }
+    let params =
+      token_request_params.authorization_code(
+        cfg,
+        code: code,
+        redirect_uri: uri.to_string(redirect),
+        code_verifier: code_verifier,
+      )
     let body = uri.query_to_string(params)
 
     use req <- result.try(
@@ -552,9 +552,9 @@ fn build_exchange_code_fn(
 
 fn build_fetch_user_fn(
   userinfo_endpoint: String,
-) -> fn(config.Config, strategy.ExchangeResult) ->
+) -> fn(config.ClientConfig, strategy.ExchangeResult) ->
   Result(UserResult, AuthError(e)) {
-  fn(_cfg: config.Config, exchange: strategy.ExchangeResult) -> Result(
+  fn(_cfg: config.ClientConfig, exchange: strategy.ExchangeResult) -> Result(
     UserResult,
     AuthError(e),
   ) {
@@ -573,18 +573,14 @@ fn build_fetch_user_fn(
 
 fn build_refresh_token_fn(
   token_endpoint: String,
-) -> fn(config.Config, String) -> Result(Credentials, AuthError(e)) {
-  fn(cfg: config.Config, refresh_tok: String) -> Result(
+) -> fn(config.ClientConfig, String) -> Result(Credentials, AuthError(e)) {
+  fn(cfg: config.ClientConfig, refresh_tok: String) -> Result(
     Credentials,
     AuthError(e),
   ) {
     let body =
-      uri.query_to_string([
-        #("grant_type", "refresh_token"),
-        #("refresh_token", refresh_tok),
-        #("client_id", config.client_id(cfg)),
-        #("client_secret", config.client_secret(cfg)),
-      ])
+      token_request_params.refresh(cfg, refresh_token: refresh_tok)
+      |> uri.query_to_string
 
     use req <- result.try(
       request.to(token_endpoint)

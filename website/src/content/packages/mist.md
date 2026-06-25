@@ -34,7 +34,14 @@ code: |
   fn handle_request(req: Request(Connection)) -> Response(ResponseData) {
     case request.path_segments(req), req.method {
       ["auth", provider], http.Get ->
-        vestibule_mist.request_phase(req, reg, provider, store, options)
+        vestibule_mist.request_phase(
+          req,
+          reg,
+          provider,
+          store,
+          authorize_options: config.authorize_options(),
+          options: options,
+        )
 
       ["auth", provider, "callback"], http.Get
       | ["auth", provider, "callback"], http.Post ->

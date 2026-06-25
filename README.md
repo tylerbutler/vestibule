@@ -34,23 +34,32 @@ two-phase flow directly:
 
 ```gleam
 import gleam/dict
+import gleam/option
 import vestibule
+import vestibule/authorization_request
 import vestibule/config
 import vestibule_github
 
 let strategy = vestibule_github.strategy()
 let cfg =
   config.new(
-    "client_id",
-    "client_secret",
-    "http://localhost:8000/auth/github/callback",
+    client_id: "client_id",
+    redirect_uri: "http://localhost:8000/auth/github/callback",
+    auth: config.ClientSecret("client_secret"),
   )
+let options = config.authorize_options()
 
 // Phase 1: Generate authorization URL and redirect user
-let assert Ok(auth_request) = vestibule.create_authorization_request(strategy, cfg)
-// Store auth_request.state and auth_request.code_verifier server-side,
-// bound to this user's session, with an expiration time.
-// Redirect user to auth_request.url
+let assert Ok(auth_request) =
+  vestibule.create_authorization_request(
+    strategy,
+    cfg: cfg,
+    options: options,
+  )
+// Store authorization_request.state(auth_request) and
+// authorization_request.code_verifier(auth_request) server-side, bound to this
+// user's session, with an expiration time.
+// Redirect user to authorization_request.url(auth_request)
 
 // Phase 2: Handle the callback
 let params =
@@ -66,10 +75,16 @@ let assert Ok(auth) =
     params,
     "expected state from session",
     "code verifier from session",
+    expected_nonce: option.None,
   )
 // Delete the stored state and code verifier after a successful callback.
 // auth.uid(auth), user_info.email(auth.info(auth)), credentials.token(auth.credentials(auth))
 ```
+
+`ClientConfig` is durable app/provider configuration: client ID, redirect URI,
+and client authentication. Reuse it across requests. `AuthorizeOptions` carries
+per-request authorization choices, such as scopes or provider-specific query
+parameters. Create fresh options for each authorization request.
 
 Store `state` and the PKCE `code_verifier` on the server, bound to the user's
 session. Expire them quickly, reject callbacks with missing or mismatched
@@ -93,9 +108,9 @@ let assert Ok(reg) =
   |> registry.register(
     vestibule_github.strategy(),
     config.new(
-      "client_id",
-      "client_secret",
-      "http://localhost:8000/auth/github/callback",
+      client_id: "client_id",
+      redirect_uri: "http://localhost:8000/auth/github/callback",
+      auth: config.ClientSecret("client_secret"),
     ),
   )
 let store = state_store.init()
@@ -103,7 +118,13 @@ let store = state_store.init()
 // In your router
 case wisp.path_segments(req), req.method {
   ["auth", provider], http.Get ->
-    vestibule_wisp.request_phase(req, reg, provider, store)
+    vestibule_wisp.request_phase(
+      req,
+      reg,
+      provider,
+      store,
+      authorize_options: config.authorize_options(),
+    )
   // Accept both GET and POST — Apple uses response_mode=form_post
   ["auth", provider, "callback"], http.Get
   | ["auth", provider, "callback"], http.Post
@@ -150,6 +171,7 @@ import gleam/http
 import gleam/http/request.{type Request}
 import gleam/http/response.{type Response}
 import mist.{type Connection, type ResponseData}
+import vestibule/config
 import vestibule/state_store
 import vestibule_mist
 
@@ -159,7 +181,14 @@ let options = vestibule_mist.new_options(secret_key_base)
 fn handle_request(req: Request(Connection)) -> Response(ResponseData) {
   case request.path_segments(req), req.method {
     ["auth", provider], http.Get ->
-      vestibule_mist.request_phase(req, reg, provider, store, options)
+      vestibule_mist.request_phase(
+        req,
+        reg,
+        provider,
+        store,
+        authorize_options: config.authorize_options(),
+        options: options,
+      )
     ["auth", provider, "callback"], http.Get
     | ["auth", provider, "callback"], http.Post ->
       vestibule_mist.callback_phase(req, reg, provider, store, options, on_success)
@@ -193,7 +222,9 @@ Vestibule uses a two-phase OAuth2 flow inspired by Elixir's Ueberauth:
 1. **Request phase** — Generate an authorization URL with CSRF state and PKCE, redirect the user to the provider
 2. **Callback phase** — Validate state, exchange the authorization code for tokens, fetch user info, return a normalized `Auth` result
 
-Strategies are records of functions — no behaviours, macros, or magic. Each strategy tells vestibule how to talk to a specific provider.
+Strategies are opaque values built with `strategy.new` and the `strategy.with_*`
+builders — no behaviours, macros, or magic. Each strategy tells vestibule how to
+talk to a specific provider.
 
 ## More Features
 
@@ -222,15 +253,12 @@ let assert Ok(updated) =
   vestibule.refresh_token(strategy, cfg, refresh_token)
 ```
 
-Add provider-specific authorization parameters when a provider requires them:
+Add provider-specific authorization parameters to per-request options when a
+provider requires them:
 
 ```gleam
-let assert Ok(google_cfg) =
-  config.new(
-    "google-client-id",
-    "google-client-secret",
-    "http://localhost:8000/auth/google/callback",
-  )
+let assert Ok(options) =
+  config.authorize_options()
   |> config.with_extra_params([
     #("access_type", "offline"),
     #("prompt", "consent"),
@@ -267,12 +295,18 @@ import vestibule_oidc
 let assert Ok(strategy) = vestibule_oidc.discover("https://your-pocket-id-instance")
 let cfg =
   config.new(
-    "your-client-id",
-    "your-client-secret",
-    "http://localhost:8000/auth/oidc/callback",
+    client_id: "your-client-id",
+    redirect_uri: "http://localhost:8000/auth/oidc/callback",
+    auth: config.ClientSecret("your-client-secret"),
   )
+let options = config.authorize_options()
 
-let assert Ok(auth_request) = vestibule.authorize_url(strategy, cfg)
+let assert Ok(auth_request) =
+  vestibule.create_authorization_request(
+    strategy,
+    cfg: cfg,
+    options: options,
+  )
 ```
 
 The discovered strategy plugs into the same two-phase flow, registry, and
@@ -363,9 +397,9 @@ credentials plus any provider-specific artifacts. Build one with
 `strategy.exchange_result(credentials)` for providers with no exchange
 artifacts, or `strategy.exchange_result_with_artifacts(credentials, artifacts)`
 otherwise, and read it back with `strategy.exchange_credentials` and
-`strategy.exchange_artifacts`. `strategy.fetch_user(Config, ExchangeResult)`
-receives both the standard credentials and any provider-specific token response
-artifacts.
+`strategy.exchange_artifacts`. `strategy.fetch_user(ClientConfig, ExchangeResult)`
+receives durable client configuration, the standard credentials, and any
+provider-specific token response artifacts.
 
 Prefer provider SDK helpers such as `provider_support.parse_redirect_uri`,
 `provider_support.check_response_status`,

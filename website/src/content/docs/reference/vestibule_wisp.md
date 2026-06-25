@@ -246,7 +246,8 @@ pub fn request_phase(
   request.Request(internal.Connection),
   reg: registry.Registry(a),
   provider: String,
-  state_store: state_store.StateStore
+  state_store: state_store.StateStore,
+  authorize_options: config.AuthorizeOptions
 ) -> response.Response(wisp.Body)
 ```
 
@@ -261,6 +262,7 @@ pub fn request_phase_with_options(
   reg: registry.Registry(a),
   provider: String,
   state_store: state_store.StateStore,
-  options: Options
+  authorize_options: config.AuthorizeOptions,
+  middleware_options: Options
 ) -> response.Response(wisp.Body)
 ```

@@ -28,7 +28,7 @@ authorize/callback requests to the right provider.
 
 ### `Registry`
 
-A registry mapping provider names to Strategy + Config pairs.
+A registry mapping provider names to Strategy + ClientConfig pairs.
 
 The type parameter `e` must match across all registered strategies.
 
@@ -63,7 +63,7 @@ Look up a provider by name.
 pub fn get(
   Registry(a),
   provider: String
-) -> Result(#(strategy.Strategy(a), config.Config), Nil)
+) -> Result(#(strategy.Strategy(a), config.ClientConfig), Nil)
 ```
 
 ### `new`
@@ -84,7 +84,7 @@ pub fn providers(Registry(a)) -> List(String)
 
 ### `register`
 
-Register a strategy with its config. Provider name is taken from the
+Register a strategy with its `ClientConfig`. Provider name is taken from the
 strategy.
 
 Registration is rejected with `Error(DuplicateProvider(name))` if a
@@ -102,13 +102,13 @@ genuinely need to overwrite an entry should use `register_or_replace`.
 pub fn register(
   Registry(a),
   strategy: strategy.Strategy(a),
-  config: config.Config
+  config: config.ClientConfig
 ) -> Result(Registry(a), RegistryError)
 ```
 
 ### `register_or_replace`
 
-Register a strategy with its config, replacing any existing strategy
+Register a strategy with its `ClientConfig`, replacing any existing strategy
 registered under the same provider name.
 
 This is the explicit, trusted-caller counterpart to `register`. Only use it
@@ -119,6 +119,6 @@ overwrites a previously registered provider.
 pub fn register_or_replace(
   Registry(a),
   strategy: strategy.Strategy(a),
-  config: config.Config
+  config: config.ClientConfig
 ) -> Registry(a)
 ```

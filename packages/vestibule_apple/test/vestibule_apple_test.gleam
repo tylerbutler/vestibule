@@ -138,13 +138,14 @@ pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
   let conf =
     config.new(
       client_id: "client-id",
-      client_secret: "secret",
       redirect_uri: "not a uri",
+      auth: config.ClientSecret("secret"),
     )
   let _ =
     strategy.build_authorize_url(
       strat,
       cfg: conf,
+      options: config.authorize_options(),
       scopes: ["name", "email"],
       state: "state",
     )

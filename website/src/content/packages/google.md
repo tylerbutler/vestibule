@@ -24,9 +24,9 @@ code: |
   let strategy = vestibule_google.strategy()
   let cfg =
     config.new(
-      "google-client-id",
-      "google-client-secret",
-      "http://localhost:8000/auth/google/callback",
+      client_id: "google-client-id",
+      redirect_uri: "http://localhost:8000/auth/google/callback",
+      auth: config.ClientSecret("google-client-secret"),
     )
 
   let workspace_strategy =

@@ -20,7 +20,7 @@ searchTerms:
 
 Microsoft Identity Platform (v2.0) strategy.
 
-Requests `User.Read` by default. Tokens are exchanged against
+Requests `openid User.Read` by default. Tokens are exchanged against
 `/oauth2/v2.0/token`; user info comes from Microsoft Graph `/me`.
 
 ## Tenant isolation

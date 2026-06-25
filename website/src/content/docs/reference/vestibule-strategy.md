@@ -42,7 +42,7 @@ user, such as an OpenID Connect `id_token`.
 Opaque to keep provider-specific artifacts evolution-safe.
 
 ```gleam
-pub type ExchangeResult
+pub opaque type ExchangeResult
 ```
 
 ### `Strategy`
@@ -62,11 +62,12 @@ helpers.
 
 The core capabilities (`authorize_url`, `exchange_code`, `fetch_user`) are
 stored as `Option`; invoking one that was never configured fails with a
-`ConfigError`. `refresh_token` is optional: a strategy built without
-`with_refresh` fails with `RefreshUnsupported`.
+an AuthError of kind `ConfigKind`. `refresh_token` is optional: a strategy
+built without `with_refresh` fails with an AuthError of kind
+`RefreshUnsupportedKind`.
 
 ```gleam
-pub type Strategy(a)
+pub opaque type Strategy(a)
 ```
 
 ### `UserResult`
@@ -75,10 +76,10 @@ Normalized user details returned by a strategy.
 
 Opaque so that new fields can be added without breaking strategy
 implementations. Construct with `user_result` and read with the
-`uid` / `info` / `extra` accessors.
+`user_result_uid`, `user_result_info`, and `user_result_extra` accessors.
 
 ```gleam
-pub type UserResult
+pub opaque type UserResult
 ```
 
 ## Functions
@@ -115,13 +116,14 @@ pub fn authorization_header(credentials: credentials.Credentials) -> Result(Stri
 
 Build the provider's authorization URL.
 
-Returns `ConfigError` if the strategy was built without
+Returns an AuthError of kind `ConfigKind` if the strategy was built without
 `with_authorize_url`.
 
 ```gleam
 pub fn build_authorize_url(
   Strategy(a),
-  cfg: config.Config,
+  cfg: config.ClientConfig,
+  options: config.AuthorizeOptions,
   scopes: List(String),
   state: String
 ) -> Result(String, error.AuthError(a))
@@ -130,7 +132,7 @@ pub fn build_authorize_url(
 ### `default_scopes`
 
 Return the strategy's default scopes, used when the caller's
-`Config` does not specify any.
+`AuthorizeOptions` does not specify any.
 
 ```gleam
 pub fn default_scopes(Strategy(a)) -> List(String)
@@ -151,13 +153,13 @@ Exchange an authorization code for credentials and any provider-specific
 artifacts. Pass the PKCE `code_verifier` if one was generated for the
 authorization request.
 
-Returns `ConfigError` if the strategy was built without
+Returns an AuthError of kind `ConfigKind` if the strategy was built without
 `with_exchange_code`.
 
 ```gleam
 pub fn exchange_code(
   Strategy(a),
-  cfg: config.Config,
+  cfg: config.ClientConfig,
   code: String,
   code_verifier: option.Option(String)
 ) -> Result(ExchangeResult, error.AuthError(a))
@@ -194,13 +196,13 @@ pub fn exchange_result_with_artifacts(
 
 Fetch user info using the obtained exchange result.
 
-Returns `ConfigError` if the strategy was built without
+Returns an AuthError of kind `ConfigKind` if the strategy was built without
 `with_fetch_user`.
 
 ```gleam
 pub fn fetch_user(
   Strategy(a),
-  cfg: config.Config,
+  cfg: config.ClientConfig,
   exchange: ExchangeResult
 ) -> Result(UserResult, error.AuthError(a))
 ```
@@ -208,7 +210,7 @@ pub fn fetch_user(
 ### `new`
 
 Begin building a `Strategy` for `provider` with the given `default_scopes`
-(used when the caller's `Config` does not specify any).
+(used when the caller's `AuthorizeOptions` does not specify any).
 
 The returned strategy has no capabilities attached yet. Use the `with_*`
 builders to add them:
@@ -240,13 +242,13 @@ pub fn provider(Strategy(a)) -> String
 
 Refresh credentials using a refresh token.
 
-Returns `RefreshUnsupported` if the strategy was built without
+Returns an AuthError of kind `RefreshUnsupportedKind` if the strategy was built without
 `with_refresh`.
 
 ```gleam
 pub fn refresh_token(
   Strategy(a),
-  cfg: config.Config,
+  cfg: config.ClientConfig,
   refresh_tok: String
 ) -> Result(credentials.Credentials, error.AuthError(a))
 ```
@@ -298,12 +300,13 @@ pub fn uses_nonce(Strategy(a)) -> Bool
 ### `with_authorize_url`
 
 Attach the authorize-URL builder. `authorize_url` builds the
-provider-specific authorization URL from the config, scopes, and state.
+provider-specific authorization URL from durable provider config,
+per-request authorization options, scopes, and state.
 
 ```gleam
 pub fn with_authorize_url(
   Strategy(a),
-  fn(config.Config, List(String), String) -> Result(String, error.AuthError(a))
+  fn(config.ClientConfig, config.AuthorizeOptions, List(String), String) -> Result(String, error.AuthError(a))
 ) -> Strategy(a)
 ```
 
@@ -317,7 +320,7 @@ generated.
 ```gleam
 pub fn with_exchange_code(
   Strategy(a),
-  fn(config.Config, String, option.Option(String)) -> Result(ExchangeResult, error.AuthError(a))
+  fn(config.ClientConfig, String, option.Option(String)) -> Result(ExchangeResult, error.AuthError(a))
 ) -> Strategy(a)
 ```
 
@@ -329,7 +332,7 @@ authenticated user from the exchange result.
 ```gleam
 pub fn with_fetch_user(
   Strategy(a),
-  fn(config.Config, ExchangeResult) -> Result(UserResult, error.AuthError(a))
+  fn(config.ClientConfig, ExchangeResult) -> Result(UserResult, error.AuthError(a))
 ) -> Strategy(a)
 ```
 
@@ -347,11 +350,11 @@ pub fn with_nonce(Strategy(a)) -> Strategy(a)
 
 Attach an optional token-refresh capability. `refresh_token` swaps a
 refresh token for fresh credentials. Strategies built without this fail
-`refresh_token` with `RefreshUnsupported`.
+`refresh_token` with an AuthError of kind `RefreshUnsupportedKind`.
 
 ```gleam
 pub fn with_refresh(
   Strategy(a),
-  fn(config.Config, String) -> Result(credentials.Credentials, error.AuthError(a))
+  fn(config.ClientConfig, String) -> Result(credentials.Credentials, error.AuthError(a))
 ) -> Strategy(a)
 ```

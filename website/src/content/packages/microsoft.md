@@ -6,7 +6,7 @@ summary: Microsoft OAuth strategy using Microsoft Graph /me, with helpers for te
 install:
   - gleam add vestibule_microsoft
 useWhen: Use Microsoft when users authenticate with Microsoft personal, work, or school accounts.
-defaultScopes: User.Read by default; tenant validation also requests openid.
+defaultScopes: openid User.Read
 setup:
   - Create a Microsoft Entra ID app registration.
   - Choose supported account types that match your tenant behavior.
@@ -30,9 +30,9 @@ code: |
 
   let cfg =
     config.new(
-      "microsoft-client-id",
-      "microsoft-client-secret",
-      "http://localhost:8000/auth/microsoft/callback",
+      client_id: "microsoft-client-id",
+      redirect_uri: "http://localhost:8000/auth/microsoft/callback",
+      auth: config.ClientSecret("microsoft-client-secret"),
     )
 notes:
   - Pass the tenant GUID, not a verified domain, when restricting to one tenant.

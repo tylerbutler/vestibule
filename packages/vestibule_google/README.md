@@ -17,18 +17,19 @@ import vestibule_google
 let strategy = vestibule_google.strategy()
 let cfg =
   config.new(
-    "google-client-id",
-    "google-client-secret",
-    "http://localhost:8000/auth/google/callback",
+    client_id: "google-client-id",
+    redirect_uri: "http://localhost:8000/auth/google/callback",
+    auth: config.ClientSecret("google-client-secret"),
   )
 ```
 
-Google userinfo only populates `UserInfo.email` when `email_verified` is true.
+Google userinfo only makes the email accessor for `auth.info(auth_result)`
+return `Some(email)` when `email_verified` is true.
 
 ## Hosted-domain (Workspace) enforcement
 
 `strategy()` does **not** restrict sign-in to a Google Workspace domain. Setting
-`hd` via `config.with_extra_params([#("hd", "corp.example")])` only pre-selects
+`hd` via `config.authorize_options() |> config.with_extra_params([#("hd", "corp.example")])` only pre-selects
 the account picker — it is a UI hint and **must not** be relied on for
 authorization, because a user can still authenticate with an account outside
 that domain.
@@ -51,7 +52,7 @@ validated.
 
 ## Default scopes
 
-`openid email profile`. Override with `config.with_scopes`.
+`openid email profile`. Override per request with `config.with_scopes` on `AuthorizeOptions`.
 
 ## Google Cloud Console setup
 
@@ -73,12 +74,8 @@ client/user/scope combination. To request offline access, add the provider-
 specific authorization parameters:
 
 ```gleam
-let cfg =
-  config.new(
-    "google-client-id",
-    "google-client-secret",
-    "http://localhost:8000/auth/google/callback",
-  )
+let assert Ok(options) =
+  config.authorize_options()
   |> config.with_extra_params([
     #("access_type", "offline"),
     #("prompt", "consent"),

@@ -68,7 +68,7 @@ Build a strategy-based authentication library for Gleam that provides a consiste
 
 | Priority | Goal |
 |----------|------|
-| **P0** | Strategy interface (record of functions) for OAuth2 providers |
+| **P0** | Opaque strategy value built with provider callback builders for OAuth2 providers |
 | **P0** | Normalized `Auth` result type (uid, provider, user info, credentials) |
 | **P0** | CSRF state parameter generation and validation |
 | **P0** | Built-in strategies: GitHub, Google, Microsoft |
@@ -108,90 +108,83 @@ User clicks "Sign in with GitHub"   Provider redirects back with ?code=...
 
 ### 4.2 Core Design: Strategy as Data
 
-Unlike Ueberauth's behaviour/macro approach, strategies are **records of functions** — idiomatic Gleam, no magic:
+Unlike Ueberauth's behaviour/macro approach, strategies are opaque values built from provider callbacks — idiomatic Gleam, no magic. Users do not construct `Strategy` directly; provider packages assemble one with `strategy.new(...)` and the `strategy.with_*` builders:
 
 ```gleam
-/// A strategy is a record containing the functions needed
-/// to authenticate with a specific provider.
-pub type Strategy {
-  Strategy(
-    /// Human-readable provider name (e.g., "github", "google")
-    provider: String,
-    /// Build the authorization URL to redirect the user to
-    authorize_url: fn(Config, List(String), String) ->
-      Result(String, AuthError),
-    /// Exchange an authorization code for credentials
-    exchange_code: fn(Config, String) ->
-      Result(Credentials, AuthError),
-    /// Fetch user info using the obtained credentials
-    fetch_user: fn(Credentials) ->
-      Result(UserInfo, AuthError),
-  )
-}
+/// A strategy contains the functions needed to authenticate with a provider.
+pub opaque type Strategy(e)
+
+pub fn new(
+  provider provider: String,
+  default_scopes default_scopes: List(String),
+) -> Strategy(e)
+
+pub fn with_authorize_url(
+  strat: Strategy(e),
+  authorize_url: fn(ClientConfig, AuthorizeOptions, List(String), String) ->
+    Result(String, AuthError(e)),
+) -> Strategy(e)
+
+pub fn with_exchange_code(
+  strat: Strategy(e),
+  exchange_code: fn(ClientConfig, String, Option(String)) ->
+    Result(ExchangeResult, AuthError(e)),
+) -> Strategy(e)
+
+pub fn with_fetch_user(
+  strat: Strategy(e),
+  fetch_user: fn(ClientConfig, ExchangeResult) ->
+    Result(UserResult, AuthError(e)),
+) -> Strategy(e)
 ```
 
 ### 4.3 Core Types
 
 ```gleam
 /// The normalized result of a successful authentication.
-pub type Auth {
-  Auth(
-    /// Unique identifier from the provider (e.g., GitHub user ID)
-    uid: String,
-    /// Provider name matching the strategy
-    provider: String,
-    /// Normalized user information
-    info: UserInfo,
-    /// OAuth credentials (tokens, expiry)
-    credentials: Credentials,
-    /// Provider-specific extra data
-    extra: Dict(String, Dynamic),
-  )
-}
+pub opaque type Auth
+
+// Build values with auth.new(uid:, provider:, info:, credentials:, extra:).
+// Read values with auth.uid(auth_result), auth.provider(auth_result),
+// auth.info(auth_result), auth.credentials(auth_result), and
+// auth.extra(auth_result). Auth is opaque so the field set can grow.
 
 /// Normalized user information across all providers.
-pub type UserInfo {
-  UserInfo(
-    name: Option(String),
-    email: Option(String),
-    nickname: Option(String),
-    image: Option(String),
-    description: Option(String),
-    urls: Dict(String, String),
-  )
-}
+pub opaque type UserInfo
+
+// Build values with user_info.new() plus user_info.with_name(...),
+// user_info.with_email(...), user_info.with_nickname(...),
+// user_info.with_image(...), user_info.with_description(...), and
+// user_info.with_urls(...). Read values with the corresponding accessors,
+// such as name(info), email(info), nickname(info), image(info),
+// description(info), and urls(info), from the user_info module.
 
 /// OAuth credentials from the provider.
-pub type Credentials {
-  Credentials(
-    token: String,
-    refresh_token: Option(String),
-    token_type: String,
-    expires_in: Option(Int),
-    scopes: List(String),
-  )
-}
+pub opaque type Credentials
+
+// Build values with credentials.new(token:, refresh_token:, token_type:,
+// expires_in:, scopes:). Read values with credentials.token(creds),
+// credentials.refresh_token(creds), credentials.token_type(creds),
+// credentials.expires_in(creds), and credentials.scopes(creds).
+// Credentials is opaque so token storage and fields can evolve without
+// exposing raw token fields.
 
 /// Authentication failure.
-pub type AuthError {
-  StateMismatch
-  CodeExchangeFailed(reason: String)
-  UserInfoFailed(reason: String)
-  ProviderError(code: String, description: String)
-  NetworkError(reason: String)
-  ConfigError(reason: String)
-}
+pub opaque type AuthError(e)
 
-/// Provider configuration.
-pub type Config {
-  Config(
-    client_id: String,
-    client_secret: String,
-    redirect_uri: String,
-    scopes: List(String),
-    extra_params: Dict(String, String),
-  )
-}
+// Build errors with constructor functions such as error.state_mismatch(),
+// error.code_exchange(...), and error.provider(...). Inspect errors with
+// error.kind(err), error.phase(err), error.message(err), and related accessors
+// instead of pattern matching on public variants.
+
+/// Durable provider configuration.
+pub opaque type ClientConfig
+
+/// Per-request authorization options.
+pub opaque type AuthorizeOptions
+
+// Build values with config.new(...), config.authorize_options(),
+// config.with_scopes(...), and config.with_extra_params(...).
 ```
 
 ### 4.4 Result Type
@@ -199,9 +192,9 @@ pub type Config {
 The callback phase produces:
 
 ```gleam
-pub type AuthResult {
+pub type AuthResult(e) {
   Success(auth: Auth)
-  Failure(errors: List(AuthError))
+  Failure(errors: List(AuthError(e)))
 }
 ```
 
@@ -214,13 +207,14 @@ pub type AuthResult {
 #### FR-1: Authorization URL Generation
 
 ```gleam
-/// Generate the authorization URL for a given strategy.
-/// State parameter is generated internally for CSRF protection.
-pub fn authorize_url(
-  strategy: Strategy,
-  config: Config,
-) -> Result(#(String, String), AuthError)
-// Returns #(url, state) — caller stores state in session
+/// Create an authorization request for a given strategy.
+/// State and PKCE verifier are generated internally for CSRF and PKCE.
+pub fn create_authorization_request(
+  strategy: Strategy(e),
+  cfg cfg: ClientConfig,
+  options options: AuthorizeOptions,
+) -> Result(AuthorizationRequest, AuthError(e))
+// Returns URL, state, code_verifier, and optional nonce — caller stores transient values in session
 ```
 
 #### FR-2: State Parameter
@@ -232,7 +226,7 @@ pub fn authorize_url(
 #### FR-3: Scope Handling
 
 - Default scopes SHOULD be defined per strategy
-- Config scopes MUST override defaults when provided
+- AuthorizeOptions scopes MUST override defaults when provided
 - Scope format MUST match provider expectations (space-separated vs comma-separated)
 
 ### 5.2 Callback Phase
@@ -243,11 +237,13 @@ pub fn authorize_url(
 /// Handle the callback from the provider.
 /// Validates state, exchanges code for tokens, fetches user info.
 pub fn handle_callback(
-  strategy: Strategy,
-  config: Config,
-  callback_params: Dict(String, String),
-  expected_state: String,
-) -> Result(Auth, AuthError)
+  strategy: Strategy(e),
+  cfg cfg: ClientConfig,
+  callback_params callback_params: Dict(String, String),
+  expected_state expected_state: String,
+  code_verifier code_verifier: String,
+  expected_nonce expected_nonce: Option(String),
+) -> Result(Auth, AuthError(e))
 ```
 
 #### FR-5: Error Handling
@@ -285,14 +281,14 @@ pub fn new() -> Registry
 
 pub fn register(
   registry: Registry,
-  strategy: Strategy,
-  config: Config,
-) -> Registry
+  strategy strategy: Strategy,
+  config config: ClientConfig,
+) -> Result(Registry, RegistryError)
 
 pub fn get(
   registry: Registry,
-  provider: String,
-) -> Result(#(Strategy, Config), Nil)
+  provider provider: String,
+) -> Result(#(Strategy, ClientConfig), Nil)
 ```
 
 ### 5.4 Built-in Strategies
@@ -367,24 +363,34 @@ pub fn get(
 ```gleam
 // Level 1: Quick setup with defaults
 let github = github.strategy()
-let config = auth.config(
+let config = config.new(
   client_id: "...",
-  client_secret: "...",
   redirect_uri: "http://localhost:3000/auth/github/callback",
+  auth: config.ClientSecret("..."),
 )
 
 // Level 2: Custom scopes
-let config = auth.config(
-  client_id: "...",
-  client_secret: "...",
-  redirect_uri: "...",
-)
-|> auth.with_scopes(["user:email", "read:org"])
+let config =
+  config.new(
+    client_id: "...",
+    redirect_uri: "...",
+    auth: config.ClientSecret("..."),
+  )
+let options =
+  config.authorize_options()
+  |> config.with_scopes(["user:email", "read:org"])
 
 // Level 3: Full control
-let config = auth.config(...)
-|> auth.with_scopes([...])
-|> auth.with_extra_params([#("allow_signup", "false")])
+let config =
+  config.new(
+    client_id: "...",
+    redirect_uri: "...",
+    auth: config.ClientSecret("..."),
+  )
+let assert Ok(options) =
+  config.authorize_options()
+  |> config.with_scopes(["user:email", "read:org"])
+  |> config.with_extra_params([#("allow_signup", "false")])
 ```
 
 ### 7.2 Build on glow_auth
@@ -424,10 +430,10 @@ However, for initial launch, bundling the top 3 providers in the core package re
 
 ```
 src/
-├── {lib_name}.gleam                # Public API: authorize_url, handle_callback
+├── {lib_name}.gleam                # Public API: create_authorization_request, handle_callback
 ├── {lib_name}/
 │   ├── auth.gleam                  # Auth, AuthResult types
-│   ├── config.gleam                # Config type and builders
+│   ├── config.gleam                # ClientConfig, ClientAuth, AuthorizeOptions, and builders
 │   ├── credentials.gleam           # Credentials type
 │   ├── user_info.gleam             # UserInfo type
 │   ├── strategy.gleam              # Strategy type definition
@@ -481,10 +487,10 @@ This library is **complementary, not competing**:
 
 ### Phase 1: Core + GitHub (MVP) ✅
 
-- [x] Core types: Auth, UserInfo, Credentials, AuthError, Config
+- [x] Core types: Auth, UserInfo, Credentials, AuthError, ClientConfig, AuthorizeOptions
 - [x] Strategy type definition
 - [x] State parameter generation and validation
-- [x] authorize_url and handle_callback functions
+- [x] create_authorization_request and handle_callback functions
 - [x] GitHub strategy (with email fetching)
 - [x] Basic Wisp middleware helper
 - [x] Integration with glow_auth
@@ -496,7 +502,7 @@ This library is **complementary, not competing**:
 - [x] Google strategy (with PKCE)
 - [x] Microsoft strategy
 - [x] Provider registry
-- [x] Configurable scopes and extra params
+- [x] AuthorizeOptions scopes and extra params
 - [x] Comprehensive error messages
 - [x] Example Wisp application
 
@@ -523,7 +529,7 @@ This library is **complementary, not competing**:
 
 - State parameter generation (randomness, length)
 - State validation (match, mismatch, constant-time)
-- Config construction and scope merging
+- ClientConfig construction and AuthorizeOptions scope merging
 - User info normalization from provider-specific JSON
 - Error type construction
 
@@ -618,9 +624,12 @@ This library is **complementary, not competing**:
 
 ```gleam
 import gleam/io
-import gleam/result
+import gleam/option
 import wisp.{type Request, type Response}
 import vestibule as auth
+import vestibule/error
+import vestibule/credentials
+import vestibule/user_info as ui
 import vestibule/strategy/github
 
 pub type Context {
@@ -634,10 +643,10 @@ pub fn setup() -> Context {
   let registry = auth.new_registry()
     |> auth.register(
       github.strategy(),
-      auth.config(
+      config.new(
         client_id: "your_client_id",
-        client_secret: "your_client_secret",
         redirect_uri: "http://localhost:3000/auth/github/callback",
+        auth: config.ClientSecret("your_client_secret"),
       ),
     )
 
@@ -665,13 +674,19 @@ pub fn handle_request(req: Request, ctx: Context) -> Response {
 
       case auth.complete(ctx.auth_registry, provider, params, state) {
         Ok(authed) -> {
-          // authed.uid, authed.info.email, authed.credentials.token
+          // auth.uid(authed), auth.info(authed) |> ui.email,
+          // credentials.token(auth.credentials(authed))
           // Create or find user, establish session, redirect
-          io.println("Authenticated: " <> authed.info.name |> result.unwrap("unknown"))
+          let name = auth.info(authed) |> ui.name |> option.unwrap("unknown")
+          io.println("Authenticated: " <> name)
           wisp.redirect("/dashboard")
         }
-        Error(auth.StateMismatch) -> wisp.bad_request()
-        Error(e) -> wisp.internal_server_error()
+        Error(err) -> {
+          case error.kind(err) {
+            error.StateMismatchKind -> wisp.bad_request()
+            _ -> wisp.internal_server_error()
+          }
+        }
       }
     }
 
@@ -683,31 +698,48 @@ pub fn handle_request(req: Request, ctx: Context) -> Response {
 ### Writing a Custom Strategy
 
 ```gleam
-import vestibule as auth
-import vestibule/strategy.{type Strategy, Strategy}
-import gleam/http/request
-import gleam/json
+import gleam/option.{type Option}
+import vestibule/config.{type AuthorizeOptions, type ClientConfig}
+import vestibule/error.{type AuthError}
+import vestibule/strategy
+import vestibule/strategy.{type ExchangeResult, type Strategy, type UserResult}
 
 /// Create a Twitch authentication strategy.
-pub fn strategy() -> Strategy {
-  Strategy(
-    provider: "twitch",
-    authorize_url: fn(config, scopes, state) {
-      // Build Twitch-specific authorize URL
-      // ...
-      Ok(url)
-    },
-    exchange_code: fn(config, code) {
-      // Exchange code for Twitch token
-      // ...
-      Ok(credentials)
-    },
-    fetch_user: fn(credentials) {
-      // Fetch user from Twitch API
-      // ...
-      Ok(user_info)
-    },
-  )
+pub fn strategy() -> Strategy(e) {
+  strategy.new(provider: "twitch", default_scopes: ["user:read:email"])
+  |> strategy.with_authorize_url(do_authorize_url)
+  |> strategy.with_exchange_code(do_exchange_code)
+  |> strategy.with_fetch_user(do_fetch_user)
+}
+
+fn do_authorize_url(
+  cfg: ClientConfig,
+  options: AuthorizeOptions,
+  scopes: List(String),
+  state: String,
+) -> Result(String, AuthError(e)) {
+  // Build Twitch-specific authorize URL with cfg, options, scopes, and state.
+  // ...
+  Ok(url)
+}
+
+fn do_exchange_code(
+  cfg: ClientConfig,
+  code: String,
+  code_verifier: Option(String),
+) -> Result(ExchangeResult, AuthError(e)) {
+  // Exchange code for Twitch token, passing the optional PKCE verifier.
+  // ...
+  Ok(exchange_result)
+}
+
+fn do_fetch_user(
+  cfg: ClientConfig,
+  exchange: ExchangeResult,
+) -> Result(UserResult, AuthError(e)) {
+  // Fetch user from Twitch API using cfg and exchange result.
+  // ...
+  Ok(user_result)
 }
 ```
 

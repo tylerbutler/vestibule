@@ -19,7 +19,10 @@ whose final public shape is tracked in issue #85.
 
 ### What is a strategy?
 
-A strategy is a Gleam record containing four functions and some metadata. There are no behaviours, traits, or interfaces involved -- just a value of type `Strategy(e)` that you construct and pass to vestibule's core functions.
+A strategy is an opaque value built with `strategy.new` and the `strategy.with_*`
+builders. There are no behaviours, traits, or interfaces involved -- just a
+value of type `Strategy(e)` that you construct and pass to vestibule's core
+functions.
 
 Each strategy tells vestibule how to talk to a specific OAuth2 provider: how to build the authorization URL, how to exchange an authorization code for tokens, how to refresh tokens, and how to fetch user information.
 
@@ -27,9 +30,9 @@ Each strategy tells vestibule how to talk to a specific OAuth2 provider: how to 
 
 Vestibule authenticates users in two phases:
 
-1. **Request phase** -- Your application calls `vestibule.create_authorization_request(strategy, config)`. Vestibule generates a CSRF state token and PKCE code verifier, calls your strategy's `authorize_url` function to build the provider-specific URL, then appends the PKCE `code_challenge` parameter. You get back an `AuthorizationRequest` containing the URL, state, and code verifier. Store the state and code verifier in the user's session, then redirect them to the URL.
+1. **Request phase** -- Your application calls `vestibule.create_authorization_request(strategy, cfg:, options:)`. Vestibule generates a CSRF state token and PKCE code verifier, calls your strategy's `authorize_url` function to build the provider-specific URL, then appends the PKCE `code_challenge` parameter. You get back an `AuthorizationRequest` containing the URL, state, and code verifier. Store the state and code verifier in the user's session, then redirect them to the URL.
 
-2. **Callback phase** -- The provider redirects the user back to your application with a `code` and `state` parameter. Your application calls `vestibule.handle_callback(strategy, config, params, expected_state, code_verifier)`. Vestibule validates the CSRF state, calls your strategy's `exchange_code` function (passing the PKCE code verifier), then calls your strategy's `fetch_user` function with the config and `ExchangeResult`. You get back an `Auth` record with the user's UID, normalized info, provider extras, and OAuth credentials.
+2. **Callback phase** -- The provider redirects the user back to your application with a `code` and `state` parameter. Your application calls `vestibule.handle_callback(strategy, cfg, params, expected_state, code_verifier, expected_nonce:)`. Vestibule validates the CSRF state, calls your strategy's `exchange_code` function (passing the PKCE code verifier), then calls your strategy's `fetch_user` function with the config and `ExchangeResult`. You get back an opaque `Auth` value with accessors for the user's UID, normalized info, provider extras, and OAuth credentials.
 
 ### What the core library handles for you
 
@@ -38,7 +41,7 @@ You do not need to implement any of the following -- vestibule's core takes care
 - **CSRF state generation and validation** -- Random state tokens are generated with `crypto.strong_random_bytes` and validated with constant-time comparison.
 - **PKCE (Proof Key for Code Exchange)** -- The code verifier, code challenge, and S256 challenge method are all managed by the core. Your `exchange_code` function receives the code verifier as an `Option(String)` and just needs to include it in the token request.
 - **URL assembly** -- The core appends `code_challenge` and `code_challenge_method=S256` to whatever authorization URL your strategy returns.
-- **Scope resolution** -- If the user provides custom scopes via `Config`, those are used. Otherwise, your strategy's `default_scopes` are passed through.
+- **Scope resolution** -- If the user provides custom scopes via `AuthorizeOptions`, those are used. Otherwise, your strategy's `default_scopes` are passed through.
 - **Token refresh dispatch** -- The core's `vestibule.refresh_token` function delegates refresh requests to your strategy's provider-specific `refresh_token` function.
 
 Your strategy is responsible for:
@@ -50,41 +53,18 @@ Your strategy is responsible for:
 
 ## The Strategy Type
 
-Here are the type definitions from `vestibule/strategy.gleam`. `UserResult`,
-`ExchangeResult`, and `Strategy(e)` are **opaque** -- you cannot construct them
-with a record literal or read their fields directly. Instead, build them with
-the `strategy.*` constructor functions and read them with the `strategy.*`
-accessors shown below.
+Here are the public types from `vestibule/strategy.gleam`. `UserResult`,
+`ExchangeResult`, and `strategy.Strategy(e)` are **opaque** -- you cannot
+construct them with a record literal or read their fields directly. Instead,
+build them with the `strategy.*` constructor functions and read them with the
+`strategy.*` accessors shown below.
 
 ```gleam
-pub opaque type UserResult {
-  UserResult(uid: String, info: UserInfo, extra: Dict(String, Dynamic))
-}
+pub opaque type UserResult
 
-pub opaque type ExchangeResult {
-  ExchangeResult(credentials: Credentials, artifacts: Dict(String, Dynamic))
-}
+pub opaque type ExchangeResult
 
-pub opaque type Strategy(e) {
-  Strategy(
-    provider: String,
-    default_scopes: List(String),
-    uses_nonce: Bool,
-    authorize_url: Option(
-      fn(Config, List(String), String) -> Result(String, AuthError(e)),
-    ),
-    exchange_code: Option(
-      fn(Config, String, Option(String)) ->
-        Result(ExchangeResult, AuthError(e)),
-    ),
-    refresh_token: Option(
-      fn(Config, String) -> Result(Credentials, AuthError(e)),
-    ),
-    fetch_user: Option(
-      fn(Config, ExchangeResult) -> Result(UserResult, AuthError(e)),
-    ),
-  )
-}
+pub opaque type Strategy(e)
 ```
 
 Because the type is opaque, you never touch those fields directly. Start with
@@ -120,17 +100,17 @@ only applies to OIDC providers.
 
 ### Capability-by-capability breakdown
 
-**`provider: String`** -- A lowercase identifier for this provider. This ends up in the `Auth` record's `provider` field, so your application can distinguish which provider authenticated the user. Use a simple name like `"twitch"`, `"github"`, or `"discord"`.
+**`provider: String`** -- A lowercase identifier for this provider. This is returned by `auth.provider(auth_result)`, so your application can distinguish which provider authenticated the user. Use a simple name like `"twitch"`, `"github"`, or `"discord"`.
 
 **`default_scopes: List(String)`** -- The scopes to request when the user has not configured custom scopes. These should be the minimum scopes needed to fetch basic user information. For example, GitHub uses `["user:email"]` and Google uses `["openid", "profile", "email"]`.
 
-**`with_authorize_url(fn(Config, List(String), String) -> Result(String, AuthError(e)))`** -- Given the application config, resolved scopes, and CSRF state string, return the full authorization URL. Vestibule will append the PKCE parameters after your function returns. You must include `response_type=code`, `client_id`, `redirect_uri`, `scope`, and `state` in the URL.
+**`with_authorize_url(fn(ClientConfig, AuthorizeOptions, List(String), String) -> Result(String, AuthError(e)))`** -- Given the client config, per-request options, resolved scopes, and CSRF state string, return the full authorization URL. Vestibule will append the PKCE parameters after your function returns. You must include `response_type=code`, `client_id`, `redirect_uri`, `scope`, and `state` in the URL.
 
-**`with_exchange_code(fn(Config, String, Option(String)) -> Result(ExchangeResult, AuthError(e)))`** -- Given the config, authorization code, and optional PKCE code verifier, POST to the token endpoint and return parsed credentials plus any provider-specific token response artifacts. The code verifier will be `Some(verifier)` when PKCE is in use (which is always, in the current implementation). Use `strategy.exchange_result(credentials)` when the provider has no artifacts to carry forward.
+**`with_exchange_code(fn(ClientConfig, String, Option(String)) -> Result(ExchangeResult, AuthError(e)))`** -- Given the config, authorization code, and optional PKCE code verifier, POST to the token endpoint and return parsed credentials plus any provider-specific token response artifacts. The code verifier will be `Some(verifier)` when PKCE is in use (which is always, in the current implementation). Use `strategy.exchange_result(credentials)` when the provider has no artifacts to carry forward.
 
-**`with_refresh(fn(Config, String) -> Result(Credentials, AuthError(e)))`** -- *Optional.* Given the config and a refresh token string, POST to the provider's token endpoint and return updated `Credentials`. Providers differ on refresh-token rotation, scopes, and error formats, so refresh stays strategy-owned. Omit this builder for providers that do not support refresh; `vestibule.refresh_token` then returns an error built with `error.refresh_unsupported()`.
+**`with_refresh(fn(ClientConfig, String) -> Result(Credentials, AuthError(e)))`** -- *Optional.* Given the config and a refresh token string, POST to the provider's token endpoint and return updated `Credentials`. Providers differ on refresh-token rotation, scopes, and error formats, so refresh stays strategy-owned. Omit this builder for providers that do not support refresh; `vestibule.refresh_token` then returns an error built with `error.refresh_unsupported()`.
 
-**`with_fetch_user(fn(Config, ExchangeResult) -> Result(UserResult, AuthError(e)))`** -- Given the config and successful exchange result, fetch the provider's user info API and return a `UserResult` built with `strategy.user_result(uid:, info:, extra:)`. The exchange result contains standard credentials and any token response artifacts your provider needs while resolving the user (read them with `strategy.exchange_credentials` and `strategy.exchange_artifacts`). The UID should be the provider's stable unique identifier for the user (e.g., a numeric ID or a `sub` claim). Use `extra: dict.new()` when the provider has no extra data to expose.
+**`with_fetch_user(fn(ClientConfig, ExchangeResult) -> Result(UserResult, AuthError(e)))`** -- Given the config and successful exchange result, fetch the provider's user info API and return a `UserResult` built with `strategy.user_result(uid:, info:, extra:)`. The exchange result contains standard credentials and any token response artifacts your provider needs while resolving the user (read them with `strategy.exchange_credentials` and `strategy.exchange_artifacts`). The UID should be the provider's stable unique identifier for the user (e.g., a numeric ID or a `sub` claim). Use `extra: dict.new()` when the provider has no extra data to expose.
 
 **`with_nonce()`** -- *Optional.* Marks the strategy as an OIDC provider that issues an `id_token`. Vestibule then generates an OIDC `nonce`, emits it on the authorization URL, and validates it against the returned `id_token` on callback. Omit it for plain OAuth2 providers.
 
@@ -253,6 +233,7 @@ Create `src/vestibule_twitch.gleam` -- this single module will hold the entire s
 The `authorize_url` function builds the URL that the user's browser will be redirected to. Twitch's authorization endpoint is `https://id.twitch.tv/oauth2/authorize`.
 
 ```gleam
+import gleam/dict
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
@@ -266,15 +247,16 @@ import glow_auth/authorize_uri
 import glow_auth/token_request
 import glow_auth/uri/uri_builder
 
-import vestibule/config.{type Config}
+import vestibule/config.{type AuthorizeOptions, type ClientConfig}
 import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/provider_support
 import vestibule/strategy.{type Strategy, type UserResult}
-import vestibule/user_info.{type UserInfo, UserInfo}
+import vestibule/user_info.{type UserInfo}
 
 fn do_authorize_url(
-  cfg: Config,
+  cfg: ClientConfig,
+  options: AuthorizeOptions,
   scopes: List(String),
   state: String,
 ) -> Result(String, AuthError(e)) {
@@ -282,10 +264,11 @@ fn do_authorize_url(
   use redirect <- result.try(
     provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
   )
+  use secret <- result.try(config.client_secret(cfg))
   let client =
     glow_auth.Client(
       id: config.client_id(cfg),
-      secret: config.client_secret(cfg),
+      secret: secret,
       site: site,
     )
   let url =
@@ -298,6 +281,9 @@ fn do_authorize_url(
     |> authorize_uri.set_state(state)
     |> authorize_uri.to_code_authorization_uri()
     |> uri.to_string()
+    |> provider_support.append_query_params(
+      dict.to_list(config.extra_params(options)),
+    )
   Ok(url)
 }
 ```
@@ -318,7 +304,7 @@ import gleam/dynamic/decode
 import gleam/json
 
 fn do_exchange_code(
-  cfg: Config,
+  cfg: ClientConfig,
   code: String,
   code_verifier: Option(String),
 ) -> Result(strategy.ExchangeResult, AuthError(e)) {
@@ -326,10 +312,11 @@ fn do_exchange_code(
   use redirect <- result.try(
     provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
   )
+  use secret <- result.try(config.client_secret(cfg))
   let client =
     glow_auth.Client(
       id: config.client_id(cfg),
-      secret: config.client_secret(cfg),
+      secret: secret,
       site: site,
     )
   let req =
@@ -426,14 +413,15 @@ same token endpoint:
 
 ```gleam
 fn do_refresh_token(
-  cfg: Config,
+  cfg: ClientConfig,
   refresh_token: String,
 ) -> Result(Credentials, AuthError(e)) {
   let assert Ok(site) = uri.parse("https://id.twitch.tv")
+  use secret <- result.try(config.client_secret(cfg))
   let client =
     glow_auth.Client(
       id: config.client_id(cfg),
-      secret: config.client_secret(cfg),
+      secret: secret,
       site: site,
     )
   let req =
@@ -460,7 +448,7 @@ fn do_refresh_token(
 
 The `fetch_user` function calls the provider's user info endpoint and normalizes the response into vestibule's `UserInfo` type.
 
-Twitch's Helix API returns user data at `https://api.twitch.tv/helix/users` and requires both an `Authorization` header and a `Client-Id` header. `fetch_user` receives both `Config` and `ExchangeResult`, so it can read the client ID from the config while using the credentials from the exchange result.
+Twitch's Helix API returns user data at `https://api.twitch.tv/helix/users` and requires both an `Authorization` header and a `Client-Id` header. `fetch_user` receives both `ClientConfig` and `ExchangeResult`, so it can read the client ID from the config while using the credentials from the exchange result.
 
 ```gleam
 import gleam/dict
@@ -468,7 +456,7 @@ import gleam/int
 import gleam/list
 
 fn do_fetch_user(
-  cfg: Config,
+  cfg: ClientConfig,
   exchange: strategy.ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
   let creds = strategy.exchange_credentials(exchange)
@@ -497,7 +485,7 @@ fn do_fetch_user(
   }
 }
 
-/// Parse a Twitch /helix/users response into a uid and UserInfo.
+/// Parse a Twitch /helix/users response into a uid and normalized user info.
 /// Supported parser helper for consumers and tests.
 pub fn parse_user_response(
   body: String,
@@ -527,16 +515,15 @@ pub fn parse_user_response(
     )
     decode.success(#(
       id,
-      UserInfo(
-        name: display_name,
-        email: email,
-        nickname: Some(login),
-        image: profile_image_url,
-        description: description,
-        urls: dict.from_list([
-          #("twitch_url", "https://twitch.tv/" <> login),
-        ]),
-      ),
+      user_info.new()
+      |> user_info.with_name(display_name)
+      |> user_info.with_email(email)
+      |> user_info.with_nickname(Some(login))
+      |> user_info.with_image(profile_image_url)
+      |> user_info.with_description(description)
+      |> user_info.with_urls(dict.from_list([
+        #("twitch_url", "https://twitch.tv/" <> login),
+      ])),
     ))
   }
   let decoder = {
@@ -546,14 +533,7 @@ pub fn parse_user_response(
       [] ->
         decode.success(#(
           "",
-          UserInfo(
-            name: None,
-            email: None,
-            nickname: None,
-            image: None,
-            description: None,
-            urls: dict.new(),
-          ),
+          user_info.new(),
         ))
     }
   }
@@ -588,20 +568,28 @@ Usage from an application:
 
 ```gleam
 import vestibule
+import vestibule/authorization_request
 import vestibule/config
 import vestibule_twitch
 
 pub fn start_auth() {
   let twitch_config =
     config.new(
-      "your_client_id",
-      "your_client_secret",
-      "http://localhost:8080/auth/twitch/callback",
+      client_id: "your_client_id",
+      redirect_uri: "http://localhost:8080/auth/twitch/callback",
+      auth: config.ClientSecret("your_client_secret"),
     )
+  let options = config.authorize_options()
   let strategy = vestibule_twitch.strategy()
-  let assert Ok(auth_request) = vestibule.create_authorization_request(strategy, twitch_config)
-  // Store auth_request.state and auth_request.code_verifier in session
-  // Redirect user to auth_request.url
+  let assert Ok(auth_request) =
+    vestibule.create_authorization_request(
+      strategy,
+      cfg: twitch_config,
+      options: options,
+    )
+  // Store authorization_request.state(auth_request) and
+  // authorization_request.code_verifier(auth_request) in session
+  // Redirect user to authorization_request.url(auth_request)
 }
 ```
 
@@ -666,7 +654,7 @@ Some providers require multiple API calls to get complete user information. GitH
 
 ```gleam
 fn do_fetch_user(
-  cfg: Config,
+  cfg: ClientConfig,
   exchange: strategy.ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
   let creds = strategy.exchange_credentials(exchange)
@@ -687,7 +675,7 @@ fn do_fetch_user(
   }
 
   let final_info = case email {
-    Some(_) -> UserInfo(..info, email: email)
+    Some(_) -> info |> user_info.with_email(email)
     None -> info
   }
 
@@ -732,7 +720,7 @@ The `Credentials` type has five fields. Map your provider's token response to th
 | `expires_in` | `expires_in` | Seconds until expiry, or `None` |
 | `scopes` | `scope` | Parse according to the provider's format |
 
-`Credentials.expires_in` stores the provider `expires_in` value (seconds from now), not an absolute timestamp.
+`credentials.expires_in(creds)` returns the provider `expires_in` value (seconds from now), not an absolute timestamp.
 
 ## Publishing as a Hex Package
 
@@ -752,7 +740,7 @@ import vestibule_twitch
 
 ### Dependencies
 
-Your package should depend on `vestibule` for the core types (`Strategy`, `Config`, `Credentials`, `AuthError`, `UserInfo`) plus the HTTP and JSON libraries you need. Do not re-export or duplicate vestibule's types.
+Your package should depend on `vestibule` for the core types (`Strategy`, `ClientConfig`, `AuthorizeOptions`, `Credentials`, `AuthError`, `UserInfo`) plus the HTTP and JSON libraries you need. Do not re-export or duplicate vestibule's types.
 
 A typical dependency set:
 
@@ -831,7 +819,7 @@ pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
   )
 }
 
-/// Parse a Twitch /helix/users response into a uid and UserInfo.
+/// Parse a Twitch /helix/users response into a uid and normalized user info.
 /// Supported parser helper for consumers and tests.
 pub fn parse_user_response(body: String) -> Result(#(String, UserInfo), AuthError(e)) {
   // ...
@@ -852,6 +840,7 @@ import gleam/option.{None, Some}
 import startest
 import startest/expect
 import vestibule/credentials
+import vestibule/user_info as ui
 import vestibule_twitch
 
 pub fn main() -> Nil {
@@ -888,15 +877,15 @@ pub fn parse_user_response_full_test() {
     "{\"data\":[{\"id\":\"44322889\",\"login\":\"dallas\",\"display_name\":\"dallas\",\"profile_image_url\":\"https://static-cdn.jtvnw.net/jtv_user_pictures/dallas-profile.png\",\"description\":\"Just a chill streamer\",\"email\":\"dallas@example.com\"}]}"
   let assert Ok(#(uid, info)) = vestibule_twitch.parse_user_response(body)
   uid |> expect.to_equal("44322889")
-  info.name |> expect.to_equal(Some("dallas"))
-  info.nickname |> expect.to_equal(Some("dallas"))
-  info.email |> expect.to_equal(Some("dallas@example.com"))
-  info.image
+  ui.name(info) |> expect.to_equal(Some("dallas"))
+  ui.nickname(info) |> expect.to_equal(Some("dallas"))
+  ui.email(info) |> expect.to_equal(Some("dallas@example.com"))
+  ui.image(info)
   |> expect.to_equal(
     Some("https://static-cdn.jtvnw.net/jtv_user_pictures/dallas-profile.png"),
   )
-  info.description |> expect.to_equal(Some("Just a chill streamer"))
-  info.urls
+  ui.description(info) |> expect.to_equal(Some("Just a chill streamer"))
+  ui.urls(info)
   |> expect.to_equal(dict.from_list([#("twitch_url", "https://twitch.tv/dallas")]))
 }
 
@@ -905,9 +894,9 @@ pub fn parse_user_response_minimal_test() {
     "{\"data\":[{\"id\":\"12345\",\"login\":\"testuser\"}]}"
   let assert Ok(#(uid, info)) = vestibule_twitch.parse_user_response(body)
   uid |> expect.to_equal("12345")
-  info.name |> expect.to_equal(None)
-  info.email |> expect.to_equal(None)
-  info.nickname |> expect.to_equal(Some("testuser"))
+  ui.name(info) |> expect.to_equal(None)
+  ui.email(info) |> expect.to_equal(None)
+  ui.nickname(info) |> expect.to_equal(Some("testuser"))
 }
 ```
 
@@ -917,7 +906,7 @@ Test patterns to cover:
 - **Token error** from the provider
 - **User info with full data** -- verify all `UserInfo` fields map correctly
 - **User info with minimal data** -- verify optional fields default to `None`
-- **Malformed JSON** -- verify you get an appropriate error variant back
+- **Malformed JSON** -- verify you get the appropriate AuthError kind back
 
 ### Manual testing with the example app
 
@@ -943,16 +932,16 @@ A brief catalog of differences across providers that may inform your implementat
 
 ### Google
 
-- **Scope separator**: Space-separated (standard OAuth2). Scopes are full URLs like `https://www.googleapis.com/auth/userinfo.email`.
+- **Scope separator**: Space-separated (standard OAuth2). Scopes are full URLs like Google's userinfo email scope.
 - **OIDC-compliant**: Supports OpenID Connect discovery, so you can also use vestibule's `oidc.discover("https://accounts.google.com")` instead of the dedicated strategy.
 - **Refresh tokens**: Only returned on the first authorization. Subsequent authorizations return only an access token unless you pass `prompt=consent` and `access_type=offline` as extra params.
-- **Email verification**: The userinfo response includes `email_verified` as a boolean. The Google strategy only populates `UserInfo.email` when this is `true`.
+- **Email verification**: The userinfo response includes `email_verified` as a boolean. The Google strategy only returns `Some(email)` from the user info email accessor when this is `true`.
 
 ### Microsoft
 
 - **Multi-tenant**: Uses the `/common` tenant path (`login.microsoftonline.com/common/oauth2/v2.0`) to accept any Microsoft account. Replace `common` with a specific tenant ID to restrict to a single organization.
 - **User info API**: Uses the Microsoft Graph API (`graph.microsoft.com/v1.0/me`) rather than a standard OIDC userinfo endpoint. Field names are camelCase (`displayName`, `userPrincipalName`).
-- **Profile photos**: Microsoft Graph `/me` does not return profile photos without additional permissions. The built-in strategy sets `UserInfo.image` to `None`; fetch photos separately from Microsoft Graph if your app needs them.
+- **Profile photos**: Microsoft Graph `/me` does not return profile photos without additional permissions. The built-in strategy returns `None` from the user info image accessor; fetch photos separately from Microsoft Graph if your app needs them.
 - **Scope format**: Space-separated, but scopes are permission-style names like `User.Read` rather than URLs.
 
 ### Apple

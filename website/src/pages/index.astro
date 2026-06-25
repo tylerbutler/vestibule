@@ -43,11 +43,20 @@ const supportedProviders = [
     icon: siApple
   }
 ];
-const directFlow = `// Request phase: failure here means misconfiguration, so assert is fine.
+const directFlow = `import vestibule/authorization_request
+import vestibule/error
+
+// Request phase: failure here means misconfiguration, so assert is fine.
+let options = config.authorize_options()
 let assert Ok(auth_request) =
-  vestibule.create_authorization_request(strategy, cfg)
-// Store auth_request.state and auth_request.code_verifier, then
-// redirect to auth_request.url.
+  vestibule.create_authorization_request(
+    strategy,
+    cfg: cfg,
+    options: options,
+  )
+// Store authorization_request.state(auth_request) and
+// authorization_request.code_verifier(auth_request), then redirect to
+// authorization_request.url(auth_request).
 
 // Callback phase: state can mismatch and providers can reject the
 // user, so handle both branches instead of asserting.
@@ -58,11 +67,15 @@ case
     params,
     expected_state,
     code_verifier,
+    expected_nonce: option.None,
   )
 {
   Ok(auth) -> sign_in(auth)
-  Error(error.StateMismatch) -> restart_sign_in()
-  Error(reason) -> show_auth_error(reason)
+  Error(err) ->
+    case error.kind(err) {
+      error.StateMismatchKind -> restart_sign_in()
+      _ -> show_auth_error(err)
+    }
 }`;
 const recommendedRoute = {
   label: "Using Wisp or Mist?",

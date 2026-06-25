@@ -90,10 +90,10 @@ pub fn credentials_accessors_return_token_fields_test() {
   credentials.scopes(creds) |> expect.to_equal(["read:user"])
 }
 
-fn test_config() -> config.Config {
+fn test_config() -> config.ClientConfig {
   config.new(
     client_id: "id",
-    client_secret: "secret",
+    auth: config.ClientSecret("secret"),
     redirect_uri: "https://example.com/cb",
   )
 }
@@ -123,7 +123,12 @@ pub fn with_refresh_makes_refresh_supported_test() {
 pub fn unset_authorize_url_returns_config_error_test() {
   let _ =
     strategy.new(provider: "bare", default_scopes: [])
-    |> strategy.build_authorize_url(cfg: test_config(), scopes: [], state: "s")
+    |> strategy.build_authorize_url(
+      cfg: test_config(),
+      options: config.authorize_options(),
+      scopes: [],
+      state: "s",
+    )
     |> expect.to_be_error()
   Nil
 }

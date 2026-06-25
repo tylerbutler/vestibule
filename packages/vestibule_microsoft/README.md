@@ -17,9 +17,9 @@ import vestibule_microsoft
 let strategy = vestibule_microsoft.strategy()
 let cfg =
   config.new(
-    "microsoft-client-id",
-    "microsoft-client-secret",
-    "http://localhost:8000/auth/microsoft/callback",
+    client_id: "microsoft-client-id",
+    redirect_uri: "http://localhost:8000/auth/microsoft/callback",
+    auth: config.ClientSecret("microsoft-client-secret"),
   )
 ```
 
@@ -28,7 +28,9 @@ The strategy uses Microsoft Graph `/me` for profile data and keeps
 
 ## Default scopes
 
-`User.Read`. Override with `config.with_scopes`.
+`openid User.Read`. Request different Microsoft permissions per request with
+`config.with_scopes` on `AuthorizeOptions`; `openid` is still included for nonce
+validation.
 
 ## Azure portal setup
 
@@ -44,9 +46,9 @@ The strategy uses Microsoft Graph `/me` for profile data and keeps
 4. After creation, copy the **Application (client) ID**.
 5. **Certificates & secrets → New client secret** → copy the secret
    `Value` (not the ID). It is shown once.
-6. **API permissions**: the default `User.Read` (delegated) is enough
-   for the built-in Graph `/me` parsing; click **Grant admin consent**
-   if your tenant requires it.
+6. **API permissions**: the default `openid` plus `User.Read` (delegated)
+   scopes are enough for nonce validation and the built-in Graph `/me` parsing;
+   click **Grant admin consent** if your tenant requires it.
 
 ## Tenant behavior
 
@@ -94,15 +96,11 @@ If you need lower-level control, `verify_tenant(expected_tenant, id_token)` and
 
 ## Extra authorization parameters
 
-Use `config.with_extra_params` for Microsoft-specific authorization options:
+Use `config.with_extra_params` on per-request options for Microsoft-specific authorization options:
 
 ```gleam
-let cfg =
-  config.new(
-    "microsoft-client-id",
-    "microsoft-client-secret",
-    "http://localhost:8000/auth/microsoft/callback",
-  )
+let assert Ok(options) =
+  config.authorize_options()
   |> config.with_extra_params([
     #("prompt", "select_account"),
     #("login_hint", "person@example.com"),
@@ -116,5 +114,5 @@ identifier, and `domain_hint` to streamline home-realm discovery for a tenant.
 ## Profile images
 
 Microsoft Graph `/me` does not include profile photos. The built-in strategy
-sets `UserInfo.image` to `None`; if your app needs photos, request the
+returns `None` from the image accessor; if your app needs photos, request the
 additional Microsoft Graph photo permissions and fetch the photo separately.

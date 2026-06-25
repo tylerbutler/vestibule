@@ -16,7 +16,7 @@ import gleam/uri
 
 import vestibule/auth.{type Auth}
 import vestibule/authorization_request.{type AuthorizationRequest}
-import vestibule/config.{type Config}
+import vestibule/config.{type AuthorizeOptions, type ClientConfig}
 import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/logger
@@ -40,7 +40,8 @@ import vestibule/strategy.{type Strategy}
 /// check it before calling `handle_callback`.
 pub fn create_authorization_request(
   strat: Strategy(e),
-  cfg cfg: Config,
+  cfg cfg: ClientConfig,
+  options options: AuthorizeOptions,
 ) -> Result(AuthorizationRequest, AuthError(e)) {
   let provider = option.Some(strategy.provider(strat))
   logger.emit(
@@ -60,7 +61,7 @@ pub fn create_authorization_request(
     True -> option.Some(nonce.generate())
     False -> option.None
   }
-  let scopes = case config.scopes(cfg) {
+  let scopes = case config.scopes(options) {
     [] -> strategy.default_scopes(strat)
     custom -> custom
   }
@@ -78,6 +79,7 @@ pub fn create_authorization_request(
     strategy.build_authorize_url(
       strat,
       cfg: cfg,
+      options: options,
       scopes: scopes,
       state: csrf_state,
     )
@@ -130,7 +132,7 @@ pub fn create_authorization_request(
 /// `expected_nonce` is the OIDC nonce stored during the request phase, or
 /// `None` for plain OAuth2 strategies. When the strategy uses a nonce and an
 /// expected value is present, the `nonce` claim in the `id_token` artifact must
-/// match or the callback fails with `InvalidNonce`.
+/// match or the callback fails with an AuthError of kind `InvalidNonceKind`.
 ///
 /// **Caller responsibilities:** This function checks that the callback
 /// state matches `expected_state`, but does not enforce single-use or
@@ -141,7 +143,7 @@ pub fn create_authorization_request(
 /// before calling this function.
 pub fn handle_callback(
   strat: Strategy(e),
-  cfg cfg: Config,
+  cfg cfg: ClientConfig,
   callback_params callback_params: Dict(String, String),
   expected_state expected_state: String,
   code_verifier code_verifier: String,
@@ -409,7 +411,7 @@ pub fn handle_callback(
 /// Delegates to the provider strategy so refresh semantics remain provider-owned.
 pub fn refresh_token(
   strat: Strategy(e),
-  cfg cfg: Config,
+  cfg cfg: ClientConfig,
   refresh_tok refresh_tok: String,
 ) -> Result(Credentials, AuthError(e)) {
   let provider = option.Some(strategy.provider(strat))
@@ -542,7 +544,8 @@ fn append_raw_query(url: String, query: String) -> String {
 ///
 /// A no-op for plain OAuth2 strategies (`uses_nonce: False`) or when no nonce
 /// was stored. When a nonce is expected, a missing `id_token` artifact, a
-/// missing `nonce` claim, or a mismatch all fail with `InvalidNonce`.
+/// missing `nonce` claim, or a mismatch all fail with an AuthError of kind
+/// `InvalidNonceKind`.
 fn validate_callback_nonce(
   strat: Strategy(e),
   exchange: strategy.ExchangeResult,

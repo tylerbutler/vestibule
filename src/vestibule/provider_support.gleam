@@ -18,7 +18,8 @@ import vestibule/logger
 import vestibule/credentials
 
 /// Check that an HTTP response has a 2xx status code.
-/// Returns the response body on success, or an HttpError on failure.
+/// Returns the response body on success, or an AuthError of kind `HttpKind` on
+/// failure.
 pub fn check_response_status(
   response: Response(String),
 ) -> Result(String, AuthError(e)) {
@@ -31,7 +32,8 @@ pub fn check_response_status(
 
 /// Check that an HTTP response has a 2xx status code, emitting structured log
 /// events with the given provider name and endpoint label.
-/// Returns the response body on success, or an HttpError on failure.
+/// Returns the response body on success, or an AuthError of kind `HttpKind` on
+/// failure.
 pub fn check_response_status_for_endpoint(
   response: Response(String),
   provider_name provider_name: String,
@@ -82,7 +84,8 @@ fn safe_error_body(body: String) -> String {
 
 /// Validate that a URL uses HTTPS.
 /// HTTP is allowed for localhost and 127.0.0.1 (development use).
-/// Returns Ok(Nil) if valid, or a ConfigError describing the issue.
+/// Returns Ok(Nil) if valid, or an AuthError of kind `ConfigKind` describing
+/// the issue.
 pub fn require_https(url: String) -> Result(Nil, AuthError(e)) {
   case uri.parse(url) {
     Ok(parsed) ->
@@ -118,7 +121,8 @@ pub fn require_https(url: String) -> Result(Nil, AuthError(e)) {
 /// otherwise publish an internal URL and trigger Server-Side Request
 /// Forgery (SSRF) against loopback or internal services.
 ///
-/// Returns Ok(Nil) if valid, or a ConfigError describing the issue.
+/// Returns Ok(Nil) if valid, or an AuthError of kind `ConfigKind` describing
+/// the issue.
 pub fn require_public_https(url: String) -> Result(Nil, AuthError(e)) {
   case uri.parse(url) {
     Ok(parsed) ->
@@ -320,8 +324,8 @@ pub fn fetch_json_with_auth(
 /// Check a JSON response body for an OAuth2 error response.
 ///
 /// If the body contains `{"error": "...", "error_description": "..."}`,
-/// returns `Error(ProviderError(...))`. Otherwise returns `Ok(body)`
-/// so the caller can proceed with success parsing.
+/// returns an AuthError of kind `ProviderKind`. Otherwise returns `Ok(body)` so
+/// the caller can proceed with success parsing.
 ///
 /// This pattern is used by every token endpoint response parser
 /// (GitHub, Google, Microsoft, Apple, OIDC, refresh).

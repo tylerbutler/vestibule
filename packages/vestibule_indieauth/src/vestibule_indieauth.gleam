@@ -11,7 +11,9 @@
 /// let assert Ok(strategy) = vestibule_indieauth.discover("https://user.example.com")
 ///
 /// // Use with vestibule's standard two-phase flow
-/// let assert Ok(auth_request) = vestibule.authorize_url(strategy, cfg)
+/// let options = config.authorize_options()
+/// let assert Ok(auth_request) =
+///   vestibule.create_authorization_request(strategy, cfg: cfg, options: options)
 /// ```
 ///
 /// ## Discovery
@@ -30,7 +32,7 @@ import gleam/result
 import gleam/string
 import gleam/uri
 
-import vestibule/config.{type Config}
+import vestibule/config.{type AuthorizeOptions, type ClientConfig}
 import vestibule/credentials.{type Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/strategy.{type Strategy, type UserResult}
@@ -49,14 +51,21 @@ import vestibule_indieauth/url
 /// 1. Validates and canonicalizes the user URL
 /// 2. Fetches the URL and follows redirects
 /// 3. Discovers authorization and token endpoints
-/// 4. Returns a `Strategy(e)` ready for use with `vestibule.authorize_url`
+/// 4. Returns a `Strategy(e)` ready for use with `vestibule.create_authorization_request`
 ///
 /// ## Example
 ///
 /// ```gleam
 /// let assert Ok(strategy) = vestibule_indieauth.discover("https://user.example.com")
-/// let cfg = config.new("https://myapp.com/", "", "https://myapp.com/callback")
-/// let assert Ok(auth_request) = vestibule.authorize_url(strategy, cfg)
+/// let cfg =
+///   config.new(
+///     client_id: "https://myapp.com/",
+///     redirect_uri: "https://myapp.com/callback",
+///     auth: config.PublicClient,
+///   )
+/// let options = config.authorize_options()
+/// let assert Ok(auth_request) =
+///   vestibule.create_authorization_request(strategy, cfg: cfg, options: options)
 /// ```
 pub fn discover(user_url: String) -> Result(Strategy(e), AuthError(e)) {
   use canonical_url <- result.try(url.validate_profile_url(user_url))
@@ -171,8 +180,8 @@ pub fn parse_endpoints(
 /// discovery from strategy creation.
 pub fn strategy(endpoints: DiscoveredEndpoints, me: String) -> Strategy(e) {
   strategy.new(provider: "indieauth", default_scopes: ["profile"])
-  |> strategy.with_authorize_url(fn(cfg, scopes, state) {
-    do_authorize_url(endpoints, me, cfg, scopes, state)
+  |> strategy.with_authorize_url(fn(cfg, options, scopes, state) {
+    do_authorize_url(endpoints, me, cfg, options, scopes, state)
   })
   |> strategy.with_exchange_code(fn(cfg, code, code_verifier) {
     do_exchange_code(endpoints, cfg, code, code_verifier)
@@ -188,11 +197,31 @@ pub fn strategy(endpoints: DiscoveredEndpoints, me: String) -> Strategy(e) {
 fn do_authorize_url(
   endpoints: DiscoveredEndpoints,
   me: String,
-  cfg: Config,
+  cfg: ClientConfig,
+  options: AuthorizeOptions,
   scopes: List(String),
   state: String,
 ) -> Result(String, AuthError(e)) {
   let scope = string.join(scopes, " ")
+  let extra_params = config.extra_params(options)
+  case dict.get(extra_params, "me") {
+    Ok(_) ->
+      Error(error.config(
+        reason: "Reserved authorization parameter not allowed: me",
+      ))
+    Error(Nil) ->
+      build_authorize_url(endpoints, me, cfg, scope, state, extra_params)
+  }
+}
+
+fn build_authorize_url(
+  endpoints: DiscoveredEndpoints,
+  me: String,
+  cfg: ClientConfig,
+  scope: String,
+  state: String,
+  extra_params: dict.Dict(String, String),
+) -> Result(String, AuthError(e)) {
   let params = [
     #("response_type", "code"),
     #("client_id", config.client_id(cfg)),
@@ -200,6 +229,7 @@ fn do_authorize_url(
     #("state", state),
     #("scope", scope),
     #("me", me),
+    ..dict.to_list(extra_params)
   ]
   let query =
     params
@@ -213,7 +243,7 @@ fn do_authorize_url(
 
 fn do_exchange_code(
   endpoints: DiscoveredEndpoints,
-  cfg: Config,
+  cfg: ClientConfig,
   code: String,
   code_verifier: Option(String),
 ) -> Result(strategy.ExchangeResult, AuthError(e)) {
@@ -229,7 +259,7 @@ fn do_exchange_code(
 
 fn do_refresh_token(
   endpoints: DiscoveredEndpoints,
-  cfg: Config,
+  cfg: ClientConfig,
   refresh_tok: String,
 ) -> Result(Credentials, AuthError(e)) {
   token.refresh(endpoints.token_endpoint, config.client_id(cfg), refresh_tok)

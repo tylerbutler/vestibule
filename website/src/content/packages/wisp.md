@@ -35,9 +35,9 @@ code: |
     |> registry.register(
       vestibule_github.strategy(),
       config.new(
-        "client_id",
-        "client_secret",
-        "http://localhost:8000/auth/github/callback",
+        client_id: "client_id",
+        redirect_uri: "http://localhost:8000/auth/github/callback",
+        auth: config.ClientSecret("client_secret"),
       ),
     )
 
@@ -45,7 +45,13 @@ code: |
 
   case wisp.path_segments(req), req.method {
     ["auth", provider], http.Get ->
-      vestibule_wisp.request_phase(req, reg, provider, store)
+      vestibule_wisp.request_phase(
+        req,
+        reg,
+        provider,
+        store,
+        authorize_options: config.authorize_options(),
+      )
 
     ["auth", provider, "callback"], http.Get
     | ["auth", provider, "callback"], http.Post ->

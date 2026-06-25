@@ -84,6 +84,7 @@ pub fn request_phase_unknown_provider_returns_404_test() {
       registry.new(),
       "unknown",
       store,
+      config.authorize_options(),
       test_options(),
     )
 
@@ -98,7 +99,14 @@ pub fn request_phase_success_sets_signed_cookie_and_redirects_test() {
     |> registry.register(strategy: test_strategy(), config: test_config())
 
   let resp =
-    vestibule_mist.request_phase(req, reg, "test", store, test_options())
+    vestibule_mist.request_phase(
+      req,
+      reg,
+      "test",
+      store,
+      config.authorize_options(),
+      test_options(),
+    )
 
   resp.status |> expect.to_equal(302)
   let assert Ok(_location) = find_header(resp.headers, "location")
@@ -121,10 +129,45 @@ pub fn request_phase_allows_secure_cookie_opt_out_test() {
     |> registry.register(strategy: test_strategy(), config: test_config())
   let options = vestibule_mist.Options(..test_options(), secure_cookie: False)
 
-  let resp = vestibule_mist.request_phase(req, reg, "test", store, options)
+  let resp =
+    vestibule_mist.request_phase(
+      req,
+      reg,
+      "test",
+      store,
+      config.authorize_options(),
+      options,
+    )
 
   let assert Ok(cookie_header) = find_header(resp.headers, "set-cookie")
   { string.contains(cookie_header, "Secure") } |> expect.to_be_false()
+}
+
+pub fn request_phase_passes_authorize_options_test() {
+  let req = request.new() |> request.set_path("/auth/test")
+  let store = state_store.init_named("test_mist_request_authorize_options")
+  let assert Ok(reg) =
+    registry.new()
+    |> registry.register(
+      strategy: authorize_options_strategy(),
+      config: test_config(),
+    )
+  let assert Ok(authorize_options) =
+    config.authorize_options()
+    |> config.with_extra_params([#("prompt", "login")])
+
+  let resp =
+    vestibule_mist.request_phase(
+      req,
+      reg,
+      "test",
+      store,
+      authorize_options,
+      test_options(),
+    )
+
+  let assert Ok(location) = find_header(resp.headers, "location")
+  { string.contains(location, "prompt=login") } |> expect.to_be_true()
 }
 
 // === callback_phase_auth_result_with_params ===
@@ -376,7 +419,7 @@ fn test_options() -> vestibule_mist.Options {
 
 fn test_strategy() -> Strategy(e) {
   strategy.new(provider: "test", default_scopes: [])
-  |> strategy.with_authorize_url(fn(_config, _scopes, _state) {
+  |> strategy.with_authorize_url(fn(_config, _options, _scopes, _state) {
     Ok("https://example.com")
   })
   |> strategy.with_exchange_code(fn(_config, _code, _code_verifier) {
@@ -392,7 +435,7 @@ fn test_strategy() -> Strategy(e) {
 
 fn leaky_error_strategy() -> Strategy(e) {
   strategy.new(provider: "test", default_scopes: [])
-  |> strategy.with_authorize_url(fn(_config, _scopes, _state) {
+  |> strategy.with_authorize_url(fn(_config, _options, _scopes, _state) {
     Ok("https://example.com")
   })
   |> strategy.with_exchange_code(fn(_config, _code, _code_verifier) {
@@ -410,11 +453,30 @@ fn leaky_error_strategy() -> Strategy(e) {
   })
 }
 
-fn test_config() -> config.Config {
+fn authorize_options_strategy() -> Strategy(e) {
+  strategy.new(provider: "test", default_scopes: [])
+  |> strategy.with_authorize_url(fn(_config, options, _scopes, _state) {
+    case dict.get(config.extra_params(options), "prompt") {
+      Ok(prompt) -> Ok("https://example.com?prompt=" <> prompt)
+      Error(_) -> Ok("https://example.com")
+    }
+  })
+  |> strategy.with_exchange_code(fn(_config, _code, _code_verifier) {
+    Error(error.config(reason: "test"))
+  })
+  |> strategy.with_refresh(fn(_config, _refresh_token) {
+    Error(error.config(reason: "test"))
+  })
+  |> strategy.with_fetch_user(fn(_config, _exchange) {
+    Error(error.config(reason: "test"))
+  })
+}
+
+fn test_config() -> config.ClientConfig {
   config.new(
     client_id: "client_id",
-    client_secret: "client_secret",
     redirect_uri: "https://example.com/callback",
+    auth: config.ClientSecret("client_secret"),
   )
 }
 

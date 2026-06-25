@@ -34,7 +34,7 @@ callers that construct or pattern-match the value. Build instances with
 `new` and read fields with the accessors.
 
 ```gleam
-pub type Auth
+pub opaque type Auth
 ```
 
 ## Functions

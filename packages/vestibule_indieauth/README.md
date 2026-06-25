@@ -18,8 +18,12 @@ gleam add vestibule_indieauth
 
 ```gleam
 import gleam/dict
+import gleam/option
 import vestibule
+import vestibule/authorization_request
+import vestibule/auth
 import vestibule/config
+import vestibule/user_info
 import vestibule_indieauth
 
 // Phase 0: Discover the user's IndieAuth endpoints
@@ -29,16 +33,24 @@ let assert Ok(strategy) = vestibule_indieauth.discover("https://user.example.com
 // Configure your app — client_id is your app's URL, no client_secret needed
 let cfg =
   config.new(
-    "https://myapp.example.com/",
-    "",
-    "https://myapp.example.com/auth/indieauth/callback",
+    client_id: "https://myapp.example.com/",
+    redirect_uri: "https://myapp.example.com/auth/indieauth/callback",
+    auth: config.PublicClient,
   )
+let options =
+  config.authorize_options()
   |> config.with_scopes(["profile", "email"])
 
 // Phase 1: Generate authorization URL and redirect user
-let assert Ok(auth_request) = vestibule.authorize_url(strategy, cfg)
-// Store auth_request.state and auth_request.code_verifier in session
-// Redirect user to auth_request.url
+let assert Ok(auth_request) =
+  vestibule.create_authorization_request(
+    strategy,
+    cfg: cfg,
+    options: options,
+  )
+// Store authorization_request.state(auth_request) and
+// authorization_request.code_verifier(auth_request) in session
+// Redirect user to authorization_request.url(auth_request)
 
 // Phase 2: Handle the callback
 let params =
@@ -55,9 +67,11 @@ let assert Ok(auth) =
     params,
     "expected state from session",
     "code verifier from session",
+    expected_nonce: option.None,
   )
-// auth.uid is the user's canonical URL (e.g., "https://user.example.com/")
-// auth.info.name, auth.info.email, auth.info.image — from profile
+// auth.uid(auth) is the user's canonical URL (e.g., "https://user.example.com/")
+// user_info.name(auth.info(auth)), user_info.email(auth.info(auth)),
+// user_info.image(auth.info(auth)) come from the profile
 ```
 
 ## How It Works
@@ -73,9 +87,9 @@ let assert Ok(auth) =
 
 ## Key Differences from Other Providers
 
-- **No client secret** — IndieAuth clients are public; pass an empty string for `client_secret`
+- **No client secret** — IndieAuth clients are public; use `config.PublicClient`
 - **client_id is your app's URL** — Not an opaque ID from a developer console
-- **User identity is a URL** — The `auth.uid` field contains the user's canonical URL
+- **User identity is a URL** — `auth.uid(auth)` returns the user's canonical URL
 - **Endpoints are per-user** — Each user may have different authorization/token endpoints
 - **Discovery required** — Call `discover()` before starting the auth flow
 

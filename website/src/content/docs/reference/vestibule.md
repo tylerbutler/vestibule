@@ -45,7 +45,8 @@ check it before calling `handle_callback`.
 ```gleam
 pub fn create_authorization_request(
   strategy.Strategy(a),
-  cfg: config.Config
+  cfg: config.ClientConfig,
+  options: config.AuthorizeOptions
 ) -> Result(authorization_request.AuthorizationRequest, error.AuthError(a))
 ```
 
@@ -61,7 +62,7 @@ fetches normalized user information.
 `expected_nonce` is the OIDC nonce stored during the request phase, or
 `None` for plain OAuth2 strategies. When the strategy uses a nonce and an
 expected value is present, the `nonce` claim in the `id_token` artifact must
-match or the callback fails with `InvalidNonce`.
+match or the callback fails with an AuthError of kind `InvalidNonceKind`.
 
 **Caller responsibilities:** This function checks that the callback
 state matches `expected_state`, but does not enforce single-use or
@@ -74,7 +75,7 @@ before calling this function.
 ```gleam
 pub fn handle_callback(
   strategy.Strategy(a),
-  cfg: config.Config,
+  cfg: config.ClientConfig,
   callback_params: dict.Dict(String, String),
   expected_state: String,
   code_verifier: String,
@@ -91,7 +92,7 @@ Delegates to the provider strategy so refresh semantics remain provider-owned.
 ```gleam
 pub fn refresh_token(
   strategy.Strategy(a),
-  cfg: config.Config,
+  cfg: config.ClientConfig,
   refresh_tok: String
 ) -> Result(credentials.Credentials, error.AuthError(a))
 ```

@@ -16,6 +16,7 @@ import gleam/uri
 import wisp.{type Request, type Response}
 
 import vestibule/auth.{type Auth}
+import vestibule/config.{type AuthorizeOptions}
 import vestibule/error
 import vestibule/logger
 import vestibule/registry.{type Registry}
@@ -93,13 +94,15 @@ pub fn request_phase(
   reg reg: Registry(e),
   provider provider: String,
   state_store state_store: StateStore,
+  authorize_options authorize_options: AuthorizeOptions,
 ) -> Response {
   request_phase_with_options(
     req,
     reg: reg,
     provider: provider,
     state_store: state_store,
-    options: default_options(),
+    authorize_options: authorize_options,
+    middleware_options: default_options(),
   )
 }
 
@@ -110,7 +113,8 @@ pub fn request_phase_with_options(
   reg reg: Registry(e),
   provider provider: String,
   state_store state_store: StateStore,
-  options options: Options,
+  authorize_options authorize_options: AuthorizeOptions,
+  middleware_options middleware_options: Options,
 ) -> Response {
   logger.emit(
     logger.new(
@@ -127,7 +131,8 @@ pub fn request_phase_with_options(
       reg,
       provider: provider,
       store: state_store,
-      ttl_seconds: options.session_ttl_seconds,
+      ttl_seconds: middleware_options.session_ttl_seconds,
+      options: authorize_options,
     )
   {
     Error(transport_flow.UnknownProvider(_)) -> {
@@ -192,10 +197,10 @@ pub fn request_phase_with_options(
       wisp.redirect(url)
       |> wisp.set_cookie(
         req,
-        options.cookie_name,
+        middleware_options.cookie_name,
         session_id,
         wisp.Signed,
-        options.session_ttl_seconds,
+        middleware_options.session_ttl_seconds,
       )
     }
   }

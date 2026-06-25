@@ -41,6 +41,8 @@ cookie and will return `MissingSessionCookie`.
 Initialize the state store once per BEAM VM at application startup:
 
 ```gleam
+import vestibule/config
+
 let assert Ok(store) = state_store.try_init()
 ```
 
@@ -49,7 +51,13 @@ Then pass that store to the request and callback phases:
 ```gleam
 case wisp.path_segments(req), req.method {
   ["auth", provider], http.Get ->
-    vestibule_wisp.request_phase(req, reg, provider, store)
+    vestibule_wisp.request_phase(
+      req,
+      reg,
+      provider,
+      store,
+      authorize_options: config.authorize_options(),
+    )
 
   ["auth", provider, "callback"], http.Get
   | ["auth", provider, "callback"], http.Post ->
@@ -89,7 +97,14 @@ let options =
     session_ttl_seconds: 300,
   )
 
-vestibule_wisp.request_phase_with_options(req, reg, provider, store, options)
+vestibule_wisp.request_phase_with_options(
+  req,
+  reg,
+  provider,
+  store,
+  authorize_options: config.authorize_options(),
+  middleware_options: options,
+)
 vestibule_wisp.callback_phase_with_options(
   req,
   reg,

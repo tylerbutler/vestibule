@@ -64,7 +64,7 @@ happens. The returned strategy/config pair is threaded into
 pub fn ensure_callback_provider(
   registry.Registry(a),
   String
-) -> Result(#(strategy.Strategy(a), config.Config), CallbackFlowError(a))
+) -> Result(#(strategy.Strategy(a), config.ClientConfig), CallbackFlowError(a))
 ```
 
 ### `finish_callback`
@@ -76,7 +76,7 @@ reuse the provider lookup instead of querying the registry again.
 
 ```gleam
 pub fn finish_callback(
-  #(strategy.Strategy(a), config.Config),
+  #(strategy.Strategy(a), config.ClientConfig),
   store: state_store.StateStore,
   params: dict.Dict(String, String),
   session_id: String
@@ -92,6 +92,7 @@ pub fn start_authorization(
   registry.Registry(a),
   provider: String,
   store: state_store.StateStore,
-  ttl_seconds: Int
+  ttl_seconds: Int,
+  options: config.AuthorizeOptions
 ) -> Result(#(String, String), RequestFlowError(a))
 ```

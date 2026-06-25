@@ -24,9 +24,9 @@ code: |
   let strategy = vestibule_github.strategy()
   let cfg =
     config.new(
-      "github-client-id",
-      "github-client-secret",
-      "http://localhost:8000/auth/github/callback",
+      client_id: "github-client-id",
+      redirect_uri: "http://localhost:8000/auth/github/callback",
+      auth: config.ClientSecret("github-client-secret"),
     )
 notes:
   - GitHub may omit public email from /user; the strategy performs a best-effort /user/emails lookup.

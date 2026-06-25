@@ -28,25 +28,7 @@ searchTerms:
 ---
 
 import CodeBlock from "../../../components/CodeBlock.astro";
-
-export const discoverCode = `import vestibule/oidc
-
-let assert Ok(strategy) = oidc.discover("https://accounts.google.com")`;
-
-export const selfHostedCode = `import vestibule
-import vestibule/config
-import vestibule/oidc
-
-// Discovery reads https://your-pocket-id-instance/.well-known/openid-configuration
-let assert Ok(strategy) = oidc.discover("https://your-pocket-id-instance")
-let cfg =
-  config.new(
-    "your-client-id",
-    "your-client-secret",
-    "http://localhost:8000/auth/oidc/callback",
-  )
-
-let assert Ok(auth_request) = vestibule.create_authorization_request(strategy, cfg)`;
+import { discoverCode, selfHostedCode } from "../../../data/doc-snippets";
 
 <section id="discover">
   <h2>Discover a provider</h2>

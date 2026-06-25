@@ -1,3 +1,4 @@
+import gleam/dict
 import gleam/http
 import gleam/list
 import gleam/option
@@ -73,18 +74,64 @@ pub fn request_phase_sets_host_bound_cookie_test() {
     |> registry.register(strategy: test_strategy(), config: test_config())
   let req = simulate.request(http.Get, "/auth/test")
 
-  let response = vestibule_wisp.request_phase(req, reg, "test", store)
+  let response =
+    vestibule_wisp.request_phase(
+      req,
+      reg: reg,
+      provider: "test",
+      state_store: store,
+      authorize_options: config.authorize_options(),
+    )
 
   let set_cookie = case list.key_find(response.headers, "set-cookie") {
     Ok(value) -> value
     Error(_) -> panic as "expected a set-cookie header"
   }
-
   { string.contains(set_cookie, "__Host-vestibule_session=") }
   |> expect.to_be_true()
   { string.contains(set_cookie, "Secure") } |> expect.to_be_true()
   { string.contains(set_cookie, "Path=/") } |> expect.to_be_true()
   { string.contains(set_cookie, "Domain=") } |> expect.to_be_false()
+}
+
+pub fn request_phase_with_options_passes_authorize_options_test() {
+  let store = state_store.init_named("test_request_phase_authorize_options")
+  let assert Ok(reg) =
+    registry.new()
+    |> registry.register(
+      strategy: authorize_options_strategy(),
+      config: test_config(),
+    )
+  let req = simulate.request(http.Get, "/auth/test")
+  let assert Ok(authorize_options) =
+    config.authorize_options()
+    |> config.with_extra_params([#("prompt", "login")])
+
+  let response =
+    vestibule_wisp.request_phase_with_options(
+      req,
+      reg: reg,
+      provider: "test",
+      state_store: store,
+      authorize_options: authorize_options,
+      middleware_options: vestibule_wisp.Options(
+        cookie_name: "__Host-custom_session",
+        session_ttl_seconds: 300,
+      ),
+    )
+
+  let location = case list.key_find(response.headers, "location") {
+    Ok(value) -> value
+    Error(_) -> panic as "expected a location header"
+  }
+  { string.contains(location, "prompt=login") } |> expect.to_be_true()
+
+  let set_cookie = case list.key_find(response.headers, "set-cookie") {
+    Ok(value) -> value
+    Error(_) -> panic as "expected a set-cookie header"
+  }
+  { string.contains(set_cookie, "__Host-custom_session=") }
+  |> expect.to_be_true()
 }
 
 pub fn callback_phase_auth_result_with_options_uses_cookie_name_test() {
@@ -174,7 +221,7 @@ pub fn callback_phase_auth_result_missing_state_does_not_consume_session_test() 
 
 fn test_strategy() -> Strategy(e) {
   strategy.new(provider: "test", default_scopes: [])
-  |> strategy.with_authorize_url(fn(_config, _scopes, _state) {
+  |> strategy.with_authorize_url(fn(_config, _options, _scopes, _state) {
     Ok("https://example.com")
   })
   |> strategy.with_exchange_code(fn(_config, _code, _code_verifier) {
@@ -190,7 +237,7 @@ fn test_strategy() -> Strategy(e) {
 
 fn leaky_error_strategy() -> Strategy(e) {
   strategy.new(provider: "test", default_scopes: [])
-  |> strategy.with_authorize_url(fn(_config, _scopes, _state) {
+  |> strategy.with_authorize_url(fn(_config, _options, _scopes, _state) {
     Ok("https://example.com")
   })
   |> strategy.with_exchange_code(fn(_config, _code, _code_verifier) {
@@ -208,11 +255,30 @@ fn leaky_error_strategy() -> Strategy(e) {
   })
 }
 
-fn test_config() -> config.Config {
+fn authorize_options_strategy() -> Strategy(e) {
+  strategy.new(provider: "test", default_scopes: [])
+  |> strategy.with_authorize_url(fn(_config, options, _scopes, _state) {
+    case dict.get(config.extra_params(options), "prompt") {
+      Ok(prompt) -> Ok("https://example.com?prompt=" <> prompt)
+      Error(_) -> Ok("https://example.com")
+    }
+  })
+  |> strategy.with_exchange_code(fn(_config, _code, _code_verifier) {
+    Error(error.config(reason: "test"))
+  })
+  |> strategy.with_refresh(fn(_config, _refresh_token) {
+    Error(error.config(reason: "test"))
+  })
+  |> strategy.with_fetch_user(fn(_config, _exchange) {
+    Error(error.config(reason: "test"))
+  })
+}
+
+fn test_config() -> config.ClientConfig {
   config.new(
     client_id: "client_id",
-    client_secret: "client_secret",
     redirect_uri: "https://example.com/callback",
+    auth: config.ClientSecret("client_secret"),
   )
 }
 

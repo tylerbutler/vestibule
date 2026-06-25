@@ -9,7 +9,7 @@ useWhen: Use IndieAuth when you want users to authenticate with their own domain
 defaultScopes: "profile"
 setup:
   - Host your application at a stable HTTPS URL — this URL is your client_id.
-  - Leave client_secret empty; IndieAuth clients are public.
+  - "Use `auth: config.PublicClient`; IndieAuth clients are public and do not send a client secret."
   - Register the redirect URI your app uses for the callback.
   - Call discover with the user-supplied profile URL before starting the flow.
 highlights:
@@ -30,12 +30,18 @@ code: |
   // client_id is your app's URL; no client_secret is required.
   let cfg =
     config.new(
-      "https://myapp.example.com/",
-      "",
-      "https://myapp.example.com/auth/indieauth/callback",
+      client_id: "https://myapp.example.com/",
+      redirect_uri: "https://myapp.example.com/auth/indieauth/callback",
+      auth: config.PublicClient,
     )
 
-  let assert Ok(auth_request) = vestibule.authorize_url(strategy, cfg)
+  let options = config.authorize_options()
+  let assert Ok(auth_request) =
+    vestibule.create_authorization_request(
+      strategy,
+      cfg: cfg,
+      options: options,
+    )
 notes:
   - Discovery performs HTTP requests, so the strategy targets the Erlang (BEAM) runtime only.
   - Each user may resolve to different authorization and token endpoints; always discover per login.
