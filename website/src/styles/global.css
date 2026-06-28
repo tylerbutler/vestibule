@@ -653,6 +653,61 @@ h3 {
   letter-spacing: var(--tracking-title);
 }
 
+/* Copy-permalink affordance appended to in-page headings by DocsLayout.
+   Quiet until the heading is hovered or the link is focused. */
+.heading-anchor {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  margin-inline-start: var(--space-2);
+  color: var(--muted);
+  font-size: 0.8em;
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+  opacity: 0;
+  transition: opacity 150ms ease, color 150ms ease;
+}
+
+h2:hover > .heading-anchor,
+h3:hover > .heading-anchor,
+.heading-anchor:focus,
+.heading-anchor[data-copy-state] {
+  opacity: 1;
+}
+
+.heading-anchor:hover,
+.heading-anchor:focus,
+.heading-anchor[data-copy-state="success"] {
+  color: var(--accent-ink);
+}
+
+.heading-anchor[data-copy-state]::after {
+  font-size: var(--text-caption);
+  font-weight: var(--weight-semibold);
+}
+
+.heading-anchor[data-copy-state="success"]::after {
+  content: "Copied";
+}
+
+.heading-anchor[data-copy-state="error"]::after {
+  content: "Copy failed";
+  color: var(--danger);
+}
+
+/* Touch devices have no hover, so keep the affordance discoverable. */
+@media (hover: none) {
+  .heading-anchor {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .heading-anchor {
+    transition: none;
+  }
+}
+
 p {
   max-width: 66ch;
   margin: 0 0 var(--space-4);
@@ -1124,24 +1179,9 @@ pre code {
   font-size: var(--text-label);
 }
 
-.provider-stack .stack-rows {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  align-items: stretch;
-}
-
-.provider-stack .stack-provider {
-  flex: 1 1 14rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg);
-  padding: var(--space-2);
-}
-
-.provider-stack .stack-provider > span:last-child {
-  display: block;
-}
+/* Provider rows share the route-layer row treatment at every breakpoint:
+   borderless, top-bordered, full-width. The provider mark is the only
+   thing that distinguishes them from route-layer rows. */
 
 .provider-mark {
   display: grid;
@@ -1864,28 +1904,6 @@ pre code {
 
   .stack-row {
     grid-template-columns: 13rem 1fr;
-  }
-
-  .provider-stack .stack-rows {
-    display: grid;
-    gap: 0;
-  }
-
-  .provider-stack .stack-provider {
-    flex: initial;
-    border: 0;
-    border-block-start: 1px solid var(--border);
-    border-radius: 0;
-    background: transparent;
-    padding: var(--space-4) 0;
-  }
-
-  .provider-stack .stack-provider > span:last-child {
-    display: block;
-  }
-
-  .provider-stack .provider-copy small {
-    display: block;
   }
 
   .provider-mark {
