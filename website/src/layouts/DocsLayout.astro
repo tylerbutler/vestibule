@@ -402,6 +402,53 @@ const hasToc = toc.length > 0;
 
     <script is:inline>
       (() => {
+        const headings = Array.from(document.querySelectorAll("main h2[id], main h3[id]"));
+        if (headings.length === 0) return;
+
+        const status = document.createElement("div");
+        status.className = "visually-hidden";
+        status.setAttribute("aria-live", "polite");
+        document.body.append(status);
+
+        const canCopy = () => navigator.clipboard && window.isSecureContext;
+
+        for (const heading of headings) {
+          if (heading.querySelector(".heading-anchor")) continue;
+
+          const anchor = document.createElement("a");
+          anchor.className = "heading-anchor";
+          anchor.href = `#${heading.id}`;
+          const title = heading.textContent?.trim() || "section";
+          anchor.setAttribute("aria-label", `Copy link to section: ${title}`);
+          anchor.append(Object.assign(document.createElement("span"), {
+            ariaHidden: "true",
+            textContent: "#"
+          }));
+          heading.append(anchor);
+
+          anchor.addEventListener("click", async (event) => {
+            // No clipboard? Let the default hash navigation happen.
+            if (!canCopy()) return;
+            event.preventDefault();
+            const url = `${location.origin}${location.pathname}#${heading.id}`;
+            history.replaceState(null, "", `#${heading.id}`);
+            try {
+              await navigator.clipboard.writeText(url);
+              anchor.dataset.copyState = "success";
+              status.textContent = `Copied link to ${title}.`;
+            } catch (error) {
+              anchor.dataset.copyState = "error";
+              status.textContent = "Copy failed. Use the browser address bar.";
+            } finally {
+              window.setTimeout(() => {
+                delete anchor.dataset.copyState;
+              }, 1600);
+            }
+          });
+        }
+      })();
+
+      (() => {
         const dialog = document.querySelector("[data-cmd-palette]");
         if (!(dialog instanceof HTMLDialogElement) || typeof dialog.showModal !== "function") return;
 

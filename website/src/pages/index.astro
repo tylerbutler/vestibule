@@ -290,7 +290,7 @@ const recoveryOutcomes = [
 
   <section class="content-grid split boundary-section">
     <div>
-      <h2>Keep the callback boundary explicit.</h2>
+      <h2 id="callback-boundary">Keep the callback boundary explicit.</h2>
       <p>
         Vestibule creates the authorization request and validates the callback.
         Your app still stores state and PKCE data before redirecting, then maps
@@ -313,7 +313,7 @@ const recoveryOutcomes = [
 
   <section class="security-callout">
     <div>
-      <h2>Secure defaults, explicit boundaries.</h2>
+      <h2 id="secure-defaults">Secure defaults, explicit boundaries.</h2>
       <p>
         Vestibule creates strong state tokens, applies PKCE, validates callback
         state before surfacing provider details, and verifies the provider-specific
