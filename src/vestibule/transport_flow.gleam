@@ -1,4 +1,10 @@
 //// Transport-independent OAuth request and callback flow helpers.
+////
+//// This module is internal plumbing shared by the first-party transport
+//// middlewares (`vestibule_wisp` and `vestibule_mist`). It is not part of
+//// vestibule's stable public API: its tuple shapes and error variants may
+//// change without a major version bump. Transport authors should depend on
+//// the middleware packages rather than this module.
 
 import gleam/dict.{type Dict}
 import gleam/option

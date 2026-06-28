@@ -1,0 +1,4 @@
+project: vestibule
+kind: Changed
+body: The vestibule/transport_flow module is now marked internal. It was shared plumbing for the first-party vestibule_wisp and vestibule_mist middlewares and was never intended as a stable public API; its tuple shapes and error variants may change without a major version bump.
+time: 2026-06-28T19:01:53.000000000Z
