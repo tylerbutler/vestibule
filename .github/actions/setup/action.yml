@@ -29,8 +29,8 @@ runs:
           ~/.cache/gleam
         # Hash every member's manifests so the cache invalidates when any of them
         # adds, removes, or changes a dependency. The example is included: it is
-        # a task-fan-out member, and its git dependency makes it re-resolve — a
-        # cold cache there means every CI job queries the Hex API at once, which
-        # is enough to trip the per-IP rate limit.
+        # a task-fan-out member, and its git dependency makes it re-resolve. The
+        # CI dependency job warms this complete cache before the task jobs fan
+        # out, keeping Hex access on one runner.
         key: gleam-${{ runner.os }}-${{ hashFiles('gleam.toml', 'manifest.toml', 'packages/*/gleam.toml', 'packages/*/manifest.toml', 'example/gleam.toml', 'example/manifest.toml') }}
         restore-keys: gleam-${{ runner.os }}-
