@@ -1,9 +1,11 @@
-export const middlewareInstallCode = `gleam add vestibule
-gleam add vestibule_github
-gleam add vestibule_wisp`;
+export const middlewareInstallCode = `[dependencies]
+vestibule = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0" }
+vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_github" }
+vestibule_wisp = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_wisp" }`;
 
-export const coreInstallCode = `gleam add vestibule
-gleam add vestibule_github`;
+export const coreInstallCode = `[dependencies]
+vestibule = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0" }
+vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_github" }`;
 
 export const coreCode = `import gleam/dict
 import gleam/option

@@ -4,7 +4,8 @@ navLabel: GitHub strategy
 kind: Provider strategy
 summary: GitHub OAuth strategy with normalized profile data and verified-primary-email lookup.
 install:
-  - gleam add vestibule_github
+  - "[dependencies]"
+  - 'vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_github" }'
 useWhen: Use GitHub when users sign in with GitHub accounts and your app needs profile data plus the user's verified primary email when available.
 defaultScopes: "user:email"
 setup:

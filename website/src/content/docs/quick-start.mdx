@@ -50,7 +50,12 @@ import {
         request and callback routes. Add provider packages after this base flow
         works.
       </div>
-      <CodeBlock code={middlewareInstallCode} lang="sh" />
+      <p>
+        Vestibule is not yet 1.0, so install it from GitHub using the moving{" "}
+        <code>vestibule-v0.0</code> tag. Gleam 1.18 or later is required because
+        companion packages use git path dependencies.
+      </p>
+      <CodeBlock code={middlewareInstallCode} lang="toml" />
 
       <h2>Route request and callback phases</h2>
       <p>
@@ -101,7 +106,7 @@ import {
         Core gives you the authorization URL, state, and PKCE verifier, then
         validates the callback after your app supplies the stored values.
       </p>
-      <CodeBlock code={coreInstallCode} lang="sh" />
+      <CodeBlock code={coreInstallCode} lang="toml" />
 
       <h2>Handle the two phases yourself</h2>
       <p>

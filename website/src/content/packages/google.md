@@ -4,7 +4,8 @@ navLabel: Google strategy
 kind: Provider strategy
 summary: Google OAuth strategy with verified-email handling, hosted-domain enforcement, and refresh-token guidance.
 install:
-  - gleam add vestibule_google
+  - "[dependencies]"
+  - 'vestibule_google = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_google" }'
 useWhen: Use Google when users sign in with Google or Google Workspace accounts and your app needs normalized profile data.
 defaultScopes: openid email profile
 setup:

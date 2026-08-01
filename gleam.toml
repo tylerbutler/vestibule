@@ -65,11 +65,17 @@ stringly_typed_error = "off"
 # configured here too: https://trellis.tylerbutler.com/docs/configuration/
 [tools.trellis]
 
-# The example app is a full workspace member — built, checked, linted, and
-# tested with everything else — but it is never released to Hex, and API docs
-# for an application nobody depends on have no reader.
+# The example app and the Apple, Google, Microsoft, and OIDC providers remain
+# full workspace members, so normal tasks still build and test them. They are
+# not versioned, tagged, released, or published by trellis.
 [tools.trellis.exclude]
-"@release" = ["example"]
+"@release" = [
+  "example",
+  "packages/vestibule_apple",
+  "packages/vestibule_google",
+  "packages/vestibule_microsoft",
+  "packages/vestibule_oidc",
+]
 docs = ["example"]
 
 # Each release writes two tags per package: the immutable `{name}-v{version}`,

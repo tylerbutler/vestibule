@@ -56,7 +56,12 @@ const referenceUrl = packageReferenceUrl(pkg);
       </div>
       <div id="install" class="install-card">
         <h2>Install</h2>
-        <CodeBlock code={data.install.join("\n")} lang="sh" />
+        <p>
+          Until 1.0, install Vestibule packages from GitHub using the moving
+          <code>vestibule-v0.0</code> tag. This requires Gleam 1.18 or later
+          because companion packages use git path dependencies.
+        </p>
+        <CodeBlock code={data.install.join("\n")} lang="toml" />
         <nav class="resource-links" aria-label={`${data.name} package resources`}>
           <a href={hexUrl}>Hex package</a>
           <a href={referenceUrl}>API reference</a>
