@@ -66,9 +66,11 @@ stringly_typed_error = "off"
 [tools.trellis]
 
 # The example app is a full workspace member — built, checked, linted, and
-# tested with everything else — but it is never released to Hex.
+# tested with everything else — but it is never released to Hex, and API docs
+# for an application nobody depends on have no reader.
 [tools.trellis.exclude]
 "@release" = ["example"]
+docs = ["example"]
 
 # Each release writes two tags per package: the immutable `{name}-v{version}`,
 # which carries the GitHub Release, and a moving `{name}-v{series}` that always

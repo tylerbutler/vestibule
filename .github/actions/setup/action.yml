@@ -24,8 +24,13 @@ runs:
       with:
         path: |
           build/packages
+          packages/*/build/packages
+          example/build/packages
           ~/.cache/gleam
-        # Hash all package manifests so the cache invalidates when any package
-        # adds, removes, or changes a dependency.
-        key: gleam-${{ runner.os }}-${{ hashFiles('gleam.toml', 'manifest.toml', 'packages/*/gleam.toml', 'packages/*/manifest.toml') }}
+        # Hash every member's manifests so the cache invalidates when any of them
+        # adds, removes, or changes a dependency. The example is included: it is
+        # a task-fan-out member, and its git dependency makes it re-resolve — a
+        # cold cache there means every CI job queries the Hex API at once, which
+        # is enough to trip the per-IP rate limit.
+        key: gleam-${{ runner.os }}-${{ hashFiles('gleam.toml', 'manifest.toml', 'packages/*/gleam.toml', 'packages/*/manifest.toml', 'example/gleam.toml', 'example/manifest.toml') }}
         restore-keys: gleam-${{ runner.os }}-
