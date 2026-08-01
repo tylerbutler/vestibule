@@ -10,10 +10,10 @@ vestibule_github = { path = "../packages/vestibule_github" }
 vestibule_microsoft = { path = "../packages/vestibule_microsoft" }
 vestibule_google = { path = "../packages/vestibule_google" }
 wisp = ">= 2.2.0 and < 3.0.0"
-mist = ">= 4.0.0 and < 6.0.0"
+mist = ">= 6.0.0 and < 7.0.0"
 gleam_stdlib = ">= 0.48.0 and < 2.0.0"
 gleam_erlang = ">= 1.0.0 and < 2.0.0"
-gleam_http = ">= 4.0.0 and < 5.0.0"
+gleam_http = ">= 4.3.0 and < 5.0.0"
 envoy = ">= 1.1.0 and < 2.0.0"
 houdini = ">= 1.2.0 and < 2.0.0"
 

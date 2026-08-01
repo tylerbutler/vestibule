@@ -65,18 +65,10 @@ stringly_typed_error = "off"
 # configured here too: https://trellis.tylerbutler.com/docs/configuration/
 [tools.trellis]
 
-# The example app is a workspace member — it shares the dependency graph and its
-# lockfile is refreshed with the rest — but it is never released to Hex, and it
-# stays out of the task fan-out: it pins older `mist` and `gleam_http` ranges
-# than the packages do (`trellis doctor` reports both), and that dependency tree
-# no longer compiles. Drop these exclusions once those ranges are updated.
+# The example app is a full workspace member — built, checked, linted, and
+# tested with everything else — but it is never released to Hex.
 [tools.trellis.exclude]
 "@release" = ["example"]
-build = ["example"]
-check = ["example"]
-test = ["example"]
-docs = ["example"]
-lint = ["example"]
 
 # Each release writes two tags per package: the immutable `{name}-v{version}`,
 # which carries the GitHub Release, and a moving `{name}-v{series}` that always
