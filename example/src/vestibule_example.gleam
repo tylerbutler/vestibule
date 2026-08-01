@@ -10,10 +10,10 @@ import wisp/wisp_mist
 import router.{Context}
 import vestibule/config
 import vestibule/registry
+import vestibule/state_store
 import vestibule_github
 import vestibule_google
 import vestibule_microsoft
-import vestibule/state_store
 
 pub fn main() -> Nil {
   let port =

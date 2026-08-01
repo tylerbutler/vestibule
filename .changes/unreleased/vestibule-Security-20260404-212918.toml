@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Security"
+body = "State is now validated before provider error details are surfaced in `handle_callback`, preventing information leakage on CSRF attempts."

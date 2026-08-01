@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Breaking"
+body = "GitHub strategy moved out of the core package. Add the vestibule_github package and import vestibule_github instead of vestibule/strategy/github."

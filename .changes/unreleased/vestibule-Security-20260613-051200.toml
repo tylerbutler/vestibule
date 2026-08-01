@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Security"
+body = "`Credentials` access and refresh tokens are now wrapped in an internal secret type, so `string.inspect`, Erlang `~p` formatting, logs, and crash reports redact them even when an `Auth` or `Credentials` value is rendered directly. Public accessors (`credentials.token`, `credentials.refresh_token`) and `credentials.new` are unchanged."

@@ -1,4 +1,4 @@
-name: Changie Release
+name: Release
 
 on:
   push:
@@ -18,48 +18,42 @@ jobs:
 
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
         with:
+          fetch-depth: 0
           token: ${{ steps.app-token.outputs.token }}
 
-      - name: Read workspace
-        id: ws
-        uses: tylerbutler/actions/read-gleam-workspace@1761c18aa4583d74916e1a53f2a106d1d70d72a8 # ratchet:tylerbutler/actions/read-gleam-workspace@main
+      - name: Install trellis
+        uses: ./.github/actions/trellis
 
-      - name: Setup environment
-        uses: ./.github/actions/setup
+      # No pending fragments means nothing to release; skip rather than fail.
+      - name: Plan release
+        id: plan
+        run: |
+          plan=$(trellis version plan --json)
+          echo "count=$(echo "$plan" | jq '.bumped | length')" >> "$GITHUB_OUTPUT"
+          echo "versions=$(echo "$plan" | jq -r '[.bumped[] | "\(.name) \(.current) -> \(.next)"] | join(", ")')" >> "$GITHUB_OUTPUT"
 
-      - uses: tylerbutler/actions/changie-release@1761c18aa4583d74916e1a53f2a106d1d70d72a8 # ratchet:tylerbutler/actions/changie-release@main
-        id: release
-        with:
-          token: ${{ steps.app-token.outputs.token }}
-          pr-title-template: 'chore(release): {version}'
-          projects: ${{ steps.ws.outputs.projects }}
-          version-files: |
-            ${{ steps.ws.outputs.version-files }}
-          post-batch-command: |
-            echo "Refreshing lockfiles after version bumps..."
-            for d in packages/vestibule_*/; do
-              [ -f "$d/gleam.toml" ] || continue
-              deps=$(grep -E '^vestibule = \{ path =' "$d/gleam.toml" | cut -d= -f1 | xargs || true)
-              [ -n "$deps" ] && (cd "$d" && gleam update $deps)
-            done
+      # `release pr` runs `version apply` on a branch and opens (or updates) the
+      # PR. Version bumps, per-package CHANGELOG.md files, and the locked
+      # workspace versions in every manifest.toml are handled natively — no Gleam
+      # toolchain and no Hex network calls, so this workflow no longer needs a
+      # post-batch lockfile refresh pass of its own.
+      - name: Create release PR
+        if: steps.plan.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: trellis release pr --base main
 
       - name: Summary
-        if: steps.release.outputs.skipped != 'true'
+        if: steps.plan.outputs.count != '0'
         env:
-          VERSION: ${{ steps.release.outputs.version }}
-          PR_URL: ${{ steps.release.outputs.pr-url }}
-          PR_OP: ${{ steps.release.outputs.pr-operation }}
-          BATCHED: ${{ steps.release.outputs.batched-projects }}
+          VERSIONS: ${{ steps.plan.outputs.versions }}
         run: |
-          echo "### Release PR Created" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Release PR" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Versions:** $VERSION" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Batched projects:** $BATCHED" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **PR:** $PR_URL" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Operation:** $PR_OP" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Versions:** $VERSIONS" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Skipped
-        if: steps.release.outputs.skipped == 'true'
+        if: steps.plan.outputs.count == '0'
         run: |
           echo "### Release Skipped" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"

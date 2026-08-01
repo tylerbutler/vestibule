@@ -1,0 +1,3 @@
+package = "vestibule_oidc"
+kind = "Added"
+body = "Added the OpenID Connect discovery package, exposing vestibule_oidc.discover, fetch_configuration, strategy_from_config, and the OIDC parsing helpers moved out of vestibule core."

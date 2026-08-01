@@ -1,0 +1,3 @@
+package = "vestibule_wisp"
+kind = "Changed"
+body = "**Breaking:** `vestibule_wisp/state_store` has been removed. Import `vestibule/state_store` from core `vestibule` instead — the API is identical."

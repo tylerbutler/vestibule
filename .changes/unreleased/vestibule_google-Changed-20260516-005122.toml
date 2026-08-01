@@ -1,0 +1,3 @@
+package = "vestibule_google"
+kind = "Changed"
+body = "Provider strategy now uses the opaque `strategy.new` / `strategy.user_result` / `strategy.exchange_credentials` constructors and accessors. No behavior change."

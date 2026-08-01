@@ -1,5 +1,5 @@
 name = "vestibule"
-version = "0.1.0"
+version = "0.0.1"
 description = "Strategy-based OAuth2 authentication for Gleam"
 licences = ["MIT"]
 repository = { type = "github", user = "tylerbutler", repo = "vestibule" }
@@ -53,3 +53,66 @@ thrown_away_error = "off"
 # Private @external FFI declarations return String reasons that are immediately
 # mapped to the typed StateStoreError; the stringly-typed boundary is internal.
 stringly_typed_error = "off"
+
+# Workspace configuration for trellis. This table's presence is what marks the
+# workspace root; every key in it is optional.
+#
+# Members are auto-discovered — every gleam.toml git knows about, outside
+# build/. Add `members = ["packages/*"]` only to pin them to something
+# narrower than that.
+#
+# Task exclusions, custom tasks, tag formats, and changelog kinds are all
+# configured here too: https://trellis.tylerbutler.com/docs/configuration/
+[tools.trellis]
+
+# The example app is a full workspace member — built, checked, linted, and
+# tested with everything else — but it is never released to Hex, and API docs
+# for an application nobody depends on have no reader.
+[tools.trellis.exclude]
+"@release" = ["example"]
+docs = ["example"]
+
+# Each release writes two tags per package: the immutable `{name}-v{version}`,
+# which carries the GitHub Release, and a moving `{name}-v{series}` that always
+# points at the newest release in its series, so consumers can pin
+# `vestibule-v0.0` instead of chasing every patch. The series is derived from the
+# version, never configured: while the major is 0 it is `major.minor` (every
+# minor bump being breaking), and the major alone from 1.0 on. Series tags are
+# force-moved on each release, which is why they carry no GitHub Release — it
+# would silently retarget on the next move.
+[tools.trellis.publish]
+tag_mode = "both"
+
+# `build`, `test`, `check`, `format`, `docs`, `deps`, and `clean` are built in;
+# only glinter needs declaring.
+[tools.trellis.tasks.lint]
+command = "gleam run -m glinter"
+needs_deps = true
+
+# Kinds carried over from the changie configuration this replaced. Breaking is
+# a minor bump while the packages are pre-1.0, where breaking changes are
+# expected; switch it to "major" at 1.0. One-off overrides don't need a config
+# change — `trellis version apply --bump <pkg>=major` covers those.
+[tools.trellis.changelog]
+# CHANGELOG.md is generated from the sections under .changes/<package>/, so the
+# Keep a Changelog preamble that used to live in .changes/header.md is rendered
+# from here instead.
+header_format = """# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+"""
+kinds = [
+  { label = "Breaking", bump = "minor" },
+  { label = "Added", bump = "minor" },
+  { label = "Changed", bump = "patch" },
+  { label = "Deprecated", bump = "patch" },
+  { label = "Fixed", bump = "patch" },
+  { label = "Performance", bump = "patch" },
+  { label = "Removed", bump = "patch" },
+  { label = "Reverted", bump = "patch" },
+  { label = "Dependencies", bump = "patch" },
+  { label = "Security", bump = "patch" },
+]

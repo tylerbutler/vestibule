@@ -1,4 +1,0 @@
-project: vestibule_apple
-kind: Security
-body: 'The strategy now validates the OIDC `nonce`: a fresh nonce is sent on the authorization request and compared against the `id_token`''s `nonce` claim on callback, rejecting replayed or injected id_tokens with an AuthError of kind `InvalidNonceKind`.'
-time: 2026-06-22T16:48:00.000000+00:00

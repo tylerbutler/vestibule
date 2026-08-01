@@ -1,4 +1,0 @@
-project: vestibule_wisp
-kind: Changed
-body: '**Breaking:** `vestibule_wisp/state_store` has been removed. Import `vestibule/state_store` from core `vestibule` instead — the API is identical.'
-time: 2026-05-23T10:30:02.000000+00:00
