@@ -1,5 +1,5 @@
 name = "vestibule_github"
-version = "0.1.0"
+version = "0.0.1"
 description = "GitHub OAuth strategy for vestibule"
 licences = ["MIT"]
 repository = { type = "github", user = "tylerbutler", repo = "vestibule", path = "packages/vestibule_github" }

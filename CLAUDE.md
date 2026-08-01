@@ -133,21 +133,28 @@ Local development can use `.mise.toml` for flexible versions.
 - **ci.yml**: One job per task (format, check, lint, build, test, docs), each `trellis run <task>` fanning across all packages graph-parallel
 - **pr.yml**: PR title validation (commitlint) and changelog entry check
 - **release.yml**: `trellis release pr` — batches all packages with pending fragments into a single release PR
-- **publish.yml**: On the release PR merging — publishes to Hex.pm in dependency order, then records per-package tags (e.g., `vestibule-v0.2.0`) and GitHub Releases
+- **publish.yml** (workflow name: Release): On the release PR merging — records per-package tags and GitHub Releases. **Publishing to Hex is off** while the packages are pre-release
 
 ### Release Flow
 1. Push commits with conventional commit messages
 2. Add changelog entries with `just change <package> <kind> "What changed"`
 3. `trellis release pr` batches all packages with pending fragments into a single release PR
 4. Release PR bumps each package's `gleam.toml` version, regenerates per-package `CHANGELOG.md`, and patches the locked workspace versions in every `manifest.toml`
-5. Merge PR → `trellis publish --all-untagged` validates and publishes each package in dependency order, skipping versions Hex already has
-6. `trellis tag create --github-release` then records what shipped, and the lockfiles are refreshed in a follow-up PR
+5. Merge PR → `trellis publish --all-untagged --dry-run` reports what *would* ship, then `trellis tag create --github-release` records it
+
+### Tags
+Every package writes two tags per release, via `tag_mode = "both"`:
+- **`{name}-v{version}`** (e.g. `vestibule-v0.0.1`) — immutable, created once, carries the GitHub Release bodied from the matching CHANGELOG section
+- **`{name}-v{series}`** (e.g. `vestibule-v0.0`) — moving; force-moved to the newest release in its series so consumers can pin a series instead of chasing patches. Carries no GitHub Release, since it would silently retarget on the next move
+
+The series is derived from the version, never configured: `major.minor` while the major is 0 (every minor bump being breaking), the major alone from 1.0 on. Prereleases belong to no series and move no tag.
 
 ### Publishing Details
+Publishing is **disabled**: the release workflow runs `trellis publish --all-untagged --dry-run`, which resolves what would ship without contacting Hex. To enable it, drop `--dry-run`, add `HEXPM_API_KEY`, and restore a lockfile refresh — see the note at the top of `publish.yml`. When it is on:
 - Sub-packages use `vestibule = { path = "../.." }` during development
 - `trellis publish` rewrites this to `vestibule = ">= X.Y.Z and < (X+1).0.0"` before publishing and restores the original `gleam.toml` afterwards, deriving the requirement from the graph rather than a hand-maintained list
 - Ordering is topological, so vestibule reaches Hex before the packages that depend on it
-- Every step is idempotent: re-run the Publish workflow to recover from a partial failure
+- Every step is idempotent: re-run the Release workflow to recover from a partial failure
 
 ### Workspace membership
 Trellis auto-discovers members — every `gleam.toml` git knows about, outside `build/`.

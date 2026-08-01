@@ -85,18 +85,28 @@ check "release does not refresh lockfiles by hand (version apply patches them)" 
 # Hex has the packages. There is no separate auto-tag workflow.
 check "tagging is not a workflow of its own" \
     test ! -e .github/workflows/auto-tag.yml
-check "publish triggers on the release PR merging" \
+check "release triggers on the release PR merging" \
     contains .github/workflows/publish.yml "github.event.pull_request.head.ref == 'release/pending'"
-check "publish walks the dependency graph itself" \
+check "release walks the dependency graph itself" \
     contains .github/workflows/publish.yml "trellis publish --all-untagged"
-check "publish names no packages by hand" \
+check "release names no packages by hand" \
     not_contains .github/workflows/publish.yml "packages/vestibule_"
-check "publish records tags only after Hex has the packages" \
+check "release records both tag lifecycles" \
     contains .github/workflows/publish.yml "trellis tag create --github-release"
-check "publish omits JavaScript tests while Vestibule is Erlang-only" \
+check "release omits JavaScript tests while Vestibule is Erlang-only" \
     not_contains .github/workflows/publish.yml "gleam test --target javascript"
-check "publish refreshes lockfiles per package" \
-    contains .github/workflows/publish.yml "trellis lockfile refresh --package"
+
+# Publishing stays off until the packages leave pre-release. Both halves matter:
+# the dry run, and the absence of the Hex credential that would let an upload
+# succeed if the flag were ever dropped by accident.
+check "publishing to Hex is disabled" \
+    contains .github/workflows/publish.yml "trellis publish --all-untagged --dry-run"
+check "no Hex credential is wired into the release workflow" \
+    not_matches .github/workflows/publish.yml '^ +HEXPM_API_KEY:'
+
+# A moving series tag per package, alongside the immutable per-version tag.
+check "series tags are enabled" \
+    contains gleam.toml 'tag_mode = "both"'
 
 check "PR gate checks changelog fragments with trellis" \
     contains .github/workflows/pr.yml "trellis changelog check"

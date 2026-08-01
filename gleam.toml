@@ -1,5 +1,5 @@
 name = "vestibule"
-version = "0.1.0"
+version = "0.0.1"
 description = "Strategy-based OAuth2 authentication for Gleam"
 licences = ["MIT"]
 repository = { type = "github", user = "tylerbutler", repo = "vestibule" }
@@ -77,6 +77,17 @@ check = ["example"]
 test = ["example"]
 docs = ["example"]
 lint = ["example"]
+
+# Each release writes two tags per package: the immutable `{name}-v{version}`,
+# which carries the GitHub Release, and a moving `{name}-v{series}` that always
+# points at the newest release in its series, so consumers can pin
+# `vestibule-v0.0` instead of chasing every patch. The series is derived from the
+# version, never configured: while the major is 0 it is `major.minor` (every
+# minor bump being breaking), and the major alone from 1.0 on. Series tags are
+# force-moved on each release, which is why they carry no GitHub Release — it
+# would silently retarget on the next move.
+[tools.trellis.publish]
+tag_mode = "both"
 
 # `build`, `test`, `check`, `format`, `docs`, `deps`, and `clean` are built in;
 # only glinter needs declaring.

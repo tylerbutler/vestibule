@@ -262,25 +262,45 @@ Edit fragments, not changelogs.
    per-package `CHANGELOG.md` files, and patches the locked workspace versions in
    every `manifest.toml`. Packages that path-depend on a bumped package are
    bumped too, with a generated `Dependencies` entry
-6. Merge the release PR → the **Publish** workflow runs
-   `trellis publish --all-untagged`, which validates and publishes every package
-   whose version isn't on Hex yet
-7. It then runs `trellis tag create --github-release` to record what shipped as
-   per-package tags (e.g., `vestibule-v0.2.0`, `vestibule_apple-v0.1.1`) with a
-   GitHub Release each, and opens a follow-up PR refreshing the lockfiles
+6. Merge the release PR → the **Release** workflow reports what would ship
+   (`trellis publish --all-untagged --dry-run`) and records the release with
+   `trellis tag create --github-release`
 
-### Publishing Order
+### Tags
 
-Sub-packages depend on `vestibule` via path references during development.
-`trellis publish` walks the dependency graph itself: packages publish in
-topological order, so `vestibule` reaches Hex before anything that depends on
-it, and each path dependency is rewritten to a Hex requirement derived from the
-dependency's current version (`>= X.Y.Z and < (X+1).0.0`) at publish time. The
-original `gleam.toml` is restored afterwards, even on failure.
+Each release writes two tags per package, configured by `tag_mode = "both"`
+under `[tools.trellis.publish]`:
 
-Tags are written **after** a successful publish, so a tag means "this version is
-on Hex". Every step checks Hex first and skips what's already there, so
-re-running the Publish workflow is the way to recover from a partial failure.
+| Tag | Lifecycle |
+| --- | --- |
+| `vestibule-v0.0.1` | Immutable. Created once, never rewritten, carries the GitHub Release bodied from the matching CHANGELOG section. |
+| `vestibule-v0.0` | Moving. Force-moved to the newest release in its series on every release, so consumers pin a series instead of chasing patches. Carries no GitHub Release — it would silently retarget on the next move. |
+
+The series is derived from the version and is never configured. While the major
+is 0, every minor bump is breaking, so the series is `major.minor`
+(`0.0.1`, `0.0.2` → `v0.0`); from 1.0 on it is the major alone (`1.2.1`,
+`1.9.0` → `v1`). A prerelease belongs to no series and moves no tag.
+
+`trellis tag plan` lists the tags the current versions call for and don't have
+yet, both lifecycles included.
+
+### Publishing
+
+**Publishing to Hex is currently off.** The Release workflow runs
+`trellis publish --all-untagged --dry-run`, which resolves what would ship and
+how each path dependency would be rewritten, but contacts Hex not at all and
+uploads nothing. Turning it on means dropping `--dry-run`, adding
+`HEXPM_API_KEY`, and restoring a lockfile refresh — the note at the top of
+`.github/workflows/publish.yml` spells it out.
+
+Once it is on: sub-packages depend on `vestibule` via path references during
+development, and `trellis publish` walks the dependency graph itself. Packages
+publish in topological order, so `vestibule` reaches Hex before anything that
+depends on it, and each path dependency is rewritten to a Hex requirement
+derived from the dependency's current version (`>= X.Y.Z and < (X+1).0.0`) at
+publish time. The original `gleam.toml` is restored afterwards, even on failure.
+Every step checks Hex first and skips what's already there, so re-running the
+workflow is the way to recover from a partial failure.
 
 ### Workspace Membership
 

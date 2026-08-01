@@ -1,9 +1,15 @@
-name: Publish
+name: Release
 
-# Tags as record: the release PR merging is what ships a release. `trellis
-# publish` walks the dependency graph itself, so no workflow here needs to know
-# which packages exist — vestibule reaches Hex before the packages that depend
-# on it, and every step is idempotent, so a partial failure is fixed by
+# PUBLISHING TO HEX IS OFF while the packages are pre-release. The publish step
+# below runs `--dry-run`: it resolves what would ship and how each path
+# dependency would be rewritten, but makes no Hex API call and uploads nothing.
+# To turn publishing on: drop `--dry-run`, give that step
+# `HEXPM_API_KEY: ${{ secrets.HEXPM_API_KEY }}`, and restore the lockfile
+# refresh described further down.
+#
+# Tags as record: the release PR merging is what cuts a release. `trellis`
+# walks the dependency graph itself, so no workflow here needs to know which
+# packages exist, and every step is idempotent — a partial failure is fixed by
 # re-running this workflow.
 on:
   pull_request:
@@ -16,8 +22,8 @@ permissions:
   pull-requests: write
 
 jobs:
-  publish:
-    name: Publish to Hex.pm
+  release:
+    name: Tag and release
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.pull_request.merged == true &&
@@ -43,68 +49,34 @@ jobs:
       - name: Install trellis
         uses: ./.github/actions/trellis
 
-      # Per package, in dependency order: skip what Hex already has, validate
-      # (gleam format --check, build --warnings-as-errors, test), rewrite the
-      # vestibule path dependency to a Hex requirement derived from its current
-      # version, publish, then restore the original gleam.toml.
-      - name: Publish to Hex.pm
-        env:
-          HEXPM_API_KEY: ${{ secrets.HEXPM_API_KEY }}
-        run: trellis publish --all-untagged
+      # Publishing disabled — see the note at the top of this file. This reports
+      # the packages that would ship, in dependency order, and the Hex
+      # requirement each vestibule path dependency would be rewritten to.
+      - name: Preview publish (publishing is off)
+        run: trellis publish --all-untagged --dry-run
 
-      # Only once Hex has the packages: record what shipped as per-version tags
-      # with a GitHub Release each, bodied from the matching CHANGELOG section.
+      # Record each release as two tags: the immutable {name}-v{version}, which
+      # carries a GitHub Release bodied from the matching CHANGELOG section, and
+      # the moving {name}-v{series}, which is force-moved to this release and
+      # carries none.
       - name: Tag and release
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: trellis tag create --github-release
 
-      # Refresh manifest.toml lockfiles so the repo resolves against the
-      # versions just published. Scoped per package — refreshing the whole
-      # workspace at once is what gets a runner rate-limited by Hex.
-      - name: Refresh lockfiles
-        run: |
-          trellis list --json | jq -r '.packages[].name' | while read -r pkg; do
-            echo "Refreshing $pkg manifest..."
-            trellis lockfile refresh --package "$pkg"
-          done
-
-      - name: Check for changes
-        id: changes
-        run: |
-          if git diff --quiet -- '*.toml'; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "No lockfile changes detected."
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "Lockfile changes detected:"
-            git diff --stat -- '*.toml'
-          fi
-
-      - name: Create lockfile update PR
-        if: steps.changes.outputs.changed == 'true'
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          RUN_ID: ${{ github.run_id }}
-        run: |
-          BRANCH="chore/update-lockfiles-${RUN_ID}"
-          git checkout -b "$BRANCH"
-          git add -A '*.toml'
-          git -c user.name="github-actions[bot]" \
-              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-              commit -m "chore: update lockfiles after publish"
-          git push origin "$BRANCH"
-          gh pr create \
-            --title "chore: update lockfiles after publish" \
-            --body "Auto-generated PR to refresh \`manifest.toml\` lockfiles after publishing." \
-            --base main \
-            --head "$BRANCH"
+      # No lockfile refresh step while publishing is off: `version apply` already
+      # patched the locked workspace versions, and with nothing reaching Hex a
+      # refresh could only pull in unrelated external-dependency updates. Restore
+      # one (`trellis lockfile refresh --package <pkg>`, scoped per package —
+      # refreshing the whole workspace at once is what gets a runner
+      # rate-limited) when publishing is turned back on.
 
       - name: Summary
         run: |
-          echo "### Published" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Released" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Publishing to Hex is off; nothing was uploaded." >> "$GITHUB_STEP_SUMMARY"
           trellis tag plan --json | jq -r '.tags | length as $n
-            | if $n == 0 then "- All releasable package versions are tagged and on Hex."
+            | if $n == 0 then "- Every releasable package version is tagged."
               else "- \($n) tag(s) still pending; re-run this workflow." end' \
             >> "$GITHUB_STEP_SUMMARY"
