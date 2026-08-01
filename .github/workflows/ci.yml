@@ -1,5 +1,8 @@
 name: CI
 
+# One job per task. `trellis run` fans each task across every workspace package
+# graph-parallel, so no job needs a package matrix — or a list of packages to
+# build one from.
 on:
   push:
     branches: [main]
@@ -10,46 +13,66 @@ on:
 jobs:
   format:
     name: Format
-    uses: tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@1761c18aa4583d74916e1a53f2a106d1d70d72a8 # ratchet:tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@main
-    with:
-      cache: true
-      format-check: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
+      - name: Setup environment
+        uses: ./.github/actions/setup
+      - name: Install trellis
+        uses: ./.github/actions/trellis
+      - run: trellis run format --check
 
   check:
     name: Check
-    uses: tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@1761c18aa4583d74916e1a53f2a106d1d70d72a8 # ratchet:tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@main
-    with:
-      cache: true
-      check: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
+      - name: Setup environment
+        uses: ./.github/actions/setup
+      - name: Install trellis
+        uses: ./.github/actions/trellis
+      - run: trellis run check
 
   lint:
     name: Lint
-    uses: tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@1761c18aa4583d74916e1a53f2a106d1d70d72a8 # ratchet:tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@main
-    with:
-      cache: true
-      tools: just
-      run-deps: true
-      custom-command: gleam run -m glinter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
+      - name: Setup environment
+        uses: ./.github/actions/setup
+      - name: Install trellis
+        uses: ./.github/actions/trellis
+      - run: trellis run lint
 
   build:
     name: Build
-    uses: tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@1761c18aa4583d74916e1a53f2a106d1d70d72a8 # ratchet:tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@main
-    with:
-      cache: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
+      - name: Setup environment
+        uses: ./.github/actions/setup
+      - name: Install trellis
+        uses: ./.github/actions/trellis
+      - run: trellis run build --strict
 
   test:
     name: Test
-    uses: tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@1761c18aa4583d74916e1a53f2a106d1d70d72a8 # ratchet:tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@main
-    with:
-      cache: true
-      tools: just
-      run-deps: true
-      test: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
+      - name: Setup environment
+        uses: ./.github/actions/setup
+      - name: Install trellis
+        uses: ./.github/actions/trellis
+      - run: trellis run test
 
   docs:
     name: Docs
-    uses: tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@1761c18aa4583d74916e1a53f2a106d1d70d72a8 # ratchet:tylerbutler/actions/.github/workflows/gleam-workspace-ci.yml@main
-    with:
-      cache: true
-      build-strict: false
-      docs: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
+      - name: Setup environment
+        uses: ./.github/actions/setup
+      - name: Install trellis
+        uses: ./.github/actions/trellis
+      - run: trellis run docs

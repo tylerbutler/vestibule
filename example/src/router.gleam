@@ -4,8 +4,8 @@ import wisp.{type Request, type Response}
 import pages
 import vestibule/config
 import vestibule/registry.{type Registry}
-import vestibule_wisp
 import vestibule/state_store.{type StateStore}
+import vestibule_wisp
 
 /// Application context passed to the router.
 pub type Context(e) {

@@ -130,7 +130,7 @@ Local development can use `.mise.toml` for flexible versions.
 ## CI/CD
 
 ### Workflows
-- **ci.yml**: Split format, type check, build, test, and docs jobs across all packages
+- **ci.yml**: One job per task (format, check, lint, build, test, docs), each `trellis run <task>` fanning across all packages graph-parallel
 - **pr.yml**: PR title validation (commitlint) and changelog entry check
 - **release.yml**: `trellis release pr` — batches all packages with pending fragments into a single release PR
 - **publish.yml**: On the release PR merging — publishes to Hex.pm in dependency order, then records per-package tags (e.g., `vestibule-v0.2.0`) and GitHub Releases

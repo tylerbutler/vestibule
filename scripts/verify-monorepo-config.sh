@@ -67,6 +67,10 @@ for job in format check build test docs; do
 done
 check "CI has no grouped checks job" \
     not_contains .github/workflows/ci.yml "  checks:"
+check "CI fans tasks out with trellis" \
+    contains .github/workflows/ci.yml "trellis run"
+check "CI needs no package matrix" \
+    not_contains .github/workflows/ci.yml "matrix:"
 check "CI omits JavaScript tests while Vestibule is Erlang-only" \
     not_contains .github/workflows/ci.yml "test-js"
 
