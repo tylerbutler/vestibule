@@ -17,11 +17,11 @@ const routePackages = ["wisp", "mist", "core"].flatMap((slug) => {
 });
 const routeLabel = (slug: string) =>
   slug === "wisp"
-    ? "Recommended for Wisp apps"
+    ? "For Wisp apps"
     : slug === "mist"
-      ? "Recommended for plain Mist apps"
+      ? "For plain Mist apps"
       : slug === "core"
-        ? "Advanced custom routing"
+        ? "For custom routing"
         : "Route package";
 ---
 

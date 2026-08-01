@@ -14,32 +14,37 @@ colors:
   danger: "oklch(0.550 0.180 27)"
 typography:
   display:
-    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    fontFamily: "'Figtree Variable', system-ui, sans-serif"
     fontSize: "2.25rem"
     fontWeight: 700
     lineHeight: 1.06
     letterSpacing: "-0.025em"
   headline:
-    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    fontFamily: "'Figtree Variable', system-ui, sans-serif"
     fontSize: "1.5rem"
     fontWeight: 650
     lineHeight: 1.2
     letterSpacing: "-0.015em"
   title:
-    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    fontFamily: "'Figtree Variable', system-ui, sans-serif"
     fontSize: "1.125rem"
     fontWeight: 650
     lineHeight: 1.3
   body:
-    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    fontFamily: "'Figtree Variable', system-ui, sans-serif"
     fontSize: "1rem"
     fontWeight: 400
     lineHeight: 1.6
   label:
-    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    fontFamily: "'Figtree Variable', system-ui, sans-serif"
     fontSize: "0.875rem"
     fontWeight: 650
     lineHeight: 1.25
+  code:
+    fontFamily: "'Commit Mono', ui-monospace, monospace"
+    fontSize: "0.875rem"
+    fontWeight: 400
+    lineHeight: 1.6
 rounded:
   sm: "6px"
   md: "10px"
@@ -95,7 +100,7 @@ This is product UI and developer documentation, not a campaign surface. It shoul
 **Key Characteristics:**
 - Restrained purple/yellow identity, never rainbow OAuth decoration.
 - High-contrast text and controls for trust-critical reading.
-- System typography that feels native to developer tools and Hex docs.
+- Self-hosted typography that feels precise, approachable, and native to developer tools.
 - Flat-by-default surfaces with depth conveyed through tone, borders, and state.
 - Short, direct copy around security responsibilities and recovery paths.
 
@@ -129,11 +134,13 @@ The palette is restrained product purple with yellow used as a deliberate signal
 
 ## 3. Typography
 
-**Display Font:** system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif  
-**Body Font:** system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif  
-**Label/Mono Font:** use the host documentation/code renderer's monospace stack for code only.
+**Display Font:** Figtree Variable, with system-ui as fallback
 
-**Character:** One native sans family is the right fit for this product register: familiar, fast, and unshowy. Code blocks may use monospace, but labels, buttons, tables, and headings should stay in the same sans vocabulary.
+**Body Font:** Figtree Variable, with system-ui as fallback
+
+**Code Font:** Commit Mono, with ui-monospace as fallback
+
+**Character:** Figtree gives the documentation a calm, open, and precise reading voice without feeling generic. Commit Mono brings a neutral technical texture to code, with its arrow and comparison ligature sets enabled. Labels, buttons, tables, and headings stay in Figtree so monospace remains reserved for code.
 
 ### Hierarchy
 - **Display** (700, 2.25rem, 1.06 line-height): Documentation page headings and example-page headings. Keep letter spacing no tighter than -0.025em.

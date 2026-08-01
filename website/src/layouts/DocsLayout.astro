@@ -1,4 +1,8 @@
 ---
+import "@fontsource-variable/figtree/wght.css";
+import "@fontsource-variable/figtree/wght-italic.css";
+import "@fontsource/commit-mono/400.css";
+import "@fontsource/commit-mono/400-italic.css";
 import { getNavigation, getSearchEntries } from "../data/content";
 import "../styles/global.css";
 
@@ -33,6 +37,50 @@ const currentGroup = navGroups.find((group) =>
 const showBreadcrumbs = currentPath !== "/";
 const breadcrumbLabel = currentLink?.label || title;
 const hasToc = toc.length > 0;
+
+type NavLink = (typeof navGroups)[number]["links"][number];
+type NavEntry =
+  | { kind: "link"; link: NavLink }
+  | { kind: "sub"; title: string; links: NavLink[] };
+
+// The Reference group lists every generated module page; group them per
+// package behind a disclosure so the sidebar stays scannable. Other groups
+// render flat.
+const groupNavEntries = (group: { title: string; links: NavLink[] }): NavEntry[] => {
+  if (group.title !== "Reference") {
+    return group.links.map((link) => ({ kind: "link", link }));
+  }
+  const packageOf = (label: string) => label.split("/")[0];
+  const counts = new Map<string, number>();
+  for (const link of group.links) {
+    const key = packageOf(link.label);
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  const entries: NavEntry[] = [];
+  const subs = new Map<string, Extract<NavEntry, { kind: "sub" }>>();
+  for (const link of group.links) {
+    const key = packageOf(link.label);
+    if ((counts.get(key) || 0) < 2) {
+      entries.push({ kind: "link", link });
+      continue;
+    }
+    let sub = subs.get(key);
+    if (!sub) {
+      sub = { kind: "sub", title: key, links: [] };
+      subs.set(key, sub);
+      entries.push(sub);
+    }
+    sub.links.push(link);
+  }
+  return entries;
+};
+
+const subgroupOpen = (links: NavLink[]) => links.some((link) => isActive(link.href));
+
+// Inside a package disclosure the package prefix is redundant; show the
+// module path relative to the package.
+const moduleLabel = (subTitle: string, label: string) =>
+  label.startsWith(`${subTitle}/`) ? label.slice(subTitle.length + 1) : label;
 ---
 
 <!doctype html>
@@ -112,16 +160,33 @@ const hasToc = toc.length > 0;
       <aside class="sidebar" aria-label="Documentation navigation">
         <nav>
           {navGroups.map((group) => (
-            <section class="nav-group">
-              <h2>{group.title}</h2>
+            <section class="nav-group" aria-label={group.title}>
+              <p class="nav-group-title" aria-hidden="true">{group.title}</p>
               <ul>
-                {group.links.map((link) => (
-                  <li>
-                    <a href={link.href} aria-current={isActive(link.href) ? "page" : undefined}>
-                      {link.label}
-                    </a>
-                  </li>
-                ))}
+                {groupNavEntries(group).map((entry) =>
+                  entry.kind === "link" ? (
+                    <li>
+                      <a href={entry.link.href} aria-current={isActive(entry.link.href) ? "page" : undefined}>
+                        {entry.link.label}
+                      </a>
+                    </li>
+                  ) : (
+                    <li>
+                      <details class="nav-subgroup" open={subgroupOpen(entry.links)}>
+                        <summary>{entry.title}</summary>
+                        <ul>
+                          {entry.links.map((link) => (
+                            <li>
+                              <a href={link.href} aria-current={isActive(link.href) ? "page" : undefined}>
+                                {moduleLabel(entry.title, link.label)}
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    </li>
+                  )
+                )}
               </ul>
             </section>
           ))}
@@ -133,16 +198,33 @@ const hasToc = toc.length > 0;
           <summary>Docs menu{currentLink ? `: ${currentLink.label}` : ""}</summary>
           <nav aria-label="Mobile documentation navigation">
             {navGroups.map((group) => (
-              <section class="nav-group">
-                <h2>{group.title}</h2>
+              <section class="nav-group" aria-label={group.title}>
+                <p class="nav-group-title" aria-hidden="true">{group.title}</p>
                 <ul>
-                  {group.links.map((link) => (
-                    <li>
-                      <a href={link.href} aria-current={isActive(link.href) ? "page" : undefined}>
-                        {link.label}
-                      </a>
-                    </li>
-                  ))}
+                  {groupNavEntries(group).map((entry) =>
+                    entry.kind === "link" ? (
+                      <li>
+                        <a href={entry.link.href} aria-current={isActive(entry.link.href) ? "page" : undefined}>
+                          {entry.link.label}
+                        </a>
+                      </li>
+                    ) : (
+                      <li>
+                        <details class="nav-subgroup" open={subgroupOpen(entry.links)}>
+                          <summary>{entry.title}</summary>
+                          <ul>
+                            {entry.links.map((link) => (
+                              <li>
+                                <a href={link.href} aria-current={isActive(link.href) ? "page" : undefined}>
+                                  {moduleLabel(entry.title, link.label)}
+                                </a>
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      </li>
+                    )
+                  )}
                 </ul>
               </section>
             ))}

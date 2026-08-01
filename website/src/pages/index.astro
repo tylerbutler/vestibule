@@ -46,7 +46,8 @@ const supportedProviders = [
 const directFlow = `import vestibule/authorization_request
 import vestibule/error
 
-// Request phase: failure here means misconfiguration, so assert is fine.
+// Request phase: failure here means
+// misconfiguration, so assert is fine.
 let options = config.authorize_options()
 let assert Ok(auth_request) =
   vestibule.create_authorization_request(
@@ -54,12 +55,13 @@ let assert Ok(auth_request) =
     cfg: cfg,
     options: options,
   )
-// Store authorization_request.state(auth_request) and
-// authorization_request.code_verifier(auth_request), then redirect to
-// authorization_request.url(auth_request).
+// Store authorization_request.state(auth_request)
+// and code_verifier(auth_request), then redirect
+// to authorization_request.url(auth_request).
 
-// Callback phase: state can mismatch and providers can reject the
-// user, so handle both branches instead of asserting.
+// Callback phase: state can mismatch and
+// providers can reject the user, so handle
+// both branches instead of asserting.
 case
   vestibule.handle_callback(
     strategy,
@@ -98,35 +100,6 @@ const alternateRoutes = [
       "Use core when your application owns redirects, callback storage, and framework integration.",
     href: "/docs/quick-start#core-path",
     action: "Use the core path"
-  },
-  {
-    label: "Next setup step",
-    title: "Add a provider strategy",
-    body:
-      "After the route layer is clear, choose GitHub, Google, Microsoft, or Apple for provider-specific profile and token behavior.",
-    href: "/docs/packages#provider-strategies",
-    action: "Choose a provider",
-    followUp: true
-  }
-];
-const routePackages = [
-  {
-    name: nameForPackage("wisp", "vestibule_wisp"),
-    role: "Wisp middleware",
-    href: hrefForPackage("wisp"),
-    note: "Owns request and callback route helpers for Wisp apps."
-  },
-  {
-    name: nameForPackage("mist", "vestibule_mist"),
-    role: "Mist middleware",
-    href: hrefForPackage("mist"),
-    note: "Gives Mist apps the same route-phase ergonomics without Wisp."
-  },
-  {
-    name: nameForPackage("core", "vestibule"),
-    role: "Core package",
-    href: hrefForPackage("core"),
-    note: "Use directly when your app owns routing, transient storage, and sessions."
   }
 ];
 const recoveryOutcomes = [
@@ -156,7 +129,7 @@ const recoveryOutcomes = [
   <section class="hero">
     <div class="hero-copy">
       <p class="intro-label">Strategy-based OAuth2 authentication for Gleam</p>
-      <h1>OAuth sign-in for Gleam apps, without the guesswork.</h1>
+      <h1>OAuth <span class="nowrap">sign-in</span> for Gleam apps, without the guesswork.</h1>
       <p class="lead">
         Vestibule gives Gleam applications a consistent request/callback flow,
         normalized auth results, PKCE, CSRF state, provider strategies, and Wisp
@@ -170,55 +143,60 @@ const recoveryOutcomes = [
       <a class="hero-search" href="/docs/search" data-search-trigger data-search-hint>
         Search state, PKCE, provider packages
       </a>
+    </div>
+    <div class="hero-threshold" aria-label="The sign-in path through Vestibule">
+      <p class="threshold-cap">Identity provider</p>
       <ol class="hero-flow" aria-label="OAuth flow checkpoints">
         <li>
-          <strong>Request</strong>
-          <span>URL, state, PKCE verifier</span>
+          <span class="flow-marker" aria-hidden="true">1</span>
+          <span class="flow-copy">
+            <strong>Request</strong>
+            <span>URL, state, PKCE verifier</span>
+          </span>
         </li>
         <li>
-          <strong>Store</strong>
-          <span>Bind transient callback data</span>
+          <span class="flow-marker" aria-hidden="true">2</span>
+          <span class="flow-copy">
+            <strong>Store</strong>
+            <span>Bind transient callback data</span>
+          </span>
         </li>
         <li>
-          <strong>Callback</strong>
-          <span>Validate and normalize user info</span>
+          <span class="flow-marker" aria-hidden="true">3</span>
+          <span class="flow-copy">
+            <strong>Callback</strong>
+            <span>Validate and normalize user info</span>
+          </span>
         </li>
       </ol>
-    </div>
-    <div class="hero-logo" aria-hidden="true">
-      <img
-        src="/logo.webp"
-        alt=""
-        width="451"
-        height="453"
-        decoding="async"
-        fetchpriority="high"
-      />
+      <p class="threshold-cap threshold-cap-app">Signed-in session in your app</p>
     </div>
   </section>
 
-  <section class="route-decision" aria-labelledby="route-decision-heading">
+  <section class="route-decision" aria-labelledby="stack-heading">
     <div class="section-heading">
-      <h2 id="route-decision-heading">Pick the route path first.</h2>
+      <h2 id="stack-heading">Build the stack in two steps.</h2>
       <p>
-        Start with your server layer: Wisp and Mist apps can use middleware
-        routes; custom routers can call the core API directly. Provider
-        strategies come next.
+        Start with the route layer: Wisp and Mist middleware own request and
+        callback routes, or your own router calls the core API directly. Then
+        add a provider strategy for profile and token behavior; it never
+        replaces request and callback handling.
       </p>
     </div>
-    <div class="route-decision-panel">
-      <a class="route-primary" href={recommendedRoute.href}>
-        <span class="path-label">{recommendedRoute.label}</span>
-        <strong>{recommendedRoute.title}</strong>
-        <span>{recommendedRoute.body}</span>
-        <ul>
-          {recommendedRoute.checks.map((check) => <li>{check}</li>)}
-        </ul>
-        <em>{recommendedRoute.action}</em>
-      </a>
-      <div class="route-secondary-list" aria-label="Other route choices">
+    <div class="stack-map">
+      <div class="stack-column">
+        <h3><span class="stack-step" aria-hidden="true">1</span>Route layer</h3>
+        <a class="route-primary" href={recommendedRoute.href}>
+          <span class="path-label">{recommendedRoute.label}</span>
+          <strong>{recommendedRoute.title}</strong>
+          <span>{recommendedRoute.body}</span>
+          <ul>
+            {recommendedRoute.checks.map((check) => <li>{check}</li>)}
+          </ul>
+          <em>{recommendedRoute.action}</em>
+        </a>
         {alternateRoutes.map((choice) => (
-          <a class:list={["route-choice", "compact", { "follow-up": choice.followUp }]} href={choice.href}>
+          <a class="route-choice compact" href={choice.href}>
             <span class="path-label">{choice.label}</span>
             <strong>{choice.title}</strong>
             <span>{choice.body}</span>
@@ -226,35 +204,8 @@ const recoveryOutcomes = [
           </a>
         ))}
       </div>
-    </div>
-  </section>
-
-  <section aria-labelledby="stack-heading">
-    <div class="section-heading">
-      <h2 id="stack-heading">Build the stack in two moves.</h2>
-      <p>
-        Step one is the route layer. Step two is the provider strategy. Provider
-        packages add profile and token behavior; they do not replace request and
-        callback handling.
-      </p>
-    </div>
-    <div class="stack-map">
-      <div class="stack-column">
-        <h3>Route layer</h3>
-        <div class="stack-rows">
-          {routePackages.map((pkg) => (
-            <a class="stack-row" href={pkg.href}>
-              <span>
-                <strong>{pkg.name}</strong>
-                <small>{pkg.role}</small>
-              </span>
-              <span>{pkg.note}</span>
-            </a>
-          ))}
-        </div>
-      </div>
       <div class="stack-column provider-stack">
-        <h3>Provider strategy</h3>
+        <h3><span class="stack-step" aria-hidden="true">2</span>Provider strategy</h3>
         <div class="stack-rows" aria-label="Supported OAuth providers">
           {supportedProviders.map((provider) => (
             <a

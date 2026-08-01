@@ -58,7 +58,7 @@ const staticSearchEntries: SearchEntry[] = [
     href: "/",
     category: "Start",
     description: "Open the Vestibule overview page.",
-    terms: "start overview oauth gleam vestibule providers packages"
+    terms: "start overview oauth gleam vestibule providers packages csrf state pkce sign-in"
   },
   {
     title: "Package overview",

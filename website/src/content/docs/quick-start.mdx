@@ -19,6 +19,8 @@ searchTerms:
   - mist
   - state
   - PKCE
+  - csrf
+  - cross-site request forgery
   - callback
   - security responsibilities
 ---
@@ -43,11 +45,11 @@ import {
         path only when your app needs to own routing, session storage, and
         callback handling directly.
       </p>
-      <p className="scope-note">
+      <div className="scope-note">
         <strong>Start here for Wisp or Mist:</strong> middleware owns the
         request and callback routes. Add provider packages after this base flow
         works.
-      </p>
+      </div>
       <CodeBlock code={middlewareInstallCode} lang="sh" />
 
       <h2>Route request and callback phases</h2>
@@ -78,11 +80,11 @@ import {
         </li>
       </ul>
 
-      <p className="scope-note">
+      <div className="scope-note">
         <strong>Using Mist?</strong> The route shape is the same; use{" "}
         <a href="/docs/packages/mist">vestibule_mist</a> for plain Mist
         handlers.
-      </p>
+      </div>
     </div>
   </div>
 
@@ -173,11 +175,11 @@ import {
     </div>
   </div>
 
-  <p className="scope-note">
+  <div className="scope-note">
     <strong>Do not leak the error.</strong> The <code>reason</code> can name
     internal details; log it server-side and return a generic message to the
     browser.
-  </p>
+  </div>
 </section>
 
 <section id="security-responsibilities" className="security-callout">
