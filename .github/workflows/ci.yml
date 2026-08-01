@@ -25,6 +25,8 @@ jobs:
   check:
     name: Check
     runs-on: ubuntu-latest
+    env:
+      HEXPM_READ_API_KEY: ${{ secrets.HEXPM_API_KEY }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
       - name: Setup environment
@@ -36,6 +38,8 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    env:
+      HEXPM_READ_API_KEY: ${{ secrets.HEXPM_API_KEY }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
       - name: Setup environment
@@ -47,6 +51,8 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    env:
+      HEXPM_READ_API_KEY: ${{ secrets.HEXPM_API_KEY }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
       - name: Setup environment
@@ -58,6 +64,8 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    env:
+      HEXPM_READ_API_KEY: ${{ secrets.HEXPM_API_KEY }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
       - name: Setup environment
@@ -69,6 +77,8 @@ jobs:
   docs:
     name: Docs
     runs-on: ubuntu-latest
+    env:
+      HEXPM_READ_API_KEY: ${{ secrets.HEXPM_API_KEY }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
       - name: Setup environment
