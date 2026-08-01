@@ -985,6 +985,7 @@ pre.astro-code {
 code {
   font-family: var(--font-mono);
   font-size: var(--text-label);
+  font-feature-settings: "ss01" 1, "ss02" 1;
   font-variant-ligatures: common-ligatures contextual;
 }
 

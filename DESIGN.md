@@ -140,7 +140,7 @@ The palette is restrained product purple with yellow used as a deliberate signal
 
 **Code Font:** Commit Mono, with ui-monospace as fallback
 
-**Character:** Figtree gives the documentation a calm, open, and precise reading voice without feeling generic. Commit Mono brings a neutral technical texture to code, with contextual programming ligatures enabled. Labels, buttons, tables, and headings stay in Figtree so monospace remains reserved for code.
+**Character:** Figtree gives the documentation a calm, open, and precise reading voice without feeling generic. Commit Mono brings a neutral technical texture to code, with its arrow and comparison ligature sets enabled. Labels, buttons, tables, and headings stay in Figtree so monospace remains reserved for code.
 
 ### Hierarchy
 - **Display** (700, 2.25rem, 1.06 line-height): Documentation page headings and example-page headings. Keep letter spacing no tighter than -0.025em.
