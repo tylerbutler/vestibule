@@ -14,7 +14,6 @@ alias l := lint
 alias c := check
 alias d := docs
 alias cl := change
-alias cp := change-pkg
 
 default:
     @just --list
@@ -181,21 +180,21 @@ website-build: website-reference
 
 # === CHANGELOG ===
 
-# Create a new changelog entry (interactive project selection)
-change:
-    changie new
+# Create a changelog entry: just change vestibule Added "What changed"
+change pkg kind body:
+    trellis changelog new --package {{ pkg }} --kind {{ kind }} --body {{ quote(body) }}
 
-# Create a changelog entry for a specific package
-change-pkg pkg:
-    changie new --project {{pkg}}
+# Show the version bumps the unreleased fragments imply
+changelog-preview:
+    trellis version plan
 
-# Preview unreleased changelog for a project
-changelog-preview pkg:
-    changie batch auto --project {{pkg}} --dry-run
+# Apply the release locally: bump versions, render changelogs, patch lockfiles
+changelog-apply:
+    trellis version apply
 
-# Generate CHANGELOG.md for a project
-changelog pkg:
-    changie merge --project {{pkg}}
+# Validate workspace invariants (membership, fragments, versions, lockfiles)
+doctor:
+    trellis doctor
 
 # === MAINTENANCE ===
 

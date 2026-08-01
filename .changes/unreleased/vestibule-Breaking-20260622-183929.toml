@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Breaking"
+body = "`Auth` and `UserInfo` are now opaque. Construct `Auth` with `auth.new` and read fields with the `auth.uid`/`provider`/`info`/`credentials`/`extra` accessors. Build `UserInfo` with `user_info.new` plus the `with_*` helpers and read fields with the `user_info.name`/`email`/`nickname`/`image`/`description`/`urls` accessors. Direct construction and field/pattern-match access no longer compile."

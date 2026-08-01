@@ -30,9 +30,10 @@ just docs              # Build documentation for all packages
 just ci                # Run all CI checks (format, check, test, build)
 just pr                # Alias for ci (use before PR)
 just main              # Extended checks for main branch
-just change            # Create a new changelog entry (interactive project selection)
-just change-pkg <pkg>  # Create changelog entry for a specific package
-just changelog-preview <pkg>  # Preview unreleased changelog for a package
+just change <pkg> <kind> <body>  # Create a changelog entry
+just changelog-preview # Show the version bumps the pending fragments imply
+just changelog-apply   # Apply the release locally (bump, render, patch lockfiles)
+just doctor            # Validate workspace invariants
 just clean             # Remove build artifacts
 ```
 
@@ -131,22 +132,27 @@ Local development can use `.mise.toml` for flexible versions.
 ### Workflows
 - **ci.yml**: Split format, type check, build, test, and docs jobs across all packages
 - **pr.yml**: PR title validation (commitlint) and changelog entry check
-- **release.yml**: Multi-project changie-release — batches all packages with changes into a single release PR
-- **auto-tag.yml**: Creates per-package tags (e.g., `vestibule-v0.2.0`, `vestibule_apple-v0.1.1`) when release PR merges
-- **publish.yml**: Publishes individual packages to Hex.pm on tag push; rewrites path deps to Hex version ranges for sub-packages
+- **release.yml**: `trellis release pr` — batches all packages with pending fragments into a single release PR
+- **publish.yml**: On the release PR merging — publishes to Hex.pm in dependency order, then records per-package tags (e.g., `vestibule-v0.2.0`) and GitHub Releases
 
 ### Release Flow
 1. Push commits with conventional commit messages
-2. Add changelog entries with `just change` (changie prompts for project selection)
-3. changie-release batches all projects with changes, creates a single release PR
-4. Release PR bumps each package's `gleam.toml` version and updates per-package `CHANGELOG.md`
-5. Merge PR → auto-tag creates per-package tags and GitHub Releases
-6. Each tag triggers publish.yml → publishes that specific package to Hex.pm
+2. Add changelog entries with `just change <package> <kind> "What changed"`
+3. `trellis release pr` batches all packages with pending fragments into a single release PR
+4. Release PR bumps each package's `gleam.toml` version, regenerates per-package `CHANGELOG.md`, and patches the locked workspace versions in every `manifest.toml`
+5. Merge PR → `trellis publish --all-untagged` validates and publishes each package in dependency order, skipping versions Hex already has
+6. `trellis tag create --github-release` then records what shipped, and the lockfiles are refreshed in a follow-up PR
 
 ### Publishing Details
 - Sub-packages use `vestibule = { path = "../.." }` during development
-- The publish workflow rewrites this to `vestibule = ">= X.Y.Z and < (X+1).0.0"` before publishing
-- If releasing vestibule core + sub-packages together, vestibule is tagged/published first
+- `trellis publish` rewrites this to `vestibule = ">= X.Y.Z and < (X+1).0.0"` before publishing and restores the original `gleam.toml` afterwards, deriving the requirement from the graph rather than a hand-maintained list
+- Ordering is topological, so vestibule reaches Hex before the packages that depend on it
+- Every step is idempotent: re-run the Publish workflow to recover from a partial failure
+
+### Workspace membership
+Trellis auto-discovers members — every `gleam.toml` git knows about, outside `build/`.
+There is no workspace file; the `[tools.trellis]` table's presence in the root `gleam.toml`
+is what marks the workspace root.
 
 ## Commit Messages
 
@@ -164,12 +170,16 @@ See `.commitlintrc.json` for configuration.
 
 ## Changelog
 
-Managed with [changie](https://changie.dev/) using the **projects** feature for multi-package support:
-- **`.changie.yaml`**: Configures 7 projects (vestibule + 6 add-on packages) with `projectsVersionSeparator: "-"`
+Managed with [trellis](https://trellis.tylerbutler.com/docs/changelog/), whose changelog
+engine is native — no second binary in CI:
+- **`[tools.trellis.changelog]` in the root `gleam.toml`**: kinds, the bump each implies, and the `CHANGELOG.md` header
+- Fragments are TOML files in `.changes/unreleased/` with `package`, `kind`, and `body` keys
+- Per-package version sections stored in `.changes/<package>/v*.md`; each `CHANGELOG.md` is **generated** by reassembling them
 - Each package has its own `CHANGELOG.md` (root for vestibule, `packages/<pkg>/CHANGELOG.md` for sub-packages)
-- Fragments go in `.changes/unreleased/`, prefixed by project name
-- Per-project version files stored in `.changes/<project>/v*.md`
-- Use `just change` for interactive project selection, or `just change-pkg <name>` for direct
+- Add an entry with `just change <package> <kind> "What changed"` (`trellis changelog new` under the hood — non-interactive)
+- `just changelog-preview` (`trellis version plan`) shows the bumps the pending fragments imply
+- Packages that path-depend on a bumped package are bumped too, with a generated `Dependencies` entry
+- The `example` app is a workspace member but is excluded from releases via `exclude.@release`
 
 ## Conventions
 

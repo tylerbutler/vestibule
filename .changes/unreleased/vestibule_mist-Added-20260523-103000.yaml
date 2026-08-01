@@ -1,4 +1,0 @@
-project: vestibule_mist
-kind: Added
-body: 'Initial release. Mist-native OAuth callback ergonomics: `request_phase`, `callback_phase`, `callback_phase_result`, and `callback_phase_auth_result` with parity to `vestibule_wisp`. State is persisted in the shared `vestibule/state_store` (ETS) and indexed by an HMAC-SHA256-signed session cookie. `Options` is constructed with `new_options(secret_key_base)` — the secret is mandatory, cookies are secure by default, and no default secret fallback exists.'
-time: 2026-05-23T10:30:00.000000+00:00

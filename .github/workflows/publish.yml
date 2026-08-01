@@ -1,70 +1,28 @@
 name: Publish
 
-# Broad tag pattern so new packages added to workspace.toml are automatically
-# publishable without editing this workflow. The workspace reader maps the tag
-# to a known package path before validation or publish runs.
+# Tags as record: the release PR merging is what ships a release. `trellis
+# publish` walks the dependency graph itself, so no workflow here needs to know
+# which packages exist — vestibule reaches Hex before the packages that depend
+# on it, and every step is idempotent, so a partial failure is fixed by
+# re-running this workflow.
 on:
-  push:
-    tags:
-      - '*-v*'
+  pull_request:
+    types: [closed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    outputs:
-      package-path: ${{ steps.ws.outputs.tag-package-path }}
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
-
-      - name: Read workspace
-        id: ws
-        uses: tylerbutler/actions/read-gleam-workspace@1761c18aa4583d74916e1a53f2a106d1d70d72a8 # ratchet:tylerbutler/actions/read-gleam-workspace@main
-        with:
-          tag: ${{ github.ref_name }}
-
-      - name: Setup environment
-        uses: ./.github/actions/setup
-
-      - name: Validate tagged package
-        env:
-          PACKAGE: ${{ steps.ws.outputs.tag-package-path }}
-        run: |
-          cd "$PACKAGE"
-          gleam deps download
-          gleam format --check src test
-          gleam check
-          gleam build --warnings-as-errors
-          gleam test
-          gleam docs build
-
   publish:
-    needs: test
+    name: Publish to Hex.pm
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true &&
+       github.event.pull_request.head.ref == 'release/pending')
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
-
-      - name: Setup environment
-        uses: ./.github/actions/setup
-
-      # Publish only the package named by the pushed tag.
-      # replace-path-deps rewrites path dependencies to Hex version ranges
-      # derived from each package's gleam.toml before publishing.
-      - name: Publish to Hex.pm
-        uses: tylerbutler/actions/gleam-publish@1761c18aa4583d74916e1a53f2a106d1d70d72a8 # ratchet:tylerbutler/actions/gleam-publish@main
-        with:
-          packages: ${{ needs.test.outputs.package-path }}
-          replace-path-deps: |
-            vestibule:gleam.toml
-          hex-api-key: ${{ secrets.HEXPM_API_KEY }}
-
-  # After publishing, update manifest.toml lockfiles so they reflect the
-  # latest published versions. This keeps the repo in sync with Hex.
-  update-lockfiles:
-    needs: publish
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
     steps:
       - name: Generate app token
         id: app-token
@@ -76,18 +34,39 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
         with:
           ref: main
+          fetch-depth: 0
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Setup environment
         uses: ./.github/actions/setup
 
+      - name: Install trellis
+        uses: ./.github/actions/trellis
+
+      # Per package, in dependency order: skip what Hex already has, validate
+      # (gleam format --check, build --warnings-as-errors, test), rewrite the
+      # vestibule path dependency to a Hex requirement derived from its current
+      # version, publish, then restore the original gleam.toml.
+      - name: Publish to Hex.pm
+        env:
+          HEXPM_API_KEY: ${{ secrets.HEXPM_API_KEY }}
+        run: trellis publish --all-untagged
+
+      # Only once Hex has the packages: record what shipped as per-version tags
+      # with a GitHub Release each, bodied from the matching CHANGELOG section.
+      - name: Tag and release
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: trellis tag create --github-release
+
+      # Refresh manifest.toml lockfiles so the repo resolves against the
+      # versions just published. Scoped per package — refreshing the whole
+      # workspace at once is what gets a runner rate-limited by Hex.
       - name: Refresh lockfiles
         run: |
-          for pkg_dir in . packages/vestibule_*/; do
-            if [ -f "$pkg_dir/gleam.toml" ]; then
-              echo "Refreshing $pkg_dir manifest..."
-              (cd "$pkg_dir" && gleam deps download)
-            fi
+          trellis list --json | jq -r '.packages[].name' | while read -r pkg; do
+            echo "Refreshing $pkg manifest..."
+            trellis lockfile refresh --package "$pkg"
           done
 
       - name: Check for changes
@@ -106,17 +85,26 @@ jobs:
         if: steps.changes.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          TAG: ${{ github.ref_name }}
+          RUN_ID: ${{ github.run_id }}
         run: |
-          BRANCH="chore/update-lockfiles-${TAG}"
+          BRANCH="chore/update-lockfiles-${RUN_ID}"
           git checkout -b "$BRANCH"
           git add -A '*.toml'
           git -c user.name="github-actions[bot]" \
               -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-              commit -m "chore: update lockfiles after ${TAG} publish"
+              commit -m "chore: update lockfiles after publish"
           git push origin "$BRANCH"
           gh pr create \
-            --title "chore: update lockfiles after ${TAG} publish" \
-            --body "Auto-generated PR to refresh \`manifest.toml\` lockfiles after publishing \`${TAG}\`." \
+            --title "chore: update lockfiles after publish" \
+            --body "Auto-generated PR to refresh \`manifest.toml\` lockfiles after publishing." \
             --base main \
             --head "$BRANCH"
+
+      - name: Summary
+        run: |
+          echo "### Published" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          trellis tag plan --json | jq -r '.tags | length as $n
+            | if $n == 0 then "- All releasable package versions are tagged and on Hex."
+              else "- \($n) tag(s) still pending; re-run this workflow." end' \
+            >> "$GITHUB_STEP_SUMMARY"

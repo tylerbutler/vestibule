@@ -1,0 +1,3 @@
+package = "vestibule_microsoft"
+kind = "Fixed"
+body = "Refresh-token responses now use `RequiredScope(\" \")` to match the exchange-code behavior. Previously `OptionalScope` would silently return `[]` if Microsoft omitted `scope` on refresh."

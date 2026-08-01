@@ -1,4 +1,0 @@
-project: vestibule_oidc
-kind: Added
-body: Added the OpenID Connect discovery package, exposing vestibule_oidc.discover, fetch_configuration, strategy_from_config, and the OIDC parsing helpers moved out of vestibule core.
-time: 2026-06-23T00:55:06.000000000Z

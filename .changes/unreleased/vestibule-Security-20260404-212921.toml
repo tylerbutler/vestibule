@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Security"
+body = "Redirect URIs are now validated to use HTTPS. HTTP is permitted only for `localhost` and `127.0.0.1` (local development). An invalid or non-HTTPS redirect URI now returns an AuthError of kind `ConfigKind` instead of panicking."

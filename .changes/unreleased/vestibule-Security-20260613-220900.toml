@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Security"
+body = "OIDC issuer and discovered endpoint URLs (`oidc.new_config`, `oidc.discovery_url`, `oidc.parse_discovery_document`) now require HTTPS and reject loopback, private, link-local, and other non-publicly-routable hosts, closing an SSRF vector where a malicious issuer could publish internal `token_endpoint`/`userinfo_endpoint` values. Redirect URIs still allow `http://localhost` for local development."

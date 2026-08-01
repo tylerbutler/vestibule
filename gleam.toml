@@ -53,3 +53,45 @@ thrown_away_error = "off"
 # Private @external FFI declarations return String reasons that are immediately
 # mapped to the typed StateStoreError; the stringly-typed boundary is internal.
 stringly_typed_error = "off"
+
+# Workspace configuration for trellis. This table's presence is what marks the
+# workspace root; every key in it is optional.
+#
+# Members are auto-discovered — every gleam.toml git knows about, outside
+# build/. Add `members = ["packages/*"]` only to pin them to something
+# narrower than that.
+#
+# Task exclusions, custom tasks, tag formats, and changelog kinds are all
+# configured here too: https://trellis.tylerbutler.com/docs/configuration/
+[tools.trellis]
+# The example app is a workspace member — it builds and lints with everything
+# else — but it is never released to Hex.
+exclude = { "@release" = ["example"] }
+
+# Kinds carried over from the changie configuration this replaced. Breaking is
+# a minor bump while the packages are pre-1.0, where breaking changes are
+# expected; switch it to "major" at 1.0. One-off overrides don't need a config
+# change — `trellis version apply --bump <pkg>=major` covers those.
+[tools.trellis.changelog]
+# CHANGELOG.md is generated from the sections under .changes/<package>/, so the
+# Keep a Changelog preamble that used to live in .changes/header.md is rendered
+# from here instead.
+header_format = """# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+"""
+kinds = [
+  { label = "Breaking", bump = "minor" },
+  { label = "Added", bump = "minor" },
+  { label = "Changed", bump = "patch" },
+  { label = "Deprecated", bump = "patch" },
+  { label = "Fixed", bump = "patch" },
+  { label = "Performance", bump = "patch" },
+  { label = "Removed", bump = "patch" },
+  { label = "Reverted", bump = "patch" },
+  { label = "Dependencies", bump = "patch" },
+  { label = "Security", bump = "patch" },
+]

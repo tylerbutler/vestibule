@@ -1,4 +1,0 @@
-project: vestibule_wisp
-kind: Security
-body: 'The default OAuth session cookie is now host-bound (`__Host-vestibule_session`) instead of `vestibule_session`, preventing a sibling subdomain from tossing/fixating the session via a `Domain=.example.com` cookie. Added `is_host_bound_cookie_name` to validate custom cookie names.'
-time: 2026-06-13T05:00:45.000000+00:00

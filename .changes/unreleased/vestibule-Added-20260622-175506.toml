@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Added"
+body = "Structured logging is now a supported Provider SDK module at vestibule/logger (promoted from vestibule/internal/logger) so strategy packages can emit log events without importing an internal module."

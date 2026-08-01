@@ -1,4 +1,0 @@
-project: vestibule
-kind: Breaking
-body: GitHub strategy moved out of the core package. Add the vestibule_github package and import vestibule_github instead of vestibule/strategy/github.
-time: 2026-06-15T20:38:49.527859909-07:00

@@ -1,0 +1,3 @@
+package = "vestibule_github"
+kind = "Added"
+body = "Added the GitHub OAuth strategy package, exposing vestibule_github.strategy and GitHub parsing helpers."

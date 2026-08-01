@@ -224,39 +224,71 @@ This is a multi-package repository. Each package (`vestibule`, `vestibule_apple`
 
 ### Adding Changelog Entries
 
+Changelog entries are TOML fragments in `.changes/unreleased/`, managed by
+[trellis](https://trellis.tylerbutler.com/docs/changelog/). `trellis changelog
+new` is non-interactive, so the package, kind, and body are all arguments:
+
 ```bash
-# Interactive — prompts for project selection and kind
-just change
+# just change <package> <kind> "What changed"
+just change vestibule Added "Add a nonce to the authorization request"
+just change vestibule_apple Fixed "Refresh the JWKS cache on a key rotation"
 
-# Direct — specify the package
-just change-pkg vestibule
-just change-pkg vestibule_apple
+# Preview the version bumps the pending fragments imply
+just changelog-preview
 
-# Preview what would be released for a package
-just changelog-preview vestibule
+# Validate the workspace: membership, fragments, versions, lockfiles
+just doctor
 ```
+
+Kinds are configured under `[tools.trellis.changelog]` in the root `gleam.toml`:
+`Breaking`, `Added`, `Changed`, `Deprecated`, `Fixed`, `Performance`, `Removed`,
+`Reverted`, `Dependencies`, `Security`. `Breaking` is a minor bump while the
+packages are pre-1.0; `Added` is a minor and everything else a patch. Override a
+derived version for one release with `trellis version apply --bump <pkg>=major`
+or `--set <pkg>=1.0.0` rather than editing the config.
+
+Each `CHANGELOG.md` is a **generated** file — the source of truth is the version
+sections under `.changes/<package>/`, which `trellis version apply` reassembles.
+Edit fragments, not changelogs.
 
 ### Release Flow
 
 1. Make changes following the commit message convention
-2. Add a changie changelog entry for each affected package (`just change`)
+2. Add a changelog entry for each affected package (`just change ...`)
 3. Push to a feature branch and create a PR
-4. After merge to main, the **Changie Release** workflow batches all projects
-   with unreleased changes and creates a single release PR
-5. The release PR bumps versions in each package's `gleam.toml` and updates
-   per-package `CHANGELOG.md` files
-6. Merge the release PR → **Auto-tag** creates per-package tags
-   (e.g., `vestibule-v0.2.0`, `vestibule_apple-v0.1.1`)
-7. Each tag triggers the **Publish** workflow, which publishes that package
-   to Hex.pm
+4. After merge to main, the **Release** workflow runs `trellis release pr`,
+   batching every package with pending fragments into a single release PR
+5. The release PR bumps versions in each package's `gleam.toml`, regenerates the
+   per-package `CHANGELOG.md` files, and patches the locked workspace versions in
+   every `manifest.toml`. Packages that path-depend on a bumped package are
+   bumped too, with a generated `Dependencies` entry
+6. Merge the release PR → the **Publish** workflow runs
+   `trellis publish --all-untagged`, which validates and publishes every package
+   whose version isn't on Hex yet
+7. It then runs `trellis tag create --github-release` to record what shipped as
+   per-package tags (e.g., `vestibule-v0.2.0`, `vestibule_apple-v0.1.1`) with a
+   GitHub Release each, and opens a follow-up PR refreshing the lockfiles
 
 ### Publishing Order
 
 Sub-packages depend on `vestibule` via path references during development.
-When publishing to Hex.pm, the publish workflow rewrites path dependencies
-to Hex version ranges automatically. If releasing `vestibule` core alongside
-a sub-package, ensure `vestibule` is published to Hex.pm first (the tags are
-created in the order listed in the workflow).
+`trellis publish` walks the dependency graph itself: packages publish in
+topological order, so `vestibule` reaches Hex before anything that depends on
+it, and each path dependency is rewritten to a Hex requirement derived from the
+dependency's current version (`>= X.Y.Z and < (X+1).0.0`) at publish time. The
+original `gleam.toml` is restored afterwards, even on failure.
+
+Tags are written **after** a successful publish, so a tag means "this version is
+on Hex". Every step checks Hex first and skips what's already there, so
+re-running the Publish workflow is the way to recover from a partial failure.
+
+### Workspace Membership
+
+There is no workspace file. Trellis discovers members by finding every
+`gleam.toml` git knows about outside `build/`, and the `[tools.trellis]` table in
+the root `gleam.toml` marks the workspace root. Adding a package under
+`packages/` is enough for it to be built, tested, released, and published —
+nothing else needs updating. `just doctor` validates the result.
 
 ## Troubleshooting
 

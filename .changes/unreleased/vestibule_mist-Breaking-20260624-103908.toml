@@ -1,0 +1,3 @@
+package = "vestibule_mist"
+kind = "Breaking"
+body = "Update middleware APIs for the vestibule `ClientConfig` and `AuthorizeOptions` split. Register configs with `config.new(client_id: id, redirect_uri: uri, auth: config.ClientSecret(secret))` or `auth: config.PublicClient`; move old config-level scopes and extra params to `config.authorize_options() |> ...` and pass them to request-phase middleware with `authorize_options:`."

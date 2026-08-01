@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Changed"
+body = "`ClientConfig` is now opaque. Direct field access (e.g. `config.client_id`) must be replaced with `config.client_id/1`, `config.client_auth/1`, `config.client_secret/1`, and `config.redirect_uri/1`. Per-request scopes and extra authorization parameters now live on `AuthorizeOptions` and are exposed through `config.scopes/1` and `config.extra_params/1`."
