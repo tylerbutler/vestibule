@@ -11,7 +11,7 @@ runs:
   using: "composite"
   steps:
     - name: Setup Gleam
-      uses: tylerbutler/actions/setup-gleam@1b043450f1919503d6c23e3ada9fc7aaa4e2a99b # ratchet:tylerbutler/actions/setup-gleam@main
+      uses: tylerbutler/actions/setup-gleam@ed7d5e5f1d4370a5ccf06503916e3c301102ab1c # ratchet:tylerbutler/actions/setup-gleam@main
       with:
         node: ${{ inputs.node }}
         # Disable built-in caching — it hashes a single gleam.toml in the working
@@ -20,7 +20,7 @@ runs:
         cache: "false"
 
     - name: Cache Gleam dependencies
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # ratchet:actions/cache@v4
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # ratchet:actions/cache@v6
       with:
         path: |
           build/packages
