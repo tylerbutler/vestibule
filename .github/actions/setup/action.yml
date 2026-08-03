@@ -2,6 +2,10 @@ name: "Setup Gleam Environment"
 description: "Thin wrapper around setup-gleam with monorepo-aware caching"
 
 inputs:
+  cache:
+    description: "Whether to restore and save Gleam dependencies"
+    required: false
+    default: "true"
   node:
     description: "Whether to setup Node.js for JavaScript target"
     required: false
@@ -14,12 +18,13 @@ runs:
       uses: tylerbutler/actions/setup-gleam@1b043450f1919503d6c23e3ada9fc7aaa4e2a99b # ratchet:tylerbutler/actions/setup-gleam@main
       with:
         node: ${{ inputs.node }}
-        # Disable built-in caching — it hashes a single gleam.toml in the working
-        # directory, which doesn't work for our monorepo layout (packages/*/gleam.toml).
-        # We add our own cache step below with the correct hashFiles() patterns.
+        # Dependency download and caching are handled below across every workspace
+        # member rather than only the root package.
         cache: "false"
+        run-deps: "false"
 
     - name: Cache Gleam dependencies
+      if: inputs.cache == 'true'
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # ratchet:actions/cache@v4
       with:
         path: |

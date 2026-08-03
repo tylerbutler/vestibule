@@ -14,8 +14,8 @@ env:
   HEXPM_READ_API_KEY: ${{ secrets.HEXPM_API_KEY }}
 
 jobs:
-  format:
-    name: Format
+  dependencies:
+    name: Dependencies
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
@@ -23,10 +23,25 @@ jobs:
         uses: ./.github/actions/setup
       - name: Install trellis
         uses: ./.github/actions/trellis
+      - name: Download dependencies
+        run: trellis run deps --serial
+
+  format:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
+      - name: Setup environment
+        uses: ./.github/actions/setup
+        with:
+          cache: "false"
+      - name: Install trellis
+        uses: ./.github/actions/trellis
       - run: trellis run format --check
 
   check:
     name: Check
+    needs: dependencies
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
@@ -38,6 +53,7 @@ jobs:
 
   lint:
     name: Lint
+    needs: dependencies
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
@@ -49,6 +65,7 @@ jobs:
 
   build:
     name: Build
+    needs: dependencies
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
@@ -60,6 +77,7 @@ jobs:
 
   test:
     name: Test
+    needs: dependencies
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
@@ -71,6 +89,7 @@ jobs:
 
   docs:
     name: Docs
+    needs: dependencies
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
