@@ -65,10 +65,6 @@ stringly_typed_error = "off"
 # not versioned, tagged, released, or published by trellis.
 [tools.trellis.exclude]
 "@release" = [
-  "packages/vestibule_apple",
-  "packages/vestibule_google",
-  "packages/vestibule_microsoft",
-  "packages/vestibule_oidc",
   "example",
 ]
 docs = ["example"]
