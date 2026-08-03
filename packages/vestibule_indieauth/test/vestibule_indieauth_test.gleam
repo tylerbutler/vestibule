@@ -34,7 +34,7 @@ pub fn authorize_url_includes_extra_params_test() {
   let assert Ok(url) =
     strategy.build_authorize_url(
       strat,
-      cfg: conf,
+      config: conf,
       options: options,
       scopes: ["profile"],
       state: "state",
@@ -65,7 +65,7 @@ pub fn authorize_url_rejects_me_extra_param_test() {
   let result =
     strategy.build_authorize_url(
       strat,
-      cfg: conf,
+      config: conf,
       options: options,
       scopes: ["profile"],
       state: "state",

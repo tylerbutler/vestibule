@@ -262,16 +262,15 @@ pub fn strategy_from_config(
   provider_name: String,
 ) -> Strategy(e) {
   let scopes = filter_default_scopes(oidc_config.scopes_supported)
-  strategy.new(provider: provider_name, default_scopes: scopes)
+  strategy.new(
+    provider: provider_name,
+    default_scopes: scopes,
+    authorize_url: build_authorize_url_fn(oidc_config.authorization_endpoint),
+    exchange_code: build_exchange_code_fn(oidc_config.token_endpoint),
+    fetch_user: build_fetch_user_fn(oidc_config.userinfo_endpoint),
+  )
   |> strategy.with_nonce()
-  |> strategy.with_authorize_url(build_authorize_url_fn(
-    oidc_config.authorization_endpoint,
-  ))
-  |> strategy.with_exchange_code(build_exchange_code_fn(
-    oidc_config.token_endpoint,
-  ))
   |> strategy.with_refresh(build_refresh_token_fn(oidc_config.token_endpoint))
-  |> strategy.with_fetch_user(build_fetch_user_fn(oidc_config.userinfo_endpoint))
 }
 
 /// Discover an OIDC provider and build a strategy in one step.

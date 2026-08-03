@@ -52,7 +52,7 @@ let options = config.authorize_options()
 let assert Ok(auth_request) =
   vestibule.create_authorization_request(
     strategy,
-    cfg: cfg,
+    config: client_config,
     options: options,
   )
 // Store authorization_request.state(auth_request)
@@ -65,7 +65,7 @@ let assert Ok(auth_request) =
 case
   vestibule.handle_callback(
     strategy,
-    cfg,
+    client_config,
     params,
     expected_state,
     code_verifier,

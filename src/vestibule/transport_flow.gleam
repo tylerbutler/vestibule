@@ -62,7 +62,7 @@ pub fn start_authorization(
     use auth_request <- result.try(
       vestibule.create_authorization_request(
         strategy,
-        cfg: config,
+        config: config,
         options: options,
       )
       |> result.map_error(AuthFailed),
@@ -324,7 +324,7 @@ pub fn finish_callback(
   let finished =
     vestibule.handle_callback(
       strategy,
-      cfg: config,
+      config: config,
       callback_params: params,
       expected_state: expected_state,
       code_verifier: code_verifier,

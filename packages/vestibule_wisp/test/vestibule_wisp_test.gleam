@@ -20,7 +20,8 @@ pub fn main() -> Nil {
 
 pub fn callback_phase_auth_result_unknown_provider_test() {
   let req = simulate.request(http.Get, "/auth/unknown/callback")
-  let store = state_store.init_named("test_callback_unknown_provider")
+  let assert Ok(store) =
+    state_store.try_init_named("test_callback_unknown_provider")
 
   vestibule_wisp.callback_phase_auth_result(
     req,
@@ -34,7 +35,8 @@ pub fn callback_phase_auth_result_unknown_provider_test() {
 pub fn callback_phase_auth_result_missing_session_cookie_test() {
   let req =
     simulate.request(http.Get, "/auth/test/callback?state=state&code=code")
-  let store = state_store.init_named("test_callback_missing_session_cookie")
+  let assert Ok(store) =
+    state_store.try_init_named("test_callback_missing_session_cookie")
   let assert Ok(reg) =
     registry.new()
     |> registry.register(strategy: test_strategy(), config: test_config())
@@ -68,7 +70,8 @@ pub fn is_host_bound_cookie_name_accepts_host_prefixed_test() {
 }
 
 pub fn request_phase_sets_host_bound_cookie_test() {
-  let store = state_store.init_named("test_request_phase_host_bound_cookie")
+  let assert Ok(store) =
+    state_store.try_init_named("test_request_phase_host_bound_cookie")
   let assert Ok(reg) =
     registry.new()
     |> registry.register(strategy: test_strategy(), config: test_config())
@@ -95,7 +98,8 @@ pub fn request_phase_sets_host_bound_cookie_test() {
 }
 
 pub fn request_phase_with_options_passes_authorize_options_test() {
-  let store = state_store.init_named("test_request_phase_authorize_options")
+  let assert Ok(store) =
+    state_store.try_init_named("test_request_phase_authorize_options")
   let assert Ok(reg) =
     registry.new()
     |> registry.register(
@@ -135,9 +139,10 @@ pub fn request_phase_with_options_passes_authorize_options_test() {
 }
 
 pub fn callback_phase_auth_result_with_options_uses_cookie_name_test() {
-  let store = state_store.init_named("test_callback_custom_cookie_name")
-  let session_id =
-    state_store.store(
+  let assert Ok(store) =
+    state_store.try_init_named("test_callback_custom_cookie_name")
+  let assert Ok(session_id) =
+    state_store.try_store(
       store,
       state: "state",
       code_verifier: "verifier",
@@ -164,9 +169,10 @@ pub fn callback_phase_auth_result_with_options_uses_cookie_name_test() {
 }
 
 pub fn callback_phase_auth_result_malformed_post_body_returns_invalid_params_test() {
-  let store = state_store.init_named("test_callback_malformed_post_body")
-  let session_id =
-    state_store.store(
+  let assert Ok(store) =
+    state_store.try_init_named("test_callback_malformed_post_body")
+  let assert Ok(session_id) =
+    state_store.try_store(
       store,
       state: "state",
       code_verifier: "verifier",
@@ -185,9 +191,10 @@ pub fn callback_phase_auth_result_malformed_post_body_returns_invalid_params_tes
 }
 
 pub fn callback_phase_auth_result_missing_state_does_not_consume_session_test() {
-  let store = state_store.init_named("test_callback_missing_state_reusable")
-  let session_id =
-    state_store.store(
+  let assert Ok(store) =
+    state_store.try_init_named("test_callback_missing_state_reusable")
+  let assert Ok(session_id) =
+    state_store.try_store(
       store,
       state: "state",
       code_verifier: "verifier",
@@ -220,56 +227,59 @@ pub fn callback_phase_auth_result_missing_state_does_not_consume_session_test() 
 }
 
 fn test_strategy() -> Strategy(e) {
-  strategy.new(provider: "test", default_scopes: [])
-  |> strategy.with_authorize_url(fn(_config, _options, _scopes, _state) {
-    Ok("https://example.com")
-  })
-  |> strategy.with_exchange_code(fn(_config, _code, _code_verifier) {
-    Error(error.config(reason: "test"))
-  })
+  strategy.new(
+    provider: "test",
+    default_scopes: [],
+    authorize_url: fn(_config, _options, _scopes, _state) {
+      Ok("https://example.com")
+    },
+    exchange_code: fn(_config, _code, _code_verifier) {
+      Error(error.config(reason: "test"))
+    },
+    fetch_user: fn(_config, _exchange) { Error(error.config(reason: "test")) },
+  )
   |> strategy.with_refresh(fn(_config, _refresh_token) {
-    Error(error.config(reason: "test"))
-  })
-  |> strategy.with_fetch_user(fn(_config, _exchange) {
     Error(error.config(reason: "test"))
   })
 }
 
 fn leaky_error_strategy() -> Strategy(e) {
-  strategy.new(provider: "test", default_scopes: [])
-  |> strategy.with_authorize_url(fn(_config, _options, _scopes, _state) {
-    Ok("https://example.com")
-  })
-  |> strategy.with_exchange_code(fn(_config, _code, _code_verifier) {
-    Error(error.provider(
-      code: "invalid_request",
-      description: "provider-controlled phishing text secret-token",
-      uri: option.None,
-    ))
-  })
+  strategy.new(
+    provider: "test",
+    default_scopes: [],
+    authorize_url: fn(_config, _options, _scopes, _state) {
+      Ok("https://example.com")
+    },
+    exchange_code: fn(_config, _code, _code_verifier) {
+      Error(error.provider(
+        code: "invalid_request",
+        description: "provider-controlled phishing text secret-token",
+        uri: option.None,
+      ))
+    },
+    fetch_user: fn(_config, _exchange) { Error(error.config(reason: "test")) },
+  )
   |> strategy.with_refresh(fn(_config, _refresh_token) {
-    Error(error.config(reason: "test"))
-  })
-  |> strategy.with_fetch_user(fn(_config, _exchange) {
     Error(error.config(reason: "test"))
   })
 }
 
 fn authorize_options_strategy() -> Strategy(e) {
-  strategy.new(provider: "test", default_scopes: [])
-  |> strategy.with_authorize_url(fn(_config, options, _scopes, _state) {
-    case dict.get(config.extra_params(options), "prompt") {
-      Ok(prompt) -> Ok("https://example.com?prompt=" <> prompt)
-      Error(_) -> Ok("https://example.com")
-    }
-  })
-  |> strategy.with_exchange_code(fn(_config, _code, _code_verifier) {
-    Error(error.config(reason: "test"))
-  })
+  strategy.new(
+    provider: "test",
+    default_scopes: [],
+    authorize_url: fn(_config, options, _scopes, _state) {
+      case dict.get(config.extra_params(options), "prompt") {
+        Ok(prompt) -> Ok("https://example.com?prompt=" <> prompt)
+        Error(_) -> Ok("https://example.com")
+      }
+    },
+    exchange_code: fn(_config, _code, _code_verifier) {
+      Error(error.config(reason: "test"))
+    },
+    fetch_user: fn(_config, _exchange) { Error(error.config(reason: "test")) },
+  )
   |> strategy.with_refresh(fn(_config, _refresh_token) {
-    Error(error.config(reason: "test"))
-  })
-  |> strategy.with_fetch_user(fn(_config, _exchange) {
     Error(error.config(reason: "test"))
   })
 }
@@ -283,9 +293,10 @@ fn test_config() -> config.ClientConfig {
 }
 
 pub fn callback_phase_default_error_response_does_not_render_provider_details_test() {
-  let store = state_store.init_named("test_callback_generic_error_html")
-  let session_id =
-    state_store.store(
+  let assert Ok(store) =
+    state_store.try_init_named("test_callback_generic_error_html")
+  let assert Ok(session_id) =
+    state_store.try_store(
       store,
       state: "state",
       code_verifier: "verifier",
@@ -322,9 +333,10 @@ pub fn callback_phase_default_error_response_does_not_render_provider_details_te
 }
 
 pub fn callback_phase_auth_result_preserves_provider_error_details_test() {
-  let store = state_store.init_named("test_callback_structured_error_details")
-  let session_id =
-    state_store.store(
+  let assert Ok(store) =
+    state_store.try_init_named("test_callback_structured_error_details")
+  let assert Ok(session_id) =
+    state_store.try_store(
       store,
       state: "state",
       code_verifier: "verifier",

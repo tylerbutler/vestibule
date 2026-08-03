@@ -3,21 +3,26 @@ import gleam/string
 import startest/expect
 import vestibule/state_store
 
-pub fn store_and_retrieve_state_and_verifier_test() {
-  let table = state_store.init_named("test_store_retrieve")
+pub fn store_and_retrieve_state_and_verifier_test() -> Nil {
+  let assert Ok(table) = state_store.try_init_named("test_store_retrieve")
   let state = "test-csrf-state-value"
   let verifier = "test-pkce-code-verifier"
-  let session_id =
-    state_store.store(table, state: state, code_verifier: verifier, nonce: None)
+  let assert Ok(session_id) =
+    state_store.try_store(
+      table,
+      state: state,
+      code_verifier: verifier,
+      nonce: None,
+    )
   state_store.consume(table, session_id)
   |> expect.to_be_ok()
   |> expect.to_equal(#(state, verifier, None))
 }
 
-pub fn retrieve_deletes_after_use_test() {
-  let table = state_store.init_named("test_delete_after_use")
-  let session_id =
-    state_store.store(
+pub fn retrieve_deletes_after_use_test() -> Nil {
+  let assert Ok(table) = state_store.try_init_named("test_delete_after_use")
+  let assert Ok(session_id) =
+    state_store.try_store(
       table,
       state: "one-time-state",
       code_verifier: "one-time-verifier",
@@ -28,10 +33,11 @@ pub fn retrieve_deletes_after_use_test() {
   |> expect.to_be_error()
 }
 
-pub fn consume_deletes_after_use_test() {
-  let table = state_store.init_named("test_consume_delete_after_use")
-  let session_id =
-    state_store.store(
+pub fn consume_deletes_after_use_test() -> Nil {
+  let assert Ok(table) =
+    state_store.try_init_named("test_consume_delete_after_use")
+  let assert Ok(session_id) =
+    state_store.try_store(
       table,
       state: "one-time-state",
       code_verifier: "one-time-verifier",
@@ -43,25 +49,26 @@ pub fn consume_deletes_after_use_test() {
   |> expect.to_be_error()
 }
 
-pub fn retrieve_unknown_returns_error_test() {
-  let table = state_store.init_named("test_unknown_returns_error")
+pub fn retrieve_unknown_returns_error_test() -> Nil {
+  let assert Ok(table) =
+    state_store.try_init_named("test_unknown_returns_error")
   state_store.consume(table, "nonexistent-session-id")
   |> expect.to_be_error()
 }
 
-pub fn try_init_named_returns_error_for_duplicate_table_test() {
+pub fn try_init_named_returns_error_for_duplicate_table_test() -> Nil {
   let name = "vestibule_duplicate_test"
   let assert Ok(_) = state_store.try_init_named(name)
   let result = state_store.try_init_named(name)
   result |> expect.to_equal(Error(state_store.TableAlreadyExists))
 }
 
-pub fn state_store_survives_creator_process_exit_test() {
+pub fn state_store_survives_creator_process_exit_test() -> Nil {
   state_store_survives_creator_process_exit()
   |> expect.to_be_true()
 }
 
-pub fn try_store_returns_session_id_and_retrievable_value_test() {
+pub fn try_store_returns_session_id_and_retrievable_value_test() -> Nil {
   let assert Ok(table) = state_store.try_init_named("vestibule_try_store_test")
   let state = "state"
   let verifier = "verifier"
@@ -79,7 +86,7 @@ pub fn try_store_returns_session_id_and_retrievable_value_test() {
   |> expect.to_equal(#(state, verifier, None))
 }
 
-pub fn try_store_with_ttl_stores_retrievable_value_test() {
+pub fn try_store_with_ttl_stores_retrievable_value_test() -> Nil {
   let assert Ok(table) =
     state_store.try_init_named("vestibule_try_store_ttl_test")
   let state = "state"
@@ -98,7 +105,7 @@ pub fn try_store_with_ttl_stores_retrievable_value_test() {
   |> expect.to_equal(#(state, verifier, None))
 }
 
-pub fn retrieve_consumes_expired_session_test() {
+pub fn retrieve_consumes_expired_session_test() -> Nil {
   let assert Ok(table) =
     state_store.try_init_named("vestibule_expired_session_test")
   let assert Ok(session_id) =
@@ -116,7 +123,7 @@ pub fn retrieve_consumes_expired_session_test() {
   |> expect.to_be_error()
 }
 
-pub fn storing_new_session_removes_expired_sessions_test() {
+pub fn storing_new_session_removes_expired_sessions_test() -> Nil {
   let name = "vestibule_cleanup_expired_session_test"
   let assert Ok(table) = state_store.try_init_named(name)
   let assert Ok(_) =
@@ -142,10 +149,10 @@ pub fn storing_new_session_removes_expired_sessions_test() {
   count_store_entries(name) |> expect.to_equal(1)
 }
 
-pub fn store_persists_and_returns_nonce_test() {
-  let table = state_store.init_named("test_store_nonce")
-  let session_id =
-    state_store.store(
+pub fn store_persists_and_returns_nonce_test() -> Nil {
+  let assert Ok(table) = state_store.try_init_named("test_store_nonce")
+  let assert Ok(session_id) =
+    state_store.try_store(
       table,
       state: "state-with-nonce",
       code_verifier: "verifier",

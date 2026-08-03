@@ -4,7 +4,7 @@ import startest/expect
 import vestibule/error
 import vestibule/logger
 
-pub fn event_builder_includes_required_fields_test() {
+pub fn event_builder_includes_required_fields_test() -> Nil {
   let event =
     logger.new(
       level: logger.Debug,
@@ -26,7 +26,7 @@ pub fn event_builder_includes_required_fields_test() {
   ])
 }
 
-pub fn event_builder_omits_absent_provider_test() {
+pub fn event_builder_omits_absent_provider_test() -> Nil {
   let event =
     logger.new(
       level: logger.Info,
@@ -42,7 +42,7 @@ pub fn event_builder_omits_absent_provider_test() {
   |> expect.to_equal(Error(Nil))
 }
 
-pub fn auth_error_category_is_stable_and_redacted_test() {
+pub fn auth_error_category_is_stable_and_redacted_test() -> Nil {
   logger.auth_error_category(error.provider(
     code: "invalid_grant",
     description: "secret-bearing provider text",
@@ -54,7 +54,7 @@ pub fn auth_error_category_is_stable_and_redacted_test() {
   |> expect.to_equal("network_error")
 }
 
-pub fn redaction_guard_rejects_sensitive_field_names_test() {
+pub fn redaction_guard_rejects_sensitive_field_names_test() -> Nil {
   logger.safe_fields([
     logger.field("provider", "github"),
     logger.field("access_token", "secret-access-token"),
@@ -70,7 +70,7 @@ pub fn redaction_guard_rejects_sensitive_field_names_test() {
   ])
 }
 
-pub fn redaction_preserves_code_field_but_strips_authorization_code_test() {
+pub fn redaction_preserves_code_field_but_strips_authorization_code_test() -> Nil {
   logger.safe_fields([
     logger.field("code", "invalid_grant"),
     logger.field("authorization_code", "secret-auth-code"),
@@ -78,7 +78,7 @@ pub fn redaction_preserves_code_field_but_strips_authorization_code_test() {
   |> expect.to_equal([#("code", "invalid_grant")])
 }
 
-pub fn canonical_fields_survive_when_caller_supplies_sensitive_keys_test() {
+pub fn canonical_fields_survive_when_caller_supplies_sensitive_keys_test() -> Nil {
   let event =
     logger.new(
       level: logger.Info,
@@ -103,7 +103,7 @@ pub fn canonical_fields_survive_when_caller_supplies_sensitive_keys_test() {
   result |> list.key_find("transport") |> expect.to_equal(Ok("wisp"))
 }
 
-pub fn reserved_fields_cannot_be_overridden_by_caller_test() {
+pub fn reserved_fields_cannot_be_overridden_by_caller_test() -> Nil {
   let event =
     logger.new(
       level: logger.Info,

@@ -38,18 +38,15 @@ import vestibule/user_info
 /// To restrict sign-in to a single Workspace domain, use
 /// `strategy_for_hosted_domain`.
 pub fn strategy() -> Strategy(e) {
-  strategy.new(provider: "google", default_scopes: [
-    "openid",
-    "profile",
-    "email",
-  ])
+  strategy.new(
+    provider: "google",
+    default_scopes: ["openid", "profile", "email"],
+    authorize_url: do_authorize_url,
+    exchange_code: do_exchange_code,
+    fetch_user: fn(_cfg, exchange) { fetch_user_enforcing(exchange, None) },
+  )
   |> strategy.with_nonce()
-  |> strategy.with_authorize_url(do_authorize_url)
-  |> strategy.with_exchange_code(do_exchange_code)
   |> strategy.with_refresh(do_refresh_token)
-  |> strategy.with_fetch_user(fn(_cfg, exchange) {
-    fetch_user_enforcing(exchange, None)
-  })
 }
 
 /// Create a Google strategy that enforces a Workspace hosted domain.
@@ -65,20 +62,19 @@ pub fn strategy() -> Strategy(e) {
 /// `config.authorize_options() |> config.with_extra_params([#("hd", ...)])` is purely a UI hint and must not
 /// be relied on for authorization.
 pub fn strategy_for_hosted_domain(hosted_domain: String) -> Strategy(e) {
-  strategy.new(provider: "google", default_scopes: [
-    "openid",
-    "profile",
-    "email",
-  ])
+  strategy.new(
+    provider: "google",
+    default_scopes: ["openid", "profile", "email"],
+    authorize_url: fn(cfg, options, scopes, state) {
+      do_authorize_url_with_hd(cfg, options, scopes, state, Some(hosted_domain))
+    },
+    exchange_code: do_exchange_code,
+    fetch_user: fn(_cfg, exchange) {
+      fetch_user_enforcing(exchange, Some(hosted_domain))
+    },
+  )
   |> strategy.with_nonce()
-  |> strategy.with_authorize_url(fn(cfg, options, scopes, state) {
-    do_authorize_url_with_hd(cfg, options, scopes, state, Some(hosted_domain))
-  })
-  |> strategy.with_exchange_code(do_exchange_code)
   |> strategy.with_refresh(do_refresh_token)
-  |> strategy.with_fetch_user(fn(_cfg, exchange) {
-    fetch_user_enforcing(exchange, Some(hosted_domain))
-  })
 }
 
 /// Parse Google token response JSON.

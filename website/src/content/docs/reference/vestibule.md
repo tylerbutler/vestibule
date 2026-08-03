@@ -45,7 +45,7 @@ check it before calling `handle_callback`.
 ```gleam
 pub fn create_authorization_request(
   strategy.Strategy(a),
-  cfg: config.ClientConfig,
+  config: config.ClientConfig,
   options: config.AuthorizeOptions
 ) -> Result(authorization_request.AuthorizationRequest, error.AuthError(a))
 ```
@@ -75,7 +75,7 @@ before calling this function.
 ```gleam
 pub fn handle_callback(
   strategy.Strategy(a),
-  cfg: config.ClientConfig,
+  config: config.ClientConfig,
   callback_params: dict.Dict(String, String),
   expected_state: String,
   code_verifier: String,
@@ -92,7 +92,7 @@ Delegates to the provider strategy so refresh semantics remain provider-owned.
 ```gleam
 pub fn refresh_token(
   strategy.Strategy(a),
-  cfg: config.ClientConfig,
-  refresh_tok: String
+  config: config.ClientConfig,
+  refresh_token: String
 ) -> Result(credentials.Credentials, error.AuthError(a))
 ```

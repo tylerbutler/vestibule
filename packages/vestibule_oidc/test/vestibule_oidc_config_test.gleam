@@ -523,7 +523,7 @@ pub fn strategy_from_config_authorize_url_test() {
   let result =
     strategy.build_authorize_url(
       strat,
-      cfg: conf,
+      config: conf,
       options: config.authorize_options(),
       scopes: ["openid", "profile"],
       state: "test-state",
@@ -561,7 +561,7 @@ pub fn strategy_from_config_authorize_url_with_extra_params_test() {
   let assert Ok(url) =
     strategy.build_authorize_url(
       strat,
-      cfg: conf,
+      config: conf,
       options: options,
       scopes: ["openid"],
       state: "state-123",
@@ -588,7 +588,7 @@ pub fn strategy_from_config_invalid_redirect_uri_returns_error_test() {
   let _ =
     strategy.build_authorize_url(
       strat,
-      cfg: conf,
+      config: conf,
       options: config.authorize_options(),
       scopes: ["openid"],
       state: "state-123",

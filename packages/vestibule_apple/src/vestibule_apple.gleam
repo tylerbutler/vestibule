@@ -117,16 +117,17 @@ pub fn try_init_named(prefix: String) -> Result(AppleCache, AppleInitError) {
 /// ID tokens are verified against Apple's published JWKS keys with
 /// claim validation for issuer, audience, and expiration.
 pub fn strategy(apple: AppleCache) -> Strategy(e) {
-  strategy.new(provider: "apple", default_scopes: ["name", "email"])
+  strategy.new(
+    provider: "apple",
+    default_scopes: ["name", "email"],
+    authorize_url: do_authorize_url,
+    exchange_code: fn(config, code, code_verifier) {
+      do_exchange_code(config, code, code_verifier)
+    },
+    fetch_user: fn(config, exchange) { do_fetch_user(apple, config, exchange) },
+  )
   |> strategy.with_nonce()
-  |> strategy.with_authorize_url(do_authorize_url)
-  |> strategy.with_exchange_code(fn(config, code, code_verifier) {
-    do_exchange_code(config, code, code_verifier)
-  })
   |> strategy.with_refresh(do_refresh_token)
-  |> strategy.with_fetch_user(fn(config, exchange) {
-    do_fetch_user(apple, config, exchange)
-  })
 }
 
 /// Parse Apple token response JSON.

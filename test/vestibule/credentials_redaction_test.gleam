@@ -24,14 +24,14 @@ fn sample_credentials() -> credentials.Credentials {
   )
 }
 
-pub fn inspect_credentials_does_not_leak_tokens_test() {
+pub fn inspect_credentials_does_not_leak_tokens_test() -> Nil {
   let rendered = string.inspect(sample_credentials())
 
   string.contains(rendered, access_token) |> expect.to_be_false()
   string.contains(rendered, refresh_secret) |> expect.to_be_false()
 }
 
-pub fn inspect_auth_does_not_leak_tokens_test() {
+pub fn inspect_auth_does_not_leak_tokens_test() -> Nil {
   let result =
     auth.new(
       uid: "user-123",
@@ -47,15 +47,16 @@ pub fn inspect_auth_does_not_leak_tokens_test() {
   string.contains(rendered, refresh_secret) |> expect.to_be_false()
 }
 
-pub fn accessors_still_expose_raw_tokens_test() {
-  let creds = sample_credentials()
+pub fn accessors_still_expose_raw_tokens_test() -> Nil {
+  let oauth_credentials = sample_credentials()
 
-  credentials.token(creds) |> expect.to_equal(access_token)
-  credentials.refresh_token(creds) |> expect.to_equal(Some(refresh_secret))
+  credentials.token(oauth_credentials) |> expect.to_equal(access_token)
+  credentials.refresh_token(oauth_credentials)
+  |> expect.to_equal(Some(refresh_secret))
 }
 
-pub fn credentials_without_refresh_token_inspects_cleanly_test() {
-  let creds =
+pub fn credentials_without_refresh_token_inspects_cleanly_test() -> Nil {
+  let oauth_credentials =
     credentials.new(
       token: access_token,
       refresh_token: None,
@@ -64,9 +65,9 @@ pub fn credentials_without_refresh_token_inspects_cleanly_test() {
       scopes: [],
     )
 
-  string.inspect(creds)
+  string.inspect(oauth_credentials)
   |> string.contains(access_token)
   |> expect.to_be_false()
 
-  credentials.refresh_token(creds) |> expect.to_equal(None)
+  credentials.refresh_token(oauth_credentials) |> expect.to_equal(None)
 }

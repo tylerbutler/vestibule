@@ -28,7 +28,7 @@ code: |
     vestibule_indieauth.discover("https://user.example.com")
 
   // client_id is your app's URL; no client_secret is required.
-  let cfg =
+  let client_config =
     config.new(
       client_id: "https://myapp.example.com/",
       redirect_uri: "https://myapp.example.com/auth/indieauth/callback",
@@ -39,7 +39,7 @@ code: |
   let assert Ok(auth_request) =
     vestibule.create_authorization_request(
       strategy,
-      cfg: cfg,
+      config: client_config,
       options: options,
     )
 notes:

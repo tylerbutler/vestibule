@@ -39,9 +39,8 @@ label_possible = "off"
 # and are intentionally exported for external consumers, even when unused within
 # the monorepo.
 unused_exports = "off"
-# Deliberate crash-on-startup pattern: init/store-style functions assert on
-# known-good values during one-time VM setup. Result-returning try_* variants are
-# provided for callers that need to handle failure.
+# Library src code returns Results everywhere (no `let assert`); tests use
+# `let assert` freely, where a failed assertion failing the test is the point.
 assert_ok_pattern = "off"
 # By design, low-level errors (uri.parse, request.to, httpc — often Nil/opaque)
 # are mapped into descriptive domain AuthError variants; the source errors carry
@@ -57,10 +56,6 @@ stringly_typed_error = "off"
 # Workspace configuration for trellis. This table's presence is what marks the
 # workspace root; every key in it is optional.
 #
-# Members are auto-discovered — every gleam.toml git knows about, outside
-# build/. Add `members = ["packages/*"]` only to pin them to something
-# narrower than that.
-#
 # Task exclusions, custom tasks, tag formats, and changelog kinds are all
 # configured here too: https://trellis.tylerbutler.com/docs/configuration/
 [tools.trellis]
@@ -71,6 +66,13 @@ stringly_typed_error = "off"
 [tools.trellis.exclude]
 "@release" = ["example"]
 docs = ["example"]
+
+[tools.trellis.publish.lifecycle]
+default = "git_only"
+
+[tools.trellis.publish.repository_series]
+package = "vestibule"
+format = "v{series}"
 
 # Each release writes two tags per package: the immutable `{name}-v{version}`,
 # which carries the GitHub Release, and a moving `{name}-v{series}` that always

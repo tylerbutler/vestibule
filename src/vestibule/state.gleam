@@ -2,18 +2,13 @@
 //// 256-bit base64url token is minted for every authorization request and
 //// must be echoed back unchanged on the callback.
 
-import gleam/bit_array
-import gleam/bool
-import gleam/crypto
-import gleam/string
-
 import vestibule/error.{type AuthError}
+import vestibule/internal/one_time_token
 
 /// Generate a cryptographically random state parameter.
 /// Returns 32 bytes of random data, base64url-encoded (no padding).
 pub fn generate() -> String {
-  crypto.strong_random_bytes(32)
-  |> bit_array.base64_url_encode(False)
+  one_time_token.generate()
 }
 
 /// Validate a received state parameter against the expected value.
@@ -22,18 +17,9 @@ pub fn validate(
   received received: String,
   expected expected: String,
 ) -> Result(Nil, AuthError(e)) {
-  use <- bool.guard(
-    when: is_blank(received) || is_blank(expected),
-    return: Error(error.state_mismatch()),
+  one_time_token.validate(
+    received: received,
+    expected: expected,
+    mismatch_error: error.state_mismatch(),
   )
-  let received_bits = <<received:utf8>>
-  let expected_bits = <<expected:utf8>>
-  case crypto.secure_compare(received_bits, expected_bits) {
-    True -> Ok(Nil)
-    False -> Error(error.state_mismatch())
-  }
-}
-
-fn is_blank(value: String) -> Bool {
-  string.trim(value) == ""
 }

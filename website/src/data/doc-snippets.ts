@@ -14,7 +14,7 @@ import vestibule/error
 import vestibule_github
 
 let strategy = vestibule_github.strategy()
-let cfg =
+let client_config =
   config.new(
     client_id: "client_id",
     redirect_uri: "http://localhost:8000/auth/github/callback",
@@ -25,7 +25,7 @@ let options = config.authorize_options()
 let assert Ok(auth_request) =
   vestibule.create_authorization_request(
     strategy,
-    cfg: cfg,
+    config: client_config,
     options: options,
   )
 // Store authorization_request.state(auth_request) and
@@ -44,7 +44,7 @@ let params =
 case
   vestibule.handle_callback(
     strategy,
-    cfg,
+    client_config,
     params,
     "expected state from session",
     "code verifier from session",
@@ -84,7 +84,7 @@ let assert Ok(reg) =
     ),
   )
 
-let store = state_store.init()
+let assert Ok(store) = state_store.try_init()
 
 case wisp.path_segments(req), req.method {
   ["auth", provider], http.Get ->
@@ -123,7 +123,7 @@ import vestibule/error
 case
   vestibule.handle_callback(
     strategy,
-    cfg,
+    client_config,
     params,
     expected_state,
     verifier,
@@ -161,7 +161,7 @@ import vestibule/oidc
 
 // Discovery reads https://your-pocket-id-instance/.well-known/openid-configuration
 let assert Ok(strategy) = oidc.discover("https://your-pocket-id-instance")
-let cfg =
+let client_config =
   config.new(
     client_id: "your-client-id",
     redirect_uri: "http://localhost:8000/auth/oidc/callback",
@@ -172,7 +172,7 @@ let options = config.authorize_options()
 let assert Ok(auth_request) =
   vestibule.create_authorization_request(
     strategy,
-    cfg: cfg,
+    config: client_config,
     options: options,
   )`;
 
@@ -181,18 +181,17 @@ export const strategyType = `pub opaque type Strategy(e)
 pub fn new(
   provider provider: String,
   default_scopes default_scopes: List(String),
-) -> Strategy(e)
-
-pub fn with_authorize_url(
-  strategy: Strategy(e),
-  authorize_url: fn(ClientConfig, AuthorizeOptions, List(String), String) ->
+  authorize_url authorize_url: fn(
+    ClientConfig,
+    AuthorizeOptions,
+    List(String),
+    String,
+  ) ->
     Result(String, AuthError(e)),
-) -> Strategy(e)
-
-pub fn with_exchange_code(
-  strategy: Strategy(e),
-  exchange_code: fn(ClientConfig, String, Option(String)) ->
+  exchange_code exchange_code: fn(ClientConfig, String, Option(String)) ->
     Result(ExchangeResult, AuthError(e)),
+  fetch_user fetch_user: fn(ClientConfig, ExchangeResult) ->
+    Result(UserResult, AuthError(e)),
 ) -> Strategy(e)`;
 
 export const authorizeUrl = `fn do_authorize_url(
@@ -277,9 +276,12 @@ fn do_fetch_user(
 }`;
 
 export const strategyValue = `pub fn strategy() -> Strategy(e) {
-  strategy.new(provider: "twitch", default_scopes: ["user:read:email"])
-  |> strategy.with_authorize_url(do_authorize_url)
-  |> strategy.with_exchange_code(do_exchange_code)
-  |> strategy.with_fetch_user(do_fetch_user)
+  strategy.new(
+    provider: "twitch",
+    default_scopes: ["user:read:email"],
+    authorize_url: do_authorize_url,
+    exchange_code: do_exchange_code,
+    fetch_user: do_fetch_user,
+  )
   |> strategy.with_refresh(do_refresh_token)
 }`;
