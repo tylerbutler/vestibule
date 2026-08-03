@@ -1,5 +1,5 @@
 name = "vestibule_indieauth"
-version = "0.0.1"
+version = "0.1.0"
 description = "IndieAuth strategy for vestibule — decentralized identity via OAuth 2.0"
 licences = ["MIT"]
 repository = { type = "github", user = "tylerbutler", repo = "vestibule", path = "packages/vestibule_indieauth" }

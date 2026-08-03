@@ -1,3 +1,0 @@
-package = "vestibule"
-kind = "Breaking"
-body = "Split durable client configuration from per-request authorization options. Migrate `config.new(id, secret, uri)` to `config.new(client_id: id, redirect_uri: uri, auth: config.ClientSecret(secret))`; use `auth: config.PublicClient` instead of an empty secret for public clients. Move old config-level scopes and extra authorization params to per-request options with `config.authorize_options() |> config.with_scopes(...)` and `config.authorize_options() |> config.with_extra_params(...)`, then pass them with `options:` to `vestibule.create_authorization_request`."

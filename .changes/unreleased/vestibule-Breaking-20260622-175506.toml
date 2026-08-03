@@ -1,3 +1,0 @@
-package = "vestibule"
-kind = "Breaking"
-body = "OIDC discovery moved out of the core package. Add the vestibule_oidc package and import vestibule_oidc instead of vestibule/oidc."

@@ -1,3 +1,0 @@
-package = "vestibule"
-kind = "Security"
-body = "OIDC userinfo responses no longer return unverified email addresses. When `email_verified` is `false` or absent, the `email` field in `UserInfo` is set to `None`."

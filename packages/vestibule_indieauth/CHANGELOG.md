@@ -1,1 +1,16 @@
 # Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## v0.1.0 - 2026-08-03
+
+### Breaking
+
+- Update APIs for the vestibule `ClientConfig` and `AuthorizeOptions` split. Build configs with `config.new(client_id: id, redirect_uri: uri, auth: config.ClientSecret(secret))`; public-client providers should use `auth: config.PublicClient` instead of passing an empty secret. Move request-specific scopes and extra params to `config.authorize_options() |> ...` and pass them with `options:` to `vestibule.create_authorization_request`.
+
+### Dependencies
+
+- Updated vestibule to 0.1.0
