@@ -1,3 +1,0 @@
-package = "vestibule_apple"
-kind = "Changed"
-body = "`AppleCache` and `JwksCache` are now opaque. Use `vestibule_apple.init` / `try_init` / `try_init_named` to construct an `AppleCache`; internal callers no longer access `jwks` directly."

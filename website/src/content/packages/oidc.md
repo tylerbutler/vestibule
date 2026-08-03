@@ -4,7 +4,8 @@ navLabel: OIDC discovery
 kind: Provider strategy
 summary: OpenID Connect discovery that auto-configures a strategy from any standards-compliant issuer URL, including self-hosted providers.
 install:
-  - gleam add vestibule_oidc
+  - "[dependencies]"
+  - 'vestibule_oidc = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_oidc" }'
 useWhen: Use OIDC discovery when you want to authenticate against any OpenID Connect provider — including self-hosted ones — by pointing at its issuer URL instead of hand-wiring endpoints.
 defaultScopes: "openid profile email"
 setup:

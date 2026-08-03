@@ -218,9 +218,10 @@ test: add edge case tests for unicode handling
 
 ## Release Process
 
-This is a multi-package repository. Each package (`vestibule`, `vestibule_apple`,
-`vestibule_google`, `vestibule_microsoft`, `vestibule_wisp`, and
-`vestibule_mist`) is independently versioned and published to Hex.pm.
+This is a multi-package repository. Trellis independently versions, tags, and
+publishes the releasable packages. `vestibule_apple`, `vestibule_google`,
+`vestibule_microsoft`, and `vestibule_oidc` remain workspace members but are
+excluded from the release set.
 
 ### Adding Changelog Entries
 
@@ -268,8 +269,8 @@ Edit fragments, not changelogs.
 
 ### Tags
 
-Each release writes two tags per package, configured by `tag_mode = "both"`
-under `[tools.trellis.publish]`:
+Each release writes two tags per releasable package, configured by
+`tag_mode = "both"` under `[tools.trellis.publish]`:
 
 | Tag | Lifecycle |
 | --- | --- |
@@ -306,9 +307,9 @@ workflow is the way to recover from a partial failure.
 
 There is no workspace file. Trellis discovers members by finding every
 `gleam.toml` git knows about outside `build/`, and the `[tools.trellis]` table in
-the root `gleam.toml` marks the workspace root. Adding a package under
-`packages/` is enough for it to be built, tested, released, and published —
-nothing else needs updating. `just doctor` validates the result.
+the root `gleam.toml` marks the workspace root. Adding a package under `packages/` is enough for it to be discovered, built,
+and tested. Unless its path is listed under `exclude.@release`, it is also
+versioned, tagged, and published. `just doctor` validates the result.
 
 ## Troubleshooting
 

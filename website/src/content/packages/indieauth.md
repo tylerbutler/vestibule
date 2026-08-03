@@ -4,7 +4,8 @@ navLabel: IndieAuth strategy
 kind: Provider strategy
 summary: Decentralized IndieAuth strategy where users sign in with a URL they control and endpoints are discovered dynamically.
 install:
-  - gleam add vestibule_indieauth
+  - "[dependencies]"
+  - 'vestibule_indieauth = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_indieauth" }'
 useWhen: Use IndieAuth when you want users to authenticate with their own domain instead of a centralized provider, with no per-app client secret and per-user endpoints discovered at runtime.
 defaultScopes: "profile"
 setup:

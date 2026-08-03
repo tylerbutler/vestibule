@@ -1,3 +1,0 @@
-package = "vestibule_google"
-kind = "Security"
-body = "Add `strategy_for_hosted_domain` to enforce a Google Workspace hosted domain. Authentication now fails when the userinfo `hd` claim is missing or does not match the required domain, and the validated `hd` is exposed in `UserResult` extra. Setting `hd` via `config.with_extra_params` remains a UI hint only and is not enforcement."

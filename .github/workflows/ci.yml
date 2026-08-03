@@ -10,33 +10,32 @@ on:
     branches: [main]
   workflow_call:
 
-env:
-  HEXPM_READ_API_KEY: ${{ secrets.HEXPM_API_KEY }}
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   dependencies:
     name: Dependencies
     runs-on: ubuntu-latest
+    env:
+      HEXPM_READ_API_KEY: ${{ secrets.HEXPM_API_KEY }}
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
       - name: Setup environment
         uses: ./.github/actions/setup
-      - name: Install trellis
-        uses: ./.github/actions/trellis
-      - name: Download dependencies
-        run: trellis run deps --serial
-
+      # Warm the shared dependency cache before the fan-out jobs start. Running
+      # serially lets later packages reuse downloads from earlier packages and
+      # avoids a burst of concurrent requests from one runner.
+      - run: trellis run deps --serial
   format:
     name: Format
     runs-on: ubuntu-latest
+    needs: dependencies
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
       - name: Setup environment
         uses: ./.github/actions/setup
-        with:
-          cache: "false"
-      - name: Install trellis
-        uses: ./.github/actions/trellis
       - run: trellis run format --check
 
   check:
@@ -44,11 +43,9 @@ jobs:
     needs: dependencies
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
       - name: Setup environment
         uses: ./.github/actions/setup
-      - name: Install trellis
-        uses: ./.github/actions/trellis
       - run: trellis run check
 
   lint:
@@ -56,11 +53,9 @@ jobs:
     needs: dependencies
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
       - name: Setup environment
         uses: ./.github/actions/setup
-      - name: Install trellis
-        uses: ./.github/actions/trellis
       - run: trellis run lint
 
   build:
@@ -68,11 +63,9 @@ jobs:
     needs: dependencies
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
       - name: Setup environment
         uses: ./.github/actions/setup
-      - name: Install trellis
-        uses: ./.github/actions/trellis
       - run: trellis run build --strict
 
   test:
@@ -80,11 +73,9 @@ jobs:
     needs: dependencies
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
       - name: Setup environment
         uses: ./.github/actions/setup
-      - name: Install trellis
-        uses: ./.github/actions/trellis
       - run: trellis run test
 
   docs:
@@ -92,9 +83,7 @@ jobs:
     needs: dependencies
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
       - name: Setup environment
         uses: ./.github/actions/setup
-      - name: Install trellis
-        uses: ./.github/actions/trellis
       - run: trellis run docs
