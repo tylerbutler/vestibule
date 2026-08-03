@@ -46,9 +46,6 @@ jobs:
       - name: Setup environment
         uses: ./.github/actions/setup
 
-      - name: Install trellis
-        uses: ./.github/actions/trellis
-
       # Publishing disabled — see the note at the top of this file. This reports
       # the packages that would ship, in dependency order, and the Hex
       # requirement each vestibule path dependency would be rewritten to.

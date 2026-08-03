@@ -41,8 +41,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
         with:
           fetch-depth: 0
-      - name: Install trellis
-        uses: ./.github/actions/trellis
+      - name: Setup tools
+        uses: ./.github/actions/mise
       # Advisory, as the changie check it replaced was: the result drives the
       # sticky comment below rather than failing the PR.
       - name: Check changelog fragments
