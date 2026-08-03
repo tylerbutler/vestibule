@@ -4,12 +4,10 @@ navLabel: Wisp middleware
 kind: Wisp middleware
 summary: Wisp request/callback routing for Vestibule, including signed session cookie handling and one-time ETS state storage.
 install:
-  - gleam add vestibule
-  - gleam add vestibule_wisp
-  - gleam add wisp
-  - gleam add mist
-  - gleam add vestibule_github
-  - gleam add vestibule_google
+  - "[dependencies]"
+  - 'vestibule = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0" }'
+  - 'vestibule_wisp = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_wisp" }'
+  - 'vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_github" }'
 useWhen: Use Wisp middleware when your app already routes requests with Wisp and you want the request and callback phases handled for you.
 setup:
   - Configure Wisp with a strong, stable secret key base.

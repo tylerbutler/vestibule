@@ -143,7 +143,7 @@ Local development can use `.mise.toml` for flexible versions.
 5. Merge PR → `trellis publish --all-untagged --dry-run` reports what *would* ship, then `trellis tag create --github-release` records it
 
 ### Tags
-Every package writes two tags per release, via `tag_mode = "both"`:
+Every releasable package writes two tags per release, via `tag_mode = "both"`:
 - **`{name}-v{version}`** (e.g. `vestibule-v0.0.1`) — immutable, created once, carries the GitHub Release bodied from the matching CHANGELOG section
 - **`{name}-v{series}`** (e.g. `vestibule-v0.0`) — moving; force-moved to the newest release in its series so consumers can pin a series instead of chasing patches. Carries no GitHub Release, since it would silently retarget on the next move
 
@@ -186,7 +186,7 @@ engine is native — no second binary in CI:
 - Add an entry with `just change <package> <kind> "What changed"` (`trellis changelog new` under the hood — non-interactive)
 - `just changelog-preview` (`trellis version plan`) shows the bumps the pending fragments imply
 - Packages that path-depend on a bumped package are bumped too, with a generated `Dependencies` entry
-- The `example` app is a workspace member but is excluded from releases via `exclude.@release`
+- The `example` app and the Apple, Google, Microsoft, and OIDC providers are workspace members but are excluded from releases via `exclude.@release`
 
 ## Conventions
 

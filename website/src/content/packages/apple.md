@@ -4,7 +4,8 @@ navLabel: Apple strategy
 kind: Provider strategy
 summary: Sign in with Apple strategy with JWKS-backed ID token verification and form_post callback support.
 install:
-  - gleam add vestibule_apple
+  - "[dependencies]"
+  - 'vestibule_apple = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_apple" }'
 useWhen: Use Apple when your application needs Sign in with Apple for web clients and can generate a client-secret JWT.
 defaultScopes: name email
 setup:

@@ -4,11 +4,10 @@ navLabel: Mist middleware
 kind: Mist middleware
 summary: Plain Mist request/callback routing with HMAC-SHA256 signed session cookies and the shared Vestibule state store.
 install:
-  - gleam add vestibule
-  - gleam add vestibule_mist
-  - gleam add mist
-  - gleam add vestibule_github
-  - gleam add vestibule_google
+  - "[dependencies]"
+  - 'vestibule = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0" }'
+  - 'vestibule_mist = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_mist" }'
+  - 'vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_github" }'
 useWhen: Use Mist middleware when you run directly on Mist and want the same auth ergonomics without Wisp.
 setup:
   - Load a high-entropy secret key base from configuration or a secrets manager.

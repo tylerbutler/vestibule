@@ -4,8 +4,9 @@ navLabel: Core
 kind: Core package
 summary: Core types, two-phase OAuth2 flow, PKCE, CSRF state, token refresh, OIDC discovery, and shared state store.
 install:
-  - gleam add vestibule
-  - gleam add vestibule_github
+  - "[dependencies]"
+  - 'vestibule = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0" }'
+  - 'vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_github" }'
 useWhen: Use the core package when you want direct control over request and callback phases, or when you are building your own transport integration.
 setup:
   - Register a provider application and copy its client ID and secret.

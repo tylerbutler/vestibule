@@ -54,34 +54,30 @@ thrown_away_error = "off"
 # mapped to the typed StateStoreError; the stringly-typed boundary is internal.
 stringly_typed_error = "off"
 
-# Workspace configuration for trellis. This table's presence is what marks the
-# workspace root; every key in it is optional.
-#
-# Members are auto-discovered — every gleam.toml git knows about, outside
-# build/. Add `members = ["packages/*"]` only to pin them to something
-# narrower than that.
-#
-# Task exclusions, custom tasks, tag formats, and changelog kinds are all
-# configured here too: https://trellis.tylerbutler.com/docs/configuration/
-[tools.trellis]
-
-# The example app is a full workspace member — built, checked, linted, and
-# tested with everything else — but it is never released to Hex, and API docs
-# for an application nobody depends on have no reader.
+# The example app and the Apple, Google, Microsoft, and OIDC providers remain
+# full workspace members, so normal tasks still build and test them. They are
+# not versioned, tagged, released, or published by trellis.
 [tools.trellis.exclude]
-"@release" = ["example"]
+"@release" = [
+  "packages/vestibule_apple",
+  "packages/vestibule_google",
+  "packages/vestibule_microsoft",
+  "packages/vestibule_oidc",
+  "example",
+]
 docs = ["example"]
 
-# Each release writes two tags per package: the immutable `{name}-v{version}`,
-# which carries the GitHub Release, and a moving `{name}-v{series}` that always
-# points at the newest release in its series, so consumers can pin
-# `vestibule-v0.0` instead of chasing every patch. The series is derived from the
-# version, never configured: while the major is 0 it is `major.minor` (every
-# minor bump being breaking), and the major alone from 1.0 on. Series tags are
-# force-moved on each release, which is why they carry no GitHub Release — it
-# would silently retarget on the next move.
+# Publish a series tag for the whole repo
+[tools.trellis.publish.repository_series]
+package = "vestibule"
+format = "v{series}"
+
+# Tag individual package versions in addition to series tags
 [tools.trellis.publish]
-tag_mode = "both"
+tag_mode = "exact"
+
+[tools.trellis.publish.lifecycle]
+default = "git_only"
 
 # `build`, `test`, `check`, `format`, `docs`, `deps`, and `clean` are built in;
 # only glinter needs declaring.
@@ -89,14 +85,7 @@ tag_mode = "both"
 command = "gleam run -m glinter"
 needs_deps = true
 
-# Kinds carried over from the changie configuration this replaced. Breaking is
-# a minor bump while the packages are pre-1.0, where breaking changes are
-# expected; switch it to "major" at 1.0. One-off overrides don't need a config
-# change — `trellis version apply --bump <pkg>=major` covers those.
 [tools.trellis.changelog]
-# CHANGELOG.md is generated from the sections under .changes/<package>/, so the
-# Keep a Changelog preamble that used to live in .changes/header.md is rendered
-# from here instead.
 header_format = """# Changelog
 
 All notable changes to this project will be documented in this file.

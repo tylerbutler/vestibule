@@ -4,7 +4,8 @@ navLabel: Microsoft strategy
 kind: Provider strategy
 summary: Microsoft OAuth strategy using Microsoft Graph /me, with helpers for tenant-specific sign-in.
 install:
-  - gleam add vestibule_microsoft
+  - "[dependencies]"
+  - 'vestibule_microsoft = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_microsoft" }'
 useWhen: Use Microsoft when users authenticate with Microsoft personal, work, or school accounts.
 defaultScopes: openid User.Read
 setup:

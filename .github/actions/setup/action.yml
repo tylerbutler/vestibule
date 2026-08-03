@@ -1,5 +1,5 @@
-name: "Setup Gleam Environment"
-description: "Thin wrapper around setup-gleam with monorepo-aware caching"
+name: "Setup environment"
+description: "Install mise-managed tools with monorepo-aware Gleam dependency caching"
 
 inputs:
   node:
@@ -10,17 +10,17 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Setup Gleam
-      uses: tylerbutler/actions/setup-gleam@1b043450f1919503d6c23e3ada9fc7aaa4e2a99b # ratchet:tylerbutler/actions/setup-gleam@main
+    - name: Setup tools
+      uses: ./.github/actions/mise
+
+    - name: Setup Node.js
+      if: inputs.node == 'true'
+      uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # ratchet:actions/setup-node@v7
       with:
-        node: ${{ inputs.node }}
-        # Disable built-in caching — it hashes a single gleam.toml in the working
-        # directory, which doesn't work for our monorepo layout (packages/*/gleam.toml).
-        # We add our own cache step below with the correct hashFiles() patterns.
-        cache: "false"
+        node-version: "22"
 
     - name: Cache Gleam dependencies
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # ratchet:actions/cache@v4
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # ratchet:actions/cache@v6
       with:
         path: |
           build/packages
@@ -29,8 +29,8 @@ runs:
           ~/.cache/gleam
         # Hash every member's manifests so the cache invalidates when any of them
         # adds, removes, or changes a dependency. The example is included: it is
-        # a task-fan-out member, and its git dependency makes it re-resolve — a
-        # cold cache there means every CI job queries the Hex API at once, which
-        # is enough to trip the per-IP rate limit.
+        # a task-fan-out member, and its git dependency makes it re-resolve. The
+        # CI dependency job warms this complete cache before the task jobs fan
+        # out, keeping Hex access on one runner.
         key: gleam-${{ runner.os }}-${{ hashFiles('gleam.toml', 'manifest.toml', 'packages/*/gleam.toml', 'packages/*/manifest.toml', 'example/gleam.toml', 'example/manifest.toml') }}
         restore-keys: gleam-${{ runner.os }}-
