@@ -18,6 +18,7 @@ runs:
         # directory, which doesn't work for our monorepo layout (packages/*/gleam.toml).
         # We add our own cache step below with the correct hashFiles() patterns.
         cache: "false"
+        run-deps: "false"
 
     - name: Cache Gleam dependencies
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # ratchet:actions/cache@v6
