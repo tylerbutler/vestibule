@@ -84,7 +84,7 @@ pub fn providers(Registry(a)) -> List(String)
 
 ### `register`
 
-Register a strategy with its `ClientConfig`. Provider name is taken from the
+Register a strategy with its config. Provider name is taken from the
 strategy.
 
 Registration is rejected with `Error(DuplicateProvider(name))` if a
@@ -108,7 +108,7 @@ pub fn register(
 
 ### `register_or_replace`
 
-Register a strategy with its `ClientConfig`, replacing any existing strategy
+Register a strategy with its config, replacing any existing strategy
 registered under the same provider name.
 
 This is the explicit, trusted-caller counterpart to `register`. Only use it

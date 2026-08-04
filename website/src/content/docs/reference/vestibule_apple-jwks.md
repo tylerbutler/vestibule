@@ -4,7 +4,7 @@ description: "Apple JWKS (JSON Web Key Set) fetching and caching."
 nav:
   group: Reference
   groupOrder: 20
-  order: 25
+  order: 24
   label: "vestibule_apple/jwks"
 toc:
   - href: "#types"

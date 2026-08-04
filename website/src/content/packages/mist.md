@@ -35,7 +35,7 @@ code: |
       ["auth", provider], http.Get ->
         vestibule_mist.request_phase(
           req,
-          reg,
+          registry,
           provider,
           store,
           authorize_options: config.authorize_options(),
@@ -44,7 +44,7 @@ code: |
 
       ["auth", provider, "callback"], http.Get
       | ["auth", provider, "callback"], http.Post ->
-        vestibule_mist.callback_phase(req, reg, provider, store, options, on_success)
+        vestibule_mist.callback_phase(req, registry, provider, store, options, on_success)
 
       _, _ ->
         not_found()

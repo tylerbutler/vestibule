@@ -75,7 +75,7 @@ import vestibule/state_store
 import vestibule_wisp
 import vestibule_github
 
-let assert Ok(reg) =
+let assert Ok(registry) =
   registry.new()
   |> registry.register(
     vestibule_github.strategy(),
@@ -92,7 +92,7 @@ case wisp.path_segments(req), req.method {
   ["auth", provider], http.Get ->
     vestibule_wisp.request_phase(
       req,
-      reg,
+      registry,
       provider,
       store,
       authorize_options: config.authorize_options(),
@@ -100,13 +100,13 @@ case wisp.path_segments(req), req.method {
 
   ["auth", provider, "callback"], http.Get
   | ["auth", provider, "callback"], http.Post ->
-    case vestibule_wisp.callback_phase_auth_result(req, reg, provider, store) {
+    case vestibule_wisp.callback_phase_auth_result(req, registry, provider, store) {
       // auth.uid(auth) identifies the user: map it to an account, then
       // start your own session.
       Ok(auth) -> start_session(auth)
 
       // Benign: a stale tab, back button, or already-used callback.
-      Error(vestibule_wisp.SessionExpired) ->
+      Error(vestibule_wisp.SessionUnavailable) ->
         wisp.redirect("/login?error=expired")
 
       // Everything else (forged state, provider rejection, bad params).

@@ -25,30 +25,47 @@ import vestibule/transport_flow
 
 /// Middleware configuration options.
 ///
-/// `cookie_name` should be host-bound (use the `__Host-` prefix) to defend
-/// against OAuth session cookie tossing / fixation. A non-host-bound name such
+/// Construct with `default_options` and customize with `with_cookie_name`
+/// and `with_session_ttl_seconds`. The type is opaque so the session cookie
+/// name is always host-bound (`__Host-` prefixed): a non-host-bound name such
 /// as `vestibule_session` can be overwritten by a sibling subdomain setting a
 /// `Domain=.example.com` cookie of the same name, which lets an attacker plant
 /// their own in-flight flow state and fixate the victim's session — especially
-/// dangerous in account-linking flows. The default options use a host-bound
-/// name; keep the `__Host-` prefix for any custom `cookie_name`. See
-/// `is_host_bound_cookie_name`.
-pub type Options {
-  Options(cookie_name: String, session_ttl_seconds: Int)
+/// dangerous in account-linking flows. Read the effective name with
+/// `cookie_name`.
+pub opaque type Options {
+  Options(
+    // Base cookie name without the `__Host-` prefix; the effective name is
+    // produced by the `cookie_name` accessor.
+    cookie_name: String,
+    session_ttl_seconds: Int,
+  )
 }
 
 /// Structured errors that can occur during the OAuth callback phase.
 pub type CallbackError(e) {
   /// The requested provider is not registered.
   UnknownProvider(provider: String)
-  /// The signed session cookie set during the request phase is missing or invalid.
-  MissingSessionCookie
+  /// The signed session cookie set during the request phase is missing or
+  /// invalid (no cookie present, signature mismatch, tampered payload).
+  MissingOrInvalidSessionCookie
   /// The session state was not found, expired, or already used.
-  SessionExpired
-  /// Callback parameters could not be extracted from the request.
-  InvalidCallbackParams
+  SessionUnavailable
+  /// Callback parameters could not be extracted from the request; `reason`
+  /// says why.
+  InvalidCallbackParams(reason: CallbackParamsError)
   /// Provider authentication failed.
   AuthFailed(error.AuthError(e))
+}
+
+/// Why callback parameters could not be extracted from a POST callback body.
+pub type CallbackParamsError {
+  /// The request body could not be read.
+  BodyReadFailed
+  /// The request body was not valid UTF-8.
+  BodyNotUtf8
+  /// The request body was not valid form/query encoding.
+  BodyNotFormEncoded
 }
 
 /// Default middleware options.
@@ -61,14 +78,45 @@ pub type CallbackError(e) {
 /// HTTPS), `Path=/`, and no `Domain`, so this cookie meets the `__Host-`
 /// requirements.
 pub fn default_options() -> Options {
-  Options(cookie_name: host_bound_cookie_name, session_ttl_seconds: 600)
+  Options(cookie_name: default_cookie_base_name, session_ttl_seconds: 600)
 }
 
 /// Prefix that makes a cookie host-bound under the `__Host-` cookie name rule.
 const host_cookie_prefix: String = "__Host-"
 
-/// The default host-bound OAuth session cookie name.
-const host_bound_cookie_name: String = "__Host-vestibule_session"
+/// The default session cookie name, before the `__Host-` prefix is applied.
+const default_cookie_base_name: String = "vestibule_session"
+
+/// Set a custom session cookie name.
+///
+/// The name is always made host-bound: a `__Host-` prefix is added when
+/// `name` does not already carry one, so both `"my_session"` and
+/// `"__Host-my_session"` produce the effective cookie name
+/// `__Host-my_session`. See the `Options` docs for why the prefix is
+/// mandatory.
+pub fn with_cookie_name(options: Options, name: String) -> Options {
+  let base = case string.starts_with(name, host_cookie_prefix) {
+    True -> string.drop_start(name, string.length(host_cookie_prefix))
+    False -> name
+  }
+  Options(..options, cookie_name: base)
+}
+
+/// Set how long an in-flight authorization flow (and its session cookie)
+/// stays valid.
+pub fn with_session_ttl_seconds(options: Options, seconds: Int) -> Options {
+  Options(..options, session_ttl_seconds: seconds)
+}
+
+/// The effective (host-bound) session cookie name for these options.
+pub fn cookie_name(options: Options) -> String {
+  host_cookie_prefix <> options.cookie_name
+}
+
+/// The session TTL in seconds for these options.
+pub fn session_ttl_seconds(options: Options) -> Int {
+  options.session_ttl_seconds
+}
 
 /// Returns `True` when `name` is host-bound (uses the `__Host-` prefix).
 ///
@@ -76,8 +124,8 @@ const host_bound_cookie_name: String = "__Host-vestibule_session"
 /// sibling subdomains: browsers only accept a `__Host-` cookie when it is set
 /// with `Secure`, `Path=/`, and no `Domain` attribute, so a sibling subdomain
 /// cannot overwrite it with a `Domain=.example.com` cookie of the same name.
-/// Prefer keeping the `__Host-` prefix for any custom `Options.cookie_name`;
-/// use this to validate names supplied by callers.
+/// `Options` enforces the prefix for its own cookie name; use this to check
+/// names from other sources.
 pub fn is_host_bound_cookie_name(name: String) -> Bool {
   string.starts_with(name, host_cookie_prefix)
 }
@@ -91,14 +139,14 @@ pub fn is_host_bound_cookie_name(name: String) -> Bool {
 /// Returns 404 if the provider is not registered.
 pub fn request_phase(
   req: Request,
-  reg reg: Registry(e),
+  registry registry: Registry(e),
   provider provider: String,
   state_store state_store: StateStore,
   authorize_options authorize_options: AuthorizeOptions,
 ) -> Response {
   request_phase_with_options(
     req,
-    reg: reg,
+    registry: registry,
     provider: provider,
     state_store: state_store,
     authorize_options: authorize_options,
@@ -110,7 +158,7 @@ pub fn request_phase(
 /// options.
 pub fn request_phase_with_options(
   req: Request,
-  reg reg: Registry(e),
+  registry registry: Registry(e),
   provider provider: String,
   state_store state_store: StateStore,
   authorize_options authorize_options: AuthorizeOptions,
@@ -128,10 +176,10 @@ pub fn request_phase_with_options(
   )
   case
     transport_flow.start_authorization(
-      reg,
+      registry,
       provider: provider,
       store: state_store,
-      ttl_seconds: middleware_options.session_ttl_seconds,
+      ttl_seconds: session_ttl_seconds(middleware_options),
       options: authorize_options,
     )
   {
@@ -197,10 +245,10 @@ pub fn request_phase_with_options(
       wisp.redirect(url)
       |> wisp.set_cookie(
         req,
-        middleware_options.cookie_name,
+        cookie_name(middleware_options),
         session_id,
         wisp.Signed,
-        middleware_options.session_ttl_seconds,
+        session_ttl_seconds(middleware_options),
       )
     }
   }
@@ -219,14 +267,14 @@ pub fn request_phase_with_options(
 /// Returns 404 if the provider is not registered.
 pub fn callback_phase(
   req: Request,
-  reg reg: Registry(e),
+  registry registry: Registry(e),
   provider provider: String,
   state_store state_store: StateStore,
   on_success on_success: fn(Auth) -> Response,
 ) -> Response {
   callback_phase_with_options(
     req,
-    reg: reg,
+    registry: registry,
     provider: provider,
     state_store: state_store,
     on_success: on_success,
@@ -237,7 +285,7 @@ pub fn callback_phase(
 /// Phase 2: Handle the OAuth callback using custom middleware options.
 pub fn callback_phase_with_options(
   req: Request,
-  reg reg: Registry(e),
+  registry registry: Registry(e),
   provider provider: String,
   state_store state_store: StateStore,
   on_success on_success: fn(Auth) -> Response,
@@ -246,7 +294,7 @@ pub fn callback_phase_with_options(
   case
     callback_phase_auth_result_with_options(
       req,
-      reg: reg,
+      registry: registry,
       provider: provider,
       state_store: state_store,
       options: options,
@@ -267,13 +315,13 @@ pub fn callback_phase_with_options(
 /// success value or generated error response yourself.
 pub fn callback_phase_result(
   req: Request,
-  reg reg: Registry(e),
+  registry registry: Registry(e),
   provider provider: String,
   state_store state_store: StateStore,
 ) -> Result(Auth, Response) {
   callback_phase_result_with_options(
     req,
-    reg: reg,
+    registry: registry,
     provider: provider,
     state_store: state_store,
     options: default_options(),
@@ -284,7 +332,7 @@ pub fn callback_phase_result(
 /// options.
 pub fn callback_phase_result_with_options(
   req: Request,
-  reg reg: Registry(e),
+  registry registry: Registry(e),
   provider provider: String,
   state_store state_store: StateStore,
   options options: Options,
@@ -292,7 +340,7 @@ pub fn callback_phase_result_with_options(
   case
     callback_phase_auth_result_with_options(
       req,
-      reg: reg,
+      registry: registry,
       provider: provider,
       state_store: state_store,
       options: options,
@@ -310,13 +358,13 @@ pub fn callback_phase_result_with_options(
 /// parameter, and provider authentication failures without parsing responses.
 pub fn callback_phase_auth_result(
   req: Request,
-  reg reg: Registry(e),
+  registry registry: Registry(e),
   provider provider: String,
   state_store state_store: StateStore,
 ) -> Result(Auth, CallbackError(e)) {
   callback_phase_auth_result_with_options(
     req,
-    reg: reg,
+    registry: registry,
     provider: provider,
     state_store: state_store,
     options: default_options(),
@@ -331,7 +379,7 @@ pub fn callback_phase_auth_result(
 /// valid in-flight login.
 pub fn callback_phase_auth_result_with_options(
   req: Request,
-  reg reg: Registry(e),
+  registry registry: Registry(e),
   provider provider: String,
   state_store state_store: StateStore,
   options options: Options,
@@ -348,15 +396,15 @@ pub fn callback_phase_auth_result_with_options(
   )
   let outcome = {
     use strategy_config <- result.try(
-      transport_flow.ensure_callback_provider(reg, provider)
-      |> result.map_error(map_callback_flow_error),
+      transport_flow.ensure_callback_provider(registry, provider)
+      |> result.map_error(to_callback_error),
     )
 
     use params <- result.try(get_callback_params(req))
 
     use session_id <- result.try(
-      wisp.get_cookie(req, options.cookie_name, wisp.Signed)
-      |> result.map_error(fn(_) { MissingSessionCookie }),
+      wisp.get_cookie(req, cookie_name(options), wisp.Signed)
+      |> result.map_error(fn(_) { MissingOrInvalidSessionCookie }),
     )
 
     transport_flow.finish_callback(
@@ -365,7 +413,7 @@ pub fn callback_phase_auth_result_with_options(
       params: params,
       session_id: session_id,
     )
-    |> result.map_error(map_callback_flow_error)
+    |> result.map_error(to_callback_error)
   }
   case outcome {
     Ok(_) ->
@@ -395,15 +443,15 @@ fn get_callback_params(
     http.Post -> {
       use body_bits <- result.try(
         wisp.read_body_bits(req)
-        |> result.replace_error(InvalidCallbackParams),
+        |> result.replace_error(InvalidCallbackParams(BodyReadFailed)),
       )
       use body_string <- result.try(
         bit_array.to_string(body_bits)
-        |> result.replace_error(InvalidCallbackParams),
+        |> result.replace_error(InvalidCallbackParams(BodyNotUtf8)),
       )
       use body_params <- result.try(
         uri.parse_query(body_string)
-        |> result.replace_error(InvalidCallbackParams),
+        |> result.replace_error(InvalidCallbackParams(BodyNotFormEncoded)),
       )
       // Merge: body params take precedence over query params
       Ok(dict.merge(dict.from_list(query_params), dict.from_list(body_params)))
@@ -412,13 +460,13 @@ fn get_callback_params(
   }
 }
 
-fn map_callback_flow_error(
+fn to_callback_error(
   err: transport_flow.CallbackFlowError(e),
 ) -> CallbackError(e) {
   case err {
     transport_flow.CallbackUnknownProvider(provider) ->
       UnknownProvider(provider)
-    transport_flow.CallbackSessionUnavailable -> SessionExpired
+    transport_flow.CallbackSessionUnavailable -> SessionUnavailable
     transport_flow.CallbackAuthFailed(err) -> AuthFailed(err)
   }
 }
@@ -426,9 +474,9 @@ fn map_callback_flow_error(
 fn log_callback_error(provider: String, err: CallbackError(e)) -> Nil {
   let category = case err {
     UnknownProvider(_) -> "unknown_provider"
-    MissingSessionCookie -> "missing_session_cookie"
-    SessionExpired -> "session_expired"
-    InvalidCallbackParams -> "invalid_callback_params"
+    MissingOrInvalidSessionCookie -> "missing_or_invalid_session_cookie"
+    SessionUnavailable -> "session_unavailable"
+    InvalidCallbackParams(_) -> "invalid_callback_params"
     AuthFailed(auth_err) -> logger.auth_error_category(auth_err)
   }
   logger.emit(
@@ -449,11 +497,11 @@ fn log_callback_error(provider: String, err: CallbackError(e)) -> Nil {
 fn callback_error_response(err: CallbackError(e)) -> Response {
   case err {
     UnknownProvider(_) -> wisp.not_found()
-    MissingSessionCookie ->
-      error_response(error.config(reason: "Missing session cookie"))
-    SessionExpired ->
+    MissingOrInvalidSessionCookie ->
+      error_response(error.config(reason: "Missing or invalid session cookie"))
+    SessionUnavailable ->
       error_response(error.config(reason: "Session expired or already used"))
-    InvalidCallbackParams ->
+    InvalidCallbackParams(_) ->
       error_response(error.config(reason: "Invalid callback parameters"))
     AuthFailed(err) -> error_response(err)
   }

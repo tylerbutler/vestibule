@@ -103,7 +103,7 @@ import vestibule/state_store
 import vestibule_github
 
 // Initialize once at startup
-let assert Ok(reg) =
+let assert Ok(registry) =
   registry.new()
   |> registry.register(
     vestibule_github.strategy(),
@@ -120,7 +120,7 @@ case wisp.path_segments(req), req.method {
   ["auth", provider], http.Get ->
     vestibule_wisp.request_phase(
       req,
-      reg,
+      registry,
       provider,
       store,
       authorize_options: config.authorize_options(),
@@ -129,7 +129,7 @@ case wisp.path_segments(req), req.method {
   ["auth", provider, "callback"], http.Get
   | ["auth", provider, "callback"], http.Post
   ->
-    vestibule_wisp.callback_phase(req, reg, provider, store, fn(auth) {
+    vestibule_wisp.callback_phase(req, registry, provider, store, fn(auth) {
       // auth.uid(auth), user_info.name(auth.info(auth)), user_info.email(auth.info(auth))
       wisp.redirect("/dashboard")
     })
@@ -157,7 +157,7 @@ or raw provider response bodies.
 If you want to handle callback failures yourself instead of using the default
 HTML error page, use `vestibule_wisp.callback_phase_result`. Use
 `vestibule_wisp.callback_phase_auth_result` when you need structured errors such
-as `UnknownProvider`, `MissingSessionCookie`, `SessionExpired`,
+as `UnknownProvider`, `MissingOrInvalidSessionCookie`, `SessionUnavailable`,
 `InvalidCallbackParams`, or `AuthFailed`. Missing or invalid callback `state` and
 `code` values are provider/authentication failures and are reported through
 `AuthFailed`.
@@ -183,7 +183,7 @@ fn handle_request(req: Request(Connection)) -> Response(ResponseData) {
     ["auth", provider], http.Get ->
       vestibule_mist.request_phase(
         req,
-        reg,
+        registry,
         provider,
         store,
         authorize_options: config.authorize_options(),
@@ -191,7 +191,7 @@ fn handle_request(req: Request(Connection)) -> Response(ResponseData) {
       )
     ["auth", provider, "callback"], http.Get
     | ["auth", provider, "callback"], http.Post ->
-      vestibule_mist.callback_phase(req, reg, provider, store, options, on_success)
+      vestibule_mist.callback_phase(req, registry, provider, store, options, on_success)
     _, _ -> not_found()
   }
 }
@@ -231,11 +231,11 @@ talk to a specific provider.
 Use a registry to support multiple providers in one app:
 
 ```gleam
-let assert Ok(reg) =
+let assert Ok(registry) =
   registry.new()
   |> registry.register(vestibule_github.strategy(), github_cfg)
-let assert Ok(reg) =
-  reg
+let assert Ok(registry) =
+  registry
   |> registry.register(vestibule_google.strategy(), google_cfg)
 ```
 

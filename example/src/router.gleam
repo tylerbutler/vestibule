@@ -24,7 +24,7 @@ pub fn handle_request(req: Request, ctx: Context(e)) -> Response {
     ["auth", provider], http.Get ->
       vestibule_wisp.request_phase(
         req,
-        reg: ctx.registry,
+        registry: ctx.registry,
         provider: provider,
         state_store: ctx.state_store,
         authorize_options: config.authorize_options(),
@@ -36,7 +36,7 @@ pub fn handle_request(req: Request, ctx: Context(e)) -> Response {
     ->
       vestibule_wisp.callback_phase(
         req,
-        reg: ctx.registry,
+        registry: ctx.registry,
         provider: provider,
         state_store: ctx.state_store,
         on_success: fn(auth) { pages.success(auth) },

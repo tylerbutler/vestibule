@@ -4,7 +4,7 @@ description: "Normalized user profile returned by a provider's userinfo endpoint
 nav:
   group: Reference
   groupOrder: 20
-  order: 23
+  order: 22
   label: "vestibule/user_info"
 toc:
   - href: "#types"
@@ -34,7 +34,7 @@ callers that construct or pattern-match the value. Build instances with
 `new` plus the `with_*` helpers, and read fields with the accessors.
 
 ```gleam
-pub opaque type UserInfo
+pub type UserInfo
 ```
 
 ## Functions

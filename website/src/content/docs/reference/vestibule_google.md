@@ -4,7 +4,7 @@ description: "Google OAuth 2.0 / OIDC strategy."
 nav:
   group: Reference
   groupOrder: 20
-  order: 28
+  order: 27
   label: "vestibule_google"
 toc:
   - href: "#functions"
@@ -77,11 +77,11 @@ Authentication fails unless Google's userinfo response carries an `hd`
 mismatched `hd` yields `error.user_info`. The validated domain is
 surfaced under the `"hd"` key of `UserResult`'s `extra` dict.
 
-`hosted_domain` is also added to each authorization URL as an account-picker
+`hosted_domain` is also added to the authorization URL as an account-picker
 hint, but that hint is advisory only — enforcement happens server-side when
-the userinfo response is validated. Setting `hd` per request with
-`config.authorize_options() |> config.with_extra_params([#("hd", ...)])` is
-purely a UI hint and must not be relied on for authorization.
+the userinfo response is validated. Setting `hd` via
+`config.authorize_options() |> config.with_extra_params([#("hd", ...)])` is purely a UI hint and must not
+be relied on for authorization.
 
 ```gleam
 pub fn strategy_for_hosted_domain(String) -> strategy.Strategy(a)

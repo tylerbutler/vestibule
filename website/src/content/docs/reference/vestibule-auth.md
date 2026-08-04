@@ -29,12 +29,12 @@ successful OAuth/OIDC flow.
 
 The normalized result of a successful authentication.
 
-Opaque so the field set can grow in future releases without breaking
-callers that construct or pattern-match the value. Build instances with
-`new` and read fields with the accessors.
+Opaque so the field set can grow in future releases. Callers build instances
+with `auth.new` and read fields with accessors; they cannot pattern match on
+fields.
 
 ```gleam
-pub opaque type Auth
+pub type Auth
 ```
 
 ## Functions

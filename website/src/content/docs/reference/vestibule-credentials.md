@@ -41,7 +41,7 @@ reports redact them even when a caller accidentally renders a `Credentials`
 in strategies and accessors to read fields when needed.
 
 ```gleam
-pub opaque type Credentials
+pub type Credentials
 ```
 
 ## Functions

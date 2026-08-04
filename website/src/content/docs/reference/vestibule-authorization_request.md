@@ -39,7 +39,7 @@ Construct with `new` and read fields via the `url`, `state`,
 `code_verifier`, and `nonce` accessors.
 
 ```gleam
-pub opaque type AuthorizationRequest
+pub type AuthorizationRequest
 ```
 
 ## Functions
