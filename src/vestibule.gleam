@@ -39,11 +39,11 @@ import vestibule/strategy.{type Strategy}
 /// timestamp alongside the state when saving it to your session and
 /// check it before calling `handle_callback`.
 pub fn create_authorization_request(
-  strat: Strategy(e),
-  cfg cfg: ClientConfig,
+  strategy: Strategy(e),
+  config config: ClientConfig,
   options options: AuthorizeOptions,
 ) -> Result(AuthorizationRequest, AuthError(e)) {
-  let provider = option.Some(strategy.provider(strat))
+  let provider = option.Some(strategy.provider(strategy))
   logger.emit(
     logger.new(
       level: logger.Debug,
@@ -57,12 +57,12 @@ pub fn create_authorization_request(
   let csrf_state = state.generate()
   let code_verifier = pkce.generate_verifier()
   let code_challenge = pkce.compute_challenge(code_verifier)
-  let maybe_nonce = case strategy.uses_nonce(strat) {
+  let maybe_nonce = case strategy.uses_nonce(strategy) {
     True -> option.Some(nonce.generate())
     False -> option.None
   }
   let scopes = case config.scopes(options) {
-    [] -> strategy.default_scopes(strat)
+    [] -> strategy.default_scopes(strategy)
     custom -> custom
   }
   logger.emit(
@@ -77,8 +77,8 @@ pub fn create_authorization_request(
   )
   let outcome =
     strategy.build_authorize_url(
-      strat,
-      cfg: cfg,
+      strategy,
+      config: config,
       options: options,
       scopes: scopes,
       state: csrf_state,
@@ -142,14 +142,14 @@ pub fn create_authorization_request(
 /// expiration, check the timestamp you stored alongside the state
 /// before calling this function.
 pub fn handle_callback(
-  strat: Strategy(e),
-  cfg cfg: ClientConfig,
+  strategy: Strategy(e),
+  config config: ClientConfig,
   callback_params callback_params: Dict(String, String),
   expected_state expected_state: String,
   code_verifier code_verifier: String,
   expected_nonce expected_nonce: option.Option(String),
 ) -> Result(Auth, AuthError(e)) {
-  let provider = option.Some(strategy.provider(strat))
+  let provider = option.Some(strategy.provider(strategy))
   logger.emit(
     logger.new(
       level: logger.Debug,
@@ -291,8 +291,8 @@ pub fn handle_callback(
   // Exchange code for credentials and provider-specific artifacts, passing the PKCE verifier
   let exchange_result =
     strategy.exchange_code(
-      strat,
-      cfg: cfg,
+      strategy,
+      config: config,
       code: code,
       code_verifier: option.Some(code_verifier),
     )
@@ -325,7 +325,7 @@ pub fn handle_callback(
   use exchange <- result.try(exchange_result)
 
   // Validate the OIDC nonce against the id_token (when one is expected).
-  let nonce_result = validate_callback_nonce(strat, exchange, expected_nonce)
+  let nonce_result = validate_callback_nonce(strategy, exchange, expected_nonce)
   case nonce_result {
     Ok(_) ->
       logger.emit(
@@ -355,7 +355,8 @@ pub fn handle_callback(
   use _ <- result.try(nonce_result)
 
   // Fetch user info
-  let user_result = strategy.fetch_user(strat, cfg: cfg, exchange: exchange)
+  let user_result =
+    strategy.fetch_user(strategy, config: config, exchange: exchange)
   case user_result {
     Ok(_) ->
       logger.emit(
@@ -388,7 +389,7 @@ pub fn handle_callback(
   let auth =
     auth.new(
       uid: strategy.user_result_uid(user),
-      provider: strategy.provider(strat),
+      provider: strategy.provider(strategy),
       info: strategy.user_result_info(user),
       credentials: strategy.exchange_credentials(exchange),
       extra: strategy.user_result_extra(user),
@@ -410,11 +411,11 @@ pub fn handle_callback(
 ///
 /// Delegates to the provider strategy so refresh semantics remain provider-owned.
 pub fn refresh_token(
-  strat: Strategy(e),
-  cfg cfg: ClientConfig,
-  refresh_tok refresh_tok: String,
+  strategy: Strategy(e),
+  config config: ClientConfig,
+  refresh_token refresh_token: String,
 ) -> Result(Credentials, AuthError(e)) {
-  let provider = option.Some(strategy.provider(strat))
+  let provider = option.Some(strategy.provider(strategy))
   logger.emit(
     logger.new(
       level: logger.Debug,
@@ -426,9 +427,13 @@ pub fn refresh_token(
     ),
   )
   let outcome =
-    strategy.refresh_token(strat, cfg: cfg, refresh_tok: refresh_tok)
+    strategy.refresh_token(
+      strategy,
+      config: config,
+      refresh_token: refresh_token,
+    )
   case outcome {
-    Ok(creds) ->
+    Ok(credentials) ->
       logger.emit(
         logger.new(
           level: logger.Info,
@@ -439,11 +444,11 @@ pub fn refresh_token(
           fields: [
             logger.bool_field(
               "has_refresh_token",
-              option.is_some(credentials.refresh_token(creds)),
+              option.is_some(credentials.refresh_token(credentials)),
             ),
             logger.int_field(
               "scope_count",
-              list.length(credentials.scopes(creds)),
+              list.length(credentials.scopes(credentials)),
             ),
           ],
         ),
@@ -547,11 +552,11 @@ fn append_raw_query(url: String, query: String) -> String {
 /// missing `nonce` claim, or a mismatch all fail with an AuthError of kind
 /// `InvalidNonceKind`.
 fn validate_callback_nonce(
-  strat: Strategy(e),
+  strategy: Strategy(e),
   exchange: strategy.ExchangeResult,
   expected_nonce: option.Option(String),
 ) -> Result(Nil, AuthError(e)) {
-  case strategy.uses_nonce(strat), expected_nonce {
+  case strategy.uses_nonce(strategy), expected_nonce {
     True, option.Some(expected) -> {
       use id_token <- result.try(extract_id_token(exchange))
       use claimed <- result.try(read_nonce_claim(id_token))

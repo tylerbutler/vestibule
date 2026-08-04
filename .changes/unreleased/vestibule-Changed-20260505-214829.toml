@@ -1,3 +1,0 @@
-package = "vestibule"
-kind = "Changed"
-body = "`strategy.exchange_code` now returns an opaque, accessor-based `ExchangeResult` with `strategy.exchange_credentials` and `strategy.exchange_artifacts` accessors, and `strategy.fetch_user` receives that exchange result so provider-specific token response artifacts can flow explicitly into user resolution. Providers with no artifacts can wrap credentials with `strategy.exchange_result(credentials)`."

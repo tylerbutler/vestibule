@@ -30,9 +30,9 @@ Each strategy tells vestibule how to talk to a specific OAuth2 provider: how to 
 
 Vestibule authenticates users in two phases:
 
-1. **Request phase** -- Your application calls `vestibule.create_authorization_request(strategy, cfg:, options:)`. Vestibule generates a CSRF state token and PKCE code verifier, calls your strategy's `authorize_url` function to build the provider-specific URL, then appends the PKCE `code_challenge` parameter. You get back an `AuthorizationRequest` containing the URL, state, and code verifier. Store the state and code verifier in the user's session, then redirect them to the URL.
+1. **Request phase** -- Your application calls `vestibule.create_authorization_request(strategy, config:, options:)`. Vestibule generates a CSRF state token and PKCE code verifier, calls your strategy's `authorize_url` function to build the provider-specific URL, then appends the PKCE `code_challenge` parameter. You get back an `AuthorizationRequest` containing the URL, state, and code verifier. Store the state and code verifier in the user's session, then redirect them to the URL.
 
-2. **Callback phase** -- The provider redirects the user back to your application with a `code` and `state` parameter. Your application calls `vestibule.handle_callback(strategy, cfg, params, expected_state, code_verifier, expected_nonce:)`. Vestibule validates the CSRF state, calls your strategy's `exchange_code` function (passing the PKCE code verifier), then calls your strategy's `fetch_user` function with the config and `ExchangeResult`. You get back an opaque `Auth` value with accessors for the user's UID, normalized info, provider extras, and OAuth credentials.
+2. **Callback phase** -- The provider redirects the user back to your application with a `code` and `state` parameter. Your application calls `vestibule.handle_callback(strategy, config, params, expected_state, code_verifier, expected_nonce:)`. Vestibule validates the CSRF state, calls your strategy's `exchange_code` function (passing the PKCE code verifier), then calls your strategy's `fetch_user` function with the config and `ExchangeResult`. You get back an opaque `Auth` value with accessors for the user's UID, normalized info, provider extras, and OAuth credentials.
 
 ### What the core library handles for you
 
@@ -67,15 +67,19 @@ pub opaque type ExchangeResult
 pub opaque type Strategy(e)
 ```
 
-Because the type is opaque, you never touch those fields directly. Start with
-`strategy.new` and attach each capability with a `with_*` builder:
+Because the type is opaque, you never touch those fields directly. Pass the
+three required capabilities to `strategy.new` and attach optional ones with
+the `with_*` builders:
 
 ```gleam
-// Build a Strategy with the capability builders:
-strategy.new(provider: "twitch", default_scopes: ["user:read:email"])
-|> strategy.with_authorize_url(do_authorize_url)
-|> strategy.with_exchange_code(do_exchange_code)
-|> strategy.with_fetch_user(do_fetch_user)
+// Build a Strategy with the required capabilities:
+strategy.new(
+  provider: "twitch",
+  default_scopes: ["user:read:email"],
+  authorize_url: do_authorize_url,
+  exchange_code: do_exchange_code,
+  fetch_user: do_fetch_user,
+)
 |> strategy.with_refresh(do_refresh_token)
 // |> strategy.with_nonce()   // add this for OIDC providers that issue an id_token
 
@@ -91,12 +95,11 @@ strategy.exchange_credentials(exchange)  // -> Credentials
 strategy.exchange_artifacts(exchange)    // -> Dict(String, Dynamic)
 ```
 
-`with_authorize_url`, `with_exchange_code`, and `with_fetch_user` are required
-for a working strategy; calling the corresponding orchestrator step on a
-strategy that omitted one fails with `error.config(reason:)`. `with_refresh`
-and `with_nonce` are optional: a strategy built without `with_refresh` reports
-`error.refresh_unsupported()` from `vestibule.refresh_token`, and `with_nonce`
-only applies to OIDC providers.
+`authorize_url`, `exchange_code`, and `fetch_user` are required arguments to
+`strategy.new`, so a strategy that cannot complete an authentication flow
+cannot be built. `with_refresh` and `with_nonce` are optional: a strategy
+built without `with_refresh` reports `error.refresh_unsupported()` from
+`vestibule.refresh_token`, and `with_nonce` only applies to OIDC providers.
 
 ### Capability-by-capability breakdown
 
@@ -104,13 +107,13 @@ only applies to OIDC providers.
 
 **`default_scopes: List(String)`** -- The scopes to request when the user has not configured custom scopes. These should be the minimum scopes needed to fetch basic user information. For example, GitHub uses `["user:email"]` and Google uses `["openid", "profile", "email"]`.
 
-**`with_authorize_url(fn(ClientConfig, AuthorizeOptions, List(String), String) -> Result(String, AuthError(e)))`** -- Given the client config, per-request options, resolved scopes, and CSRF state string, return the full authorization URL. Vestibule will append the PKCE parameters after your function returns. You must include `response_type=code`, `client_id`, `redirect_uri`, `scope`, and `state` in the URL.
+**`authorize_url: (fn(ClientConfig, AuthorizeOptions, List(String), String) -> Result(String, AuthError(e)))`** -- Given the client config, per-request options, resolved scopes, and CSRF state string, return the full authorization URL. Vestibule will append the PKCE parameters after your function returns. You must include `response_type=code`, `client_id`, `redirect_uri`, `scope`, and `state` in the URL.
 
-**`with_exchange_code(fn(ClientConfig, String, Option(String)) -> Result(ExchangeResult, AuthError(e)))`** -- Given the config, authorization code, and optional PKCE code verifier, POST to the token endpoint and return parsed credentials plus any provider-specific token response artifacts. The code verifier will be `Some(verifier)` when PKCE is in use (which is always, in the current implementation). Use `strategy.exchange_result(credentials)` when the provider has no artifacts to carry forward.
+**`exchange_code: (fn(ClientConfig, String, Option(String)) -> Result(ExchangeResult, AuthError(e)))`** -- Given the config, authorization code, and optional PKCE code verifier, POST to the token endpoint and return parsed credentials plus any provider-specific token response artifacts. The code verifier will be `Some(verifier)` when PKCE is in use (which is always, in the current implementation). Use `strategy.exchange_result(credentials)` when the provider has no artifacts to carry forward.
 
 **`with_refresh(fn(ClientConfig, String) -> Result(Credentials, AuthError(e)))`** -- *Optional.* Given the config and a refresh token string, POST to the provider's token endpoint and return updated `Credentials`. Providers differ on refresh-token rotation, scopes, and error formats, so refresh stays strategy-owned. Omit this builder for providers that do not support refresh; `vestibule.refresh_token` then returns an error built with `error.refresh_unsupported()`.
 
-**`with_fetch_user(fn(ClientConfig, ExchangeResult) -> Result(UserResult, AuthError(e)))`** -- Given the config and successful exchange result, fetch the provider's user info API and return a `UserResult` built with `strategy.user_result(uid:, info:, extra:)`. The exchange result contains standard credentials and any token response artifacts your provider needs while resolving the user (read them with `strategy.exchange_credentials` and `strategy.exchange_artifacts`). The UID should be the provider's stable unique identifier for the user (e.g., a numeric ID or a `sub` claim). Use `extra: dict.new()` when the provider has no extra data to expose.
+**`fetch_user: (fn(ClientConfig, ExchangeResult) -> Result(UserResult, AuthError(e)))`** -- Given the config and successful exchange result, fetch the provider's user info API and return a `UserResult` built with `strategy.user_result(uid:, info:, extra:)`. The exchange result contains standard credentials and any token response artifacts your provider needs while resolving the user (read them with `strategy.exchange_credentials` and `strategy.exchange_artifacts`). The UID should be the provider's stable unique identifier for the user (e.g., a numeric ID or a `sub` claim). Use `extra: dict.new()` when the provider has no extra data to expose.
 
 **`with_nonce()`** -- *Optional.* Marks the strategy as an OIDC provider that issues an `id_token`. Vestibule then generates an OIDC `nonce`, emits it on the authorization URL, and validates it against the returned `id_token` on callback. Omit it for plain OAuth2 providers.
 
@@ -556,10 +559,13 @@ Now create the public `strategy()` constructor that assembles all the pieces:
 ```gleam
 /// Create a Twitch authentication strategy.
 pub fn strategy() -> Strategy(e) {
-  strategy.new(provider: "twitch", default_scopes: ["user:read:email"])
-  |> strategy.with_authorize_url(do_authorize_url)
-  |> strategy.with_exchange_code(do_exchange_code)
-  |> strategy.with_fetch_user(do_fetch_user)
+  strategy.new(
+    provider: "twitch",
+    default_scopes: ["user:read:email"],
+    authorize_url: do_authorize_url,
+    exchange_code: do_exchange_code,
+    fetch_user: do_fetch_user,
+  )
   |> strategy.with_refresh(do_refresh_token)
 }
 ```
@@ -584,7 +590,7 @@ pub fn start_auth() {
   let assert Ok(auth_request) =
     vestibule.create_authorization_request(
       strategy,
-      cfg: twitch_config,
+      config: twitch_config,
       options: options,
     )
   // Store authorization_request.state(auth_request) and

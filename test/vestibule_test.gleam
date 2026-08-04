@@ -21,36 +21,56 @@ pub fn main() -> Nil {
 
 // A fake strategy for testing the orchestrator
 fn test_strategy() -> Strategy(e) {
-  strategy.new(provider: "test", default_scopes: ["default_scope"])
-  |> strategy.with_authorize_url(fn(_config, _options, scopes, state) {
-    Ok(
-      "https://test.com/auth?scope="
-      <> string.join(scopes, " ")
-      <> "&state="
-      <> state,
-    )
-  })
-  |> strategy.with_exchange_code(fn(_config, code, _code_verifier) {
-    case code {
-      "valid_code" ->
-        Ok(
-          strategy.exchange_result(
-            credentials.new(
-              token: "test_token",
-              refresh_token: None,
-              token_type: "bearer",
-              expires_in: None,
-              scopes: ["default_scope"],
+  strategy.new(
+    provider: "test",
+    default_scopes: ["default_scope"],
+    authorize_url: fn(_config, _options, scopes, state) {
+      Ok(
+        "https://test.com/auth?scope="
+        <> string.join(scopes, " ")
+        <> "&state="
+        <> state,
+      )
+    },
+    exchange_code: fn(_config, code, _code_verifier) {
+      case code {
+        "valid_code" ->
+          Ok(
+            strategy.exchange_result(
+              credentials.new(
+                token: "test_token",
+                refresh_token: None,
+                token_type: "bearer",
+                expires_in: None,
+                scopes: ["default_scope"],
+              ),
             ),
-          ),
-        )
-      _ -> Error(error.code_exchange(reason: "bad code"))
-    }
-  })
-  |> strategy.with_refresh(fn(cfg, refresh_tok) {
+          )
+        _ -> Error(error.code_exchange(reason: "bad code"))
+      }
+    },
+    fetch_user: fn(_client_config, exchange) {
+      strategy.exchange_credentials(exchange)
+      |> credentials.token()
+      |> expect.to_equal("test_token")
+      Ok(strategy.user_result(
+        uid: "user123",
+        info: user_info.new()
+          |> user_info.with_name(Some("Test User"))
+          |> user_info.with_email(Some("test@example.com")),
+        extra: dict.from_list([
+          #("raw_provider", dynamic.string("from-provider")),
+        ]),
+      ))
+    },
+  )
+  |> strategy.with_refresh(fn(client_config, refresh_token) {
     Ok(
       credentials.new(
-        token: "delegated:" <> refresh_tok <> ":" <> config.client_id(cfg),
+        token: "delegated:"
+          <> refresh_token
+          <> ":"
+          <> config.client_id(client_config),
         refresh_token: Some("rotated_by_strategy"),
         token_type: "bearer",
         expires_in: Some(3600),
@@ -58,51 +78,40 @@ fn test_strategy() -> Strategy(e) {
       ),
     )
   })
-  |> strategy.with_fetch_user(fn(_cfg, exchange) {
-    strategy.exchange_credentials(exchange)
-    |> credentials.token()
-    |> expect.to_equal("test_token")
-    Ok(strategy.user_result(
-      uid: "user123",
-      info: user_info.new()
-        |> user_info.with_name(Some("Test User"))
-        |> user_info.with_email(Some("test@example.com")),
-      extra: dict.from_list([
-        #("raw_provider", dynamic.string("from-provider")),
-      ]),
-    ))
-  })
 }
 
 fn artifact_strategy() -> Strategy(e) {
-  strategy.new(provider: "artifact", default_scopes: [])
-  |> strategy.with_authorize_url(fn(_config, _options, _scopes, state) {
-    Ok("https://test.com/auth?state=" <> state)
-  })
-  |> strategy.with_exchange_code(fn(_config, _code, _code_verifier) {
-    Ok(strategy.exchange_result_with_artifacts(
-      credentials.new(
-        token: "artifact_token",
-        refresh_token: None,
-        token_type: "bearer",
-        expires_in: None,
-        scopes: [],
-      ),
-      dict.from_list([#("exchange_marker", dynamic.string("from-exchange"))]),
-    ))
-  })
-  |> strategy.with_refresh(fn(_config, _refresh_tok) {
+  strategy.new(
+    provider: "artifact",
+    default_scopes: [],
+    authorize_url: fn(_config, _options, _scopes, state) {
+      Ok("https://test.com/auth?state=" <> state)
+    },
+    exchange_code: fn(_config, _code, _code_verifier) {
+      Ok(strategy.exchange_result_with_artifacts(
+        credentials.new(
+          token: "artifact_token",
+          refresh_token: None,
+          token_type: "bearer",
+          expires_in: None,
+          scopes: [],
+        ),
+        dict.from_list([#("exchange_marker", dynamic.string("from-exchange"))]),
+      ))
+    },
+    fetch_user: fn(_client_config, exchange) {
+      let assert Ok(marker) =
+        dict.get(strategy.exchange_artifacts(exchange), "exchange_marker")
+      let assert Ok(decoded) = decode.run(marker, decode.string)
+      Ok(strategy.user_result(
+        uid: decoded,
+        info: user_info.new(),
+        extra: dict.new(),
+      ))
+    },
+  )
+  |> strategy.with_refresh(fn(_config, _refresh_token) {
     Error(error.config(reason: "refresh not implemented"))
-  })
-  |> strategy.with_fetch_user(fn(_cfg, exchange) {
-    let assert Ok(marker) =
-      dict.get(strategy.exchange_artifacts(exchange), "exchange_marker")
-    let assert Ok(decoded) = decode.run(marker, decode.string)
-    Ok(strategy.user_result(
-      uid: decoded,
-      info: user_info.new(),
-      extra: dict.new(),
-    ))
   })
 }
 
@@ -111,26 +120,33 @@ fn fragment_strategy() -> Strategy(e) {
   strategy.new(
     provider: strategy.provider(base),
     default_scopes: strategy.default_scopes(base),
+    authorize_url: fn(_config, _options, _scopes, state) {
+      Ok(
+        "https://test.com/auth?state="
+        <> state
+        <> "&existing=1#provider-fragment",
+      )
+    },
+    exchange_code: fn(client_config, code, verifier) {
+      strategy.exchange_code(
+        base,
+        config: client_config,
+        code: code,
+        code_verifier: verifier,
+      )
+    },
+    fetch_user: fn(client_config, exchange) {
+      strategy.fetch_user(base, config: client_config, exchange: exchange)
+    },
   )
-  |> strategy.with_authorize_url(fn(_config, _options, _scopes, state) {
-    Ok(
-      "https://test.com/auth?state=" <> state <> "&existing=1#provider-fragment",
-    )
-  })
-  |> strategy.with_exchange_code(fn(cfg, code, verifier) {
-    strategy.exchange_code(base, cfg: cfg, code: code, code_verifier: verifier)
-  })
-  |> strategy.with_refresh(fn(cfg, tok) {
-    strategy.refresh_token(base, cfg: cfg, refresh_tok: tok)
-  })
-  |> strategy.with_fetch_user(fn(cfg, exchange) {
-    strategy.fetch_user(base, cfg: cfg, exchange: exchange)
+  |> strategy.with_refresh(fn(client_config, token) {
+    strategy.refresh_token(base, config: client_config, refresh_token: token)
   })
 }
 
-pub fn create_authorization_request_returns_authorization_request_test() {
-  let strat = test_strategy()
-  let conf =
+pub fn create_authorization_request_returns_authorization_request_test() -> Nil {
+  let strategy = test_strategy()
+  let client_config =
     config.new(
       client_id: "id",
       auth: config.ClientSecret("secret"),
@@ -138,8 +154,8 @@ pub fn create_authorization_request_returns_authorization_request_test() {
     )
   let assert Ok(req) =
     vestibule.create_authorization_request(
-      strat,
-      cfg: conf,
+      strategy,
+      config: client_config,
       options: config.authorize_options(),
     )
   let url = authorization_request.url(req)
@@ -159,9 +175,9 @@ pub fn create_authorization_request_returns_authorization_request_test() {
   { option.is_none(authorization_request.nonce(req)) } |> expect.to_be_true()
 }
 
-pub fn create_authorization_request_emits_nonce_for_oidc_strategy_test() {
-  let strat = nonce_strategy(make_id_token("{\"sub\":\"user123\"}"))
-  let conf =
+pub fn create_authorization_request_emits_nonce_for_oidc_strategy_test() -> Nil {
+  let strategy = nonce_strategy(make_id_token("{\"sub\":\"user123\"}"))
+  let client_config =
     config.new(
       client_id: "id",
       auth: config.ClientSecret("secret"),
@@ -169,8 +185,8 @@ pub fn create_authorization_request_emits_nonce_for_oidc_strategy_test() {
     )
   let assert Ok(req) =
     vestibule.create_authorization_request(
-      strat,
-      cfg: conf,
+      strategy,
+      config: client_config,
       options: config.authorize_options(),
     )
   let url = authorization_request.url(req)
@@ -181,8 +197,8 @@ pub fn create_authorization_request_emits_nonce_for_oidc_strategy_test() {
   { string.length(value) >= 43 } |> expect.to_be_true()
 }
 
-pub fn create_authorization_request_appends_pkce_before_url_fragment_test() {
-  let conf =
+pub fn create_authorization_request_appends_pkce_before_url_fragment_test() -> Nil {
+  let client_config =
     config.new(
       client_id: "id",
       auth: config.ClientSecret("secret"),
@@ -191,7 +207,7 @@ pub fn create_authorization_request_appends_pkce_before_url_fragment_test() {
   let assert Ok(req) =
     vestibule.create_authorization_request(
       fragment_strategy(),
-      cfg: conf,
+      config: client_config,
       options: config.authorize_options(),
     )
   let url = authorization_request.url(req)
@@ -202,9 +218,9 @@ pub fn create_authorization_request_appends_pkce_before_url_fragment_test() {
   |> expect.to_be_true()
 }
 
-pub fn create_authorization_request_uses_config_scopes_when_present_test() {
-  let strat = test_strategy()
-  let conf =
+pub fn create_authorization_request_uses_config_scopes_when_present_test() -> Nil {
+  let strategy = test_strategy()
+  let client_config =
     config.new(
       client_id: "id",
       auth: config.ClientSecret("secret"),
@@ -214,15 +230,19 @@ pub fn create_authorization_request_uses_config_scopes_when_present_test() {
     config.authorize_options()
     |> config.with_scopes(["custom_scope"])
   let assert Ok(req) =
-    vestibule.create_authorization_request(strat, cfg: conf, options: options)
+    vestibule.create_authorization_request(
+      strategy,
+      config: client_config,
+      options: options,
+    )
   let url = authorization_request.url(req)
   { string.contains(url, "custom_scope") } |> expect.to_be_true()
   { string.contains(url, "default_scope") } |> expect.to_be_false()
 }
 
-pub fn create_authorization_request_uses_default_scopes_when_config_empty_test() {
-  let strat = test_strategy()
-  let conf =
+pub fn create_authorization_request_uses_default_scopes_when_config_empty_test() -> Nil {
+  let strategy = test_strategy()
+  let client_config =
     config.new(
       client_id: "id",
       auth: config.ClientSecret("secret"),
@@ -230,17 +250,17 @@ pub fn create_authorization_request_uses_default_scopes_when_config_empty_test()
     )
   let assert Ok(req) =
     vestibule.create_authorization_request(
-      strat,
-      cfg: conf,
+      strategy,
+      config: client_config,
       options: config.authorize_options(),
     )
   let url = authorization_request.url(req)
   { string.contains(url, "default_scope") } |> expect.to_be_true()
 }
 
-pub fn handle_callback_succeeds_with_valid_params_test() {
-  let strat = test_strategy()
-  let conf =
+pub fn handle_callback_succeeds_with_valid_params_test() -> Nil {
+  let strategy = test_strategy()
+  let client_config =
     config.new(
       client_id: "id",
       auth: config.ClientSecret("secret"),
@@ -250,8 +270,8 @@ pub fn handle_callback_succeeds_with_valid_params_test() {
   let params = dict.from_list([#("code", "valid_code"), #("state", state)])
   let result =
     vestibule.handle_callback(
-      strat,
-      cfg: conf,
+      strategy,
+      config: client_config,
       callback_params: params,
       expected_state: state,
       code_verifier: "test_verifier",
@@ -264,9 +284,9 @@ pub fn handle_callback_succeeds_with_valid_params_test() {
   credentials.token(auth.credentials(authed)) |> expect.to_equal("test_token")
 }
 
-pub fn handle_callback_populates_auth_extra_from_strategy_user_result_test() {
-  let strat = test_strategy()
-  let conf =
+pub fn handle_callback_populates_auth_extra_from_strategy_user_result_test() -> Nil {
+  let strategy = test_strategy()
+  let client_config =
     config.new(
       client_id: "id",
       auth: config.ClientSecret("secret"),
@@ -277,8 +297,8 @@ pub fn handle_callback_populates_auth_extra_from_strategy_user_result_test() {
 
   let assert Ok(authed) =
     vestibule.handle_callback(
-      strat,
-      cfg: conf,
+      strategy,
+      config: client_config,
       callback_params: params,
       expected_state: state,
       code_verifier: "test_verifier",
@@ -289,8 +309,8 @@ pub fn handle_callback_populates_auth_extra_from_strategy_user_result_test() {
   |> expect.to_equal(Ok("from-provider"))
 }
 
-pub fn handle_callback_passes_exchange_artifacts_to_fetch_user_test() {
-  let conf =
+pub fn handle_callback_passes_exchange_artifacts_to_fetch_user_test() -> Nil {
+  let client_config =
     config.new(
       client_id: "id",
       auth: config.ClientSecret("secret"),
@@ -302,7 +322,7 @@ pub fn handle_callback_passes_exchange_artifacts_to_fetch_user_test() {
   let assert Ok(authed) =
     vestibule.handle_callback(
       artifact_strategy(),
-      cfg: conf,
+      config: client_config,
       callback_params: params,
       expected_state: state,
       code_verifier: "test_verifier",
@@ -314,16 +334,20 @@ pub fn handle_callback_passes_exchange_artifacts_to_fetch_user_test() {
   |> expect.to_equal("artifact_token")
 }
 
-pub fn refresh_token_delegates_to_strategy_refresh_token_test() {
-  let strat = test_strategy()
-  let conf =
+pub fn refresh_token_delegates_to_strategy_refresh_token_test() -> Nil {
+  let strategy = test_strategy()
+  let client_config =
     config.new(
       client_id: "client-id",
       auth: config.ClientSecret("secret"),
       redirect_uri: "http://localhost/cb",
     )
 
-  vestibule.refresh_token(strat, cfg: conf, refresh_tok: "refresh-123")
+  vestibule.refresh_token(
+    strategy,
+    config: client_config,
+    refresh_token: "refresh-123",
+  )
   |> expect.to_equal(
     Ok(
       credentials.new(
@@ -337,9 +361,9 @@ pub fn refresh_token_delegates_to_strategy_refresh_token_test() {
   )
 }
 
-pub fn handle_callback_fails_on_state_mismatch_test() {
-  let strat = test_strategy()
-  let conf =
+pub fn handle_callback_fails_on_state_mismatch_test() -> Nil {
+  let strategy = test_strategy()
+  let client_config =
     config.new(
       client_id: "id",
       auth: config.ClientSecret("secret"),
@@ -348,8 +372,8 @@ pub fn handle_callback_fails_on_state_mismatch_test() {
   let params = dict.from_list([#("code", "valid_code"), #("state", "wrong")])
   let result =
     vestibule.handle_callback(
-      strat,
-      cfg: conf,
+      strategy,
+      config: client_config,
       callback_params: params,
       expected_state: "expected",
       code_verifier: "test_verifier",
@@ -359,9 +383,9 @@ pub fn handle_callback_fails_on_state_mismatch_test() {
   Nil
 }
 
-pub fn missing_callback_state_is_structured_test() {
-  let strat = test_strategy()
-  let conf =
+pub fn missing_callback_state_is_structured_test() -> Nil {
+  let strategy = test_strategy()
+  let client_config =
     config.new(
       client_id: "id",
       auth: config.ClientSecret("secret"),
@@ -370,8 +394,8 @@ pub fn missing_callback_state_is_structured_test() {
   let params = dict.from_list([#("code", "valid_code")])
 
   vestibule.handle_callback(
-    strat,
-    cfg: conf,
+    strategy,
+    config: client_config,
     callback_params: params,
     expected_state: "expected",
     code_verifier: "test_verifier",
@@ -380,9 +404,9 @@ pub fn missing_callback_state_is_structured_test() {
   |> expect.to_equal(Error(error.missing_callback_param("state")))
 }
 
-pub fn handle_callback_fails_on_missing_code_test() {
-  let strat = test_strategy()
-  let conf =
+pub fn handle_callback_fails_on_missing_code_test() -> Nil {
+  let strategy = test_strategy()
+  let client_config =
     config.new(
       client_id: "id",
       auth: config.ClientSecret("secret"),
@@ -392,8 +416,8 @@ pub fn handle_callback_fails_on_missing_code_test() {
   let params = dict.from_list([#("state", state)])
   let result =
     vestibule.handle_callback(
-      strat,
-      cfg: conf,
+      strategy,
+      config: client_config,
       callback_params: params,
       expected_state: state,
       code_verifier: "test_verifier",
@@ -403,9 +427,9 @@ pub fn handle_callback_fails_on_missing_code_test() {
   Nil
 }
 
-pub fn missing_callback_code_is_structured_test() {
-  let strat = test_strategy()
-  let conf =
+pub fn missing_callback_code_is_structured_test() -> Nil {
+  let strategy = test_strategy()
+  let client_config =
     config.new(
       client_id: "id",
       auth: config.ClientSecret("secret"),
@@ -415,8 +439,8 @@ pub fn missing_callback_code_is_structured_test() {
   let params = dict.from_list([#("state", state)])
 
   vestibule.handle_callback(
-    strat,
-    cfg: conf,
+    strategy,
+    config: client_config,
     callback_params: params,
     expected_state: state,
     code_verifier: "test_verifier",
@@ -425,9 +449,9 @@ pub fn missing_callback_code_is_structured_test() {
   |> expect.to_equal(Error(error.missing_callback_param("code")))
 }
 
-pub fn logging_does_not_change_core_result_shapes_test() {
-  let strat = test_strategy()
-  let conf =
+pub fn logging_does_not_change_core_result_shapes_test() -> Nil {
+  let strategy = test_strategy()
+  let client_config =
     config.new(
       client_id: "id",
       auth: config.ClientSecret("secret"),
@@ -435,8 +459,8 @@ pub fn logging_does_not_change_core_result_shapes_test() {
     )
   let assert Ok(req) =
     vestibule.create_authorization_request(
-      strat,
-      cfg: conf,
+      strategy,
+      config: client_config,
       options: config.authorize_options(),
     )
   let params =
@@ -447,8 +471,8 @@ pub fn logging_does_not_change_core_result_shapes_test() {
 
   let _ =
     vestibule.handle_callback(
-      strat,
-      cfg: conf,
+      strategy,
+      config: client_config,
       callback_params: params,
       expected_state: authorization_request.state(req),
       code_verifier: authorization_request.code_verifier(req),
@@ -457,7 +481,11 @@ pub fn logging_does_not_change_core_result_shapes_test() {
     |> expect.to_be_ok()
 
   let _ =
-    vestibule.refresh_token(strat, cfg: conf, refresh_tok: "refresh-123")
+    vestibule.refresh_token(
+      strategy,
+      config: client_config,
+      refresh_token: "refresh-123",
+    )
     |> expect.to_be_ok()
   Nil
 }
@@ -466,15 +494,50 @@ pub fn logging_does_not_change_core_result_shapes_test() {
 
 /// A strategy that uses the OIDC nonce and returns `id_token` in artifacts.
 fn nonce_strategy(id_token: String) -> Strategy(e) {
-  strategy.new(provider: "nonce-test", default_scopes: ["openid"])
+  strategy.new(
+    provider: "nonce-test",
+    default_scopes: ["openid"],
+    authorize_url: fn(_config, _options, _scopes, state) {
+      Ok("https://test.com/auth?state=" <> state)
+    },
+    exchange_code: fn(_config, code, _code_verifier) {
+      case code {
+        "valid_code" ->
+          Ok(strategy.exchange_result_with_artifacts(
+            credentials.new(
+              token: "test_token",
+              refresh_token: None,
+              token_type: "bearer",
+              expires_in: None,
+              scopes: ["openid"],
+            ),
+            id_token_artifacts(id_token),
+          ))
+        _ -> Error(error.code_exchange(reason: "bad code"))
+      }
+    },
+    fetch_user: fn(_client_config, _exchange) {
+      Ok(strategy.user_result(
+        uid: "user123",
+        info: user_info.new(),
+        extra: dict.new(),
+      ))
+    },
+  )
   |> strategy.with_nonce()
-  |> strategy.with_authorize_url(fn(_config, _options, _scopes, state) {
-    Ok("https://test.com/auth?state=" <> state)
-  })
-  |> strategy.with_exchange_code(fn(_config, code, _code_verifier) {
-    case code {
-      "valid_code" ->
-        Ok(strategy.exchange_result_with_artifacts(
+}
+
+/// A nonce strategy whose exchange returns no `id_token` artifact.
+fn nonce_strategy_without_id_token() -> Strategy(e) {
+  strategy.new(
+    provider: "nonce-test",
+    default_scopes: ["openid"],
+    authorize_url: fn(_config, _options, _scopes, state) {
+      Ok("https://test.com/auth?state=" <> state)
+    },
+    exchange_code: fn(_config, _code, _code_verifier) {
+      Ok(
+        strategy.exchange_result(
           credentials.new(
             token: "test_token",
             refresh_token: None,
@@ -482,53 +545,18 @@ fn nonce_strategy(id_token: String) -> Strategy(e) {
             expires_in: None,
             scopes: ["openid"],
           ),
-          id_token_artifacts(id_token),
-        ))
-      _ -> Error(error.code_exchange(reason: "bad code"))
-    }
-  })
-  |> strategy.with_refresh(fn(_config, _refresh_tok) {
-    Error(error.config(reason: "refresh not implemented"))
-  })
-  |> strategy.with_fetch_user(fn(_cfg, _exchange) {
-    Ok(strategy.user_result(
-      uid: "user123",
-      info: user_info.new(),
-      extra: dict.new(),
-    ))
-  })
-}
-
-/// A nonce strategy whose exchange returns no `id_token` artifact.
-fn nonce_strategy_without_id_token() -> Strategy(e) {
-  strategy.new(provider: "nonce-test", default_scopes: ["openid"])
-  |> strategy.with_nonce()
-  |> strategy.with_authorize_url(fn(_config, _options, _scopes, state) {
-    Ok("https://test.com/auth?state=" <> state)
-  })
-  |> strategy.with_exchange_code(fn(_config, _code, _code_verifier) {
-    Ok(
-      strategy.exchange_result(
-        credentials.new(
-          token: "test_token",
-          refresh_token: None,
-          token_type: "bearer",
-          expires_in: None,
-          scopes: ["openid"],
         ),
-      ),
-    )
-  })
-  |> strategy.with_refresh(fn(_config, _refresh_tok) {
-    Error(error.config(reason: "refresh not implemented"))
-  })
-  |> strategy.with_fetch_user(fn(_cfg, _exchange) {
-    Ok(strategy.user_result(
-      uid: "user123",
-      info: user_info.new(),
-      extra: dict.new(),
-    ))
-  })
+      )
+    },
+    fetch_user: fn(_client_config, _exchange) {
+      Ok(strategy.user_result(
+        uid: "user123",
+        info: user_info.new(),
+        extra: dict.new(),
+      ))
+    },
+  )
+  |> strategy.with_nonce()
 }
 
 fn id_token_artifacts(id_token: String) -> dict.Dict(String, dynamic.Dynamic) {
@@ -554,13 +582,13 @@ fn nonce_params() -> dict.Dict(String, String) {
   dict.from_list([#("code", "valid_code"), #("state", "expected")])
 }
 
-pub fn handle_callback_accepts_matching_nonce_test() {
+pub fn handle_callback_accepts_matching_nonce_test() -> Nil {
   let id_token = make_id_token("{\"sub\":\"user123\",\"nonce\":\"the-nonce\"}")
-  let strat = nonce_strategy(id_token)
+  let strategy = nonce_strategy(id_token)
   let _ =
     vestibule.handle_callback(
-      strat,
-      cfg: nonce_config(),
+      strategy,
+      config: nonce_config(),
       callback_params: nonce_params(),
       expected_state: "expected",
       code_verifier: "verifier",
@@ -570,13 +598,13 @@ pub fn handle_callback_accepts_matching_nonce_test() {
   Nil
 }
 
-pub fn handle_callback_rejects_mismatched_nonce_test() {
+pub fn handle_callback_rejects_mismatched_nonce_test() -> Nil {
   let id_token =
     make_id_token("{\"sub\":\"user123\",\"nonce\":\"wrong-nonce\"}")
-  let strat = nonce_strategy(id_token)
+  let strategy = nonce_strategy(id_token)
   vestibule.handle_callback(
-    strat,
-    cfg: nonce_config(),
+    strategy,
+    config: nonce_config(),
     callback_params: nonce_params(),
     expected_state: "expected",
     code_verifier: "verifier",
@@ -586,12 +614,12 @@ pub fn handle_callback_rejects_mismatched_nonce_test() {
   |> expect.to_equal(Some(error.invalid_nonce()))
 }
 
-pub fn handle_callback_rejects_missing_nonce_claim_test() {
+pub fn handle_callback_rejects_missing_nonce_claim_test() -> Nil {
   let id_token = make_id_token("{\"sub\":\"user123\"}")
-  let strat = nonce_strategy(id_token)
+  let strategy = nonce_strategy(id_token)
   vestibule.handle_callback(
-    strat,
-    cfg: nonce_config(),
+    strategy,
+    config: nonce_config(),
     callback_params: nonce_params(),
     expected_state: "expected",
     code_verifier: "verifier",
@@ -601,11 +629,11 @@ pub fn handle_callback_rejects_missing_nonce_claim_test() {
   |> expect.to_equal(Some(error.invalid_nonce()))
 }
 
-pub fn handle_callback_rejects_missing_id_token_when_nonce_expected_test() {
-  let strat = nonce_strategy_without_id_token()
+pub fn handle_callback_rejects_missing_id_token_when_nonce_expected_test() -> Nil {
+  let strategy = nonce_strategy_without_id_token()
   vestibule.handle_callback(
-    strat,
-    cfg: nonce_config(),
+    strategy,
+    config: nonce_config(),
     callback_params: nonce_params(),
     expected_state: "expected",
     code_verifier: "verifier",
@@ -615,13 +643,13 @@ pub fn handle_callback_rejects_missing_id_token_when_nonce_expected_test() {
   |> expect.to_equal(Some(error.invalid_nonce()))
 }
 
-pub fn handle_callback_skips_nonce_for_plain_oauth_strategy_test() {
+pub fn handle_callback_skips_nonce_for_plain_oauth_strategy_test() -> Nil {
   // uses_nonce: False strategy ignores any id_token nonce entirely.
-  let strat = test_strategy()
+  let strategy = test_strategy()
   let _ =
     vestibule.handle_callback(
-      strat,
-      cfg: nonce_config(),
+      strategy,
+      config: nonce_config(),
       callback_params: nonce_params(),
       expected_state: "expected",
       code_verifier: "verifier",

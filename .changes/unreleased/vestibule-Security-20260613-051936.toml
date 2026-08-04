@@ -1,3 +1,0 @@
-package = "vestibule"
-kind = "Security"
-body = "`registry.register` now rejects a duplicate provider registration with `Error(DuplicateProvider(name))` instead of silently replacing the existing strategy/config, preventing provider impersonation from dynamic or untrusted provider configuration. Trusted callers can use the new `registry.register_or_replace` to intentionally overwrite an entry."

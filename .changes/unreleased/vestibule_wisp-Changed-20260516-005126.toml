@@ -1,3 +1,0 @@
-package = "vestibule_wisp"
-kind = "Changed"
-body = "Middleware now reads `AuthorizationRequest` fields through the new `authorization_request.url` / `state` / `code_verifier` accessors."

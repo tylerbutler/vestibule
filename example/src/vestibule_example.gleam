@@ -104,7 +104,7 @@ pub fn main() -> Nil {
   }
 
   // Initialize state store
-  let store = state_store.init()
+  let assert Ok(store) = state_store.try_init()
 
   let ctx = Context(registry: reg, state_store: store)
 

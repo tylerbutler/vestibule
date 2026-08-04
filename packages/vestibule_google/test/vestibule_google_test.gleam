@@ -130,7 +130,7 @@ pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
   let _ =
     strategy.build_authorize_url(
       strat,
-      cfg: conf,
+      config: conf,
       options: config.authorize_options(),
       scopes: ["openid"],
       state: "state",
@@ -153,7 +153,7 @@ pub fn authorize_url_includes_extra_params_test() {
   let assert Ok(url) =
     strategy.build_authorize_url(
       strat,
-      cfg: conf,
+      config: conf,
       options: options,
       scopes: ["openid"],
       state: "state",
@@ -257,7 +257,7 @@ pub fn strategy_for_hosted_domain_authorize_url_includes_hd_hint_test() {
   let assert Ok(url) =
     strategy.build_authorize_url(
       strat,
-      cfg: conf,
+      config: conf,
       options: config.authorize_options(),
       scopes: ["openid"],
       state: "state",

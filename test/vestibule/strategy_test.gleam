@@ -6,7 +6,7 @@ import vestibule/credentials
 import vestibule/error
 import vestibule/strategy
 
-pub fn authorization_header_accepts_mixed_case_bearer_test() {
+pub fn authorization_header_accepts_mixed_case_bearer_test() -> Nil {
   credentials.new(
     token: "abc",
     refresh_token: option.None,
@@ -18,7 +18,7 @@ pub fn authorization_header_accepts_mixed_case_bearer_test() {
   |> expect.to_equal(Ok("Bearer abc"))
 }
 
-pub fn authorization_header_rejects_unsupported_token_type_test() {
+pub fn authorization_header_rejects_unsupported_token_type_test() -> Nil {
   let _ =
     credentials.new(
       token: "abc",
@@ -32,7 +32,7 @@ pub fn authorization_header_rejects_unsupported_token_type_test() {
   Nil
 }
 
-pub fn append_code_verifier_appends_to_empty_body_test() {
+pub fn append_code_verifier_appends_to_empty_body_test() -> Nil {
   let assert Ok(req) = request.to("https://example.com/token")
 
   req
@@ -42,7 +42,7 @@ pub fn append_code_verifier_appends_to_empty_body_test() {
   |> expect.to_equal("code_verifier=verifier")
 }
 
-pub fn append_code_verifier_appends_to_existing_body_test() {
+pub fn append_code_verifier_appends_to_existing_body_test() -> Nil {
   let assert Ok(req) = request.to("https://example.com/token")
 
   req
@@ -52,7 +52,7 @@ pub fn append_code_verifier_appends_to_existing_body_test() {
   |> expect.to_equal("grant_type=authorization_code&code_verifier=verifier")
 }
 
-pub fn append_code_verifier_encodes_special_chars_test() {
+pub fn append_code_verifier_encodes_special_chars_test() -> Nil {
   let assert Ok(req) = request.to("https://example.com/token")
 
   req
@@ -62,7 +62,7 @@ pub fn append_code_verifier_encodes_special_chars_test() {
   |> expect.to_equal("grant_type=authorization_code&code_verifier=a%2Bb%2Fc%3D")
 }
 
-pub fn append_code_verifier_none_preserves_body_test() {
+pub fn append_code_verifier_none_preserves_body_test() -> Nil {
   let assert Ok(req) = request.to("https://example.com/token")
 
   req
@@ -72,8 +72,8 @@ pub fn append_code_verifier_none_preserves_body_test() {
   |> expect.to_equal("grant_type=authorization_code")
 }
 
-pub fn credentials_accessors_return_token_fields_test() {
-  let creds =
+pub fn credentials_accessors_return_token_fields_test() -> Nil {
+  let oauth_credentials =
     credentials.new(
       token: "access-token",
       refresh_token: option.Some("refresh-token"),
@@ -82,12 +82,13 @@ pub fn credentials_accessors_return_token_fields_test() {
       scopes: ["read:user"],
     )
 
-  credentials.token(creds) |> expect.to_equal("access-token")
-  credentials.refresh_token(creds)
+  credentials.token(oauth_credentials) |> expect.to_equal("access-token")
+  credentials.refresh_token(oauth_credentials)
   |> expect.to_equal(option.Some("refresh-token"))
-  credentials.token_type(creds) |> expect.to_equal("Bearer")
-  credentials.expires_in(creds) |> expect.to_equal(option.Some(3600))
-  credentials.scopes(creds) |> expect.to_equal(["read:user"])
+  credentials.token_type(oauth_credentials) |> expect.to_equal("Bearer")
+  credentials.expires_in(oauth_credentials)
+  |> expect.to_equal(option.Some(3600))
+  credentials.scopes(oauth_credentials) |> expect.to_equal(["read:user"])
 }
 
 fn test_config() -> config.ClientConfig {
@@ -98,14 +99,30 @@ fn test_config() -> config.ClientConfig {
   )
 }
 
-pub fn refresh_token_unset_returns_refresh_unsupported_test() {
-  strategy.new(provider: "no-refresh", default_scopes: [])
-  |> strategy.refresh_token(cfg: test_config(), refresh_tok: "tok")
+fn bare_strategy(provider: String) -> strategy.Strategy(e) {
+  strategy.new(
+    provider: provider,
+    default_scopes: [],
+    authorize_url: fn(_config, _options, _scopes, _state) {
+      Ok("https://example.com/auth")
+    },
+    exchange_code: fn(_config, _code, _code_verifier) {
+      Error(error.config(reason: "exchange not implemented"))
+    },
+    fetch_user: fn(_config, _exchange) {
+      Error(error.config(reason: "fetch_user not implemented"))
+    },
+  )
+}
+
+pub fn refresh_token_unset_returns_refresh_unsupported_test() -> Nil {
+  bare_strategy("no-refresh")
+  |> strategy.refresh_token(config: test_config(), refresh_token: "tok")
   |> expect.to_equal(Error(error.refresh_unsupported()))
 }
 
-pub fn with_refresh_makes_refresh_supported_test() {
-  let creds =
+pub fn with_refresh_makes_refresh_supported_test() -> Nil {
+  let oauth_credentials =
     credentials.new(
       token: "fresh",
       refresh_token: option.None,
@@ -114,46 +131,21 @@ pub fn with_refresh_makes_refresh_supported_test() {
       scopes: [],
     )
 
-  strategy.new(provider: "has-refresh", default_scopes: [])
-  |> strategy.with_refresh(fn(_cfg, _tok) { Ok(creds) })
-  |> strategy.refresh_token(cfg: test_config(), refresh_tok: "tok")
-  |> expect.to_equal(Ok(creds))
+  bare_strategy("has-refresh")
+  |> strategy.with_refresh(fn(_client_config, _token) { Ok(oauth_credentials) })
+  |> strategy.refresh_token(config: test_config(), refresh_token: "tok")
+  |> expect.to_equal(Ok(oauth_credentials))
 }
 
-pub fn unset_authorize_url_returns_config_error_test() {
-  let _ =
-    strategy.new(provider: "bare", default_scopes: [])
-    |> strategy.build_authorize_url(
-      cfg: test_config(),
-      options: config.authorize_options(),
-      scopes: [],
-      state: "s",
-    )
-    |> expect.to_be_error()
-  Nil
-}
-
-pub fn unset_exchange_code_returns_config_error_test() {
-  let _ =
-    strategy.new(provider: "bare", default_scopes: [])
-    |> strategy.exchange_code(
-      cfg: test_config(),
-      code: "c",
-      code_verifier: option.None,
-    )
-    |> expect.to_be_error()
-  Nil
-}
-
-pub fn with_nonce_enables_uses_nonce_test() {
-  strategy.new(provider: "oidc", default_scopes: [])
+pub fn with_nonce_enables_uses_nonce_test() -> Nil {
+  bare_strategy("oidc")
   |> strategy.with_nonce()
   |> strategy.uses_nonce()
   |> expect.to_be_true()
 }
 
-pub fn new_defaults_uses_nonce_to_false_test() {
-  strategy.new(provider: "plain", default_scopes: [])
+pub fn new_defaults_uses_nonce_to_false_test() -> Nil {
+  bare_strategy("plain")
   |> strategy.uses_nonce()
   |> expect.to_be_false()
 }

@@ -72,23 +72,6 @@ pub fn consume(
 ) -> Result(#(String, String, option.Option(String)), Nil)
 ```
 
-### `init`
-
-Initialize the state store. Call once per VM at application startup.
-Returns the table handle needed by store/retrieve.
-
-```gleam
-pub fn init() -> StateStore
-```
-
-### `init_named`
-
-Initialize a named state store. Useful for testing with isolated tables.
-
-```gleam
-pub fn init_named(String) -> StateStore
-```
-
 ### `peek`
 
 Look up a CSRF state, code verifier, and optional nonce by session ID
@@ -103,23 +86,10 @@ pub fn peek(
 ) -> Result(#(String, String, option.Option(String)), Nil)
 ```
 
-### `store`
-
-Store a CSRF state value, PKCE code verifier, and optional OIDC nonce,
-returning a session ID.
-
-```gleam
-pub fn store(
-  StateStore,
-  state: String,
-  code_verifier: String,
-  nonce: option.Option(String)
-) -> String
-```
-
 ### `try_init`
 
-Try to initialize the state store.
+Try to initialize the state store. Call once per VM at application
+startup; the returned table handle is needed by `try_store`/`consume`.
 
 ```gleam
 pub fn try_init() -> Result(StateStore, StateStoreError)

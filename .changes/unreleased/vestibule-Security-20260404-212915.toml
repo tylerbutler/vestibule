@@ -1,3 +1,0 @@
-package = "vestibule"
-kind = "Security"
-body = "State validation now rejects empty and whitespace-only state tokens, closing a potential CSRF bypass."

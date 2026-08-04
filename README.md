@@ -41,7 +41,7 @@ import vestibule/config
 import vestibule_github
 
 let strategy = vestibule_github.strategy()
-let cfg =
+let client_config =
   config.new(
     client_id: "client_id",
     redirect_uri: "http://localhost:8000/auth/github/callback",
@@ -53,7 +53,7 @@ let options = config.authorize_options()
 let assert Ok(auth_request) =
   vestibule.create_authorization_request(
     strategy,
-    cfg: cfg,
+    config: client_config,
     options: options,
   )
 // Store authorization_request.state(auth_request) and
@@ -71,7 +71,7 @@ let params =
 let assert Ok(auth) =
   vestibule.handle_callback(
     strategy,
-    cfg,
+    client_config,
     params,
     "expected state from session",
     "code verifier from session",
@@ -113,7 +113,7 @@ let assert Ok(reg) =
       auth: config.ClientSecret("client_secret"),
     ),
   )
-let store = state_store.init()
+let assert Ok(store) = state_store.try_init()
 
 // In your router
 case wisp.path_segments(req), req.method {
@@ -250,7 +250,7 @@ Refresh access tokens when a provider issues refresh tokens:
 
 ```gleam
 let assert Ok(updated) =
-  vestibule.refresh_token(strategy, cfg, refresh_token)
+  vestibule.refresh_token(strategy, client_config, refresh_token)
 ```
 
 Add provider-specific authorization parameters to per-request options when a
@@ -293,7 +293,7 @@ import vestibule_oidc
 
 // Discovery reads https://your-pocket-id-instance/.well-known/openid-configuration
 let assert Ok(strategy) = vestibule_oidc.discover("https://your-pocket-id-instance")
-let cfg =
+let client_config =
   config.new(
     client_id: "your-client-id",
     redirect_uri: "http://localhost:8000/auth/oidc/callback",
@@ -304,7 +304,7 @@ let options = config.authorize_options()
 let assert Ok(auth_request) =
   vestibule.create_authorization_request(
     strategy,
-    cfg: cfg,
+    config: client_config,
     options: options,
   )
 ```

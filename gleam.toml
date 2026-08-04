@@ -1,5 +1,5 @@
 name = "vestibule"
-version = "0.0.1"
+version = "0.0.0"
 description = "Strategy-based OAuth2 authentication for Gleam"
 licences = ["MIT"]
 repository = { type = "github", user = "tylerbutler", repo = "vestibule" }
@@ -39,9 +39,8 @@ label_possible = "off"
 # and are intentionally exported for external consumers, even when unused within
 # the monorepo.
 unused_exports = "off"
-# Deliberate crash-on-startup pattern: init/store-style functions assert on
-# known-good values during one-time VM setup. Result-returning try_* variants are
-# provided for callers that need to handle failure.
+# Library src code returns Results everywhere (no `let assert`); tests use
+# `let assert` freely, where a failed assertion failing the test is the point.
 assert_ok_pattern = "off"
 # By design, low-level errors (uri.parse, request.to, httpc — often Nil/opaque)
 # are mapped into descriptive domain AuthError variants; the source errors carry
@@ -54,15 +53,18 @@ thrown_away_error = "off"
 # mapped to the typed StateStoreError; the stringly-typed boundary is internal.
 stringly_typed_error = "off"
 
+# Workspace configuration for trellis. This table's presence is what marks the
+# workspace root; every key in it is optional.
+#
+# Task exclusions, custom tasks, tag formats, and changelog kinds are all
+# configured here too: https://trellis.tylerbutler.com/docs/configuration/
+[tools.trellis]
+
 # The example app and the Apple, Google, Microsoft, and OIDC providers remain
 # full workspace members, so normal tasks still build and test them. They are
 # not versioned, tagged, released, or published by trellis.
 [tools.trellis.exclude]
 "@release" = [
-  "packages/vestibule_apple",
-  "packages/vestibule_google",
-  "packages/vestibule_microsoft",
-  "packages/vestibule_oidc",
   "example",
 ]
 docs = ["example"]

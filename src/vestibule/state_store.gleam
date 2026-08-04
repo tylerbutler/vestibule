@@ -46,22 +46,8 @@ pub type StateStoreError {
   CleanupFailed
 }
 
-/// Initialize the state store. Call once per VM at application startup.
-/// Returns the table handle needed by store/retrieve.
-pub fn init() -> StateStore {
-  let assert Ok(table) = try_init()
-    as "vestibule state store must be initialized once per VM"
-  table
-}
-
-/// Initialize a named state store. Useful for testing with isolated tables.
-pub fn init_named(name: String) -> StateStore {
-  let assert Ok(table) = try_init_named(name)
-    as "vestibule named state store must be initialized once per VM"
-  table
-}
-
-/// Try to initialize the state store.
+/// Try to initialize the state store. Call once per VM at application
+/// startup; the returned table handle is needed by `try_store`/`consume`.
 pub fn try_init() -> Result(StateStore, StateStoreError) {
   try_init_named("vestibule_sessions")
 }
@@ -74,20 +60,6 @@ pub fn try_init_named(name: String) -> Result(StateStore, StateStoreError) {
     Ok(table) -> Ok(StateStore(table))
     Error(reason) -> Error(map_create_error(reason))
   }
-}
-
-/// Store a CSRF state value, PKCE code verifier, and optional OIDC nonce,
-/// returning a session ID.
-pub fn store(
-  table: StateStore,
-  state state: String,
-  code_verifier code_verifier: String,
-  nonce nonce: Option(String),
-) -> String {
-  let assert Ok(session_id) =
-    try_store(table, state: state, code_verifier: code_verifier, nonce: nonce)
-    as "vestibule failed to store OAuth session state"
-  session_id
 }
 
 /// Try to store a CSRF state value, PKCE code verifier, and optional OIDC

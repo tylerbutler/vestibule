@@ -26,8 +26,9 @@ implements: build authorize URL, exchange code, fetch user, and an
 optional refresh token.
 
 Provider packages (`vestibule_google`, `vestibule_apple`, ...) build
-these with `strategy.new` plus the `with_*` capability builders; the
-core library invokes them through the exposed accessors.
+these with `strategy.new`, which takes the three required capabilities
+directly, plus the optional `with_refresh` and `with_nonce` builders;
+the core library invokes them through the exposed accessors.
 
 ## Types
 
@@ -54,17 +55,15 @@ The type parameter `e` corresponds to the custom error type in
 `AuthError(e)`. Built-in strategies are polymorphic in `e`.
 
 Opaque so that vestibule can add optional capabilities without breaking
-provider packages. Construct with `new` and attach capabilities with the
-`with_authorize_url`, `with_exchange_code`, `with_fetch_user`,
-`with_refresh`, and `with_nonce` builders. Invoke through the
-`build_authorize_url`, `exchange_code`, `refresh_token`, and `fetch_user`
-helpers.
+provider packages. Construct with `new`, which requires the three core
+capabilities (`authorize_url`, `exchange_code`, `fetch_user`) so that a
+strategy unable to complete an authentication flow cannot be built.
+Attach optional capabilities with the `with_refresh` and `with_nonce`
+builders. Invoke through the `build_authorize_url`, `exchange_code`,
+`refresh_token`, and `fetch_user` helpers.
 
-The core capabilities (`authorize_url`, `exchange_code`, `fetch_user`) are
-stored as `Option`; invoking one that was never configured fails with a
-an AuthError of kind `ConfigKind`. `refresh_token` is optional: a strategy
-built without `with_refresh` fails with an AuthError of kind
-`RefreshUnsupportedKind`.
+`refresh_token` is optional: a strategy built without `with_refresh` fails
+`refresh_token` with an AuthError of kind `RefreshUnsupportedKind`.
 
 ```gleam
 pub opaque type Strategy(a)
@@ -116,13 +115,10 @@ pub fn authorization_header(credentials: credentials.Credentials) -> Result(Stri
 
 Build the provider's authorization URL.
 
-Returns an AuthError of kind `ConfigKind` if the strategy was built without
-`with_authorize_url`.
-
 ```gleam
 pub fn build_authorize_url(
   Strategy(a),
-  cfg: config.ClientConfig,
+  config: config.ClientConfig,
   options: config.AuthorizeOptions,
   scopes: List(String),
   state: String
@@ -153,13 +149,10 @@ Exchange an authorization code for credentials and any provider-specific
 artifacts. Pass the PKCE `code_verifier` if one was generated for the
 authorization request.
 
-Returns an AuthError of kind `ConfigKind` if the strategy was built without
-`with_exchange_code`.
-
 ```gleam
 pub fn exchange_code(
   Strategy(a),
-  cfg: config.ClientConfig,
+  config: config.ClientConfig,
   code: String,
   code_verifier: option.Option(String)
 ) -> Result(ExchangeResult, error.AuthError(a))
@@ -196,37 +189,48 @@ pub fn exchange_result_with_artifacts(
 
 Fetch user info using the obtained exchange result.
 
-Returns an AuthError of kind `ConfigKind` if the strategy was built without
-`with_fetch_user`.
-
 ```gleam
 pub fn fetch_user(
   Strategy(a),
-  cfg: config.ClientConfig,
+  config: config.ClientConfig,
   exchange: ExchangeResult
 ) -> Result(UserResult, error.AuthError(a))
 ```
 
 ### `new`
 
-Begin building a `Strategy` for `provider` with the given `default_scopes`
-(used when the caller's `AuthorizeOptions` does not specify any).
+Build a `Strategy` for `provider`.
 
-The returned strategy has no capabilities attached yet. Use the `with_*`
-builders to add them:
+`default_scopes` is used when the caller's `AuthorizeOptions` does not
+specify any scopes. The three core capabilities are required:
+
+- `authorize_url` builds the provider-specific authorization URL from the
+  config, options, scopes, and state.
+- `exchange_code` exchanges an authorization code for credentials and
+  optional provider-specific artifacts; the third parameter is the PKCE
+  `code_verifier` if one was generated.
+- `fetch_user` resolves the authenticated user from the exchange result.
+
+Attach optional capabilities with the `with_*` builders:
 
 ```gleam
-strategy.new(provider: "github", default_scopes: ["user:email"])
-|> strategy.with_authorize_url(do_authorize_url)
-|> strategy.with_exchange_code(do_exchange_code)
-|> strategy.with_fetch_user(do_fetch_user)
+strategy.new(
+  provider: "github",
+  default_scopes: ["user:email"],
+  authorize_url: do_authorize_url,
+  exchange_code: do_exchange_code,
+  fetch_user: do_fetch_user,
+)
 |> strategy.with_refresh(do_refresh_token)
 ```
 
 ```gleam
 pub fn new(
   provider: String,
-  default_scopes: List(String)
+  default_scopes: List(String),
+  authorize_url: fn(config.ClientConfig, config.AuthorizeOptions, List(String), String) -> Result(String, error.AuthError(a)),
+  exchange_code: fn(config.ClientConfig, String, option.Option(String)) -> Result(ExchangeResult, error.AuthError(a)),
+  fetch_user: fn(config.ClientConfig, ExchangeResult) -> Result(UserResult, error.AuthError(a))
 ) -> Strategy(a)
 ```
 
@@ -248,8 +252,8 @@ Returns an AuthError of kind `RefreshUnsupportedKind` if the strategy was built 
 ```gleam
 pub fn refresh_token(
   Strategy(a),
-  cfg: config.ClientConfig,
-  refresh_tok: String
+  config: config.ClientConfig,
+  refresh_token: String
 ) -> Result(credentials.Credentials, error.AuthError(a))
 ```
 
@@ -295,45 +299,6 @@ Whether this strategy uses the OIDC `nonce` (generate + validate).
 
 ```gleam
 pub fn uses_nonce(Strategy(a)) -> Bool
-```
-
-### `with_authorize_url`
-
-Attach the authorize-URL builder. `authorize_url` builds the
-provider-specific authorization URL from durable provider config,
-per-request authorization options, scopes, and state.
-
-```gleam
-pub fn with_authorize_url(
-  Strategy(a),
-  fn(config.ClientConfig, config.AuthorizeOptions, List(String), String) -> Result(String, error.AuthError(a))
-) -> Strategy(a)
-```
-
-### `with_exchange_code`
-
-Attach the code-exchange capability. `exchange_code` exchanges an
-authorization code for credentials and optional provider-specific
-artifacts; the third parameter is the PKCE `code_verifier` if one was
-generated.
-
-```gleam
-pub fn with_exchange_code(
-  Strategy(a),
-  fn(config.ClientConfig, String, option.Option(String)) -> Result(ExchangeResult, error.AuthError(a))
-) -> Strategy(a)
-```
-
-### `with_fetch_user`
-
-Attach the user-resolution capability. `fetch_user` resolves the
-authenticated user from the exchange result.
-
-```gleam
-pub fn with_fetch_user(
-  Strategy(a),
-  fn(config.ClientConfig, ExchangeResult) -> Result(UserResult, error.AuthError(a))
-) -> Strategy(a)
 ```
 
 ### `with_nonce`

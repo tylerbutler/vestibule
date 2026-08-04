@@ -27,7 +27,7 @@ code: |
   import vestibule_github
 
   let strategy = vestibule_github.strategy()
-  let cfg =
+  let client_config =
     config.new(
       client_id: "client_id",
       redirect_uri: "http://localhost:8000/auth/github/callback",
@@ -38,7 +38,7 @@ code: |
   let assert Ok(auth_request) =
     vestibule.create_authorization_request(
       strategy,
-      cfg: cfg,
+      config: client_config,
       options: options,
     )
   // Store authorization_request.state(auth_request) and authorization_request.code_verifier(auth_request) server-side.
@@ -55,7 +55,7 @@ code: |
   case
     vestibule.handle_callback(
       strategy,
-      cfg,
+      client_config,
       params,
       "expected state from session",
       "code verifier from session",

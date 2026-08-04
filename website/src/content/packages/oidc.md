@@ -28,7 +28,7 @@ code: |
   let assert Ok(strategy) =
     vestibule_oidc.discover("https://accounts.google.com")
 
-  let cfg =
+  let client_config =
     config.new(
       client_id: "your-client-id",
       redirect_uri: "https://myapp.example.com/auth/oidc/callback",
@@ -39,7 +39,7 @@ code: |
   let assert Ok(auth_request) =
     vestibule.create_authorization_request(
       strategy,
-      cfg: cfg,
+      config: client_config,
       options: options,
     )
 notes:

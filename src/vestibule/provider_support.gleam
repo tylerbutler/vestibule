@@ -19,7 +19,8 @@ import vestibule/credentials
 
 /// Check that an HTTP response has a 2xx status code.
 /// Returns the response body on success, or an AuthError of kind `HttpKind` on
-/// failure.
+/// failure. The error's summary carries the first 120 characters of the
+/// response body, so it may contain provider response content.
 pub fn check_response_status(
   response: Response(String),
 ) -> Result(String, AuthError(e)) {

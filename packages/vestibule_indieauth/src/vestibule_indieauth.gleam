@@ -13,7 +13,7 @@
 /// // Use with vestibule's standard two-phase flow
 /// let options = config.authorize_options()
 /// let assert Ok(auth_request) =
-///   vestibule.create_authorization_request(strategy, cfg: cfg, options: options)
+///   vestibule.create_authorization_request(strategy, config: client_config, options: options)
 /// ```
 ///
 /// ## Discovery
@@ -57,7 +57,7 @@ import vestibule_indieauth/url
 ///
 /// ```gleam
 /// let assert Ok(strategy) = vestibule_indieauth.discover("https://user.example.com")
-/// let cfg =
+/// let client_config =
 ///   config.new(
 ///     client_id: "https://myapp.com/",
 ///     redirect_uri: "https://myapp.com/callback",
@@ -65,7 +65,7 @@ import vestibule_indieauth/url
 ///   )
 /// let options = config.authorize_options()
 /// let assert Ok(auth_request) =
-///   vestibule.create_authorization_request(strategy, cfg: cfg, options: options)
+///   vestibule.create_authorization_request(strategy, config: client_config, options: options)
 /// ```
 pub fn discover(user_url: String) -> Result(Strategy(e), AuthError(e)) {
   use canonical_url <- result.try(url.validate_profile_url(user_url))
@@ -179,18 +179,19 @@ pub fn parse_endpoints(
 /// Use this with `discover_endpoints` when you want to separate
 /// discovery from strategy creation.
 pub fn strategy(endpoints: DiscoveredEndpoints, me: String) -> Strategy(e) {
-  strategy.new(provider: "indieauth", default_scopes: ["profile"])
-  |> strategy.with_authorize_url(fn(cfg, options, scopes, state) {
-    do_authorize_url(endpoints, me, cfg, options, scopes, state)
-  })
-  |> strategy.with_exchange_code(fn(cfg, code, code_verifier) {
-    do_exchange_code(endpoints, cfg, code, code_verifier)
-  })
+  strategy.new(
+    provider: "indieauth",
+    default_scopes: ["profile"],
+    authorize_url: fn(cfg, options, scopes, state) {
+      do_authorize_url(endpoints, me, cfg, options, scopes, state)
+    },
+    exchange_code: fn(cfg, code, code_verifier) {
+      do_exchange_code(endpoints, cfg, code, code_verifier)
+    },
+    fetch_user: fn(_cfg, exchange) { do_fetch_user(endpoints, me, exchange) },
+  )
   |> strategy.with_refresh(fn(cfg, refresh_tok) {
     do_refresh_token(endpoints, cfg, refresh_tok)
-  })
-  |> strategy.with_fetch_user(fn(_cfg, exchange) {
-    do_fetch_user(endpoints, me, exchange)
   })
 }
 

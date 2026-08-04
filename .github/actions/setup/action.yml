@@ -2,6 +2,10 @@ name: "Setup environment"
 description: "Install mise-managed tools with monorepo-aware Gleam dependency caching"
 
 inputs:
+  cache:
+    description: "Whether to restore and save Gleam dependencies"
+    required: false
+    default: "true"
   node:
     description: "Whether to setup Node.js for JavaScript target"
     required: false
@@ -20,6 +24,7 @@ runs:
         node-version: "22"
 
     - name: Cache Gleam dependencies
+      if: inputs.cache == 'true'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # ratchet:actions/cache@v6
       with:
         path: |

@@ -172,8 +172,10 @@ pub fn provider(
 
 /// The provider returned a non-success HTTP response.
 ///
-/// `summary` should be a short, sanitized description — never a raw response
-/// body — so the error is safe to surface and log.
+/// `summary` should be a short description of the failure. Helpers such as
+/// `provider_support.check_response_status` pass a truncated snippet of the
+/// response body here to aid debugging, so the summary may contain provider
+/// response content — treat it accordingly before surfacing it to end users.
 pub fn http(status status: Int, summary summary: String) -> AuthError(e) {
   AuthError(
     ..base(
@@ -253,7 +255,8 @@ pub fn http_status(err: AuthError(e)) -> Option(Int) {
   err.http_status
 }
 
-/// The sanitized HTTP error summary, for `HttpKind` errors. Never a raw body.
+/// The short HTTP error summary, for `HttpKind` errors. May contain a
+/// truncated snippet of the provider's response body.
 pub fn http_summary(err: AuthError(e)) -> Option(String) {
   err.http_summary
 }

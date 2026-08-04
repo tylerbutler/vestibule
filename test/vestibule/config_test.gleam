@@ -4,7 +4,7 @@ import startest/expect
 import vestibule/config
 import vestibule/error
 
-pub fn new_creates_client_config_test() {
+pub fn new_creates_client_config_test() -> Nil {
   let c =
     config.new(
       client_id: "id",
@@ -17,7 +17,7 @@ pub fn new_creates_client_config_test() {
   config.client_auth(c) |> expect.to_equal(config.ClientSecret("secret"))
 }
 
-pub fn client_secret_returns_secret_for_secret_auth_test() {
+pub fn client_secret_returns_secret_for_secret_auth_test() -> Nil {
   let c =
     config.new(
       client_id: "id",
@@ -28,7 +28,7 @@ pub fn client_secret_returns_secret_for_secret_auth_test() {
   config.client_secret(c) |> expect.to_equal(Ok("secret"))
 }
 
-pub fn client_secret_rejects_assertion_auth_test() {
+pub fn client_secret_rejects_assertion_auth_test() -> Nil {
   let c =
     config.new(
       client_id: "id",
@@ -48,7 +48,7 @@ pub fn client_secret_rejects_assertion_auth_test() {
   }
 }
 
-pub fn client_secret_rejects_public_client_test() {
+pub fn client_secret_rejects_public_client_test() -> Nil {
   let c =
     config.new(
       client_id: "id",
@@ -68,14 +68,14 @@ pub fn client_secret_rejects_public_client_test() {
   }
 }
 
-pub fn authorize_options_start_empty_test() {
+pub fn authorize_options_start_empty_test() -> Nil {
   let options = config.authorize_options()
 
   config.scopes(options) |> expect.to_equal([])
   config.extra_params(options) |> expect.to_equal(dict.new())
 }
 
-pub fn with_scopes_replaces_authorize_option_scopes_test() {
+pub fn with_scopes_replaces_authorize_option_scopes_test() -> Nil {
   let options =
     config.authorize_options()
     |> config.with_scopes(["user:email", "read:org"])
@@ -84,7 +84,7 @@ pub fn with_scopes_replaces_authorize_option_scopes_test() {
   config.scopes(options) |> expect.to_equal(["profile"])
 }
 
-pub fn with_extra_params_adds_authorize_option_params_test() {
+pub fn with_extra_params_adds_authorize_option_params_test() -> Nil {
   let assert Ok(options) =
     config.authorize_options()
     |> config.with_extra_params([#("allow_signup", "false")])
@@ -93,7 +93,25 @@ pub fn with_extra_params_adds_authorize_option_params_test() {
   |> expect.to_equal(dict.from_list([#("allow_signup", "false")]))
 }
 
-pub fn with_extra_params_rejects_reserved_authorization_params_test() {
+pub fn with_extra_params_merges_across_calls_test() -> Nil {
+  let assert Ok(options) =
+    config.authorize_options()
+    |> config.with_extra_params([#("allow_signup", "false"), #("login", "a")])
+  let assert Ok(options) =
+    options
+    |> config.with_extra_params([#("login", "b"), #("prompt", "consent")])
+
+  config.extra_params(options)
+  |> expect.to_equal(
+    dict.from_list([
+      #("allow_signup", "false"),
+      #("login", "b"),
+      #("prompt", "consent"),
+    ]),
+  )
+}
+
+pub fn with_extra_params_rejects_reserved_authorization_params_test() -> Nil {
   assert_reserved_param_rejected("response_type")
   assert_reserved_param_rejected("client_id")
   assert_reserved_param_rejected("redirect_uri")
@@ -105,7 +123,7 @@ pub fn with_extra_params_rejects_reserved_authorization_params_test() {
   assert_reserved_param_rejected("response_mode")
 }
 
-fn assert_reserved_param_rejected(param: String) {
+fn assert_reserved_param_rejected(param: String) -> Nil {
   let result =
     config.authorize_options()
     |> config.with_extra_params([#(param, "attacker-value")])
