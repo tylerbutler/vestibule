@@ -1,3 +1,0 @@
-package = "vestibule"
-kind = "Breaking"
-body = "strategy.new now takes the required authorize_url, exchange_code, and fetch_user capabilities directly and the with_authorize_url/with_exchange_code/with_fetch_user builders were removed; the panicking state_store init/init_named/store wrappers were removed in favor of the try_* variants; the cfg:/refresh_tok: argument labels were renamed to config:/refresh_token:"

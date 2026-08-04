@@ -1,3 +1,0 @@
-package = "vestibule_wisp"
-kind = "Security"
-body = "State comparison in `callback_phase` now uses `state.validate` (constant-time) instead of `==`, closing a timing side-channel on CSRF token validation."

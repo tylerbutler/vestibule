@@ -1,3 +1,0 @@
-package = "vestibule_apple"
-kind = "Changed"
-body = "Adopt vestibule's revised strategy.new signature with required capabilities"
