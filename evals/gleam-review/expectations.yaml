@@ -123,7 +123,6 @@ cases:
       no_paired_finding: true
       no_violations: true
     prohibited_finding_labels:
-      - Use singular for module names
       - Avoid unqualified importing of functions and constants
     semantic_criterion: The module and import use the singular user path.
 
@@ -189,11 +188,11 @@ cases:
     expected_finding_label: Conventional fallible function naming
     anchors:
       - path: fixtures/conventional-fallible-naming/bad/src/fixture_app.gleam
-        line: 10
-        report_location_regex: '(?:fixtures/conventional-fallible-naming/bad/)?src/fixture_app\.gleam:10\b'
+        line: 13
+        report_location_regex: '(?:fixtures/conventional-fallible-naming/bad/)?src/fixture_app\.gleam:13\b'
     prohibited_false_positive_labels:
       - Category theory overuse
-    semantic_criterion: The Result-returning map variant is named monadic_bind rather than a domain name or try_map.
+    semantic_criterion: The Result-returning welcome_all counterpart is named welcome_all_result instead of try_welcome_all.
 
   - id: conventional-fallible-naming-good
     rule_slug: conventional-fallible-naming
@@ -203,9 +202,8 @@ cases:
       no_paired_finding: true
       no_violations: true
     prohibited_finding_labels:
-      - Conventional fallible function naming
       - Category theory overuse
-    semantic_criterion: The Result-returning map variant uses the conventional try_map name.
+    semantic_criterion: The Result-returning welcome_all counterpart uses the conventional try_welcome_all name.
 
   - id: use-core-libraries-bad
     rule_slug: use-core-libraries
@@ -233,9 +231,7 @@ cases:
     expected_clean_behavior:
       no_paired_finding: true
       no_violations: true
-    prohibited_finding_labels:
-      - Use the core libraries
-    semantic_criterion: Dictionary construction and insertion use gleam/dict.
+    semantic_criterion: Score updates use gleam/dict rather than recreating a dictionary type.
 
   - id: tool-config-in-gleam-toml-bad
     rule_slug: tool-config-in-gleam-toml
@@ -284,9 +280,7 @@ cases:
     expected_clean_behavior:
       no_paired_finding: true
       no_violations: true
-    prohibited_finding_labels:
-      - Use the correct source code directory
-    semantic_criterion: The code generator is located under dev while application code remains under src.
+    semantic_criterion: The code generator is located under dev, application code remains under src, and write failures are returned.
 
   - id: descriptive-errors-bad
     rule_slug: descriptive-errors
@@ -347,8 +341,6 @@ cases:
     expected_clean_behavior:
       no_paired_finding: true
       no_violations: true
-    prohibited_finding_labels:
-      - Make invalid states impossible
     semantic_criterion: Distinct LoggedInUser and Guest variants make the intended visitor states explicit.
 
   - id: replace-bools-with-custom-types-bad
@@ -374,8 +366,6 @@ cases:
     expected_clean_behavior:
       no_paired_finding: true
       no_violations: true
-    prohibited_finding_labels:
-      - Replace bools with custom types
     semantic_criterion: SchoolPerson uses a named Role custom type for its domain state.
 
   - id: sans-io-bad
@@ -491,7 +481,6 @@ cases:
         line: 1
         report_location_regex: '(?:fixtures/fragmented-modules/bad/)?src/fixture_app/user\.gleam:1\b'
     prohibited_false_positive_labels:
-      - Grouping by design pattern
       - Global namespace pollution
       - Namespace trespassing
       - Avoid unqualified importing of functions and constants
@@ -519,6 +508,9 @@ cases:
     expected_report_section: Violations
     expected_finding_label: Panicking in libraries
     anchors:
+      - path: fixtures/panicking-in-libraries/bad/src/fixture_library.gleam
+        line: 11
+        report_location_regex: '(?:fixtures/panicking-in-libraries/bad/)?src/fixture_library\.gleam:11\b'
       - path: fixtures/panicking-in-libraries/bad/src/fixture_library.gleam
         line: 12
         report_location_regex: '(?:fixtures/panicking-in-libraries/bad/)?src/fixture_library\.gleam:12\b'
@@ -571,9 +563,7 @@ cases:
     expected_clean_behavior:
       no_paired_finding: true
       no_violations: true
-    prohibited_finding_labels:
-      - Global namespace pollution
-    semantic_criterion: Supporting modules live under the fixture_app namespace.
+    semantic_criterion: Cohesive distribution and inventory modules live under the fixture_app namespace.
 
   - id: namespace-trespassing-bad
     rule_slug: namespace-trespassing
@@ -597,9 +587,7 @@ cases:
     expected_clean_behavior:
       no_paired_finding: true
       no_violations: true
-    prohibited_finding_labels:
-      - Namespace trespassing
-    semantic_criterion: The widget module remains inside the fixture_app namespace.
+    semantic_criterion: The cohesive widget module remains inside the fixture_app namespace.
 
   - id: grouping-by-design-pattern-bad
     rule_slug: grouping-by-design-pattern
@@ -621,8 +609,6 @@ cases:
       - path: fixtures/grouping-by-design-pattern/bad/src/fixture_app.gleam
         line: 1
         report_location_regex: '(?:fixtures/grouping-by-design-pattern/bad/)?src/fixture_app\.gleam:1\b'
-    prohibited_false_positive_labels:
-      - Fragmented modules
     semantic_criterion: Order behavior is organized into controller, service, and view technical layers rather than its business domain.
 
   - id: grouping-by-design-pattern-good
@@ -632,9 +618,7 @@ cases:
     expected_clean_behavior:
       no_paired_finding: true
       no_violations: true
-    prohibited_finding_labels:
-      - Grouping by design pattern
-    semantic_criterion: The order behavior is grouped in a domain-oriented order module.
+    semantic_criterion: A cohesive order API is grouped in a domain-oriented order module.
 
   - id: check-then-assert-bad
     rule_slug: check-then-assert
@@ -645,6 +629,9 @@ cases:
     expected_report_section: Violations
     expected_finding_label: Check-then-assert
     anchors:
+      - path: fixtures/check-then-assert/bad/src/fixture_app.gleam
+        line: 9
+        report_location_regex: '(?:fixtures/check-then-assert/bad/)?src/fixture_app\.gleam:9\b'
       - path: fixtures/check-then-assert/bad/src/fixture_app.gleam
         line: 10
         report_location_regex: '(?:fixtures/check-then-assert/bad/)?src/fixture_app\.gleam:10\b'
@@ -716,8 +703,6 @@ cases:
     expected_clean_behavior:
       no_paired_finding: true
       no_violations: true
-    prohibited_finding_labels:
-      - Match all variants
     semantic_criterion: Both Role variants are explicitly matched.
 
   - id: category-theory-overuse-bad

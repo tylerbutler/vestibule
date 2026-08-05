@@ -60,6 +60,14 @@ Judgment notes that prevent false positives:
 - Before flagging fragmented modules or namespace issues, look at the actual
   package layout — module-boundary findings need the directory structure as
   evidence, not just one file's imports.
+- A small module or a root module delegating to a domain module is not enough
+  evidence of fragmentation. Require concrete API friction such as callers
+  importing several modules for one task, implementation details being exposed
+  across boundaries, or tightly coupled modules that cannot stand alone.
+- For core-library findings, distinguish domain APIs built with core types from
+  general-purpose replacements for them. Flag custom collection, time, JSON,
+  HTTP, or process abstractions that recreate a core package's role; do not
+  flag domain-specific operations merely because they call a core function.
 
 When unsure whether something violates the guide, re-read the relevant
 section of `references/conventions.md` and quote it in the finding. If it is

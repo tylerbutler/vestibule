@@ -1,13 +1,15 @@
 import gleam/dict
+import gleam/result
 
-pub fn new() -> dict.Dict(String, String) {
-  dict.new()
-}
+pub fn add_points(
+  scores: dict.Dict(String, Int),
+  player: String,
+  points: Int,
+) -> dict.Dict(String, Int) {
+  let current_score =
+    scores
+    |> dict.get(player)
+    |> result.unwrap(0)
 
-pub fn insert(
-  dictionary: dict.Dict(String, String),
-  key: String,
-  value: String,
-) -> dict.Dict(String, String) {
-  dict.insert(dictionary, key, value)
+  dict.insert(scores, player, current_score + points)
 }

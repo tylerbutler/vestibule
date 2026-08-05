@@ -1,15 +1,10 @@
 import simplifile
 
-pub fn main() -> Nil {
-  case
-    simplifile.write(
-      to: "src/generated_schema.gleam",
-      contents: generated_schema(),
-    )
-  {
-    Ok(_) -> Nil
-    Error(_) -> Nil
-  }
+pub fn main() -> Result(Nil, simplifile.FileError) {
+  simplifile.write(
+    to: "src/generated_schema.gleam",
+    contents: generated_schema(),
+  )
 }
 
 fn generated_schema() -> String {

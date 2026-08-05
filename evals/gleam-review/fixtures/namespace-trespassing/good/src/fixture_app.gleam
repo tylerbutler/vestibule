@@ -1,5 +1,5 @@
 import fixture_app/widget
 
-pub fn page() -> String {
-  widget.render()
+pub fn page(action: String) -> String {
+  "Actions: " <> widget.primary(action)
 }

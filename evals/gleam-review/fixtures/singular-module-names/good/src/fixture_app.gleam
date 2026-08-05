@@ -1,5 +1,7 @@
-import fixture_app/user.{type User}
+import fixture_app/user
 
-pub fn welcome(account: User) -> String {
-  user.greeting(account)
+pub fn welcome(name: String) -> String {
+  name
+  |> user.new
+  |> user.greeting
 }
