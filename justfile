@@ -196,6 +196,16 @@ changelog-apply:
 doctor:
     trellis doctor
 
+# === AGENT EVALUATIONS ===
+
+# Validate the Gleam review skill and its Vally eval specification
+vally-lint:
+    vally lint --strict .claude/skills/gleam-review --eval-spec evals/gleam-review/eval.yaml
+
+# Run the complete Gleam review evaluation suite
+vally-eval:
+    vally eval --suite gleam-review
+
 # === MAINTENANCE ===
 
 # Remove build artifacts from all packages

@@ -1,0 +1,1453 @@
+name: gleam-review
+description: Evaluate the read-only Gleam review skill against paired convention, pattern, and anti-pattern fixtures.
+version: "1.0.0"
+type: capability
+
+defaults:
+  runs: 1
+  timeout: 3m
+  model: gpt-5.6-sol
+  judge_model: gpt-5.6-sol
+
+environment:
+  skills:
+    - ../../.claude/skills/gleam-review
+
+stimuli:
+  - name: avoid-unqualified-imports-bad
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/avoid-unqualified-imports/bad
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review identifies unqualified imported function calls, classifies them as a violation in ## Violations with a valid file:line anchor, fully reviews the staged workspace, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: output-contains
+        config: { substring: "Avoid unqualified importing of functions and constants", case_sensitive: true }
+      - type: output-matches
+        config:
+          pattern: '(?:(?:fixtures/avoid-unqualified-imports/bad/)?src/fixture_app\.gleam:1\b|(?:fixtures/avoid-unqualified-imports/bad/)?src/fixture_app\.gleam:2\b)'
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: avoid-unqualified-imports-good
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/avoid-unqualified-imports/good
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review recognizes that external calls are module-qualified, does not misclassify this clean case as a violation, completely reviews the staged workspace without ## Violations, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-not-contains
+        config: { substring: "Avoid unqualified importing of functions and constants", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: annotate-module-functions-bad
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/annotate-module-functions/bad
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review identifies the missing module-function annotations, classifies them as a violation in ## Violations with a valid file:line anchor, fully reviews the staged workspace, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: output-contains
+        config: { substring: "Annotate all module functions", case_sensitive: true }
+      - type: output-matches
+        config:
+          pattern: '(?:(?:fixtures/annotate-module-functions/bad/)?src/fixture_app\.gleam:1\b)'
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: annotate-module-functions-good
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/annotate-module-functions/good
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review recognizes complete argument and return annotations, does not misclassify this clean case as a violation, completely reviews the staged workspace without ## Violations, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-not-contains
+        config: { substring: "Annotate all module functions", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: use-result-for-fallible-functions-bad
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/use-result-for-fallible-functions/bad
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review identifies a fallible empty-list operation returning Option rather than Result, classifies it as a violation in ## Violations with a valid file:line anchor, fully reviews the staged workspace, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: output-contains
+        config: { substring: "Use result for fallible functions", case_sensitive: true }
+      - type: output-matches
+        config:
+          pattern: '(?:(?:fixtures/use-result-for-fallible-functions/bad/)?src/fixture_app\.gleam:3\b)'
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: use-result-for-fallible-functions-good
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/use-result-for-fallible-functions/good
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review recognizes that the empty-list failure is represented by Result, does not misclassify this clean case as a violation, completely reviews the staged workspace without ## Violations, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-not-contains
+        config: { substring: "Use result for fallible functions", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: singular-module-names-bad
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/singular-module-names/bad
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review identifies the plural users module path, classifies it as a violation in ## Violations with a valid file:line anchor, fully reviews the staged workspace, and avoids the unqualified-import false positive."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: output-contains
+        config: { substring: "Use singular for module names", case_sensitive: true }
+      - type: output-matches
+        config:
+          pattern: '(?:(?:fixtures/singular-module-names/bad/)?src/fixture_app\.gleam:1\b|(?:fixtures/singular-module-names/bad/)?src/fixture_app/users\.gleam:1\b)'
+      - type: output-not-contains
+        config: { substring: "Avoid unqualified importing of functions and constants", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: singular-module-names-good
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/singular-module-names/good
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review recognizes the singular user module path and qualified import, does not misclassify this clean case as a violation, completely reviews the staged workspace without ## Violations, and avoids both paired and unqualified-import findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-not-contains
+        config: { substring: "Use singular for module names", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "Avoid unqualified importing of functions and constants", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: acronyms-as-single-words-bad
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/acronyms-as-single-words/bad
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review identifies JSON split into j_s_o_n, classifies it as a violation in ## Violations with a valid file:line anchor, fully reviews the staged workspace, and does not confuse it with an abbreviation finding."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: output-contains
+        config: { substring: "Treat acronyms as single words", case_sensitive: true }
+      - type: output-matches
+        config:
+          pattern: '(?:(?:fixtures/acronyms-as-single-words/bad/)?src/fixture_app\.gleam:1\b|(?:fixtures/acronyms-as-single-words/bad/)?src/fixture_app\.gleam:5\b)'
+      - type: output-not-contains
+        config: { substring: "Abbreviations", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: acronyms-as-single-words-good
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/acronyms-as-single-words/good
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review recognizes Json/json as the correct single-word acronym form, does not misclassify this clean case as a violation, completely reviews the staged workspace without ## Violations, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-not-contains
+        config: { substring: "Treat acronyms as single words", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: conventional-conversion-naming-bad
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/conventional-conversion-naming/bad
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review identifies identifier_as_string instead of to_string, classifies it as a violation in ## Violations with a valid file:line anchor, fully reviews the staged workspace, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: output-contains
+        config: { substring: "Conventional conversion function naming", case_sensitive: true }
+      - type: output-matches
+        config:
+          pattern: '(?:(?:fixtures/conventional-conversion-naming/bad/)?src/fixture_app/identifier\.gleam:5\b)'
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: conventional-conversion-naming-good
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/conventional-conversion-naming/good
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review recognizes the conventional to_string conversion name, does not misclassify this clean case as a violation, completely reviews the staged workspace without ## Violations, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-not-contains
+        config: { substring: "Conventional conversion function naming", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: conventional-fallible-naming-bad
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/conventional-fallible-naming/bad
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review identifies monadic_bind as a non-conventional Result-returning name, classifies it as a violation in ## Violations with a valid file:line anchor, fully reviews the staged workspace, and avoids a category-theory false positive."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: output-contains
+        config: { substring: "Conventional fallible function naming", case_sensitive: true }
+      - type: output-matches
+        config:
+          pattern: '(?:(?:fixtures/conventional-fallible-naming/bad/)?src/fixture_app\.gleam:10\b)'
+      - type: output-not-contains
+        config: { substring: "Category theory overuse", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: conventional-fallible-naming-good
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/conventional-fallible-naming/good
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review recognizes try_map as the conventional fallible name, does not misclassify this clean case as a violation, completely reviews the staged workspace without ## Violations, and avoids paired and category-theory findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-not-contains
+        config: { substring: "Conventional fallible function naming", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "Category theory overuse", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: use-core-libraries-bad
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/use-core-libraries/bad
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review identifies a hand-rolled dictionary rather than gleam/dict, classifies it as a violation in ## Violations with a valid file:line anchor, fully reviews the staged workspace, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: output-contains
+        config: { substring: "Use the core libraries", case_sensitive: true }
+      - type: output-matches
+        config:
+          pattern: '(?:(?:fixtures/use-core-libraries/bad/)?src/fixture_app\.gleam:1\b|(?:fixtures/use-core-libraries/bad/)?src/fixture_app\.gleam:5\b|(?:fixtures/use-core-libraries/bad/)?src/fixture_app\.gleam:9\b)'
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: use-core-libraries-good
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/use-core-libraries/good
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review recognizes gleam/dict use, does not misclassify this clean case as a violation, completely reviews the staged workspace without ## Violations, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-not-contains
+        config: { substring: "Use the core libraries", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: tool-config-in-gleam-toml-bad
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/tool-config-in-gleam-toml/bad
+          dest: .
+      commands:
+        - cp gleam.toml.fixture gleam.toml
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review identifies development security-scanner configuration outside gleam.toml, classifies it as a violation in ## Violations with a valid file:line anchor, fully reviews the staged workspace, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: output-contains
+        config: { substring: "Keep development tool config in `gleam.toml`", case_sensitive: true }
+      - type: output-matches
+        config:
+          pattern: '(?:(?:fixtures/tool-config-in-gleam-toml/bad/)?security-scan\.toml:1\b)'
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: tool-config-in-gleam-toml-good
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/tool-config-in-gleam-toml/good
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review recognizes security-scanner settings under tools.security_scan in gleam.toml, does not misclassify this clean case as a violation, completely reviews the staged workspace without ## Violations, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-not-contains
+        config: { substring: "Keep development tool config in `gleam.toml`", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: correct-source-code-directory-bad
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/correct-source-code-directory/bad
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review identifies a development generator main under src instead of dev, classifies it as a violation in ## Violations with a valid file:line anchor, fully reviews the staged workspace, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: output-contains
+        config: { substring: "Use the correct source code directory", case_sensitive: true }
+      - type: output-matches
+        config:
+          pattern: '(?:(?:fixtures/correct-source-code-directory/bad/)?src/fixture_app/generate_schema\.gleam:3\b|(?:fixtures/correct-source-code-directory/bad/)?src/fixture_app/generate_schema\.gleam:1\b)'
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: correct-source-code-directory-good
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/correct-source-code-directory/good
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review recognizes the development generator under dev and application code under src, does not misclassify this clean case as a violation, completely reviews the staged workspace without ## Violations, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-not-contains
+        config: { substring: "Use the correct source code directory", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: descriptive-errors-bad
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/descriptive-errors/bad
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review identifies error variants missing a path and write-failure reason, classifies this as a suggestion in ## Suggestions with a valid file:line anchor, fully reviews the staged workspace, and avoids a Match all variants false positive."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-contains
+        config: { substring: "## Suggestions", case_sensitive: true }
+      - type: output-contains
+        config: { substring: "Design descriptive errors", case_sensitive: true }
+      - type: output-matches
+        config:
+          pattern: '(?:(?:fixtures/descriptive-errors/bad/)?src/fixture_app\.gleam:1\b|(?:fixtures/descriptive-errors/bad/)?src/fixture_app\.gleam:2\b|(?:fixtures/descriptive-errors/bad/)?src/fixture_app\.gleam:3\b)'
+      - type: output-not-contains
+        config: { substring: "Match all variants", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: descriptive-errors-good
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/descriptive-errors/good
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review recognizes descriptive error variants with path and reason data, does not misclassify this clean case as a suggestion, completely reviews the staged workspace without ## Violations, and avoids paired and Match all variants findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-not-contains
+        config: { substring: "Design descriptive errors", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "Match all variants", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: invalid-states-impossible-bad
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/invalid-states-impossible/bad
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review identifies optional id and email fields that permit invalid visitor states, classifies this as a suggestion in ## Suggestions with a valid file:line anchor, fully reviews the staged workspace, and avoids Result and unqualified-import false positives."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-contains
+        config: { substring: "## Suggestions", case_sensitive: true }
+      - type: output-contains
+        config: { substring: "Make invalid states impossible", case_sensitive: true }
+      - type: output-matches
+        config:
+          pattern: '(?:(?:fixtures/invalid-states-impossible/bad/)?src/fixture_app\.gleam:4\b|(?:fixtures/invalid-states-impossible/bad/)?src/fixture_app\.gleam:3\b)'
+      - type: output-not-contains
+        config: { substring: "Use result for fallible functions", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "Avoid unqualified importing of functions and constants", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: invalid-states-impossible-good
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/invalid-states-impossible/good
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review recognizes explicit LoggedInUser and Guest variants, does not misclassify this clean case as a suggestion, completely reviews the staged workspace without ## Violations, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-not-contains
+        config: { substring: "Make invalid states impossible", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: replace-bools-with-custom-types-bad
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/replace-bools-with-custom-types/bad
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review identifies the ambiguous is_student Bool domain role, classifies this as a suggestion in ## Suggestions with a valid file:line anchor, fully reviews the staged workspace, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-contains
+        config: { substring: "## Suggestions", case_sensitive: true }
+      - type: output-contains
+        config: { substring: "Replace bools with custom types", case_sensitive: true }
+      - type: output-matches
+        config:
+          pattern: '(?:(?:fixtures/replace-bools-with-custom-types/bad/)?src/fixture_app\.gleam:2\b|(?:fixtures/replace-bools-with-custom-types/bad/)?src/fixture_app\.gleam:1\b)'
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: replace-bools-with-custom-types-good
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/replace-bools-with-custom-types/good
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review recognizes the named Role custom type, does not misclassify this clean case as a suggestion, completely reviews the staged workspace without ## Violations, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-not-contains
+        config: { substring: "Replace bools with custom types", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: sans-io-bad
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/sans-io/bad
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review identifies an HTTP-sending client coupled to the API operation, classifies this as a suggestion in ## Suggestions with a valid file:line anchor, fully reviews the staged workspace, and avoids unqualified-import and Match all variants false positives."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-contains
+        config: { substring: "## Suggestions", case_sensitive: true }
+      - type: output-contains
+        config: { substring: "The sans-io pattern", case_sensitive: true }
+      - type: output-matches
+        config:
+          pattern: '(?:(?:fixtures/sans-io/bad/)?src/fixture_app\.gleam:9\b|(?:fixtures/sans-io/bad/)?src/fixture_app\.gleam:10\b)'
+      - type: output-not-contains
+        config: { substring: "Avoid unqualified importing of functions and constants", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "Match all variants", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: sans-io-good
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/sans-io/good
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review recognizes separate request-building and response-parsing functions, does not misclassify this clean case as a suggestion, completely reviews the staged workspace without ## Violations, and avoids paired, unqualified-import, and Match all variants findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-not-contains
+        config: { substring: "The sans-io pattern", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "Avoid unqualified importing of functions and constants", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "Match all variants", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: builder-pattern-bad
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/builder-pattern/bad
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review identifies optional Button configuration forced through positional arguments, classifies this as a suggestion in ## Suggestions with a valid file:line anchor, fully reviews the staged workspace, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-contains
+        config: { substring: "## Suggestions", case_sensitive: true }
+      - type: output-contains
+        config: { substring: "The builder pattern", case_sensitive: true }
+      - type: output-matches
+        config:
+          pattern: '(?:(?:fixtures/builder-pattern/bad/)?src/fixture_app\.gleam:12\b)'
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: builder-pattern-good
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/builder-pattern/good
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review recognizes a Button with required text and builder-applied optional settings, does not misclassify this clean case as a suggestion, completely reviews the staged workspace without ## Violations, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-not-contains
+        config: { substring: "The builder pattern", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: abbreviations-bad
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/abbreviations/bad
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review identifies the shortened off and cnt parameter names, classifies them as a violation in ## Violations with a valid file:line anchor, fully reviews the staged workspace, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: output-contains
+        config: { substring: "Abbreviations", case_sensitive: true }
+      - type: output-matches
+        config:
+          pattern: '(?:(?:fixtures/abbreviations/bad/)?src/fixture_app\.gleam:1\b)'
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: abbreviations-good
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/abbreviations/good
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review recognizes descriptive offset and count parameter names, does not misclassify this clean case as a violation, completely reviews the staged workspace without ## Violations, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-not-contains
+        config: { substring: "Abbreviations", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: fragmented-modules-bad
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/fragmented-modules/bad
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review identifies the user-loading workflow fragmented across tightly coupled modules, classifies it as a violation in ## Violations with a valid file:line anchor, fully reviews the package layout, and avoids all listed module-layout and match false positives."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: output-contains
+        config: { substring: "Fragmented modules", case_sensitive: true }
+      - type: output-matches
+        config:
+          pattern: '(?:(?:fixtures/fragmented-modules/bad/)?src/fixture_app\.gleam:1\b|(?:fixtures/fragmented-modules/bad/)?src/fixture_app/client\.gleam:1\b|(?:fixtures/fragmented-modules/bad/)?src/fixture_app/config\.gleam:1\b|(?:fixtures/fragmented-modules/bad/)?src/fixture_app/decode\.gleam:1\b|(?:fixtures/fragmented-modules/bad/)?src/fixture_app/error\.gleam:1\b|(?:fixtures/fragmented-modules/bad/)?src/fixture_app/parser\.gleam:1\b|(?:fixtures/fragmented-modules/bad/)?src/fixture_app/url\.gleam:1\b|(?:fixtures/fragmented-modules/bad/)?src/fixture_app/user\.gleam:1\b)'
+      - type: output-not-contains
+        config: { substring: "Grouping by design pattern", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "Global namespace pollution", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "Namespace trespassing", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "Avoid unqualified importing of functions and constants", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "Match all variants", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: fragmented-modules-good
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/fragmented-modules/good
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review recognizes a cohesive small user-loading module and open-ended String catch-all, does not misclassify this clean case as a violation, completely reviews the staged workspace without ## Violations, and avoids paired and Match all variants findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-not-contains
+        config: { substring: "Fragmented modules", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "Match all variants", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: panicking-in-libraries-bad
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Context: This staged package is a reusable library; apply library-specific guidance to its `src/` code.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/panicking-in-libraries/bad
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review identifies let assert panicking on malformed input in a reusable library, classifies it as a violation in ## Violations with a valid file:line anchor, fully reviews the staged workspace, and does not misclassify it as Check-then-assert."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: output-contains
+        config: { substring: "Panicking in libraries", case_sensitive: true }
+      - type: output-matches
+        config:
+          pattern: '(?:(?:fixtures/panicking-in-libraries/bad/)?src/fixture_library\.gleam:12\b)'
+      - type: output-not-contains
+        config: { substring: "Check-then-assert", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: panicking-in-libraries-good
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Context: This staged package is a reusable library; apply library-specific guidance to its `src/` code.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/panicking-in-libraries/good
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review recognizes descriptive Error results in the reusable library and an open-ended list catch-all, does not misclassify this clean case as a violation, completely reviews the staged workspace without ## Violations, and avoids paired, Check-then-assert, and Match all variants findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-not-contains
+        config: { substring: "Panicking in libraries", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "Check-then-assert", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "Match all variants", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: global-namespace-pollution-bad
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/global-namespace-pollution/bad
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review identifies distribution and inventory as un-namespaced top-level modules, classifies it as a violation in ## Violations with a valid file:line anchor, fully reviews the package layout, and avoids a Namespace trespassing false positive."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: output-contains
+        config: { substring: "Global namespace pollution", case_sensitive: true }
+      - type: output-matches
+        config:
+          pattern: '(?:(?:fixtures/global-namespace-pollution/bad/)?src/distribution\.gleam:1\b|(?:fixtures/global-namespace-pollution/bad/)?src/inventory\.gleam:1\b|(?:fixtures/global-namespace-pollution/bad/)?src/fixture_app\.gleam:1\b|(?:fixtures/global-namespace-pollution/bad/)?src/fixture_app\.gleam:2\b)'
+      - type: output-not-contains
+        config: { substring: "Namespace trespassing", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: global-namespace-pollution-good
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/global-namespace-pollution/good
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review recognizes support modules under the fixture_app namespace, does not misclassify this clean case as a violation, completely reviews the staged workspace without ## Violations, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-not-contains
+        config: { substring: "Global namespace pollution", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: namespace-trespassing-bad
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/namespace-trespassing/bad
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review identifies a module in lustre's top-level namespace, classifies it as a violation in ## Violations with a valid file:line anchor, fully reviews the package layout, and avoids a Global namespace pollution false positive."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: output-contains
+        config: { substring: "Namespace trespassing", case_sensitive: true }
+      - type: output-matches
+        config:
+          pattern: '(?:(?:fixtures/namespace-trespassing/bad/)?src/lustre/widget\.gleam:1\b)'
+      - type: output-not-contains
+        config: { substring: "Global namespace pollution", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: namespace-trespassing-good
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/namespace-trespassing/good
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review recognizes the widget module inside the fixture_app namespace, does not misclassify this clean case as a violation, completely reviews the staged workspace without ## Violations, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-not-contains
+        config: { substring: "Namespace trespassing", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: grouping-by-design-pattern-bad
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/grouping-by-design-pattern/bad
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review identifies controller, service, and view technical layers for one Order domain, classifies it as a violation in ## Violations with a valid file:line anchor, fully reviews the package layout, and avoids a Fragmented modules false positive."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: output-contains
+        config: { substring: "Grouping by design pattern", case_sensitive: true }
+      - type: output-matches
+        config:
+          pattern: '(?:(?:fixtures/grouping-by-design-pattern/bad/)?src/fixture_app/controller/order_controller\.gleam:1\b|(?:fixtures/grouping-by-design-pattern/bad/)?src/fixture_app/service/order_service\.gleam:1\b|(?:fixtures/grouping-by-design-pattern/bad/)?src/fixture_app/view/order_view\.gleam:1\b|(?:fixtures/grouping-by-design-pattern/bad/)?src/fixture_app\.gleam:1\b)'
+      - type: output-not-contains
+        config: { substring: "Fragmented modules", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: grouping-by-design-pattern-good
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/grouping-by-design-pattern/good
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review recognizes Order behavior grouped by its business domain, does not misclassify this clean case as a violation, completely reviews the staged workspace without ## Violations, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-not-contains
+        config: { substring: "Grouping by design pattern", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: check-then-assert-bad
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Context: This staged package is an application; fixture_app.main is its top-level main.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/check-then-assert/bad
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review identifies application main checking is_ok before asserting the same Result, classifies it as a violation in ## Violations with a valid file:line anchor, fully reviews the staged workspace, and does not misclassify it as Panicking in libraries."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: output-contains
+        config: { substring: "Check-then-assert", case_sensitive: true }
+      - type: output-matches
+        config:
+          pattern: '(?:(?:fixtures/check-then-assert/bad/)?src/fixture_app\.gleam:10\b|(?:fixtures/check-then-assert/bad/)?src/fixture_app\.gleam:12\b)'
+      - type: output-not-contains
+        config: { substring: "Panicking in libraries", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: check-then-assert-good
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Context: This staged package is an application; fixture_app.main is its top-level main.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/check-then-assert/good
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review recognizes application main directly pattern matching on Result, does not misclassify this clean case as a violation, completely reviews the staged workspace without ## Violations, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-not-contains
+        config: { substring: "Check-then-assert", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: dynamic-ffi-bad
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/dynamic-ffi/bad
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review identifies a Dynamic value at the FFI boundary instead of a precise opaque type, classifies it as a violation in ## Violations with a valid file:line anchor, fully reviews the staged workspace, and avoids an unqualified-import false positive."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: output-contains
+        config: { substring: "Using dynamic with FFI", case_sensitive: true }
+      - type: output-matches
+        config:
+          pattern: '(?:(?:fixtures/dynamic-ffi/bad/)?src/fixture_app\.gleam:4\b|(?:fixtures/dynamic-ffi/bad/)?src/fixture_app\.gleam:1\b)'
+      - type: output-not-contains
+        config: { substring: "Avoid unqualified importing of functions and constants", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: dynamic-ffi-good
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/dynamic-ffi/good
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review recognizes an opaque Buffer type at the FFI boundary, does not misclassify this clean case as a violation, completely reviews the staged workspace without ## Violations, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-not-contains
+        config: { substring: "Using dynamic with FFI", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: match-all-variants-bad
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/match-all-variants/bad
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review identifies a catch-all over a closed Role custom type instead of an explicit Teacher match, classifies it as a violation in ## Violations with a valid file:line anchor, fully reviews the staged workspace, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: output-contains
+        config: { substring: "Match all variants", case_sensitive: true }
+      - type: output-matches
+        config:
+          pattern: '(?:(?:fixtures/match-all-variants/bad/)?src/fixture_app\.gleam:9\b)'
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: match-all-variants-good
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/match-all-variants/good
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review recognizes both Role variants matched explicitly, does not misclassify this clean case as a violation, completely reviews the staged workspace without ## Violations, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-not-contains
+        config: { substring: "Match all variants", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: category-theory-overuse-bad
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/category-theory-overuse/bad
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review identifies a generic Monoid abstraction adding category-theory machinery over a concrete operation, classifies it as a violation in ## Violations with a valid file:line anchor, fully reviews the staged workspace, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: output-contains
+        config: { substring: "Category theory overuse", case_sensitive: true }
+      - type: output-matches
+        config:
+          pattern: '(?:(?:fixtures/category-theory-overuse/bad/)?src/fixture_app\.gleam:3\b|(?:fixtures/category-theory-overuse/bad/)?src/fixture_app\.gleam:7\b)'
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+  - name: category-theory-overuse-good
+    prompt: |
+      Invoke `/gleam-review` on the full staged workspace.
+      Read all in-scope files completely before reviewing. Do not edit or refactor files.
+      Return only the review.
+    environment:
+      files:
+        - src: fixtures/category-theory-overuse/good
+          dest: .
+    constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
+    rubric:
+      - "The review recognizes a direct concrete total_cost operation, does not misclassify this clean case as a violation, completely reviews the staged workspace without ## Violations, and avoids unsupported findings."
+    graders:
+      - type: skill-invocation
+        config: { required: [gleam-review] }
+      - type: output-not-contains
+        config: { substring: "Category theory overuse", case_sensitive: true }
+      - type: output-not-contains
+        config: { substring: "## Violations", case_sensitive: true }
+      - type: prompt
+        config:
+          prompt: "Judge the final review against this case's rubric. Pass only when every criterion is satisfied."
+          scoring: binary
+          threshold: 0.5
+          evidence: [trajectory]
+
+scoring:
+  threshold: 1.0

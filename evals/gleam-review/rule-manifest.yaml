@@ -1,0 +1,390 @@
+# Manifest for the Gleam review eval. `expected_*` fields are explicit grader
+# expectations, and `fixture_mode` describes source/layout evidence rather than
+# standalone packages. The `tool-config-in-gleam-toml` pair retains the sole
+# actual fixture `gleam.toml` as minimal good configuration. Its bad directory
+# stages a matching `gleam.toml.fixture` beside `security-scan.toml`; a Vally
+# stimulus materializes that template as `gleam.toml` when needed. Optional
+# `stimulus_context` identifies a load-bearing package role:
+# `reusable_library` or `application_top_level_main`. `disposition` says whether
+# the rule is covered by paired fixtures, rubric, or exclusion.
+version: 1
+source_guide: ../../.claude/skills/gleam-review/references/conventions.md
+summary:
+  total: 26
+  conventions: 10
+  patterns: 6
+  anti_patterns: 10
+  paired_fixture: 25
+  rubric_only: 1
+  excluded: 0
+rules:
+  - guide_section: Avoid unqualified importing of functions and constants
+    slug: avoid-unqualified-imports
+    tier: convention
+    expected_classification: violation
+    expected_report_section: Violations
+    fixture_mode: isolated_pair
+    evidence:
+      - file_content
+    expected_finding_label: Avoid unqualified importing of functions and constants
+    disposition: paired_fixture
+    fixture_paths:
+      bad: fixtures/avoid-unqualified-imports/bad
+      good: fixtures/avoid-unqualified-imports/good
+
+  - guide_section: Annotate all module functions
+    slug: annotate-module-functions
+    tier: convention
+    expected_classification: violation
+    expected_report_section: Violations
+    fixture_mode: isolated_pair
+    evidence:
+      - file_content
+    expected_finding_label: Annotate all module functions
+    disposition: paired_fixture
+    fixture_paths:
+      bad: fixtures/annotate-module-functions/bad
+      good: fixtures/annotate-module-functions/good
+
+  - guide_section: Use result for fallible functions
+    slug: use-result-for-fallible-functions
+    tier: convention
+    expected_classification: violation
+    expected_report_section: Violations
+    fixture_mode: isolated_pair
+    evidence:
+      - file_content
+    expected_finding_label: Use result for fallible functions
+    disposition: paired_fixture
+    fixture_paths:
+      bad: fixtures/use-result-for-fallible-functions/bad
+      good: fixtures/use-result-for-fallible-functions/good
+
+  - guide_section: Use singular for module names
+    slug: singular-module-names
+    tier: convention
+    expected_classification: violation
+    expected_report_section: Violations
+    fixture_mode: isolated_pair
+    evidence:
+      - package_layout
+    expected_finding_label: Use singular for module names
+    disposition: paired_fixture
+    fixture_paths:
+      bad: fixtures/singular-module-names/bad
+      good: fixtures/singular-module-names/good
+
+  - guide_section: Treat acronyms as single words
+    slug: acronyms-as-single-words
+    tier: convention
+    expected_classification: violation
+    expected_report_section: Violations
+    fixture_mode: isolated_pair
+    evidence:
+      - file_content
+    expected_finding_label: Treat acronyms as single words
+    disposition: paired_fixture
+    fixture_paths:
+      bad: fixtures/acronyms-as-single-words/bad
+      good: fixtures/acronyms-as-single-words/good
+
+  - guide_section: Conventional conversion function naming
+    slug: conventional-conversion-naming
+    tier: convention
+    expected_classification: violation
+    expected_report_section: Violations
+    fixture_mode: isolated_pair
+    evidence:
+      - file_content
+    expected_finding_label: Conventional conversion function naming
+    disposition: paired_fixture
+    fixture_paths:
+      bad: fixtures/conventional-conversion-naming/bad
+      good: fixtures/conventional-conversion-naming/good
+
+  - guide_section: Conventional fallible function naming
+    slug: conventional-fallible-naming
+    tier: convention
+    expected_classification: violation
+    expected_report_section: Violations
+    fixture_mode: isolated_pair
+    evidence:
+      - file_content
+    expected_finding_label: Conventional fallible function naming
+    disposition: paired_fixture
+    fixture_paths:
+      bad: fixtures/conventional-fallible-naming/bad
+      good: fixtures/conventional-fallible-naming/good
+
+  - guide_section: Use the core libraries
+    slug: use-core-libraries
+    tier: convention
+    expected_classification: violation
+    expected_report_section: Violations
+    fixture_mode: isolated_pair
+    evidence:
+      - file_content
+    expected_finding_label: Use the core libraries
+    disposition: paired_fixture
+    fixture_paths:
+      bad: fixtures/use-core-libraries/bad
+      good: fixtures/use-core-libraries/good
+
+  - guide_section: Keep development tool config in `gleam.toml`
+    slug: tool-config-in-gleam-toml
+    tier: convention
+    expected_classification: violation
+    expected_report_section: Violations
+    fixture_mode: isolated_pair
+    evidence:
+      - package_layout
+      - gleam_toml
+    expected_finding_label: Keep development tool config in `gleam.toml`
+    disposition: paired_fixture
+    fixture_paths:
+      bad: fixtures/tool-config-in-gleam-toml/bad
+      good: fixtures/tool-config-in-gleam-toml/good
+
+  - guide_section: Use the correct source code directory
+    slug: correct-source-code-directory
+    tier: convention
+    expected_classification: violation
+    expected_report_section: Violations
+    fixture_mode: isolated_pair
+    evidence:
+      - package_layout
+      - file_content
+    expected_finding_label: Use the correct source code directory
+    disposition: paired_fixture
+    fixture_paths:
+      bad: fixtures/correct-source-code-directory/bad
+      good: fixtures/correct-source-code-directory/good
+
+  - guide_section: Design descriptive errors
+    slug: descriptive-errors
+    tier: pattern
+    expected_classification: suggestion
+    expected_report_section: Suggestions
+    fixture_mode: isolated_pair
+    evidence:
+      - file_content
+    expected_finding_label: Design descriptive errors
+    disposition: paired_fixture
+    fixture_paths:
+      bad: fixtures/descriptive-errors/bad
+      good: fixtures/descriptive-errors/good
+
+  - guide_section: Comment liberally
+    slug: comment-liberally
+    tier: pattern
+    expected_classification: suggestion
+    expected_report_section: Suggestions
+    fixture_mode: rubric_only
+    evidence:
+      - file_content
+    expected_finding_label: Comment liberally
+    disposition: rubric_only
+    rationale: Absence of comments alone is not a defensible isolated finding;
+      whether more commentary is warranted depends on local complexity, audience,
+      and how clearly the surrounding code already communicates intent.
+
+  - guide_section: Make invalid states impossible
+    slug: invalid-states-impossible
+    tier: pattern
+    expected_classification: suggestion
+    expected_report_section: Suggestions
+    fixture_mode: isolated_pair
+    evidence:
+      - file_content
+    expected_finding_label: Make invalid states impossible
+    disposition: paired_fixture
+    fixture_paths:
+      bad: fixtures/invalid-states-impossible/bad
+      good: fixtures/invalid-states-impossible/good
+
+  - guide_section: Replace bools with custom types
+    slug: replace-bools-with-custom-types
+    tier: pattern
+    expected_classification: suggestion
+    expected_report_section: Suggestions
+    fixture_mode: isolated_pair
+    evidence:
+      - file_content
+    expected_finding_label: Replace bools with custom types
+    disposition: paired_fixture
+    fixture_paths:
+      bad: fixtures/replace-bools-with-custom-types/bad
+      good: fixtures/replace-bools-with-custom-types/good
+
+  - guide_section: The sans-io pattern
+    slug: sans-io
+    tier: pattern
+    expected_classification: suggestion
+    expected_report_section: Suggestions
+    fixture_mode: isolated_pair
+    evidence:
+      - file_content
+    expected_finding_label: The sans-io pattern
+    disposition: paired_fixture
+    fixture_paths:
+      bad: fixtures/sans-io/bad
+      good: fixtures/sans-io/good
+
+  - guide_section: The builder pattern
+    slug: builder-pattern
+    tier: pattern
+    expected_classification: suggestion
+    expected_report_section: Suggestions
+    fixture_mode: isolated_pair
+    evidence:
+      - file_content
+    expected_finding_label: The builder pattern
+    disposition: paired_fixture
+    fixture_paths:
+      bad: fixtures/builder-pattern/bad
+      good: fixtures/builder-pattern/good
+
+  - guide_section: Abbreviations
+    slug: abbreviations
+    tier: anti-pattern
+    expected_classification: violation
+    expected_report_section: Violations
+    fixture_mode: isolated_pair
+    evidence:
+      - file_content
+    expected_finding_label: Abbreviations
+    disposition: paired_fixture
+    fixture_paths:
+      bad: fixtures/abbreviations/bad
+      good: fixtures/abbreviations/good
+
+  - guide_section: Fragmented modules
+    slug: fragmented-modules
+    tier: anti-pattern
+    expected_classification: violation
+    expected_report_section: Violations
+    fixture_mode: isolated_pair
+    evidence:
+      - package_layout
+      - file_content
+    expected_finding_label: Fragmented modules
+    disposition: paired_fixture
+    fixture_paths:
+      bad: fixtures/fragmented-modules/bad
+      good: fixtures/fragmented-modules/good
+
+  - guide_section: Panicking in libraries
+    slug: panicking-in-libraries
+    tier: anti-pattern
+    expected_classification: violation
+    expected_report_section: Violations
+    fixture_mode: isolated_pair
+    stimulus_context: reusable_library
+    evidence:
+      - package_layout
+      - file_content
+    expected_finding_label: Panicking in libraries
+    disposition: paired_fixture
+    fixture_paths:
+      bad: fixtures/panicking-in-libraries/bad
+      good: fixtures/panicking-in-libraries/good
+
+  - guide_section: Global namespace pollution
+    slug: global-namespace-pollution
+    tier: anti-pattern
+    expected_classification: violation
+    expected_report_section: Violations
+    fixture_mode: isolated_pair
+    evidence:
+      - package_layout
+    expected_finding_label: Global namespace pollution
+    disposition: paired_fixture
+    fixture_paths:
+      bad: fixtures/global-namespace-pollution/bad
+      good: fixtures/global-namespace-pollution/good
+
+  - guide_section: Namespace trespassing
+    slug: namespace-trespassing
+    tier: anti-pattern
+    expected_classification: violation
+    expected_report_section: Violations
+    fixture_mode: isolated_pair
+    evidence:
+      - package_layout
+    expected_finding_label: Namespace trespassing
+    disposition: paired_fixture
+    fixture_paths:
+      bad: fixtures/namespace-trespassing/bad
+      good: fixtures/namespace-trespassing/good
+
+  - guide_section: Grouping by design pattern
+    slug: grouping-by-design-pattern
+    tier: anti-pattern
+    expected_classification: violation
+    expected_report_section: Violations
+    fixture_mode: isolated_pair
+    evidence:
+      - package_layout
+      - file_content
+    expected_finding_label: Grouping by design pattern
+    disposition: paired_fixture
+    fixture_paths:
+      bad: fixtures/grouping-by-design-pattern/bad
+      good: fixtures/grouping-by-design-pattern/good
+
+  - guide_section: Check-then-assert
+    slug: check-then-assert
+    tier: anti-pattern
+    expected_classification: violation
+    expected_report_section: Violations
+    fixture_mode: isolated_pair
+    stimulus_context: application_top_level_main
+    evidence:
+      - file_content
+    expected_finding_label: Check-then-assert
+    disposition: paired_fixture
+    fixture_paths:
+      bad: fixtures/check-then-assert/bad
+      good: fixtures/check-then-assert/good
+
+  - guide_section: Using dynamic with FFI
+    slug: dynamic-ffi
+    tier: anti-pattern
+    expected_classification: violation
+    expected_report_section: Violations
+    fixture_mode: isolated_pair
+    evidence:
+      - file_content
+    expected_finding_label: Using dynamic with FFI
+    disposition: paired_fixture
+    fixture_paths:
+      bad: fixtures/dynamic-ffi/bad
+      good: fixtures/dynamic-ffi/good
+
+  - guide_section: Match all variants
+    slug: match-all-variants
+    tier: anti-pattern
+    expected_classification: violation
+    expected_report_section: Violations
+    fixture_mode: isolated_pair
+    evidence:
+      - file_content
+    expected_finding_label: Match all variants
+    disposition: paired_fixture
+    fixture_paths:
+      bad: fixtures/match-all-variants/bad
+      good: fixtures/match-all-variants/good
+
+  - guide_section: Category theory overuse
+    slug: category-theory-overuse
+    tier: anti-pattern
+    expected_classification: violation
+    expected_report_section: Violations
+    fixture_mode: isolated_pair
+    evidence:
+      - file_content
+    expected_finding_label: Category theory overuse
+    disposition: paired_fixture
+    fixture_paths:
+      bad: fixtures/category-theory-overuse/bad
+      good: fixtures/category-theory-overuse/good
