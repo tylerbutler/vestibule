@@ -16,7 +16,7 @@ environment:
 stimuli:
   - name: avoid-unqualified-imports-bad
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -45,7 +45,7 @@ stimuli:
 
   - name: avoid-unqualified-imports-good
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -71,7 +71,7 @@ stimuli:
 
   - name: annotate-module-functions-bad
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -100,7 +100,7 @@ stimuli:
 
   - name: annotate-module-functions-good
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -126,7 +126,7 @@ stimuli:
 
   - name: use-result-for-fallible-functions-bad
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -155,7 +155,7 @@ stimuli:
 
   - name: use-result-for-fallible-functions-good
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -181,7 +181,7 @@ stimuli:
 
   - name: singular-module-names-bad
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -212,7 +212,7 @@ stimuli:
 
   - name: singular-module-names-good
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -240,7 +240,7 @@ stimuli:
 
   - name: acronyms-as-single-words-bad
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -271,7 +271,7 @@ stimuli:
 
   - name: acronyms-as-single-words-good
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -297,7 +297,7 @@ stimuli:
 
   - name: conventional-conversion-naming-bad
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -326,7 +326,7 @@ stimuli:
 
   - name: conventional-conversion-naming-good
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -352,7 +352,7 @@ stimuli:
 
   - name: conventional-fallible-naming-bad
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -383,7 +383,7 @@ stimuli:
 
   - name: conventional-fallible-naming-good
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -411,7 +411,7 @@ stimuli:
 
   - name: use-core-libraries-bad
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -440,7 +440,7 @@ stimuli:
 
   - name: use-core-libraries-good
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -466,7 +466,7 @@ stimuli:
 
   - name: tool-config-in-gleam-toml-bad
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -497,7 +497,7 @@ stimuli:
 
   - name: tool-config-in-gleam-toml-good
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -523,7 +523,7 @@ stimuli:
 
   - name: correct-source-code-directory-bad
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -552,7 +552,7 @@ stimuli:
 
   - name: correct-source-code-directory-good
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -578,7 +578,7 @@ stimuli:
 
   - name: descriptive-errors-bad
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -609,7 +609,7 @@ stimuli:
 
   - name: descriptive-errors-good
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -637,7 +637,7 @@ stimuli:
 
   - name: invalid-states-impossible-bad
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -670,7 +670,7 @@ stimuli:
 
   - name: invalid-states-impossible-good
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -696,7 +696,7 @@ stimuli:
 
   - name: replace-bools-with-custom-types-bad
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -725,7 +725,7 @@ stimuli:
 
   - name: replace-bools-with-custom-types-good
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -751,7 +751,7 @@ stimuli:
 
   - name: sans-io-bad
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -784,7 +784,7 @@ stimuli:
 
   - name: sans-io-good
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -814,7 +814,7 @@ stimuli:
 
   - name: builder-pattern-bad
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -843,7 +843,7 @@ stimuli:
 
   - name: builder-pattern-good
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -869,7 +869,7 @@ stimuli:
 
   - name: abbreviations-bad
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -898,7 +898,7 @@ stimuli:
 
   - name: abbreviations-good
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -924,7 +924,7 @@ stimuli:
 
   - name: fragmented-modules-bad
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -963,7 +963,7 @@ stimuli:
 
   - name: fragmented-modules-good
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -991,7 +991,7 @@ stimuli:
 
   - name: panicking-in-libraries-bad
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Context: This staged package is a reusable library; apply library-specific guidance to its `src/` code.
       Return only the review.
@@ -1023,7 +1023,7 @@ stimuli:
 
   - name: panicking-in-libraries-good
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Context: This staged package is a reusable library; apply library-specific guidance to its `src/` code.
       Return only the review.
@@ -1054,7 +1054,7 @@ stimuli:
 
   - name: global-namespace-pollution-bad
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -1085,7 +1085,7 @@ stimuli:
 
   - name: global-namespace-pollution-good
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -1111,7 +1111,7 @@ stimuli:
 
   - name: namespace-trespassing-bad
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -1142,7 +1142,7 @@ stimuli:
 
   - name: namespace-trespassing-good
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -1168,7 +1168,7 @@ stimuli:
 
   - name: grouping-by-design-pattern-bad
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -1199,7 +1199,7 @@ stimuli:
 
   - name: grouping-by-design-pattern-good
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -1225,7 +1225,7 @@ stimuli:
 
   - name: check-then-assert-bad
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Context: This staged package is an application; fixture_app.main is its top-level main.
       Return only the review.
@@ -1257,7 +1257,7 @@ stimuli:
 
   - name: check-then-assert-good
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Context: This staged package is an application; fixture_app.main is its top-level main.
       Return only the review.
@@ -1284,7 +1284,7 @@ stimuli:
 
   - name: dynamic-ffi-bad
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -1315,7 +1315,7 @@ stimuli:
 
   - name: dynamic-ffi-good
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -1341,7 +1341,7 @@ stimuli:
 
   - name: match-all-variants-bad
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -1370,7 +1370,7 @@ stimuli:
 
   - name: match-all-variants-good
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -1396,7 +1396,7 @@ stimuli:
 
   - name: category-theory-overuse-bad
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:
@@ -1425,7 +1425,7 @@ stimuli:
 
   - name: category-theory-overuse-good
     prompt: |
-      Invoke `/gleam-review` on the full staged workspace.
+      Use the `gleam-review` skill to review the full staged workspace. Invoke the skill by its exact name, `gleam-review`, without a leading slash.
       Read all in-scope files completely before reviewing. Do not edit or refactor files.
       Return only the review.
     environment:

@@ -1,7 +1,6 @@
 ---
 name: gleam-review
-description: Review Gleam code against the official Gleam conventions, patterns, and anti-patterns guide. Identifies anti-patterns (check-then-assert, catch-all matches, panicking in libraries, abbreviations, fragmented modules), convention violations (unqualified imports, missing type annotations, fallible functions that don't return Result), and opportunities to apply recommended patterns (descriptive errors, invalid-states-impossible modelling, builder pattern). Manual invocation only — run via /gleam-review, optionally with files, directories, or package names as arguments.
-disable-model-invocation: true
+description: Review Gleam code against the official Gleam conventions, patterns, and anti-patterns guide. Identifies anti-patterns (check-then-assert, catch-all matches, panicking in libraries, abbreviations, fragmented modules), convention violations (unqualified imports, missing type annotations, fallible functions that don't return Result), and opportunities to apply recommended patterns (descriptive errors, invalid-states-impossible modelling, builder pattern). Invoke explicitly when the user requests a Gleam code review, optionally with files, directories, or package names as arguments.
 ---
 
 # Gleam Code Review
