@@ -51,7 +51,7 @@ code: |
     }
   }
 notes:
-  - "Set secure_cookie: False only for local HTTP development."
+  - "Use with_cookie_security(AllowInsecure) only for local HTTP development."
   - Changing the cookie secret invalidates in-flight OAuth callbacks.
 navOrder: 30
 searchTerms:

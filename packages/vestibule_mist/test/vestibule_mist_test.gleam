@@ -231,10 +231,14 @@ pub fn callback_missing_session_cookie_test() -> Nil {
     store,
     test_options(),
   )
-  |> expect.to_equal(Error(vestibule_mist.MissingOrInvalidSessionCookie))
+  |> expect.to_equal(
+    Error(vestibule_mist.MissingOrInvalidSessionCookie(
+      vestibule_mist.CookieAbsent,
+    )),
+  )
 }
 
-pub fn callback_tampered_cookie_fails_as_missing_test() -> Nil {
+pub fn callback_tampered_cookie_reports_invalid_signature_test() -> Nil {
   let req =
     request.new()
     |> request.set_cookie(
@@ -255,10 +259,14 @@ pub fn callback_tampered_cookie_fails_as_missing_test() -> Nil {
     store,
     test_options(),
   )
-  |> expect.to_equal(Error(vestibule_mist.MissingOrInvalidSessionCookie))
+  |> expect.to_equal(
+    Error(vestibule_mist.MissingOrInvalidSessionCookie(
+      vestibule_mist.CookieSignatureInvalid,
+    )),
+  )
 }
 
-pub fn callback_wrong_secret_fails_as_missing_test() -> Nil {
+pub fn callback_wrong_secret_reports_invalid_signature_test() -> Nil {
   let assert Ok(store) = state_store.try_init_named("test_mist_cb_wrong_secret")
   let assert Ok(session_id) =
     state_store.try_store(
@@ -285,7 +293,11 @@ pub fn callback_wrong_secret_fails_as_missing_test() -> Nil {
     store,
     test_options(),
   )
-  |> expect.to_equal(Error(vestibule_mist.MissingOrInvalidSessionCookie))
+  |> expect.to_equal(
+    Error(vestibule_mist.MissingOrInvalidSessionCookie(
+      vestibule_mist.CookieSignatureInvalid,
+    )),
+  )
 }
 
 pub fn callback_missing_state_does_not_consume_session_test() -> Nil {
@@ -426,7 +438,11 @@ pub fn callback_custom_cookie_name_is_honored_test() -> Nil {
     store,
     test_options(),
   )
-  |> expect.to_equal(Error(vestibule_mist.MissingOrInvalidSessionCookie))
+  |> expect.to_equal(
+    Error(vestibule_mist.MissingOrInvalidSessionCookie(
+      vestibule_mist.CookieAbsent,
+    )),
+  )
 
   let custom_options =
     test_options() |> vestibule_mist.with_cookie_name("custom_session")

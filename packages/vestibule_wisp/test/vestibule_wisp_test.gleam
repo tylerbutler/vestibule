@@ -1,5 +1,6 @@
 import gleam/dict
 import gleam/http
+import gleam/http/request
 import gleam/list
 import gleam/option
 import gleam/string
@@ -42,7 +43,33 @@ pub fn callback_phase_auth_result_missing_session_cookie_test() -> Nil {
     |> registry.register(strategy: test_strategy(), config: test_config())
 
   vestibule_wisp.callback_phase_auth_result(req, registry, "test", store)
-  |> expect.to_equal(Error(vestibule_wisp.MissingOrInvalidSessionCookie))
+  |> expect.to_equal(
+    Error(vestibule_wisp.MissingOrInvalidSessionCookie(
+      vestibule_wisp.CookieAbsent,
+    )),
+  )
+}
+
+pub fn callback_phase_auth_result_tampered_cookie_reports_invalid_signature_test() -> Nil {
+  let req =
+    simulate.request(http.Get, "/auth/test/callback?state=state&code=code")
+    |> simulate.cookie(
+      "__Host-vestibule_session",
+      "not-a-valid-signed-token",
+      wisp.PlainText,
+    )
+  let assert Ok(store) =
+    state_store.try_init_named("test_callback_tampered_session_cookie")
+  let assert Ok(registry) =
+    registry.new()
+    |> registry.register(strategy: test_strategy(), config: test_config())
+
+  vestibule_wisp.callback_phase_auth_result(req, registry, "test", store)
+  |> expect.to_equal(
+    Error(vestibule_wisp.MissingOrInvalidSessionCookie(
+      vestibule_wisp.CookieSignatureInvalid,
+    )),
+  )
 }
 
 pub fn default_options_use_current_cookie_contract_test() -> Nil {
@@ -50,6 +77,15 @@ pub fn default_options_use_current_cookie_contract_test() -> Nil {
   vestibule_wisp.cookie_name(options)
   |> expect.to_equal("__Host-vestibule_session")
   vestibule_wisp.session_ttl_seconds(options) |> expect.to_equal(600)
+  vestibule_wisp.cookie_security(options)
+  |> expect.to_equal(vestibule_wisp.SecureOnly)
+}
+
+pub fn cookie_name_is_unprefixed_when_insecure_test() -> Nil {
+  vestibule_wisp.default_options()
+  |> vestibule_wisp.with_cookie_security(vestibule_wisp.AllowInsecure)
+  |> vestibule_wisp.cookie_name
+  |> expect.to_equal("vestibule_session")
 }
 
 pub fn default_cookie_name_is_host_bound_test() -> Nil {
@@ -108,6 +144,41 @@ pub fn request_phase_sets_host_bound_cookie_test() -> Nil {
   { string.contains(set_cookie, "Secure") } |> expect.to_be_true()
   { string.contains(set_cookie, "Path=/") } |> expect.to_be_true()
   { string.contains(set_cookie, "Domain=") } |> expect.to_be_false()
+}
+
+pub fn request_phase_over_plain_http_can_opt_out_of_host_binding_test() -> Nil {
+  let assert Ok(store) =
+    state_store.try_init_named("test_request_phase_insecure_cookie")
+  let assert Ok(registry) =
+    registry.new()
+    |> registry.register(strategy: test_strategy(), config: test_config())
+  let req = simulate.request(http.Get, "/auth/test") |> insecure_localhost
+
+  let response =
+    vestibule_wisp.request_phase_with_options(
+      req,
+      registry: registry,
+      provider: "test",
+      state_store: store,
+      authorize_options: config.authorize_options(),
+      middleware_options: vestibule_wisp.default_options()
+        |> vestibule_wisp.with_cookie_security(vestibule_wisp.AllowInsecure),
+    )
+
+  let set_cookie = case list.key_find(response.headers, "set-cookie") {
+    Ok(value) -> value
+    Error(_) -> panic as "expected a set-cookie header"
+  }
+  // Wisp omits `Secure` for plain-HTTP localhost requests, and browsers reject
+  // a `__Host-` cookie that is not `Secure` — so the name must not be
+  // host-bound here or the session cookie is silently dropped.
+  { string.contains(set_cookie, "vestibule_session=") } |> expect.to_be_true()
+  { string.contains(set_cookie, "__Host-") } |> expect.to_be_false()
+  { string.contains(set_cookie, "Secure") } |> expect.to_be_false()
+}
+
+fn insecure_localhost(req: wisp.Request) -> wisp.Request {
+  request.Request(..req, scheme: http.Http, host: "localhost")
 }
 
 pub fn request_phase_with_options_passes_authorize_options_test() -> Nil {
@@ -175,7 +246,11 @@ pub fn callback_phase_auth_result_with_options_uses_cookie_name_test() -> Nil {
     vestibule_wisp.default_options()
       |> vestibule_wisp.with_cookie_name("custom_vestibule_session"),
   )
-  |> expect.to_equal(Error(vestibule_wisp.MissingOrInvalidSessionCookie))
+  |> expect.to_equal(
+    Error(vestibule_wisp.MissingOrInvalidSessionCookie(
+      vestibule_wisp.CookieAbsent,
+    )),
+  )
 }
 
 pub fn callback_phase_auth_result_malformed_post_body_returns_invalid_params_test() -> Nil {

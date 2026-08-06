@@ -44,7 +44,7 @@ Structured errors that can occur during the OAuth callback phase.
 ```gleam
 pub type CallbackError(a) {
   UnknownProvider(provider: String)
-  MissingOrInvalidSessionCookie
+  MissingOrInvalidSessionCookie(reason: SessionCookieError)
   SessionUnavailable
   InvalidCallbackParams(reason: CallbackParamsError)
   AuthFailed(error.AuthError(a))
@@ -57,11 +57,10 @@ pub type CallbackError(a) {
 
 The requested provider is not registered.
 
-##### `MissingOrInvalidSessionCookie`
+##### `MissingOrInvalidSessionCookie(reason: SessionCookieError)`
 
 The signed session cookie set during the request phase is missing or
-invalid (no cookie present, signature mismatch, wrong secret, tampered
-payload).
+invalid; `reason` says which.
 
 ##### `SessionUnavailable`
 
@@ -145,6 +144,34 @@ fixation). Read the effective name with `cookie_name`.
 pub type Options
 ```
 
+### `SessionCookieError`
+
+Why the signed session cookie could not be used.
+
+The distinction matters operationally: `CookieAbsent` is ordinary user
+behaviour (a bookmarked callback URL, a cleared cookie jar, an expired
+cookie), while `CookieSignatureInvalid` means a cookie was presented that
+this secret did not sign, which may indicate tampering or a secret
+rotation that invalidated in-flight logins.
+
+```gleam
+pub type SessionCookieError {
+  CookieAbsent
+  CookieSignatureInvalid
+}
+```
+
+#### Constructors
+
+##### `CookieAbsent`
+
+No cookie with the configured name was present on the request.
+
+##### `CookieSignatureInvalid`
+
+A cookie was present but its HMAC signature did not verify: wrong
+secret, tampered payload, or a malformed token.
+
 ## Functions
 
 ### `callback_phase`
@@ -163,11 +190,11 @@ generic HTML error page. Returns 404 if the provider is not registered.
 ```gleam
 pub fn callback_phase(
   request.Request(http.Connection),
-  registry.Registry(a),
-  String,
-  state_store.StateStore,
-  Options,
-  fn(auth.Auth) -> response.Response(mist.ResponseData)
+  registry: registry.Registry(a),
+  provider: String,
+  store: state_store.StateStore,
+  options: Options,
+  on_success: fn(auth.Auth) -> response.Response(mist.ResponseData)
 ) -> response.Response(mist.ResponseData)
 ```
 
@@ -272,8 +299,11 @@ a signed session cookie, and returns a 302 response.
 Returns 404 if the provider is not registered, or a generic 400 HTML error
 if URL generation or state persistence fails.
 
-Generic over the request body type: the body is never read, only request
-metadata (scheme, cookies) is inspected.
+The request is not inspected at all — everything the response needs comes
+from `options` and the registry. It is still taken as an argument so this
+function has the same shape as `callback_phase` and its `vestibule_wisp`
+counterpart, and so a future change can read request metadata without
+breaking callers. Hence it is generic over the body type.
 
 ```gleam
 pub fn request_phase(

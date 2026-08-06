@@ -197,9 +197,12 @@ fn handle_request(req: Request(Connection)) -> Response(ResponseData) {
 }
 ```
 
-`vestibule_mist` sets its signed session cookie with `Secure` by default. Its
-structured cookie/session errors are named `MissingOrInvalidSessionCookie` and
-`SessionUnavailable`.
+Both adapters set their session cookie with `Secure` and a host-bound
+(`__Host-` prefixed) name by default; use
+`with_cookie_security(AllowInsecure)` for local development over plain HTTP,
+where browsers reject `__Host-` cookies. Their structured cookie/session errors
+are named `MissingOrInvalidSessionCookie(reason)` — with `reason` distinguishing
+`CookieAbsent` from `CookieSignatureInvalid` — and `SessionUnavailable`.
 
 ## Packages
 

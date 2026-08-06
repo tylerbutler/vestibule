@@ -1,0 +1,3 @@
+package = "vestibule_wisp"
+kind = "Breaking"
+body = "`MissingOrInvalidSessionCookie` now carries a `SessionCookieError` reason distinguishing `CookieAbsent` from `CookieSignatureInvalid`; the `error_category` log field reports `session_cookie_absent` or `session_cookie_signature_invalid` in place of `missing_or_invalid_session_cookie`"

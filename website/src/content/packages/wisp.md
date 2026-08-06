@@ -59,7 +59,8 @@ code: |
       wisp.not_found()
   }
 notes:
-  - Custom cookie names are automatically given the __Host- prefix.
+  - Custom cookie names are automatically given the __Host- prefix under the default SecureOnly cookie security.
+  - Use with_cookie_security(AllowInsecure) for local development over plain HTTP, where browsers reject __Host- cookies.
   - Use callback_phase_auth_result when your app needs structured logging or custom user-facing error recovery.
 navOrder: 20
 searchTerms:

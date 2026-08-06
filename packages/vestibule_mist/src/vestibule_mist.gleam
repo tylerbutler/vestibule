@@ -79,9 +79,8 @@ pub type CallbackError(e) {
   /// The requested provider is not registered.
   UnknownProvider(provider: String)
   /// The signed session cookie set during the request phase is missing or
-  /// invalid (no cookie present, signature mismatch, wrong secret, tampered
-  /// payload).
-  MissingOrInvalidSessionCookie
+  /// invalid; `reason` says which.
+  MissingOrInvalidSessionCookie(reason: SessionCookieError)
   /// The session state was not found, expired, or already used.
   SessionUnavailable
   /// Callback parameters could not be extracted from the request; `reason`
@@ -89,6 +88,21 @@ pub type CallbackError(e) {
   InvalidCallbackParams(reason: CallbackParamsError)
   /// Provider authentication failed.
   AuthFailed(error.AuthError(e))
+}
+
+/// Why the signed session cookie could not be used.
+///
+/// The distinction matters operationally: `CookieAbsent` is ordinary user
+/// behaviour (a bookmarked callback URL, a cleared cookie jar, an expired
+/// cookie), while `CookieSignatureInvalid` means a cookie was presented that
+/// this secret did not sign, which may indicate tampering or a secret
+/// rotation that invalidated in-flight logins.
+pub type SessionCookieError {
+  /// No cookie with the configured name was present on the request.
+  CookieAbsent
+  /// A cookie was present but its HMAC signature did not verify: wrong
+  /// secret, tampered payload, or a malformed token.
+  CookieSignatureInvalid
 }
 
 /// Why callback parameters could not be extracted from a POST callback body.
@@ -178,8 +192,11 @@ pub fn cookie_security(options: Options) -> CookieSecurity {
 /// Returns 404 if the provider is not registered, or a generic 400 HTML error
 /// if URL generation or state persistence fails.
 ///
-/// Generic over the request body type: the body is never read, only request
-/// metadata (scheme, cookies) is inspected.
+/// The request is not inspected at all — everything the response needs comes
+/// from `options` and the registry. It is still taken as an argument so this
+/// function has the same shape as `callback_phase` and its `vestibule_wisp`
+/// counterpart, and so a future change can read request metadata without
+/// breaking callers. Hence it is generic over the body type.
 pub fn request_phase(
   _req: Request(body),
   registry registry: Registry(e),
@@ -304,11 +321,11 @@ pub fn request_phase(
 /// generic HTML error page. Returns 404 if the provider is not registered.
 pub fn callback_phase(
   req: Request(Connection),
-  registry: Registry(e),
-  provider: String,
-  store: StateStore,
-  options: Options,
-  on_success: fn(Auth) -> Response(ResponseData),
+  registry registry: Registry(e),
+  provider provider: String,
+  store store: StateStore,
+  options options: Options,
+  on_success on_success: fn(Auth) -> Response(ResponseData),
 ) -> Response(ResponseData) {
   case
     callback_phase_auth_result(
@@ -479,10 +496,12 @@ fn get_signed_cookie(
 ) -> Result(String, CallbackError(e)) {
   let cookies = request.get_cookies(req)
   case list.key_find(cookies, cookie_name) {
-    Error(Nil) -> Error(MissingOrInvalidSessionCookie)
+    Error(Nil) -> Error(MissingOrInvalidSessionCookie(CookieAbsent))
     Ok(token) ->
       signed_cookie.verify(token: token, secret_key_base: secret_key_base)
-      |> result.map_error(fn(_) { MissingOrInvalidSessionCookie })
+      |> result.map_error(fn(_) {
+        MissingOrInvalidSessionCookie(CookieSignatureInvalid)
+      })
   }
 }
 
@@ -493,7 +512,7 @@ fn get_callback_params(
   req: Request(Connection),
 ) -> Result(dict.Dict(String, String), CallbackError(e)) {
   let query_params = case req.query {
-    option.Some(q) -> uri.parse_query(q) |> result.unwrap([])
+    option.Some(query) -> uri.parse_query(query) |> result.unwrap([])
     option.None -> []
   }
   case req.method {
@@ -537,7 +556,9 @@ fn to_callback_error(
 fn log_callback_error(provider: String, err: CallbackError(e)) -> Nil {
   let category = case err {
     UnknownProvider(_) -> "unknown_provider"
-    MissingOrInvalidSessionCookie -> "missing_or_invalid_session_cookie"
+    MissingOrInvalidSessionCookie(CookieAbsent) -> "session_cookie_absent"
+    MissingOrInvalidSessionCookie(CookieSignatureInvalid) ->
+      "session_cookie_signature_invalid"
     SessionUnavailable -> "session_unavailable"
     InvalidCallbackParams(_) -> "invalid_callback_params"
     AuthFailed(auth_err) -> logger.auth_error_category(auth_err)
@@ -560,7 +581,7 @@ fn log_callback_error(provider: String, err: CallbackError(e)) -> Nil {
 fn callback_error_response(err: CallbackError(e)) -> Response(ResponseData) {
   case err {
     UnknownProvider(_) -> not_found_response()
-    MissingOrInvalidSessionCookie -> generic_error_response()
+    MissingOrInvalidSessionCookie(_) -> generic_error_response()
     SessionUnavailable -> generic_error_response()
     InvalidCallbackParams(_) -> generic_error_response()
     AuthFailed(_) -> generic_error_response()
