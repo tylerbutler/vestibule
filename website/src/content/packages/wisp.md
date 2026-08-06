@@ -28,7 +28,7 @@ code: |
   import vestibule_wisp
   import vestibule_github
 
-  let assert Ok(reg) =
+  let assert Ok(registry) =
     registry.new()
     |> registry.register(
       vestibule_github.strategy(),
@@ -45,7 +45,7 @@ code: |
     ["auth", provider], http.Get ->
       vestibule_wisp.request_phase(
         req,
-        reg,
+        registry,
         provider,
         store,
         authorize_options: config.authorize_options(),
@@ -53,13 +53,14 @@ code: |
 
     ["auth", provider, "callback"], http.Get
     | ["auth", provider, "callback"], http.Post ->
-      vestibule_wisp.callback_phase(req, reg, provider, store, on_success)
+      vestibule_wisp.callback_phase(req, registry, provider, store, on_success)
 
     _, _ ->
       wisp.not_found()
   }
 notes:
-  - Keep the __Host- prefix on custom cookie names.
+  - Custom cookie names are automatically given the __Host- prefix under the default SecureOnly cookie security.
+  - Use with_cookie_security(AllowInsecure) for local development over plain HTTP, where browsers reject __Host- cookies.
   - Use callback_phase_auth_result when your app needs structured logging or custom user-facing error recovery.
 navOrder: 20
 searchTerms:

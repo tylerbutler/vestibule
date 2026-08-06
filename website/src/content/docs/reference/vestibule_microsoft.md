@@ -4,7 +4,7 @@ description: "Microsoft Identity Platform (v2.0) strategy."
 nav:
   group: Reference
   groupOrder: 20
-  order: 33
+  order: 32
   label: "vestibule_microsoft"
 toc:
   - href: "#functions"

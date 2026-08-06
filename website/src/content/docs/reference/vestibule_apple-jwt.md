@@ -4,7 +4,7 @@ description: "JWT verification using ywt_core with a custom Erlang FFI backend."
 nav:
   group: Reference
   groupOrder: 20
-  order: 26
+  order: 25
   label: "vestibule_apple/jwt"
 toc:
   - href: "#types"

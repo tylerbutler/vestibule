@@ -4,7 +4,7 @@ description: "Reference for vestibule_github."
 nav:
   group: Reference
   groupOrder: 20
-  order: 27
+  order: 26
   label: "vestibule_github"
 toc:
   - href: "#functions"

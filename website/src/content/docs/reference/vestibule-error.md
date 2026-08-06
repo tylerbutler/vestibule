@@ -35,8 +35,8 @@ in this module:
   (code / description / uri) when the provider returned a standard OAuth error.
 - [`http_status`](#http_status) and [`missing_param`](#missing_param) expose
   the few additional structured fields some errors carry.
-- [`custom_payload`](#custom_payload) returns the provider-defined payload for
-  custom errors.
+- [`custom_payload`](#custom_payload) returns the provider-defined payload
+  for custom errors.
 
 Construct errors with the constructor functions ([`config`](#config),
 [`network`](#network), [`provider`](#provider), and friends). The type
@@ -55,7 +55,7 @@ Inspect values of this type with [`kind`](#kind), [`phase`](#phase),
 [`custom_payload`](#custom_payload).
 
 ```gleam
-pub opaque type AuthError(a)
+pub type AuthError(a)
 ```
 
 ### `ErrorKind`
@@ -245,8 +245,10 @@ pub fn decode(
 
 The provider returned a non-success HTTP response.
 
-`summary` should be a short, sanitized description — never a raw response
-body — so the error is safe to surface and log.
+`summary` should be a short description of the failure. Helpers such as
+`provider_support.check_response_status` pass a truncated snippet of the
+response body here to aid debugging, so the summary may contain provider
+response content — treat it accordingly before surfacing it to end users.
 
 ```gleam
 pub fn http(
@@ -265,7 +267,8 @@ pub fn http_status(AuthError(a)) -> option.Option(Int)
 
 ### `http_summary`
 
-The sanitized HTTP error summary, for `HttpKind` errors. Never a raw body.
+The short HTTP error summary, for `HttpKind` errors. May contain a
+truncated snippet of the provider's response body.
 
 ```gleam
 pub fn http_summary(AuthError(a)) -> option.Option(String)

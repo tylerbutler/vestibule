@@ -19,7 +19,7 @@ pub fn main() -> Nil {
 
 // === signed_cookie ===
 
-pub fn signed_cookie_round_trip_test() {
+pub fn signed_cookie_round_trip_test() -> Nil {
   let secret = test_secret()
   let token =
     signed_cookie.sign(payload: "session-id-123", secret_key_base: secret)
@@ -28,7 +28,7 @@ pub fn signed_cookie_round_trip_test() {
   |> expect.to_equal("session-id-123")
 }
 
-pub fn signed_cookie_verify_with_wrong_secret_fails_test() {
+pub fn signed_cookie_verify_with_wrong_secret_fails_test() -> Nil {
   let secret = test_secret()
   let other = <<"different-key-also-32-bytes-long":utf8>>
   let token =
@@ -39,7 +39,7 @@ pub fn signed_cookie_verify_with_wrong_secret_fails_test() {
   Nil
 }
 
-pub fn signed_cookie_verify_with_tampered_token_fails_test() {
+pub fn signed_cookie_verify_with_tampered_token_fails_test() -> Nil {
   let secret = test_secret()
   let token =
     signed_cookie.sign(payload: "session-id-123", secret_key_base: secret)
@@ -49,7 +49,7 @@ pub fn signed_cookie_verify_with_tampered_token_fails_test() {
   Nil
 }
 
-pub fn signed_cookie_verify_malformed_token_fails_test() {
+pub fn signed_cookie_verify_malformed_token_fails_test() -> Nil {
   let _ =
     signed_cookie.verify(
       token: "not-a-valid-token",
@@ -59,22 +59,41 @@ pub fn signed_cookie_verify_malformed_token_fails_test() {
   Nil
 }
 
-// === new_options ===
+// === options ===
 
-pub fn new_options_uses_default_cookie_contract_test() {
-  let secret = test_secret()
-  vestibule_mist.new_options(secret)
-  |> expect.to_equal(vestibule_mist.Options(
-    secret_key_base: secret,
-    cookie_name: "vestibule_session",
-    session_ttl_seconds: 600,
-    secure_cookie: True,
-  ))
+pub fn new_options_uses_default_cookie_contract_test() -> Nil {
+  let options = vestibule_mist.new_options(test_secret())
+  vestibule_mist.cookie_name(options)
+  |> expect.to_equal("__Host-vestibule_session")
+  vestibule_mist.session_ttl_seconds(options) |> expect.to_equal(600)
+  vestibule_mist.cookie_security(options)
+  |> expect.to_equal(vestibule_mist.SecureOnly)
+}
+
+pub fn with_cookie_name_applies_host_prefix_test() -> Nil {
+  test_options()
+  |> vestibule_mist.with_cookie_name("custom_session")
+  |> vestibule_mist.cookie_name
+  |> expect.to_equal("__Host-custom_session")
+}
+
+pub fn with_cookie_name_does_not_double_prefix_test() -> Nil {
+  test_options()
+  |> vestibule_mist.with_cookie_name("__Host-custom_session")
+  |> vestibule_mist.cookie_name
+  |> expect.to_equal("__Host-custom_session")
+}
+
+pub fn cookie_name_is_unprefixed_when_insecure_test() -> Nil {
+  test_options()
+  |> vestibule_mist.with_cookie_security(vestibule_mist.AllowInsecure)
+  |> vestibule_mist.cookie_name
+  |> expect.to_equal("vestibule_session")
 }
 
 // === request_phase ===
 
-pub fn request_phase_unknown_provider_returns_404_test() {
+pub fn request_phase_unknown_provider_returns_404_test() -> Nil {
   let req = request.new() |> request.set_path("/auth/unknown")
   let assert Ok(store) =
     state_store.try_init_named("test_mist_request_unknown_provider")
@@ -92,17 +111,17 @@ pub fn request_phase_unknown_provider_returns_404_test() {
   resp.status |> expect.to_equal(404)
 }
 
-pub fn request_phase_success_sets_signed_cookie_and_redirects_test() {
+pub fn request_phase_success_sets_signed_cookie_and_redirects_test() -> Nil {
   let req = request.new() |> request.set_path("/auth/test")
   let assert Ok(store) = state_store.try_init_named("test_mist_request_success")
-  let assert Ok(reg) =
+  let assert Ok(registry) =
     registry.new()
     |> registry.register(strategy: test_strategy(), config: test_config())
 
   let resp =
     vestibule_mist.request_phase(
       req,
-      reg,
+      registry,
       "test",
       store,
       config.authorize_options(),
@@ -112,7 +131,7 @@ pub fn request_phase_success_sets_signed_cookie_and_redirects_test() {
   resp.status |> expect.to_equal(302)
   let assert Ok(_location) = find_header(resp.headers, "location")
   let assert Ok(cookie_header) = find_header(resp.headers, "set-cookie")
-  { string.contains(cookie_header, "vestibule_session=") }
+  { string.contains(cookie_header, "__Host-vestibule_session=") }
   |> expect.to_be_true()
   { string.contains(cookie_header, "HttpOnly") } |> expect.to_be_true()
   { string.contains(cookie_header, "SameSite=Lax") } |> expect.to_be_true()
@@ -120,21 +139,23 @@ pub fn request_phase_success_sets_signed_cookie_and_redirects_test() {
   { string.contains(cookie_header, "Secure") } |> expect.to_be_true()
 }
 
-pub fn request_phase_allows_secure_cookie_opt_out_test() {
+pub fn request_phase_allows_secure_cookie_opt_out_test() -> Nil {
   let req =
     request.new()
     |> request.set_path("/auth/test")
   let assert Ok(store) =
     state_store.try_init_named("test_mist_request_secure_cookie_opt_out")
-  let assert Ok(reg) =
+  let assert Ok(registry) =
     registry.new()
     |> registry.register(strategy: test_strategy(), config: test_config())
-  let options = vestibule_mist.Options(..test_options(), secure_cookie: False)
+  let options =
+    test_options()
+    |> vestibule_mist.with_cookie_security(vestibule_mist.AllowInsecure)
 
   let resp =
     vestibule_mist.request_phase(
       req,
-      reg,
+      registry,
       "test",
       store,
       config.authorize_options(),
@@ -142,14 +163,17 @@ pub fn request_phase_allows_secure_cookie_opt_out_test() {
     )
 
   let assert Ok(cookie_header) = find_header(resp.headers, "set-cookie")
+  { string.contains(cookie_header, "vestibule_session=") }
+  |> expect.to_be_true()
+  { string.contains(cookie_header, "__Host-") } |> expect.to_be_false()
   { string.contains(cookie_header, "Secure") } |> expect.to_be_false()
 }
 
-pub fn request_phase_passes_authorize_options_test() {
+pub fn request_phase_passes_authorize_options_test() -> Nil {
   let req = request.new() |> request.set_path("/auth/test")
   let assert Ok(store) =
     state_store.try_init_named("test_mist_request_authorize_options")
-  let assert Ok(reg) =
+  let assert Ok(registry) =
     registry.new()
     |> registry.register(
       strategy: authorize_options_strategy(),
@@ -162,7 +186,7 @@ pub fn request_phase_passes_authorize_options_test() {
   let resp =
     vestibule_mist.request_phase(
       req,
-      reg,
+      registry,
       "test",
       store,
       authorize_options,
@@ -175,7 +199,7 @@ pub fn request_phase_passes_authorize_options_test() {
 
 // === callback_phase_auth_result_with_params ===
 
-pub fn callback_unknown_provider_test() {
+pub fn callback_unknown_provider_test() -> Nil {
   let req = request.new()
   let assert Ok(store) =
     state_store.try_init_named("test_mist_cb_unknown_provider")
@@ -191,47 +215,58 @@ pub fn callback_unknown_provider_test() {
   |> expect.to_equal(Error(vestibule_mist.UnknownProvider("unknown")))
 }
 
-pub fn callback_missing_session_cookie_test() {
+pub fn callback_missing_session_cookie_test() -> Nil {
   let req = request.new()
   let assert Ok(store) =
     state_store.try_init_named("test_mist_cb_missing_cookie")
-  let assert Ok(reg) =
+  let assert Ok(registry) =
     registry.new()
     |> registry.register(strategy: test_strategy(), config: test_config())
 
   vestibule_mist.callback_phase_auth_result_with_params(
     req,
     dict.from_list([#("state", "s"), #("code", "c")]),
-    reg,
+    registry,
     "test",
     store,
     test_options(),
   )
-  |> expect.to_equal(Error(vestibule_mist.MissingOrInvalidSessionCookie))
+  |> expect.to_equal(
+    Error(vestibule_mist.MissingOrInvalidSessionCookie(
+      vestibule_mist.CookieAbsent,
+    )),
+  )
 }
 
-pub fn callback_tampered_cookie_fails_as_missing_test() {
+pub fn callback_tampered_cookie_reports_invalid_signature_test() -> Nil {
   let req =
     request.new()
-    |> request.set_cookie("vestibule_session", "not-a-valid-signed-token")
+    |> request.set_cookie(
+      "__Host-vestibule_session",
+      "not-a-valid-signed-token",
+    )
   let assert Ok(store) =
     state_store.try_init_named("test_mist_cb_tampered_cookie")
-  let assert Ok(reg) =
+  let assert Ok(registry) =
     registry.new()
     |> registry.register(strategy: test_strategy(), config: test_config())
 
   vestibule_mist.callback_phase_auth_result_with_params(
     req,
     dict.from_list([#("state", "s"), #("code", "c")]),
-    reg,
+    registry,
     "test",
     store,
     test_options(),
   )
-  |> expect.to_equal(Error(vestibule_mist.MissingOrInvalidSessionCookie))
+  |> expect.to_equal(
+    Error(vestibule_mist.MissingOrInvalidSessionCookie(
+      vestibule_mist.CookieSignatureInvalid,
+    )),
+  )
 }
 
-pub fn callback_wrong_secret_fails_as_missing_test() {
+pub fn callback_wrong_secret_reports_invalid_signature_test() -> Nil {
   let assert Ok(store) = state_store.try_init_named("test_mist_cb_wrong_secret")
   let assert Ok(session_id) =
     state_store.try_store(
@@ -245,23 +280,27 @@ pub fn callback_wrong_secret_fails_as_missing_test() {
     signed_cookie.sign(payload: session_id, secret_key_base: other_secret)
   let req =
     request.new()
-    |> request.set_cookie("vestibule_session", token)
-  let assert Ok(reg) =
+    |> request.set_cookie("__Host-vestibule_session", token)
+  let assert Ok(registry) =
     registry.new()
     |> registry.register(strategy: test_strategy(), config: test_config())
 
   vestibule_mist.callback_phase_auth_result_with_params(
     req,
     dict.from_list([#("state", "state"), #("code", "c")]),
-    reg,
+    registry,
     "test",
     store,
     test_options(),
   )
-  |> expect.to_equal(Error(vestibule_mist.MissingOrInvalidSessionCookie))
+  |> expect.to_equal(
+    Error(vestibule_mist.MissingOrInvalidSessionCookie(
+      vestibule_mist.CookieSignatureInvalid,
+    )),
+  )
 }
 
-pub fn callback_missing_state_does_not_consume_session_test() {
+pub fn callback_missing_state_does_not_consume_session_test() -> Nil {
   let assert Ok(store) =
     state_store.try_init_named("test_mist_cb_missing_state_reusable")
   let assert Ok(session_id) =
@@ -275,15 +314,15 @@ pub fn callback_missing_state_does_not_consume_session_test() {
     signed_cookie.sign(payload: session_id, secret_key_base: test_secret())
   let req =
     request.new()
-    |> request.set_cookie("vestibule_session", token)
-  let assert Ok(reg) =
+    |> request.set_cookie("__Host-vestibule_session", token)
+  let assert Ok(registry) =
     registry.new()
     |> registry.register(strategy: test_strategy(), config: test_config())
 
   vestibule_mist.callback_phase_auth_result_with_params(
     req,
     dict.from_list([#("code", "c")]),
-    reg,
+    registry,
     "test",
     store,
     test_options(),
@@ -295,7 +334,7 @@ pub fn callback_missing_state_does_not_consume_session_test() {
   vestibule_mist.callback_phase_auth_result_with_params(
     req,
     dict.from_list([#("state", "state"), #("code", "c")]),
-    reg,
+    registry,
     "test",
     store,
     test_options(),
@@ -305,7 +344,7 @@ pub fn callback_missing_state_does_not_consume_session_test() {
   )
 }
 
-pub fn callback_unknown_session_returns_expired_test() {
+pub fn callback_unknown_session_returns_expired_test() -> Nil {
   let assert Ok(store) =
     state_store.try_init_named("test_mist_cb_unknown_session")
   let token =
@@ -315,15 +354,15 @@ pub fn callback_unknown_session_returns_expired_test() {
     )
   let req =
     request.new()
-    |> request.set_cookie("vestibule_session", token)
-  let assert Ok(reg) =
+    |> request.set_cookie("__Host-vestibule_session", token)
+  let assert Ok(registry) =
     registry.new()
     |> registry.register(strategy: test_strategy(), config: test_config())
 
   vestibule_mist.callback_phase_auth_result_with_params(
     req,
     dict.from_list([#("state", "s"), #("code", "c")]),
-    reg,
+    registry,
     "test",
     store,
     test_options(),
@@ -331,7 +370,7 @@ pub fn callback_unknown_session_returns_expired_test() {
   |> expect.to_equal(Error(vestibule_mist.SessionUnavailable))
 }
 
-pub fn callback_auth_result_preserves_provider_error_details_test() {
+pub fn callback_auth_result_preserves_provider_error_details_test() -> Nil {
   let assert Ok(store) =
     state_store.try_init_named("test_mist_cb_structured_error_details")
   let assert Ok(session_id) =
@@ -345,8 +384,8 @@ pub fn callback_auth_result_preserves_provider_error_details_test() {
     signed_cookie.sign(payload: session_id, secret_key_base: test_secret())
   let req =
     request.new()
-    |> request.set_cookie("vestibule_session", token)
-  let assert Ok(reg) =
+    |> request.set_cookie("__Host-vestibule_session", token)
+  let assert Ok(registry) =
     registry.new()
     |> registry.register(
       strategy: leaky_error_strategy(),
@@ -356,7 +395,7 @@ pub fn callback_auth_result_preserves_provider_error_details_test() {
   vestibule_mist.callback_phase_auth_result_with_params(
     req,
     dict.from_list([#("state", "state"), #("code", "c")]),
-    reg,
+    registry,
     "test",
     store,
     test_options(),
@@ -372,7 +411,7 @@ pub fn callback_auth_result_preserves_provider_error_details_test() {
   )
 }
 
-pub fn callback_custom_cookie_name_is_honored_test() {
+pub fn callback_custom_cookie_name_is_honored_test() -> Nil {
   let assert Ok(store) =
     state_store.try_init_named("test_mist_cb_custom_cookie_name")
   let assert Ok(session_id) =
@@ -386,28 +425,32 @@ pub fn callback_custom_cookie_name_is_honored_test() {
     signed_cookie.sign(payload: session_id, secret_key_base: test_secret())
   let req =
     request.new()
-    |> request.set_cookie("custom_session", token)
-  let assert Ok(reg) =
+    |> request.set_cookie("__Host-custom_session", token)
+  let assert Ok(registry) =
     registry.new()
     |> registry.register(strategy: test_strategy(), config: test_config())
 
   vestibule_mist.callback_phase_auth_result_with_params(
     req,
     dict.from_list([#("state", "state"), #("code", "c")]),
-    reg,
+    registry,
     "test",
     store,
     test_options(),
   )
-  |> expect.to_equal(Error(vestibule_mist.MissingOrInvalidSessionCookie))
+  |> expect.to_equal(
+    Error(vestibule_mist.MissingOrInvalidSessionCookie(
+      vestibule_mist.CookieAbsent,
+    )),
+  )
 
   let custom_options =
-    vestibule_mist.Options(..test_options(), cookie_name: "custom_session")
+    test_options() |> vestibule_mist.with_cookie_name("custom_session")
 
   vestibule_mist.callback_phase_auth_result_with_params(
     req,
     dict.from_list([#("state", "state"), #("code", "c")]),
-    reg,
+    registry,
     "test",
     store,
     custom_options,

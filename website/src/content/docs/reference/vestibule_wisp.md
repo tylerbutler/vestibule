@@ -4,7 +4,7 @@ description: "Wisp middleware that wires a `Registry` of `Strategy` values into 
 nav:
   group: Reference
   groupOrder: 20
-  order: 37
+  order: 36
   label: "vestibule_wisp"
 toc:
   - href: "#types"
@@ -37,9 +37,9 @@ Structured errors that can occur during the OAuth callback phase.
 ```gleam
 pub type CallbackError(a) {
   UnknownProvider(provider: String)
-  MissingSessionCookie
-  SessionExpired
-  InvalidCallbackParams
+  MissingOrInvalidSessionCookie(reason: SessionCookieError)
+  SessionUnavailable
+  InvalidCallbackParams(reason: CallbackParamsError)
   AuthFailed(error.AuthError(a))
 }
 ```
@@ -50,43 +50,127 @@ pub type CallbackError(a) {
 
 The requested provider is not registered.
 
-##### `MissingSessionCookie`
+##### `MissingOrInvalidSessionCookie(reason: SessionCookieError)`
 
-The signed session cookie set during the request phase is missing or invalid.
+The signed session cookie set during the request phase is missing or
+invalid; `reason` says which.
 
-##### `SessionExpired`
+##### `SessionUnavailable`
 
 The session state was not found, expired, or already used.
 
-##### `InvalidCallbackParams`
+##### `InvalidCallbackParams(reason: CallbackParamsError)`
 
-Callback parameters could not be extracted from the request.
+Callback parameters could not be extracted from the request; `reason`
+says why.
 
 ##### `AuthFailed(error.AuthError(a))`
 
 Provider authentication failed.
 
+### `CallbackParamsError`
+
+Why callback parameters could not be extracted from a POST callback body.
+
+```gleam
+pub type CallbackParamsError {
+  BodyReadFailed
+  BodyNotUtf8
+  BodyNotFormEncoded
+}
+```
+
+#### Constructors
+
+##### `BodyReadFailed`
+
+The request body could not be read.
+
+##### `BodyNotUtf8`
+
+The request body was not valid UTF-8.
+
+##### `BodyNotFormEncoded`
+
+The request body was not valid form/query encoding.
+
+### `CookieSecurity`
+
+Whether the session cookie requires HTTPS.
+
+```gleam
+pub type CookieSecurity {
+  SecureOnly
+  AllowInsecure
+}
+```
+
+#### Constructors
+
+##### `SecureOnly`
+
+Use a host-bound (`__Host-` prefixed) cookie name. Use in production.
+
+`wisp.set_cookie` sets `Secure`, `Path=/`, and no `Domain` for any request
+that is not plain HTTP on localhost, which is exactly what browsers
+require before they will accept a `__Host-` cookie.
+
+##### `AllowInsecure`
+
+Use an unprefixed cookie name so the session also works over plain HTTP,
+e.g. local development without TLS.
+
+`wisp.set_cookie` omits `Secure` for plain-HTTP localhost requests, and
+browsers reject a `__Host-` cookie that is not `Secure` — so under
+`SecureOnly` the cookie would be silently dropped and every callback
+would fail with `MissingOrInvalidSessionCookie(CookieAbsent)`.
+
 ### `Options`
 
 Middleware configuration options.
 
-`cookie_name` should be host-bound (use the `__Host-` prefix) to defend
-against OAuth session cookie tossing / fixation. A non-host-bound name such
-as `vestibule_session` can be overwritten by a sibling subdomain setting a
-`Domain=.example.com` cookie of the same name, which lets an attacker plant
-their own in-flight flow state and fixate the victim's session — especially
-dangerous in account-linking flows. The default options use a host-bound
-name; keep the `__Host-` prefix for any custom `cookie_name`. See
-`is_host_bound_cookie_name`.
+Construct with `default_options` and customize with `with_cookie_name`,
+`with_session_ttl_seconds`, and `with_cookie_security`. The type is opaque
+so the effective cookie name always matches the cookie security: host-bound
+(`__Host-` prefixed) under `SecureOnly`, unprefixed under `AllowInsecure`
+(browsers reject `__Host-` cookies that are not `Secure`). A host-bound
+name prevents a sibling subdomain from overwriting the session cookie with
+a `Domain=.example.com` cookie of the same name, which would let an
+attacker plant their own in-flight flow state and fixate the victim's
+session — especially dangerous in account-linking flows. Read the effective
+name with `cookie_name`.
 
 ```gleam
-pub type Options {
-  Options(
-    cookie_name: String,
-    session_ttl_seconds: Int
-  )
+pub type Options
+```
+
+### `SessionCookieError`
+
+Why the signed session cookie could not be used.
+
+The distinction matters operationally: `CookieAbsent` is ordinary user
+behaviour (a bookmarked callback URL, a cleared cookie jar, an expired
+cookie), while `CookieSignatureInvalid` means a cookie was presented that
+this application's secret key base did not sign, which may indicate
+tampering or a secret rotation that invalidated in-flight logins.
+
+```gleam
+pub type SessionCookieError {
+  CookieAbsent
+  CookieSignatureInvalid
 }
 ```
+
+#### Constructors
+
+##### `CookieAbsent`
+
+No cookie with the configured name was present on the request.
+
+##### `CookieSignatureInvalid`
+
+A cookie was present but Wisp could not verify its signature: tampered
+payload, a malformed token, or a different secret key base.
 
 ## Functions
 
@@ -107,7 +191,7 @@ Returns 404 if the provider is not registered.
 ```gleam
 pub fn callback_phase(
   request.Request(internal.Connection),
-  reg: registry.Registry(a),
+  registry: registry.Registry(a),
   provider: String,
   state_store: state_store.StateStore,
   on_success: fn(auth.Auth) -> response.Response(wisp.Body)
@@ -125,7 +209,7 @@ parameter, and provider authentication failures without parsing responses.
 ```gleam
 pub fn callback_phase_auth_result(
   request.Request(internal.Connection),
-  reg: registry.Registry(a),
+  registry: registry.Registry(a),
   provider: String,
   state_store: state_store.StateStore
 ) -> Result(auth.Auth, CallbackError(a))
@@ -143,7 +227,7 @@ valid in-flight login.
 ```gleam
 pub fn callback_phase_auth_result_with_options(
   request.Request(internal.Connection),
-  reg: registry.Registry(a),
+  registry: registry.Registry(a),
   provider: String,
   state_store: state_store.StateStore,
   options: Options
@@ -164,7 +248,7 @@ success value or generated error response yourself.
 ```gleam
 pub fn callback_phase_result(
   request.Request(internal.Connection),
-  reg: registry.Registry(a),
+  registry: registry.Registry(a),
   provider: String,
   state_store: state_store.StateStore
 ) -> Result(auth.Auth, response.Response(wisp.Body))
@@ -178,7 +262,7 @@ options.
 ```gleam
 pub fn callback_phase_result_with_options(
   request.Request(internal.Connection),
-  reg: registry.Registry(a),
+  registry: registry.Registry(a),
   provider: String,
   state_store: state_store.StateStore,
   options: Options
@@ -192,7 +276,7 @@ Phase 2: Handle the OAuth callback using custom middleware options.
 ```gleam
 pub fn callback_phase_with_options(
   request.Request(internal.Connection),
-  reg: registry.Registry(a),
+  registry: registry.Registry(a),
   provider: String,
   state_store: state_store.StateStore,
   on_success: fn(auth.Auth) -> response.Response(wisp.Body),
@@ -200,17 +284,39 @@ pub fn callback_phase_with_options(
 ) -> response.Response(wisp.Body)
 ```
 
+### `cookie_name`
+
+The effective session cookie name: host-bound (`__Host-` prefixed) under
+`SecureOnly` cookie security, the unprefixed base name under
+`AllowInsecure`.
+
+```gleam
+pub fn cookie_name(Options) -> String
+```
+
+### `cookie_security`
+
+The cookie security for these options.
+
+```gleam
+pub fn cookie_security(Options) -> CookieSecurity
+```
+
 ### `default_options`
 
 Default middleware options.
 
 Uses the host-bound `__Host-vestibule_session` signed cookie with a
-600-second session TTL. The `__Host-` prefix makes browsers reject the
-cookie unless it is set with `Secure`, `Path=/`, and no `Domain` attribute,
-which prevents a sibling subdomain from tossing/fixating the OAuth session
-(see the `Options` docs). `wisp.set_cookie` already sets `Secure` (over
-HTTPS), `Path=/`, and no `Domain`, so this cookie meets the `__Host-`
-requirements.
+600-second session TTL and `SecureOnly` cookie security. The `__Host-`
+prefix makes browsers reject the cookie unless it is set with `Secure`,
+`Path=/`, and no `Domain` attribute, which prevents a sibling subdomain
+from tossing/fixating the OAuth session (see the `Options` docs).
+
+`wisp.set_cookie` sets `Path=/` and no `Domain` always, and `Secure` for
+every request except plain HTTP on localhost — so these defaults meet the
+`__Host-` requirements in production but not when developing over
+`http://localhost`. For that case use
+`with_cookie_security(AllowInsecure)`.
 
 ```gleam
 pub fn default_options() -> Options
@@ -224,8 +330,8 @@ Host-bound cookie names resist cookie tossing / session fixation from
 sibling subdomains: browsers only accept a `__Host-` cookie when it is set
 with `Secure`, `Path=/`, and no `Domain` attribute, so a sibling subdomain
 cannot overwrite it with a `Domain=.example.com` cookie of the same name.
-Prefer keeping the `__Host-` prefix for any custom `Options.cookie_name`;
-use this to validate names supplied by callers.
+`Options` enforces the prefix for its own cookie name; use this to check
+names from other sources.
 
 ```gleam
 pub fn is_host_bound_cookie_name(String) -> Bool
@@ -244,7 +350,7 @@ Returns 404 if the provider is not registered.
 ```gleam
 pub fn request_phase(
   request.Request(internal.Connection),
-  reg: registry.Registry(a),
+  registry: registry.Registry(a),
   provider: String,
   state_store: state_store.StateStore,
   authorize_options: config.AuthorizeOptions
@@ -259,10 +365,56 @@ options.
 ```gleam
 pub fn request_phase_with_options(
   request.Request(internal.Connection),
-  reg: registry.Registry(a),
+  registry: registry.Registry(a),
   provider: String,
   state_store: state_store.StateStore,
   authorize_options: config.AuthorizeOptions,
   middleware_options: Options
 ) -> response.Response(wisp.Body)
+```
+
+### `session_ttl_seconds`
+
+The session TTL in seconds for these options.
+
+```gleam
+pub fn session_ttl_seconds(Options) -> Int
+```
+
+### `with_cookie_name`
+
+Set a custom session cookie name.
+
+The name is stored without any `__Host-` prefix (one is stripped when
+present); the prefix is applied automatically under `SecureOnly` cookie
+security. See the `Options` docs.
+
+```gleam
+pub fn with_cookie_name(
+  Options,
+  String
+) -> Options
+```
+
+### `with_cookie_security`
+
+Set whether the session cookie requires HTTPS. See `CookieSecurity`.
+
+```gleam
+pub fn with_cookie_security(
+  Options,
+  CookieSecurity
+) -> Options
+```
+
+### `with_session_ttl_seconds`
+
+Set how long an in-flight authorization flow (and its session cookie)
+stays valid.
+
+```gleam
+pub fn with_session_ttl_seconds(
+  Options,
+  Int
+) -> Options
 ```

@@ -4,7 +4,7 @@ description: "Reference for vestibule_indieauth."
 nav:
   group: Reference
   groupOrder: 20
-  order: 29
+  order: 28
   label: "vestibule_indieauth"
 toc:
   - href: "#functions"
@@ -45,11 +45,7 @@ let client_config =
   )
 let options = config.authorize_options()
 let assert Ok(auth_request) =
-  vestibule.create_authorization_request(
-    strategy,
-    config: client_config,
-    options: options,
-  )
+  vestibule.create_authorization_request(strategy, config: client_config, options: options)
 ```
 
 ```gleam

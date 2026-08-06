@@ -28,15 +28,15 @@ This reference is generated from Gleam's docs metadata for the Vestibule package
 
 | Package | Version | Modules | Description |
 |---|---:|---:|---|
-| `vestibule` | `0.1.0` | 14 | Strategy-based OAuth2 authentication for Gleam |
-| `vestibule_apple` | `0.1.0` | 3 | Apple Sign In strategy for vestibule |
-| `vestibule_github` | `0.1.0` | 1 | GitHub OAuth strategy for vestibule |
-| `vestibule_google` | `0.1.0` | 1 | Google OAuth strategy for vestibule |
-| `vestibule_indieauth` | `0.1.0` | 4 | IndieAuth strategy for vestibule — decentralized identity via OAuth 2.0 |
-| `vestibule_microsoft` | `0.1.0` | 1 | Microsoft OAuth strategy for vestibule |
-| `vestibule_mist` | `0.1.0` | 2 | Mist middleware for vestibule OAuth authentication |
-| `vestibule_oidc` | `0.1.0` | 1 | OpenID Connect discovery for vestibule — auto-configure strategies from an issuer URL |
-| `vestibule_wisp` | `0.1.0` | 1 | Wisp middleware for vestibule OAuth authentication |
+| `vestibule` | `0.0.0` | 13 | Strategy-based OAuth2 authentication for Gleam |
+| `vestibule_apple` | `0.0.0` | 3 | Apple Sign In strategy for vestibule |
+| `vestibule_github` | `0.0.0` | 1 | GitHub OAuth strategy for vestibule |
+| `vestibule_google` | `0.0.0` | 1 | Google OAuth strategy for vestibule |
+| `vestibule_indieauth` | `0.0.0` | 4 | IndieAuth strategy for vestibule — decentralized identity via OAuth 2.0 |
+| `vestibule_microsoft` | `0.0.0` | 1 | Microsoft OAuth strategy for vestibule |
+| `vestibule_mist` | `0.0.0` | 2 | Mist middleware for vestibule OAuth authentication |
+| `vestibule_oidc` | `0.0.0` | 1 | OpenID Connect discovery for vestibule — auto-configure strategies from an issuer URL |
+| `vestibule_wisp` | `0.0.0` | 1 | Wisp middleware for vestibule OAuth authentication |
 
 ## Modules
 
@@ -45,7 +45,7 @@ This reference is generated from Gleam's docs metadata for the Vestibule package
 | `vestibule` | [`vestibule`](/docs/reference/vestibule) | Vestibule — a strategy-based authentication library for Gleam. |
 | `vestibule` | [`vestibule/auth`](/docs/reference/vestibule-auth) | Authentication result types returned to the calling application after a successful OAuth/OIDC flow. |
 | `vestibule` | [`vestibule/authorization_request`](/docs/reference/vestibule-authorization_request) | An opaque value carrying everything the middleware needs to start an authorization flow: the URL to redirect the browser to, the CSRF `state`, the PKCE `code_verifier`, and an optional OIDC `nonce`, all of which must be stored for the callback. |
-| `vestibule` | [`vestibule/config`](/docs/reference/vestibule-config) | OAuth client configuration and authorization options. `ClientConfig` holds durable client ID, redirect URI, and `ClientAuth`; `AuthorizeOptions` holds per-request scopes and extra authorization parameters. |
+| `vestibule` | [`vestibule/config`](/docs/reference/vestibule-config) | OAuth client configuration and per-authorization request options. |
 | `vestibule` | [`vestibule/credentials`](/docs/reference/vestibule-credentials) | Bearer credentials returned by a provider after a successful token exchange or refresh. |
 | `vestibule` | [`vestibule/error`](/docs/reference/vestibule-error) | Authentication error types. |
 | `vestibule` | [`vestibule/logger`](/docs/reference/vestibule-logger) | Reference for vestibule/logger. |
@@ -54,7 +54,6 @@ This reference is generated from Gleam's docs metadata for the Vestibule package
 | `vestibule` | [`vestibule/registry`](/docs/reference/vestibule-registry) | In-memory registry that maps provider names ("google", "apple", ...) to `Strategy` values. Used by the middleware to dispatch incoming authorize/callback requests to the right provider. |
 | `vestibule` | [`vestibule/state_store`](/docs/reference/vestibule-state_store) | Single-use storage for in-flight OAuth flow state (CSRF `state` and PKCE `code_verifier`). Entries are deleted on first read to prevent replay. |
 | `vestibule` | [`vestibule/strategy`](/docs/reference/vestibule-strategy) | Provider-strategy interface. A `Strategy(e)` is an opaque record bundling the provider-specific functions an OAuth/OIDC provider implements: build authorize URL, exchange code, fetch user, and an optional refresh token. |
-| `vestibule` | [`vestibule/transport_flow`](/docs/reference/vestibule-transport_flow) | Transport-independent OAuth request and callback flow helpers. |
 | `vestibule` | [`vestibule/user_info`](/docs/reference/vestibule-user_info) | Normalized user profile returned by a provider's userinfo endpoint or extracted from an ID token. Provider-specific fields land in `extra`. |
 | `vestibule_apple` | [`vestibule_apple`](/docs/reference/vestibule_apple) | Apple Sign In strategy for vestibule. |
 | `vestibule_apple` | [`vestibule_apple/jwks`](/docs/reference/vestibule_apple-jwks) | Apple JWKS (JSON Web Key Set) fetching and caching. |

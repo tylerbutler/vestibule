@@ -4,7 +4,7 @@ description: "Reference for vestibule_indieauth/token."
 nav:
   group: Reference
   groupOrder: 20
-  order: 31
+  order: 30
   label: "vestibule_indieauth/token"
 toc:
   - href: "#types"

@@ -82,20 +82,31 @@ vestibule_wisp.default_options()
 The `__Host-` prefix defends against OAuth session cookie tossing / fixation:
 browsers only accept a `__Host-` cookie when it is set with `Secure`, `Path=/`,
 and no `Domain` attribute, so a sibling subdomain cannot overwrite it with a
-`Domain=.example.com` cookie of the same name. `wisp.set_cookie` already sets
-those attributes, so the default cookie meets the `__Host-` requirements.
+`Domain=.example.com` cookie of the same name. `wisp.set_cookie` sets `Path=/`
+and no `Domain` always, and `Secure` for every request except plain HTTP on
+localhost, so the default cookie meets the `__Host-` requirements in production.
 
-Use the `_with_options` functions to customize the cookie name or session TTL.
-**Keep the `__Host-` prefix on any custom cookie name** — a non-host-bound name
-re-introduces the cookie-tossing vulnerability. Use
-`vestibule_wisp.is_host_bound_cookie_name/1` to validate a caller-supplied name.
+For local development over `http://localhost` that last point matters: Wisp
+omits `Secure`, browsers then reject the `__Host-` cookie, and every callback
+fails with `MissingOrInvalidSessionCookie(CookieAbsent)`. Use
+`with_cookie_security(AllowInsecure)` there, which drops the prefix so the
+cookie survives. Keep the default `SecureOnly` in production.
+
+`Options` is opaque — build it with `default_options` and the `with_*`
+functions, which keep the effective cookie name consistent with the cookie
+security. Use `vestibule_wisp.is_host_bound_cookie_name/1` to check a
+caller-supplied name.
 
 ```gleam
 let options =
-  vestibule_wisp.Options(
-    cookie_name: "__Host-my_app_oauth_session",
-    session_ttl_seconds: 300,
-  )
+  vestibule_wisp.default_options()
+  |> vestibule_wisp.with_cookie_name("my_app_oauth_session")
+  |> vestibule_wisp.with_session_ttl_seconds(300)
+
+// Local development without TLS:
+let dev_options =
+  vestibule_wisp.default_options()
+  |> vestibule_wisp.with_cookie_security(vestibule_wisp.AllowInsecure)
 
 vestibule_wisp.request_phase_with_options(
   req,
@@ -118,8 +129,12 @@ vestibule_wisp.callback_phase_with_options(
 The cookie TTL and server-side state-store TTL use the same
 `session_ttl_seconds` value. Users must complete the provider callback before
 that TTL expires. If the signed cookie is missing, invalid, or expired, the
-structured API returns `MissingSessionCookie`; if the cookie is valid but the
-stored state is missing, expired, or already used, it returns `SessionExpired`.
+structured API returns `MissingOrInvalidSessionCookie(reason)`, where `reason`
+is `CookieAbsent` (no cookie was sent — ordinary user behaviour) or
+`CookieSignatureInvalid` (a cookie was sent that this secret key base did not
+sign — possible tampering, or a secret rotation). If the cookie is valid but
+the stored state is missing, expired, or already used, it returns
+`SessionUnavailable`.
 
 ## Callback error handling
 
@@ -136,9 +151,11 @@ stored state is missing, expired, or already used, it returns `SessionExpired`.
 case vestibule_wisp.callback_phase_auth_result(req, reg, provider, store) {
   Ok(auth) -> on_success(auth)
   Error(vestibule_wisp.UnknownProvider(provider)) -> handle_unknown(provider)
-  Error(vestibule_wisp.MissingSessionCookie) -> handle_missing_cookie()
-  Error(vestibule_wisp.SessionExpired) -> handle_expired_session()
-  Error(vestibule_wisp.InvalidCallbackParams) -> handle_bad_callback()
+  Error(vestibule_wisp.MissingOrInvalidSessionCookie(reason)) ->
+    handle_missing_cookie(reason)
+  Error(vestibule_wisp.SessionUnavailable) -> handle_expired_session()
+  Error(vestibule_wisp.InvalidCallbackParams(reason)) ->
+    handle_bad_callback(reason)
   Error(vestibule_wisp.AuthFailed(err)) -> handle_auth_failure(err)
 }
 ```

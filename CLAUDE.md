@@ -122,7 +122,7 @@ gleam test
 Managed via `.tool-versions` (source of truth for CI):
 - Erlang 27.2.1
 - Rebar3 3.24.0 (required by vestibule_wisp's transitive deps)
-- Gleam 1.16.0
+- Gleam 1.18.1
 - just 1.38.0
 
 Local development can use `.mise.toml` for flexible versions.

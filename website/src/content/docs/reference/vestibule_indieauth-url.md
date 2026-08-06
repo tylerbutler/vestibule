@@ -4,7 +4,7 @@ description: "Reference for vestibule_indieauth/url."
 nav:
   group: Reference
   groupOrder: 20
-  order: 32
+  order: 31
   label: "vestibule_indieauth/url"
 toc:
   - href: "#functions"

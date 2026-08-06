@@ -43,7 +43,7 @@ user, such as an OpenID Connect `id_token`.
 Opaque to keep provider-specific artifacts evolution-safe.
 
 ```gleam
-pub opaque type ExchangeResult
+pub type ExchangeResult
 ```
 
 ### `Strategy`
@@ -66,7 +66,7 @@ builders. Invoke through the `build_authorize_url`, `exchange_code`,
 `refresh_token` with an AuthError of kind `RefreshUnsupportedKind`.
 
 ```gleam
-pub opaque type Strategy(a)
+pub type Strategy(a)
 ```
 
 ### `UserResult`
@@ -78,7 +78,7 @@ implementations. Construct with `user_result` and read with the
 `user_result_uid`, `user_result_info`, and `user_result_extra` accessors.
 
 ```gleam
-pub opaque type UserResult
+pub type UserResult
 ```
 
 ## Functions
@@ -246,8 +246,8 @@ pub fn provider(Strategy(a)) -> String
 
 Refresh credentials using a refresh token.
 
-Returns an AuthError of kind `RefreshUnsupportedKind` if the strategy was built without
-`with_refresh`.
+Returns an AuthError of kind `RefreshUnsupportedKind` if the strategy was
+built without `with_refresh`.
 
 ```gleam
 pub fn refresh_token(
