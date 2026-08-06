@@ -1,9 +1,10 @@
-/// URL validation and canonicalization for IndieAuth.
-///
-/// Implements the URL requirements from the IndieAuth specification:
-/// - Section 3.2: User Profile URL
-/// - Section 3.3: Client Identifier
-/// - Section 3.4: URL Canonicalization
+//// URL validation and canonicalization for IndieAuth.
+////
+//// Implements the URL requirements from the IndieAuth specification:
+//// - Section 3.2: User Profile URL
+//// - Section 3.3: Client Identifier
+//// - Section 3.4: URL Canonicalization
+
 import gleam/bool
 import gleam/list
 import gleam/option.{None, Some}

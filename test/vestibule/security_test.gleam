@@ -1,8 +1,9 @@
-/// Security-focused tests for vestibule core.
-///
-/// These tests verify security properties identified during the
-/// 2026-02-25 security audit. Each test documents what security
-/// property it verifies and the finding it relates to.
+//// Security-focused tests for vestibule core.
+////
+//// These tests verify security properties identified during the
+//// 2026-02-25 security audit. Each test documents what security
+//// property it verifies and the finding it relates to.
+
 import gleam/dict
 import gleam/option.{None, Some}
 import gleam/set

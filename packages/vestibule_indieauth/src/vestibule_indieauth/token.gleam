@@ -1,8 +1,9 @@
-/// IndieAuth token exchange and response parsing.
-///
-/// Handles the token exchange step of the IndieAuth flow where
-/// the authorization code is exchanged for an access token and
-/// the user's canonical profile URL.
+//// IndieAuth token exchange and response parsing.
+////
+//// Handles the token exchange step of the IndieAuth flow where
+//// the authorization code is exchanged for an access token and
+//// the user's canonical profile URL.
+
 import gleam/dict
 import gleam/dynamic/decode
 import gleam/http
@@ -198,7 +199,7 @@ fn parse_token_success(body: String) -> Result(Credentials, AuthError(e)) {
     ))
   }
   case json.parse(body, decoder) {
-    Ok(creds) -> Ok(creds)
+    Ok(oauth_credentials) -> Ok(oauth_credentials)
     Error(err) ->
       Error(error.code_exchange(
         reason: "Failed to parse IndieAuth token response: "
@@ -269,9 +270,9 @@ pub fn parse_profile_from_token_response(
 /// Fetch user info from the IndieAuth userinfo endpoint.
 pub fn fetch_userinfo(
   userinfo_url: String,
-  creds: Credentials,
+  oauth_credentials: Credentials,
 ) -> Result(#(String, UserInfo), AuthError(e)) {
-  use auth_header <- result.try(strategy.authorization_header(creds))
+  use auth_header <- result.try(strategy.authorization_header(oauth_credentials))
 
   use req <- result.try(
     request.to(userinfo_url)

@@ -12,7 +12,7 @@ import vestibule_oidc/internal/token_request_params
 
 // --- OidcConfig construction ---
 
-pub fn oidc_config_construction_test() {
+pub fn oidc_config_construction_test() -> Nil {
   let config = example_config()
   vestibule_oidc.issuer(config)
   |> expect.to_equal("https://accounts.example.com")
@@ -26,7 +26,7 @@ pub fn oidc_config_construction_test() {
   |> expect.to_equal(["openid", "profile", "email"])
 }
 
-pub fn new_config_rejects_http_issuer_test() {
+pub fn new_config_rejects_http_issuer_test() -> Nil {
   let result =
     vestibule_oidc.new_config(
       issuer: "http://issuer.example.com",
@@ -40,7 +40,7 @@ pub fn new_config_rejects_http_issuer_test() {
   Nil
 }
 
-pub fn new_config_rejects_http_authorization_endpoint_test() {
+pub fn new_config_rejects_http_authorization_endpoint_test() -> Nil {
   let result =
     vestibule_oidc.new_config(
       issuer: "https://issuer.example.com",
@@ -54,7 +54,7 @@ pub fn new_config_rejects_http_authorization_endpoint_test() {
   Nil
 }
 
-pub fn new_config_rejects_http_token_endpoint_test() {
+pub fn new_config_rejects_http_token_endpoint_test() -> Nil {
   let result =
     vestibule_oidc.new_config(
       issuer: "https://issuer.example.com",
@@ -68,7 +68,7 @@ pub fn new_config_rejects_http_token_endpoint_test() {
   Nil
 }
 
-pub fn new_config_rejects_http_userinfo_endpoint_test() {
+pub fn new_config_rejects_http_userinfo_endpoint_test() -> Nil {
   let result =
     vestibule_oidc.new_config(
       issuer: "https://issuer.example.com",
@@ -82,7 +82,7 @@ pub fn new_config_rejects_http_userinfo_endpoint_test() {
   Nil
 }
 
-pub fn new_config_rejects_localhost_http_endpoints_test() {
+pub fn new_config_rejects_localhost_http_endpoints_test() -> Nil {
   let result =
     vestibule_oidc.new_config(
       issuer: "http://localhost",
@@ -96,7 +96,7 @@ pub fn new_config_rejects_localhost_http_endpoints_test() {
   Nil
 }
 
-pub fn new_config_rejects_https_localhost_endpoints_test() {
+pub fn new_config_rejects_https_localhost_endpoints_test() -> Nil {
   let result =
     vestibule_oidc.new_config(
       issuer: "https://localhost",
@@ -110,7 +110,7 @@ pub fn new_config_rejects_https_localhost_endpoints_test() {
   Nil
 }
 
-pub fn new_config_rejects_loopback_ipv4_endpoint_test() {
+pub fn new_config_rejects_loopback_ipv4_endpoint_test() -> Nil {
   let result =
     vestibule_oidc.new_config(
       issuer: "https://accounts.example.com",
@@ -124,7 +124,7 @@ pub fn new_config_rejects_loopback_ipv4_endpoint_test() {
   Nil
 }
 
-pub fn new_config_rejects_loopback_ipv6_endpoint_test() {
+pub fn new_config_rejects_loopback_ipv6_endpoint_test() -> Nil {
   let result =
     vestibule_oidc.new_config(
       issuer: "https://accounts.example.com",
@@ -138,7 +138,7 @@ pub fn new_config_rejects_loopback_ipv6_endpoint_test() {
   Nil
 }
 
-pub fn new_config_rejects_private_network_endpoint_test() {
+pub fn new_config_rejects_private_network_endpoint_test() -> Nil {
   let result =
     vestibule_oidc.new_config(
       issuer: "https://accounts.example.com",
@@ -152,7 +152,7 @@ pub fn new_config_rejects_private_network_endpoint_test() {
   Nil
 }
 
-pub fn new_config_rejects_link_local_metadata_endpoint_test() {
+pub fn new_config_rejects_link_local_metadata_endpoint_test() -> Nil {
   let result =
     vestibule_oidc.new_config(
       issuer: "https://accounts.example.com",
@@ -166,7 +166,7 @@ pub fn new_config_rejects_link_local_metadata_endpoint_test() {
   Nil
 }
 
-pub fn new_config_allows_public_https_endpoints_test() {
+pub fn new_config_allows_public_https_endpoints_test() -> Nil {
   let result =
     vestibule_oidc.new_config(
       issuer: "https://accounts.example.com",
@@ -182,7 +182,7 @@ pub fn new_config_allows_public_https_endpoints_test() {
 
 // --- parse_discovery_document ---
 
-pub fn parse_discovery_document_full_test() {
+pub fn parse_discovery_document_full_test() -> Nil {
   let json =
     "{\"issuer\":\"https://accounts.example.com\",\"authorization_endpoint\":\"https://accounts.example.com/authorize\",\"token_endpoint\":\"https://accounts.example.com/token\",\"userinfo_endpoint\":\"https://accounts.example.com/userinfo\",\"scopes_supported\":[\"openid\",\"profile\",\"email\",\"address\"]}"
   let result = vestibule_oidc.parse_discovery_document(json)
@@ -199,7 +199,7 @@ pub fn parse_discovery_document_full_test() {
   |> expect.to_equal(["openid", "profile", "email", "address"])
 }
 
-pub fn parse_discovery_document_without_scopes_test() {
+pub fn parse_discovery_document_without_scopes_test() -> Nil {
   let json =
     "{\"issuer\":\"https://example.com\",\"authorization_endpoint\":\"https://example.com/auth\",\"token_endpoint\":\"https://example.com/token\",\"userinfo_endpoint\":\"https://example.com/userinfo\"}"
   let result = vestibule_oidc.parse_discovery_document(json)
@@ -207,7 +207,7 @@ pub fn parse_discovery_document_without_scopes_test() {
   vestibule_oidc.scopes_supported(config) |> expect.to_equal([])
 }
 
-pub fn parse_discovery_document_rejects_http_endpoint_test() {
+pub fn parse_discovery_document_rejects_http_endpoint_test() -> Nil {
   let json =
     "{\"issuer\":\"https://example.com\",\"authorization_endpoint\":\"https://example.com/auth\",\"token_endpoint\":\"http://example.com/token\",\"userinfo_endpoint\":\"https://example.com/userinfo\"}"
   let _ =
@@ -216,7 +216,7 @@ pub fn parse_discovery_document_rejects_http_endpoint_test() {
   Nil
 }
 
-pub fn parse_discovery_document_rejects_localhost_endpoint_test() {
+pub fn parse_discovery_document_rejects_localhost_endpoint_test() -> Nil {
   let json =
     "{\"issuer\":\"https://example.com\",\"authorization_endpoint\":\"https://example.com/auth\",\"token_endpoint\":\"https://localhost/token\",\"userinfo_endpoint\":\"https://example.com/userinfo\"}"
   let _ =
@@ -225,7 +225,7 @@ pub fn parse_discovery_document_rejects_localhost_endpoint_test() {
   Nil
 }
 
-pub fn parse_discovery_document_rejects_loopback_ipv4_endpoint_test() {
+pub fn parse_discovery_document_rejects_loopback_ipv4_endpoint_test() -> Nil {
   let json =
     "{\"issuer\":\"https://example.com\",\"authorization_endpoint\":\"https://example.com/auth\",\"token_endpoint\":\"https://example.com/token\",\"userinfo_endpoint\":\"https://127.0.0.1/userinfo\"}"
   let _ =
@@ -234,7 +234,7 @@ pub fn parse_discovery_document_rejects_loopback_ipv4_endpoint_test() {
   Nil
 }
 
-pub fn parse_discovery_document_rejects_loopback_ipv6_endpoint_test() {
+pub fn parse_discovery_document_rejects_loopback_ipv6_endpoint_test() -> Nil {
   let json =
     "{\"issuer\":\"https://example.com\",\"authorization_endpoint\":\"https://[::1]/auth\",\"token_endpoint\":\"https://example.com/token\",\"userinfo_endpoint\":\"https://example.com/userinfo\"}"
   let _ =
@@ -243,7 +243,7 @@ pub fn parse_discovery_document_rejects_loopback_ipv6_endpoint_test() {
   Nil
 }
 
-pub fn parse_discovery_document_rejects_private_network_endpoint_test() {
+pub fn parse_discovery_document_rejects_private_network_endpoint_test() -> Nil {
   let json =
     "{\"issuer\":\"https://example.com\",\"authorization_endpoint\":\"https://example.com/auth\",\"token_endpoint\":\"https://10.0.0.5/token\",\"userinfo_endpoint\":\"https://example.com/userinfo\"}"
   let _ =
@@ -252,7 +252,7 @@ pub fn parse_discovery_document_rejects_private_network_endpoint_test() {
   Nil
 }
 
-pub fn parse_discovery_document_invalid_json_test() {
+pub fn parse_discovery_document_invalid_json_test() -> Nil {
   let json = "not valid json"
   let _ =
     vestibule_oidc.parse_discovery_document(json)
@@ -260,7 +260,7 @@ pub fn parse_discovery_document_invalid_json_test() {
   Nil
 }
 
-pub fn parse_discovery_document_missing_required_field_test() {
+pub fn parse_discovery_document_missing_required_field_test() -> Nil {
   // Missing token_endpoint
   let json =
     "{\"issuer\":\"https://example.com\",\"authorization_endpoint\":\"https://example.com/auth\",\"userinfo_endpoint\":\"https://example.com/userinfo\"}"
@@ -272,33 +272,33 @@ pub fn parse_discovery_document_missing_required_field_test() {
 
 // --- discovery_url ---
 
-pub fn discovery_url_for_host_issuer_test() {
+pub fn discovery_url_for_host_issuer_test() -> Nil {
   vestibule_oidc.discovery_url("https://example.com")
   |> expect.to_equal(Ok("https://example.com/.well-known/openid-configuration"))
 }
 
-pub fn discovery_url_for_path_issuer_test() {
+pub fn discovery_url_for_path_issuer_test() -> Nil {
   vestibule_oidc.discovery_url("https://example.com/tenant")
   |> expect.to_equal(Ok(
     "https://example.com/.well-known/openid-configuration/tenant",
   ))
 }
 
-pub fn discovery_url_preserves_issuer_validation_test() {
+pub fn discovery_url_preserves_issuer_validation_test() -> Nil {
   let _ =
     vestibule_oidc.discovery_url("http://example.com/tenant")
     |> expect.to_be_error()
   Nil
 }
 
-pub fn discovery_url_rejects_loopback_issuer_test() {
+pub fn discovery_url_rejects_loopback_issuer_test() -> Nil {
   let _ =
     vestibule_oidc.discovery_url("https://localhost/tenant")
     |> expect.to_be_error()
   Nil
 }
 
-pub fn discovery_url_rejects_loopback_ipv4_issuer_test() {
+pub fn discovery_url_rejects_loopback_ipv4_issuer_test() -> Nil {
   let _ =
     vestibule_oidc.discovery_url("https://127.0.0.1")
     |> expect.to_be_error()
@@ -307,7 +307,7 @@ pub fn discovery_url_rejects_loopback_ipv4_issuer_test() {
 
 // --- parse_token_response ---
 
-pub fn parse_token_response_success_test() {
+pub fn parse_token_response_success_test() -> Nil {
   let json =
     "{\"access_token\":\"eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9\",\"token_type\":\"Bearer\",\"expires_in\":3600,\"scope\":\"openid profile email\",\"refresh_token\":\"dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4\"}"
   vestibule_oidc.parse_token_response(json)
@@ -323,7 +323,7 @@ pub fn parse_token_response_success_test() {
   )
 }
 
-pub fn parse_token_response_minimal_test() {
+pub fn parse_token_response_minimal_test() -> Nil {
   let json = "{\"access_token\":\"abc123\",\"token_type\":\"bearer\"}"
   vestibule_oidc.parse_token_response(json)
   |> expect.to_be_ok()
@@ -338,14 +338,14 @@ pub fn parse_token_response_minimal_test() {
   )
 }
 
-pub fn parse_token_response_empty_scope_test() {
+pub fn parse_token_response_empty_scope_test() -> Nil {
   let json =
     "{\"access_token\":\"abc123\",\"token_type\":\"Bearer\",\"scope\":\"\"}"
-  let assert Ok(creds) = vestibule_oidc.parse_token_response(json)
-  credentials.scopes(creds) |> expect.to_equal([])
+  let assert Ok(oauth_credentials) = vestibule_oidc.parse_token_response(json)
+  credentials.scopes(oauth_credentials) |> expect.to_equal([])
 }
 
-pub fn parse_token_response_error_test() {
+pub fn parse_token_response_error_test() -> Nil {
   let json =
     "{\"error\":\"invalid_grant\",\"error_description\":\"The authorization code has expired\"}"
   let _ =
@@ -354,7 +354,7 @@ pub fn parse_token_response_error_test() {
   Nil
 }
 
-pub fn parse_token_response_error_without_description_test() {
+pub fn parse_token_response_error_without_description_test() -> Nil {
   let json = "{\"error\":\"invalid_grant\"}"
   let _ =
     vestibule_oidc.parse_token_response(json)
@@ -367,7 +367,7 @@ pub fn parse_token_response_error_without_description_test() {
   Nil
 }
 
-pub fn parse_token_response_invalid_json_test() {
+pub fn parse_token_response_invalid_json_test() -> Nil {
   let _ =
     vestibule_oidc.parse_token_response("not json")
     |> expect.to_be_error()
@@ -376,7 +376,7 @@ pub fn parse_token_response_invalid_json_test() {
 
 // --- parse_userinfo_response ---
 
-pub fn parse_userinfo_response_full_test() {
+pub fn parse_userinfo_response_full_test() -> Nil {
   let json =
     "{\"sub\":\"user-id-123\",\"name\":\"Jane Doe\",\"email\":\"jane@example.com\",\"email_verified\":true,\"preferred_username\":\"janedoe\",\"picture\":\"https://example.com/jane.jpg\"}"
   let result = vestibule_oidc.parse_userinfo_response(json)
@@ -390,7 +390,7 @@ pub fn parse_userinfo_response_full_test() {
   user_info.urls(info) |> expect.to_equal(dict.new())
 }
 
-pub fn parse_userinfo_response_minimal_test() {
+pub fn parse_userinfo_response_minimal_test() -> Nil {
   let json = "{\"sub\":\"minimal-user\"}"
   let result = vestibule_oidc.parse_userinfo_response(json)
   let assert Ok(#(uid, info)) = result
@@ -401,14 +401,14 @@ pub fn parse_userinfo_response_minimal_test() {
   user_info.image(info) |> expect.to_equal(None)
 }
 
-pub fn parse_userinfo_response_invalid_json_test() {
+pub fn parse_userinfo_response_invalid_json_test() -> Nil {
   let _ =
     vestibule_oidc.parse_userinfo_response("not json")
     |> expect.to_be_error()
   Nil
 }
 
-pub fn parse_userinfo_response_missing_sub_test() {
+pub fn parse_userinfo_response_missing_sub_test() -> Nil {
   let json = "{\"name\":\"No Sub User\",\"email\":\"nosub@example.com\"}"
   let _ =
     vestibule_oidc.parse_userinfo_response(json)
@@ -416,7 +416,7 @@ pub fn parse_userinfo_response_missing_sub_test() {
   Nil
 }
 
-pub fn parse_userinfo_response_unverified_email_test() {
+pub fn parse_userinfo_response_unverified_email_test() -> Nil {
   let json =
     "{\"sub\":\"user-id-123\",\"email\":\"jane@example.com\",\"email_verified\":false}"
   let result = vestibule_oidc.parse_userinfo_response(json)
@@ -426,39 +426,39 @@ pub fn parse_userinfo_response_unverified_email_test() {
 
 // --- filter_default_scopes ---
 
-pub fn filter_default_scopes_all_present_test() {
+pub fn filter_default_scopes_all_present_test() -> Nil {
   let supported = ["openid", "profile", "email", "address", "phone"]
   vestibule_oidc.filter_default_scopes(supported)
   |> expect.to_equal(["openid", "profile", "email"])
 }
 
-pub fn filter_default_scopes_partial_test() {
+pub fn filter_default_scopes_partial_test() -> Nil {
   let supported = ["openid", "email"]
   vestibule_oidc.filter_default_scopes(supported)
   |> expect.to_equal(["openid", "email"])
 }
 
-pub fn filter_default_scopes_none_present_test() {
+pub fn filter_default_scopes_none_present_test() -> Nil {
   let supported = ["custom_scope", "another_scope"]
   vestibule_oidc.filter_default_scopes(supported)
   |> expect.to_equal(["openid"])
 }
 
-pub fn filter_default_scopes_empty_test() {
+pub fn filter_default_scopes_empty_test() -> Nil {
   vestibule_oidc.filter_default_scopes([])
   |> expect.to_equal(["openid"])
 }
 
 // --- strategy_from_config ---
 
-pub fn strategy_from_config_sets_provider_name_test() {
+pub fn strategy_from_config_sets_provider_name_test() -> Nil {
   let oidc_config = example_config()
-  let strat =
+  let oidc_strategy =
     vestibule_oidc.strategy_from_config(oidc_config, "my-oidc-provider")
-  strategy.provider(strat) |> expect.to_equal("my-oidc-provider")
+  strategy.provider(oidc_strategy) |> expect.to_equal("my-oidc-provider")
 }
 
-pub fn strategy_from_config_sets_default_scopes_test() {
+pub fn strategy_from_config_sets_default_scopes_test() -> Nil {
   let assert Ok(oidc_config) =
     vestibule_oidc.new_config(
       issuer: "https://accounts.example.com",
@@ -467,12 +467,13 @@ pub fn strategy_from_config_sets_default_scopes_test() {
       userinfo_endpoint: "https://accounts.example.com/userinfo",
       scopes_supported: ["openid", "profile", "email", "address"],
     )
-  let strat = vestibule_oidc.strategy_from_config(oidc_config, "example")
-  strategy.default_scopes(strat)
+  let oidc_strategy =
+    vestibule_oidc.strategy_from_config(oidc_config, "example")
+  strategy.default_scopes(oidc_strategy)
   |> expect.to_equal(["openid", "profile", "email"])
 }
 
-pub fn strategy_from_config_filters_scopes_test() {
+pub fn strategy_from_config_filters_scopes_test() -> Nil {
   let assert Ok(oidc_config) =
     vestibule_oidc.new_config(
       issuer: "https://accounts.example.com",
@@ -481,11 +482,12 @@ pub fn strategy_from_config_filters_scopes_test() {
       userinfo_endpoint: "https://accounts.example.com/userinfo",
       scopes_supported: ["openid", "custom"],
     )
-  let strat = vestibule_oidc.strategy_from_config(oidc_config, "example")
-  strategy.default_scopes(strat) |> expect.to_equal(["openid"])
+  let oidc_strategy =
+    vestibule_oidc.strategy_from_config(oidc_config, "example")
+  strategy.default_scopes(oidc_strategy) |> expect.to_equal(["openid"])
 }
 
-pub fn strategy_from_config_defaults_to_openid_without_scope_metadata_test() {
+pub fn strategy_from_config_defaults_to_openid_without_scope_metadata_test() -> Nil {
   let assert Ok(oidc_config) =
     vestibule_oidc.new_config(
       issuer: "https://accounts.example.com",
@@ -494,11 +496,12 @@ pub fn strategy_from_config_defaults_to_openid_without_scope_metadata_test() {
       userinfo_endpoint: "https://accounts.example.com/userinfo",
       scopes_supported: [],
     )
-  let strat = vestibule_oidc.strategy_from_config(oidc_config, "example")
-  strategy.default_scopes(strat) |> expect.to_equal(["openid"])
+  let oidc_strategy =
+    vestibule_oidc.strategy_from_config(oidc_config, "example")
+  strategy.default_scopes(oidc_strategy) |> expect.to_equal(["openid"])
 }
 
-pub fn strategy_from_config_defaults_to_openid_when_no_desired_scopes_supported_test() {
+pub fn strategy_from_config_defaults_to_openid_when_no_desired_scopes_supported_test() -> Nil {
   let assert Ok(oidc_config) =
     vestibule_oidc.new_config(
       issuer: "https://accounts.example.com",
@@ -507,14 +510,16 @@ pub fn strategy_from_config_defaults_to_openid_when_no_desired_scopes_supported_
       userinfo_endpoint: "https://accounts.example.com/userinfo",
       scopes_supported: ["custom_scope"],
     )
-  let strat = vestibule_oidc.strategy_from_config(oidc_config, "example")
-  strategy.default_scopes(strat) |> expect.to_equal(["openid"])
+  let oidc_strategy =
+    vestibule_oidc.strategy_from_config(oidc_config, "example")
+  strategy.default_scopes(oidc_strategy) |> expect.to_equal(["openid"])
 }
 
-pub fn strategy_from_config_authorize_url_test() {
+pub fn strategy_from_config_authorize_url_test() -> Nil {
   let oidc_config = example_config()
-  let strat = vestibule_oidc.strategy_from_config(oidc_config, "example")
-  let conf =
+  let oidc_strategy =
+    vestibule_oidc.strategy_from_config(oidc_config, "example")
+  let client_config =
     config.new(
       client_id: "my-client-id",
       redirect_uri: "http://localhost/callback",
@@ -522,8 +527,8 @@ pub fn strategy_from_config_authorize_url_test() {
     )
   let result =
     strategy.build_authorize_url(
-      strat,
-      config: conf,
+      oidc_strategy,
+      config: client_config,
       options: config.authorize_options(),
       scopes: ["openid", "profile"],
       state: "test-state",
@@ -539,7 +544,7 @@ pub fn strategy_from_config_authorize_url_test() {
   { string.contains(url, "profile") } |> expect.to_be_true()
 }
 
-pub fn strategy_from_config_authorize_url_with_extra_params_test() {
+pub fn strategy_from_config_authorize_url_with_extra_params_test() -> Nil {
   let assert Ok(oidc_config) =
     vestibule_oidc.new_config(
       issuer: "https://accounts.example.com",
@@ -548,8 +553,9 @@ pub fn strategy_from_config_authorize_url_with_extra_params_test() {
       userinfo_endpoint: "https://accounts.example.com/userinfo",
       scopes_supported: ["openid"],
     )
-  let strat = vestibule_oidc.strategy_from_config(oidc_config, "example")
-  let conf =
+  let oidc_strategy =
+    vestibule_oidc.strategy_from_config(oidc_config, "example")
+  let client_config =
     config.new(
       client_id: "client-id",
       redirect_uri: "http://localhost/cb",
@@ -560,8 +566,8 @@ pub fn strategy_from_config_authorize_url_with_extra_params_test() {
     |> config.with_extra_params([#("prompt", "consent")])
   let assert Ok(url) =
     strategy.build_authorize_url(
-      strat,
-      config: conf,
+      oidc_strategy,
+      config: client_config,
       options: options,
       scopes: ["openid"],
       state: "state-123",
@@ -569,7 +575,7 @@ pub fn strategy_from_config_authorize_url_with_extra_params_test() {
   { string.contains(url, "prompt=consent") } |> expect.to_be_true()
 }
 
-pub fn strategy_from_config_invalid_redirect_uri_returns_error_test() {
+pub fn strategy_from_config_invalid_redirect_uri_returns_error_test() -> Nil {
   let assert Ok(oidc_config) =
     vestibule_oidc.new_config(
       issuer: "https://accounts.example.com",
@@ -578,8 +584,9 @@ pub fn strategy_from_config_invalid_redirect_uri_returns_error_test() {
       userinfo_endpoint: "https://accounts.example.com/userinfo",
       scopes_supported: ["openid"],
     )
-  let strat = vestibule_oidc.strategy_from_config(oidc_config, "example")
-  let conf =
+  let oidc_strategy =
+    vestibule_oidc.strategy_from_config(oidc_config, "example")
+  let client_config =
     config.new(
       client_id: "client-id",
       redirect_uri: "not a uri",
@@ -587,8 +594,8 @@ pub fn strategy_from_config_invalid_redirect_uri_returns_error_test() {
     )
   let _ =
     strategy.build_authorize_url(
-      strat,
-      config: conf,
+      oidc_strategy,
+      config: client_config,
       options: config.authorize_options(),
       scopes: ["openid"],
       state: "state-123",
@@ -597,8 +604,8 @@ pub fn strategy_from_config_invalid_redirect_uri_returns_error_test() {
   Nil
 }
 
-pub fn token_request_params_include_client_secret_when_configured_test() {
-  let conf =
+pub fn token_request_params_include_client_secret_when_configured_test() -> Nil {
+  let client_config =
     config.new(
       client_id: "client-id",
       redirect_uri: "https://app.example.com/callback",
@@ -606,7 +613,7 @@ pub fn token_request_params_include_client_secret_when_configured_test() {
     )
 
   token_request_params.authorization_code(
-    conf,
+    client_config,
     code: "code-123",
     redirect_uri: "https://app.example.com/callback",
     code_verifier: Some("verifier-123"),
@@ -620,7 +627,7 @@ pub fn token_request_params_include_client_secret_when_configured_test() {
     #("code_verifier", "verifier-123"),
   ])
 
-  token_request_params.refresh(conf, refresh_token: "refresh-123")
+  token_request_params.refresh(client_config, refresh_token: "refresh-123")
   |> expect.to_equal([
     #("grant_type", "refresh_token"),
     #("refresh_token", "refresh-123"),
@@ -629,8 +636,8 @@ pub fn token_request_params_include_client_secret_when_configured_test() {
   ])
 }
 
-pub fn token_request_params_omit_client_secret_for_public_client_test() {
-  let conf =
+pub fn token_request_params_omit_client_secret_for_public_client_test() -> Nil {
+  let client_config =
     config.new(
       client_id: "client-id",
       redirect_uri: "https://app.example.com/callback",
@@ -638,7 +645,7 @@ pub fn token_request_params_omit_client_secret_for_public_client_test() {
     )
 
   token_request_params.authorization_code(
-    conf,
+    client_config,
     code: "code-123",
     redirect_uri: "https://app.example.com/callback",
     code_verifier: None,
@@ -650,7 +657,7 @@ pub fn token_request_params_omit_client_secret_for_public_client_test() {
     #("client_id", "client-id"),
   ])
 
-  token_request_params.refresh(conf, refresh_token: "refresh-123")
+  token_request_params.refresh(client_config, refresh_token: "refresh-123")
   |> expect.to_equal([
     #("grant_type", "refresh_token"),
     #("refresh_token", "refresh-123"),
@@ -658,8 +665,8 @@ pub fn token_request_params_omit_client_secret_for_public_client_test() {
   ])
 }
 
-pub fn token_request_params_include_client_assertion_without_secret_test() {
-  let conf =
+pub fn token_request_params_include_client_assertion_without_secret_test() -> Nil {
+  let client_config =
     config.new(
       client_id: "client-id",
       redirect_uri: "https://app.example.com/callback",
@@ -667,7 +674,7 @@ pub fn token_request_params_include_client_assertion_without_secret_test() {
     )
 
   token_request_params.authorization_code(
-    conf,
+    client_config,
     code: "code-123",
     redirect_uri: "https://app.example.com/callback",
     code_verifier: None,
@@ -684,7 +691,7 @@ pub fn token_request_params_include_client_assertion_without_secret_test() {
     #("client_assertion", "assertion-jwt"),
   ])
 
-  token_request_params.refresh(conf, refresh_token: "refresh-123")
+  token_request_params.refresh(client_config, refresh_token: "refresh-123")
   |> expect.to_equal([
     #("grant_type", "refresh_token"),
     #("refresh_token", "refresh-123"),
@@ -697,7 +704,7 @@ pub fn token_request_params_include_client_assertion_without_secret_test() {
   ])
 }
 
-fn example_config() {
+fn example_config() -> vestibule_oidc.OidcConfig {
   let assert Ok(config) =
     vestibule_oidc.new_config(
       issuer: "https://accounts.example.com",

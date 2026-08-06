@@ -1,29 +1,30 @@
-/// IndieAuth strategy for vestibule — decentralized identity via OAuth 2.0.
-///
-/// IndieAuth is an identity layer on top of OAuth 2.0 where users are identified
-/// by a URL they control. Endpoints are discovered dynamically from the user's
-/// homepage rather than being statically configured.
-///
-/// ## Usage
-///
-/// ```gleam
-/// // Discover the user's IndieAuth endpoints
-/// let assert Ok(strategy) = vestibule_indieauth.discover("https://user.example.com")
-///
-/// // Use with vestibule's standard two-phase flow
-/// let options = config.authorize_options()
-/// let assert Ok(auth_request) =
-///   vestibule.create_authorization_request(strategy, config: client_config, options: options)
-/// ```
-///
-/// ## Discovery
-///
-/// The `discover` function fetches the user's homepage and finds their
-/// authorization and token endpoints using a three-tier fallback:
-///
-/// 1. IndieAuth server metadata (`rel="indieauth-metadata"` → JSON document)
-/// 2. Direct link relations (`rel="authorization_endpoint"`, `rel="token_endpoint"`)
-/// 3. Falls back from HTTP `Link` headers to HTML `<link>` tags at each tier
+//// IndieAuth strategy for vestibule — decentralized identity via OAuth 2.0.
+////
+//// IndieAuth is an identity layer on top of OAuth 2.0 where users are identified
+//// by a URL they control. Endpoints are discovered dynamically from the user's
+//// homepage rather than being statically configured.
+////
+//// ## Usage
+////
+//// ```gleam
+//// // Discover the user's IndieAuth endpoints
+//// let assert Ok(strategy) = vestibule_indieauth.discover("https://user.example.com")
+////
+//// // Use with vestibule's standard two-phase flow
+//// let options = config.authorize_options()
+//// let assert Ok(auth_request) =
+////   vestibule.create_authorization_request(strategy, config: client_config, options: options)
+//// ```
+////
+//// ## Discovery
+////
+//// The `discover` function fetches the user's homepage and finds their
+//// authorization and token endpoints using a three-tier fallback:
+////
+//// 1. IndieAuth server metadata (`rel="indieauth-metadata"` → JSON document)
+//// 2. Direct link relations (`rel="authorization_endpoint"`, `rel="token_endpoint"`)
+//// 3. Falls back from HTTP `Link` headers to HTML `<link>` tags at each tier
+
 import gleam/dict
 import gleam/dynamic/decode
 import gleam/json
@@ -182,23 +183,25 @@ pub fn strategy(endpoints: DiscoveredEndpoints, me: String) -> Strategy(e) {
   strategy.new(
     provider: "indieauth",
     default_scopes: ["profile"],
-    authorize_url: fn(cfg, options, scopes, state) {
-      do_authorize_url(endpoints, me, cfg, options, scopes, state)
+    authorize_url: fn(client_config, options, scopes, state) {
+      do_authorize_url(endpoints, me, client_config, options, scopes, state)
     },
-    exchange_code: fn(cfg, code, code_verifier) {
-      do_exchange_code(endpoints, cfg, code, code_verifier)
+    exchange_code: fn(client_config, code, code_verifier) {
+      do_exchange_code(endpoints, client_config, code, code_verifier)
     },
-    fetch_user: fn(_cfg, exchange) { do_fetch_user(endpoints, me, exchange) },
+    fetch_user: fn(_client_config, exchange) {
+      do_fetch_user(endpoints, me, exchange)
+    },
   )
-  |> strategy.with_refresh(fn(cfg, refresh_tok) {
-    do_refresh_token(endpoints, cfg, refresh_tok)
+  |> strategy.with_refresh(fn(client_config, refresh_token) {
+    do_refresh_token(endpoints, client_config, refresh_token)
   })
 }
 
 fn do_authorize_url(
   endpoints: DiscoveredEndpoints,
   me: String,
-  cfg: ClientConfig,
+  client_config: ClientConfig,
   options: AuthorizeOptions,
   scopes: List(String),
   state: String,
@@ -211,22 +214,29 @@ fn do_authorize_url(
         reason: "Reserved authorization parameter not allowed: me",
       ))
     Error(Nil) ->
-      build_authorize_url(endpoints, me, cfg, scope, state, extra_params)
+      build_authorize_url(
+        endpoints,
+        me,
+        client_config,
+        scope,
+        state,
+        extra_params,
+      )
   }
 }
 
 fn build_authorize_url(
   endpoints: DiscoveredEndpoints,
   me: String,
-  cfg: ClientConfig,
+  client_config: ClientConfig,
   scope: String,
   state: String,
   extra_params: dict.Dict(String, String),
 ) -> Result(String, AuthError(e)) {
   let params = [
     #("response_type", "code"),
-    #("client_id", config.client_id(cfg)),
-    #("redirect_uri", config.redirect_uri(cfg)),
+    #("client_id", config.client_id(client_config)),
+    #("redirect_uri", config.redirect_uri(client_config)),
     #("state", state),
     #("scope", scope),
     #("me", me),
@@ -244,14 +254,14 @@ fn build_authorize_url(
 
 fn do_exchange_code(
   endpoints: DiscoveredEndpoints,
-  cfg: ClientConfig,
+  client_config: ClientConfig,
   code: String,
   code_verifier: Option(String),
 ) -> Result(strategy.ExchangeResult, AuthError(e)) {
   token.exchange_code(
     endpoints.token_endpoint,
-    config.client_id(cfg),
-    config.redirect_uri(cfg),
+    config.client_id(client_config),
+    config.redirect_uri(client_config),
     code,
     code_verifier,
   )
@@ -260,10 +270,14 @@ fn do_exchange_code(
 
 fn do_refresh_token(
   endpoints: DiscoveredEndpoints,
-  cfg: ClientConfig,
-  refresh_tok: String,
+  client_config: ClientConfig,
+  refresh_token: String,
 ) -> Result(Credentials, AuthError(e)) {
-  token.refresh(endpoints.token_endpoint, config.client_id(cfg), refresh_tok)
+  token.refresh(
+    endpoints.token_endpoint,
+    config.client_id(client_config),
+    refresh_token,
+  )
 }
 
 fn do_fetch_user(
@@ -271,7 +285,7 @@ fn do_fetch_user(
   me: String,
   exchange: strategy.ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
-  let creds = strategy.exchange_credentials(exchange)
+  let oauth_credentials = strategy.exchange_credentials(exchange)
   // IndieAuth returns profile info in the token response, so we
   // store it on the credentials. If the token endpoint returned
   // profile info, we already have it. For IndieAuth, the uid is
@@ -281,7 +295,10 @@ fn do_fetch_user(
   // Otherwise, return minimal info with the me URL as identity.
   case endpoints.userinfo_endpoint {
     Some(userinfo_url) -> {
-      use #(uid, info) <- result.try(token.fetch_userinfo(userinfo_url, creds))
+      use #(uid, info) <- result.try(token.fetch_userinfo(
+        userinfo_url,
+        oauth_credentials,
+      ))
       Ok(strategy.user_result(uid: uid, info: info, extra: dict.new()))
     }
     None ->

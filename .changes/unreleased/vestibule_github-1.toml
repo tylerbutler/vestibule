@@ -1,0 +1,3 @@
+package = "vestibule_github"
+kind = "Breaking"
+body = "`parse_primary_email` now returns `Result(Option(String), AuthError(e))` instead of `Option(String)`, distinguishing an unparseable emails response from the absence of a primary verified email"

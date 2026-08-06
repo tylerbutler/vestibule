@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Breaking"
+body = "Add a `reason` field to `StateStoreError`'s `TableCreateFailed`, `InsertFailed`, and `CleanupFailed` variants so unmapped ETS owner failures carry the raw failure reason"

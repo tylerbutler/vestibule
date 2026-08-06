@@ -1,10 +1,10 @@
 import gleam/http
 import wisp.{type Request, type Response}
 
-import pages
 import vestibule/config
 import vestibule/registry.{type Registry}
 import vestibule/state_store.{type StateStore}
+import vestibule_example/pages
 import vestibule_wisp
 
 /// Application context passed to the router.
@@ -13,20 +13,20 @@ pub type Context(e) {
 }
 
 /// Route incoming requests.
-pub fn handle_request(req: Request, ctx: Context(e)) -> Response {
+pub fn handle_request(req: Request, context: Context(e)) -> Response {
   use <- wisp.log_request(req)
 
   case wisp.path_segments(req), req.method {
     // Landing page
-    [], http.Get -> pages.landing(registry.providers(ctx.registry))
+    [], http.Get -> pages.landing(registry.providers(context.registry))
 
     // Phase 1: Redirect to provider
     ["auth", provider], http.Get ->
       vestibule_wisp.request_phase(
         req,
-        registry: ctx.registry,
+        registry: context.registry,
         provider: provider,
-        state_store: ctx.state_store,
+        state_store: context.state_store,
         authorize_options: config.authorize_options(),
       )
 
@@ -36,9 +36,9 @@ pub fn handle_request(req: Request, ctx: Context(e)) -> Response {
     ->
       vestibule_wisp.callback_phase(
         req,
-        registry: ctx.registry,
+        registry: context.registry,
         provider: provider,
-        state_store: ctx.state_store,
+        state_store: context.state_store,
         on_success: fn(auth) { pages.success(auth) },
       )
 

@@ -32,24 +32,13 @@ const cache_key = "apple_jwks"
 
 /// Errors returned by checked JWKS cache operations.
 pub type JwksCacheError {
-  JwksTableCreateFailed
+  /// The ETS table backing the cache could not be created (for example
+  /// because it already exists). `reason` describes the underlying storage
+  /// error to aid debugging.
+  JwksTableCreateFailed(reason: String)
 }
 
-/// Initialize the JWKS cache. Call once per VM at application startup.
-pub fn init() -> JwksCache {
-  let assert Ok(table) = try_init()
-    as "vestibule_apple JWKS cache must be initialized once per VM"
-  table
-}
-
-/// Initialize a named JWKS cache. Useful for testing.
-pub fn init_named(name: String) -> JwksCache {
-  let assert Ok(table) = try_init_named(name)
-    as "vestibule_apple named JWKS cache must be initialized once per VM"
-  table
-}
-
-/// Try to initialize the JWKS cache.
+/// Try to initialize the JWKS cache. Call once per VM at application startup.
 pub fn try_init() -> Result(JwksCache, JwksCacheError) {
   try_init_named("vestibule_apple_jwks")
 }
@@ -59,7 +48,7 @@ pub fn try_init() -> Result(JwksCache, JwksCacheError) {
 pub fn try_init_named(name: String) -> Result(JwksCache, JwksCacheError) {
   case uset.new(name: name, access: bravo.Protected) {
     Ok(table) -> Ok(JwksCache(table: table))
-    Error(_) -> Error(JwksTableCreateFailed)
+    Error(err) -> Error(JwksTableCreateFailed(reason: string.inspect(err)))
   }
 }
 
