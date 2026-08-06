@@ -1,0 +1,16 @@
+paths:
+  skills:
+    - .claude/skills/
+  evals:
+    - evals/
+  results: vally-results/
+  evalFilenames:
+    - eval.yaml
+    - eval.yml
+    - "*.eval.yaml"
+
+suites:
+  gleam-review:
+    description: Evaluate the Gleam review skill against its paired fixture corpus.
+    evals:
+      - evals/gleam-review/eval.yaml

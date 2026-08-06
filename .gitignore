@@ -27,6 +27,10 @@ Thumbs.db
 # Local settings
 .claude/settings.local.json
 
+# Agent evaluation artifacts
+/.review-scratch/
+/vally-results/
+
 # Worktrees
 .worktrees/
 

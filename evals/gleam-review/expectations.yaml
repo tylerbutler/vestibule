@@ -1,0 +1,733 @@
+# Expected outcomes for the staged gleam-review fixture corpus.
+version: 1
+rule_manifest: rule-manifest.yaml
+
+path_bases:
+  manifest_directory: evals/gleam-review
+  fixture_path: relative to manifest_directory
+  anchor_path: relative to manifest_directory
+  report_location: source path plus :line; regexes allow the fixture prefix to be omitted after staging
+
+global_expectations:
+  multi_anchor_semantics: any
+  multi_anchor_expectation: A case with multiple anchors satisfies the deterministic location expectation when one file:line citation matches any listed anchor.
+  report_contract:
+    verdict_first: true
+    section_tiers:
+      convention: Violations
+      anti-pattern: Violations
+      pattern: Suggestions
+    every_finding_has_file_line: true
+    no_formatting_findings: true
+    patterns_are_suggestions_not_violations: true
+
+cases:
+  - id: avoid-unqualified-imports-bad
+    rule_slug: avoid-unqualified-imports
+    variant: bad
+    fixture_path: fixtures/avoid-unqualified-imports/bad
+    expected_classification: violation
+    expected_report_section: Violations
+    expected_finding_label: Avoid unqualified importing of functions and constants
+    anchors:
+      - path: fixtures/avoid-unqualified-imports/bad/src/fixture_app.gleam
+        line: 1
+        report_location_regex: '(?:fixtures/avoid-unqualified-imports/bad/)?src/fixture_app\.gleam:1\b'
+      - path: fixtures/avoid-unqualified-imports/bad/src/fixture_app.gleam
+        line: 2
+        report_location_regex: '(?:fixtures/avoid-unqualified-imports/bad/)?src/fixture_app\.gleam:2\b'
+    semantic_criterion: Functions are imported from other modules and called without module qualifiers.
+
+  - id: avoid-unqualified-imports-good
+    rule_slug: avoid-unqualified-imports
+    variant: good
+    fixture_path: fixtures/avoid-unqualified-imports/good
+    expected_clean_behavior:
+      no_paired_finding: true
+      no_violations: true
+    prohibited_finding_labels:
+      - Avoid unqualified importing of functions and constants
+    semantic_criterion: External functions are called through their list or string module qualifiers.
+
+  - id: annotate-module-functions-bad
+    rule_slug: annotate-module-functions
+    variant: bad
+    fixture_path: fixtures/annotate-module-functions/bad
+    expected_classification: violation
+    expected_report_section: Violations
+    expected_finding_label: Annotate all module functions
+    anchors:
+      - path: fixtures/annotate-module-functions/bad/src/fixture_app.gleam
+        line: 1
+        report_location_regex: '(?:fixtures/annotate-module-functions/bad/)?src/fixture_app\.gleam:1\b'
+    semantic_criterion: The public module function omits both argument and return type annotations.
+
+  - id: annotate-module-functions-good
+    rule_slug: annotate-module-functions
+    variant: good
+    fixture_path: fixtures/annotate-module-functions/good
+    expected_clean_behavior:
+      no_paired_finding: true
+      no_violations: true
+    prohibited_finding_labels:
+      - Annotate all module functions
+    semantic_criterion: The module function declares types for all arguments and its return value.
+
+  - id: use-result-for-fallible-functions-bad
+    rule_slug: use-result-for-fallible-functions
+    variant: bad
+    fixture_path: fixtures/use-result-for-fallible-functions/bad
+    expected_classification: violation
+    expected_report_section: Violations
+    expected_finding_label: Use result for fallible functions
+    anchors:
+      - path: fixtures/use-result-for-fallible-functions/bad/src/fixture_app.gleam
+        line: 3
+        report_location_regex: '(?:fixtures/use-result-for-fallible-functions/bad/)?src/fixture_app\.gleam:3\b'
+    semantic_criterion: first can fail for an empty list but returns Option rather than Result.
+
+  - id: use-result-for-fallible-functions-good
+    rule_slug: use-result-for-fallible-functions
+    variant: good
+    fixture_path: fixtures/use-result-for-fallible-functions/good
+    expected_clean_behavior:
+      no_paired_finding: true
+      no_violations: true
+    prohibited_finding_labels:
+      - Use result for fallible functions
+    semantic_criterion: first represents the empty-list failure as Error(Nil) in a Result.
+
+  - id: singular-module-names-bad
+    rule_slug: singular-module-names
+    variant: bad
+    fixture_path: fixtures/singular-module-names/bad
+    expected_classification: violation
+    expected_report_section: Violations
+    expected_finding_label: Use singular for module names
+    anchors:
+      - path: fixtures/singular-module-names/bad/src/fixture_app.gleam
+        line: 1
+        report_location_regex: '(?:fixtures/singular-module-names/bad/)?src/fixture_app\.gleam:1\b'
+      - path: fixtures/singular-module-names/bad/src/fixture_app/users.gleam
+        line: 1
+        report_location_regex: '(?:fixtures/singular-module-names/bad/)?src/fixture_app/users\.gleam:1\b'
+    prohibited_false_positive_labels:
+      - Avoid unqualified importing of functions and constants
+    semantic_criterion: The module path uses the plural segment users.
+
+  - id: singular-module-names-good
+    rule_slug: singular-module-names
+    variant: good
+    fixture_path: fixtures/singular-module-names/good
+    expected_clean_behavior:
+      no_paired_finding: true
+      no_violations: true
+    prohibited_finding_labels:
+      - Avoid unqualified importing of functions and constants
+    semantic_criterion: The module and import use the singular user path.
+
+  - id: acronyms-as-single-words-bad
+    rule_slug: acronyms-as-single-words
+    variant: bad
+    fixture_path: fixtures/acronyms-as-single-words/bad
+    expected_classification: violation
+    expected_report_section: Violations
+    expected_finding_label: Treat acronyms as single words
+    anchors:
+      - path: fixtures/acronyms-as-single-words/bad/src/fixture_app.gleam
+        line: 1
+        report_location_regex: '(?:fixtures/acronyms-as-single-words/bad/)?src/fixture_app\.gleam:1\b'
+      - path: fixtures/acronyms-as-single-words/bad/src/fixture_app.gleam
+        line: 5
+        report_location_regex: '(?:fixtures/acronyms-as-single-words/bad/)?src/fixture_app\.gleam:5\b'
+    prohibited_false_positive_labels:
+      - Abbreviations
+    semantic_criterion: JSON is split into j_s_o_n rather than written as the single word Json/json.
+
+  - id: acronyms-as-single-words-good
+    rule_slug: acronyms-as-single-words
+    variant: good
+    fixture_path: fixtures/acronyms-as-single-words/good
+    expected_clean_behavior:
+      no_paired_finding: true
+      no_violations: true
+    prohibited_finding_labels:
+      - Treat acronyms as single words
+    semantic_criterion: The JSON acronym is consistently represented as Json/json.
+
+  - id: conventional-conversion-naming-bad
+    rule_slug: conventional-conversion-naming
+    variant: bad
+    fixture_path: fixtures/conventional-conversion-naming/bad
+    expected_classification: violation
+    expected_report_section: Violations
+    expected_finding_label: Conventional conversion function naming
+    anchors:
+      - path: fixtures/conventional-conversion-naming/bad/src/fixture_app/identifier.gleam
+        line: 5
+        report_location_regex: '(?:fixtures/conventional-conversion-naming/bad/)?src/fixture_app/identifier\.gleam:5\b'
+    semantic_criterion: The identifier conversion is named identifier_as_string instead of to_string.
+
+  - id: conventional-conversion-naming-good
+    rule_slug: conventional-conversion-naming
+    variant: good
+    fixture_path: fixtures/conventional-conversion-naming/good
+    expected_clean_behavior:
+      no_paired_finding: true
+      no_violations: true
+    prohibited_finding_labels:
+      - Conventional conversion function naming
+    semantic_criterion: The identifier module exposes the conversion as to_string.
+
+  - id: conventional-fallible-naming-bad
+    rule_slug: conventional-fallible-naming
+    variant: bad
+    fixture_path: fixtures/conventional-fallible-naming/bad
+    expected_classification: violation
+    expected_report_section: Violations
+    expected_finding_label: Conventional fallible function naming
+    anchors:
+      - path: fixtures/conventional-fallible-naming/bad/src/fixture_app.gleam
+        line: 13
+        report_location_regex: '(?:fixtures/conventional-fallible-naming/bad/)?src/fixture_app\.gleam:13\b'
+    prohibited_false_positive_labels:
+      - Category theory overuse
+    semantic_criterion: The Result-returning welcome_all counterpart is named welcome_all_result instead of try_welcome_all.
+
+  - id: conventional-fallible-naming-good
+    rule_slug: conventional-fallible-naming
+    variant: good
+    fixture_path: fixtures/conventional-fallible-naming/good
+    expected_clean_behavior:
+      no_paired_finding: true
+      no_violations: true
+    prohibited_finding_labels:
+      - Category theory overuse
+    semantic_criterion: The Result-returning welcome_all counterpart uses the conventional try_welcome_all name.
+
+  - id: use-core-libraries-bad
+    rule_slug: use-core-libraries
+    variant: bad
+    fixture_path: fixtures/use-core-libraries/bad
+    expected_classification: violation
+    expected_report_section: Violations
+    expected_finding_label: Use the core libraries
+    anchors:
+      - path: fixtures/use-core-libraries/bad/src/fixture_app.gleam
+        line: 1
+        report_location_regex: '(?:fixtures/use-core-libraries/bad/)?src/fixture_app\.gleam:1\b'
+      - path: fixtures/use-core-libraries/bad/src/fixture_app.gleam
+        line: 5
+        report_location_regex: '(?:fixtures/use-core-libraries/bad/)?src/fixture_app\.gleam:5\b'
+      - path: fixtures/use-core-libraries/bad/src/fixture_app.gleam
+        line: 9
+        report_location_regex: '(?:fixtures/use-core-libraries/bad/)?src/fixture_app\.gleam:9\b'
+    semantic_criterion: The fixture implements a string dictionary instead of using gleam/dict.
+
+  - id: use-core-libraries-good
+    rule_slug: use-core-libraries
+    variant: good
+    fixture_path: fixtures/use-core-libraries/good
+    expected_clean_behavior:
+      no_paired_finding: true
+      no_violations: true
+    semantic_criterion: Score updates use gleam/dict rather than recreating a dictionary type.
+
+  - id: tool-config-in-gleam-toml-bad
+    rule_slug: tool-config-in-gleam-toml
+    variant: bad
+    fixture_path: fixtures/tool-config-in-gleam-toml/bad
+    expected_classification: violation
+    expected_report_section: Violations
+    expected_finding_label: Keep development tool config in `gleam.toml`
+    anchors:
+      - path: fixtures/tool-config-in-gleam-toml/bad/security-scan.toml
+        line: 1
+        report_location_regex: '(?:fixtures/tool-config-in-gleam-toml/bad/)?security-scan\.toml:1\b'
+    semantic_criterion: A security scanner is configured in its own TOML file rather than under tools in gleam.toml.
+
+  - id: tool-config-in-gleam-toml-good
+    rule_slug: tool-config-in-gleam-toml
+    variant: good
+    fixture_path: fixtures/tool-config-in-gleam-toml/good
+    expected_clean_behavior:
+      no_paired_finding: true
+      no_violations: true
+    prohibited_finding_labels:
+      - Keep development tool config in `gleam.toml`
+    semantic_criterion: Security scanner settings are under tools.security_scan in gleam.toml.
+
+  - id: correct-source-code-directory-bad
+    rule_slug: correct-source-code-directory
+    variant: bad
+    fixture_path: fixtures/correct-source-code-directory/bad
+    expected_classification: violation
+    expected_report_section: Violations
+    expected_finding_label: Use the correct source code directory
+    anchors:
+      - path: fixtures/correct-source-code-directory/bad/src/fixture_app/generate_schema.gleam
+        line: 3
+        report_location_regex: '(?:fixtures/correct-source-code-directory/bad/)?src/fixture_app/generate_schema\.gleam:3\b'
+      - path: fixtures/correct-source-code-directory/bad/src/fixture_app/generate_schema.gleam
+        line: 1
+        report_location_regex: '(?:fixtures/correct-source-code-directory/bad/)?src/fixture_app/generate_schema\.gleam:1\b'
+    semantic_criterion: A development code generator main program is placed under src instead of dev.
+
+  - id: correct-source-code-directory-good
+    rule_slug: correct-source-code-directory
+    variant: good
+    fixture_path: fixtures/correct-source-code-directory/good
+    expected_clean_behavior:
+      no_paired_finding: true
+      no_violations: true
+    semantic_criterion: The code generator is located under dev, application code remains under src, and write failures are returned.
+
+  - id: descriptive-errors-bad
+    rule_slug: descriptive-errors
+    variant: bad
+    fixture_path: fixtures/descriptive-errors/bad
+    expected_classification: suggestion
+    expected_report_section: Suggestions
+    expected_finding_label: Design descriptive errors
+    anchors:
+      - path: fixtures/descriptive-errors/bad/src/fixture_app.gleam
+        line: 1
+        report_location_regex: '(?:fixtures/descriptive-errors/bad/)?src/fixture_app\.gleam:1\b'
+      - path: fixtures/descriptive-errors/bad/src/fixture_app.gleam
+        line: 2
+        report_location_regex: '(?:fixtures/descriptive-errors/bad/)?src/fixture_app\.gleam:2\b'
+      - path: fixtures/descriptive-errors/bad/src/fixture_app.gleam
+        line: 3
+        report_location_regex: '(?:fixtures/descriptive-errors/bad/)?src/fixture_app\.gleam:3\b'
+    prohibited_false_positive_labels:
+      - Match all variants
+    semantic_criterion: NoteError variants omit the failing path and write-failure reason.
+
+  - id: descriptive-errors-good
+    rule_slug: descriptive-errors
+    variant: good
+    fixture_path: fixtures/descriptive-errors/good
+    expected_clean_behavior:
+      no_paired_finding: true
+      no_violations: true
+    prohibited_finding_labels:
+      - Design descriptive errors
+      - Match all variants
+    semantic_criterion: NoteError variants carry the relevant path and write-failure reason.
+
+  - id: invalid-states-impossible-bad
+    rule_slug: invalid-states-impossible
+    variant: bad
+    fixture_path: fixtures/invalid-states-impossible/bad
+    expected_classification: suggestion
+    expected_report_section: Suggestions
+    expected_finding_label: Make invalid states impossible
+    anchors:
+      - path: fixtures/invalid-states-impossible/bad/src/fixture_app.gleam
+        line: 4
+        report_location_regex: '(?:fixtures/invalid-states-impossible/bad/)?src/fixture_app\.gleam:4\b'
+      - path: fixtures/invalid-states-impossible/bad/src/fixture_app.gleam
+        line: 3
+        report_location_regex: '(?:fixtures/invalid-states-impossible/bad/)?src/fixture_app\.gleam:3\b'
+    prohibited_false_positive_labels:
+      - Use result for fallible functions
+      - Avoid unqualified importing of functions and constants
+    semantic_criterion: Independent optional id and email fields permit invalid partial visitor combinations.
+
+  - id: invalid-states-impossible-good
+    rule_slug: invalid-states-impossible
+    variant: good
+    fixture_path: fixtures/invalid-states-impossible/good
+    expected_clean_behavior:
+      no_paired_finding: true
+      no_violations: true
+    semantic_criterion: Distinct LoggedInUser and Guest variants make the intended visitor states explicit.
+
+  - id: replace-bools-with-custom-types-bad
+    rule_slug: replace-bools-with-custom-types
+    variant: bad
+    fixture_path: fixtures/replace-bools-with-custom-types/bad
+    expected_classification: suggestion
+    expected_report_section: Suggestions
+    expected_finding_label: Replace bools with custom types
+    anchors:
+      - path: fixtures/replace-bools-with-custom-types/bad/src/fixture_app.gleam
+        line: 2
+        report_location_regex: '(?:fixtures/replace-bools-with-custom-types/bad/)?src/fixture_app\.gleam:2\b'
+      - path: fixtures/replace-bools-with-custom-types/bad/src/fixture_app.gleam
+        line: 1
+        report_location_regex: '(?:fixtures/replace-bools-with-custom-types/bad/)?src/fixture_app\.gleam:1\b'
+    semantic_criterion: The domain role is represented by the ambiguous is_student Bool field.
+
+  - id: replace-bools-with-custom-types-good
+    rule_slug: replace-bools-with-custom-types
+    variant: good
+    fixture_path: fixtures/replace-bools-with-custom-types/good
+    expected_clean_behavior:
+      no_paired_finding: true
+      no_violations: true
+    semantic_criterion: SchoolPerson uses a named Role custom type for its domain state.
+
+  - id: sans-io-bad
+    rule_slug: sans-io
+    variant: bad
+    fixture_path: fixtures/sans-io/bad
+    expected_classification: suggestion
+    expected_report_section: Suggestions
+    expected_finding_label: The sans-io pattern
+    anchors:
+      - path: fixtures/sans-io/bad/src/fixture_app.gleam
+        line: 9
+        report_location_regex: '(?:fixtures/sans-io/bad/)?src/fixture_app\.gleam:9\b'
+      - path: fixtures/sans-io/bad/src/fixture_app.gleam
+        line: 10
+        report_location_regex: '(?:fixtures/sans-io/bad/)?src/fixture_app\.gleam:10\b'
+    prohibited_false_positive_labels:
+      - Avoid unqualified importing of functions and constants
+      - Match all variants
+    semantic_criterion: The API operation takes an HTTP-sending client instead of separating request creation and response parsing.
+
+  - id: sans-io-good
+    rule_slug: sans-io
+    variant: good
+    fixture_path: fixtures/sans-io/good
+    expected_clean_behavior:
+      no_paired_finding: true
+      no_violations: true
+    prohibited_finding_labels:
+      - The sans-io pattern
+      - Avoid unqualified importing of functions and constants
+      - Match all variants
+    semantic_criterion: The API exposes separate request-building and response-parsing functions.
+
+  - id: builder-pattern-bad
+    rule_slug: builder-pattern
+    variant: bad
+    fixture_path: fixtures/builder-pattern/bad
+    expected_classification: suggestion
+    expected_report_section: Suggestions
+    expected_finding_label: The builder pattern
+    anchors:
+      - path: fixtures/builder-pattern/bad/src/fixture_app.gleam
+        line: 12
+        report_location_regex: '(?:fixtures/builder-pattern/bad/)?src/fixture_app\.gleam:12\b'
+    semantic_criterion: Button creation requires all optional configuration fields as positional arguments.
+
+  - id: builder-pattern-good
+    rule_slug: builder-pattern
+    variant: good
+    fixture_path: fixtures/builder-pattern/good
+    expected_clean_behavior:
+      no_paired_finding: true
+      no_violations: true
+    prohibited_finding_labels:
+      - The builder pattern
+    semantic_criterion: Button starts with required text and applies optional settings through builder functions.
+
+  - id: abbreviations-bad
+    rule_slug: abbreviations
+    variant: bad
+    fixture_path: fixtures/abbreviations/bad
+    expected_classification: violation
+    expected_report_section: Violations
+    expected_finding_label: Abbreviations
+    anchors:
+      - path: fixtures/abbreviations/bad/src/fixture_app.gleam
+        line: 1
+        report_location_regex: '(?:fixtures/abbreviations/bad/)?src/fixture_app\.gleam:1\b'
+    semantic_criterion: The parameter names off and cnt are shortened rather than descriptive.
+
+  - id: abbreviations-good
+    rule_slug: abbreviations
+    variant: good
+    fixture_path: fixtures/abbreviations/good
+    expected_clean_behavior:
+      no_paired_finding: true
+      no_violations: true
+    prohibited_finding_labels:
+      - Abbreviations
+    semantic_criterion: The parameter names are the full descriptive words offset and count.
+
+  - id: fragmented-modules-bad
+    rule_slug: fragmented-modules
+    variant: bad
+    fixture_path: fixtures/fragmented-modules/bad
+    expected_classification: violation
+    expected_report_section: Violations
+    expected_finding_label: Fragmented modules
+    anchors:
+      - path: fixtures/fragmented-modules/bad/src/fixture_app.gleam
+        line: 1
+        report_location_regex: '(?:fixtures/fragmented-modules/bad/)?src/fixture_app\.gleam:1\b'
+      - path: fixtures/fragmented-modules/bad/src/fixture_app/client.gleam
+        line: 1
+        report_location_regex: '(?:fixtures/fragmented-modules/bad/)?src/fixture_app/client\.gleam:1\b'
+      - path: fixtures/fragmented-modules/bad/src/fixture_app/config.gleam
+        line: 1
+        report_location_regex: '(?:fixtures/fragmented-modules/bad/)?src/fixture_app/config\.gleam:1\b'
+      - path: fixtures/fragmented-modules/bad/src/fixture_app/decode.gleam
+        line: 1
+        report_location_regex: '(?:fixtures/fragmented-modules/bad/)?src/fixture_app/decode\.gleam:1\b'
+      - path: fixtures/fragmented-modules/bad/src/fixture_app/error.gleam
+        line: 1
+        report_location_regex: '(?:fixtures/fragmented-modules/bad/)?src/fixture_app/error\.gleam:1\b'
+      - path: fixtures/fragmented-modules/bad/src/fixture_app/parser.gleam
+        line: 1
+        report_location_regex: '(?:fixtures/fragmented-modules/bad/)?src/fixture_app/parser\.gleam:1\b'
+      - path: fixtures/fragmented-modules/bad/src/fixture_app/url.gleam
+        line: 1
+        report_location_regex: '(?:fixtures/fragmented-modules/bad/)?src/fixture_app/url\.gleam:1\b'
+      - path: fixtures/fragmented-modules/bad/src/fixture_app/user.gleam
+        line: 1
+        report_location_regex: '(?:fixtures/fragmented-modules/bad/)?src/fixture_app/user\.gleam:1\b'
+    prohibited_false_positive_labels:
+      - Global namespace pollution
+      - Namespace trespassing
+      - Avoid unqualified importing of functions and constants
+      - Match all variants
+    semantic_criterion: A simple user-loading workflow is fragmented across tightly coupled client, config, decode, error, parser, url, and user modules.
+
+  - id: fragmented-modules-good
+    rule_slug: fragmented-modules
+    variant: good
+    fixture_path: fixtures/fragmented-modules/good
+    expected_clean_behavior:
+      no_paired_finding: true
+      no_violations: true
+    prohibited_finding_labels:
+      - Fragmented modules
+      - Match all variants
+    semantic_criterion: The small user-loading API is cohesive in one module, and its String catch-all is over an open-ended type.
+
+  - id: panicking-in-libraries-bad
+    rule_slug: panicking-in-libraries
+    variant: bad
+    fixture_path: fixtures/panicking-in-libraries/bad
+    stimulus_context: reusable_library
+    expected_classification: violation
+    expected_report_section: Violations
+    expected_finding_label: Panicking in libraries
+    anchors:
+      - path: fixtures/panicking-in-libraries/bad/src/fixture_library.gleam
+        line: 11
+        report_location_regex: '(?:fixtures/panicking-in-libraries/bad/)?src/fixture_library\.gleam:11\b'
+      - path: fixtures/panicking-in-libraries/bad/src/fixture_library.gleam
+        line: 12
+        report_location_regex: '(?:fixtures/panicking-in-libraries/bad/)?src/fixture_library\.gleam:12\b'
+    prohibited_false_positive_labels:
+      - Check-then-assert
+    semantic_criterion: Reusable library parsing uses let assert, which can panic on ordinary malformed input.
+
+  - id: panicking-in-libraries-good
+    rule_slug: panicking-in-libraries
+    variant: good
+    fixture_path: fixtures/panicking-in-libraries/good
+    stimulus_context: reusable_library
+    expected_clean_behavior:
+      no_paired_finding: true
+      no_violations: true
+    prohibited_finding_labels:
+      - Panicking in libraries
+      - Check-then-assert
+      - Match all variants
+    semantic_criterion: Reusable library parsing returns a descriptive Error, and its list catch-all is over an open-ended type.
+
+  - id: global-namespace-pollution-bad
+    rule_slug: global-namespace-pollution
+    variant: bad
+    fixture_path: fixtures/global-namespace-pollution/bad
+    expected_classification: violation
+    expected_report_section: Violations
+    expected_finding_label: Global namespace pollution
+    anchors:
+      - path: fixtures/global-namespace-pollution/bad/src/distribution.gleam
+        line: 1
+        report_location_regex: '(?:fixtures/global-namespace-pollution/bad/)?src/distribution\.gleam:1\b'
+      - path: fixtures/global-namespace-pollution/bad/src/inventory.gleam
+        line: 1
+        report_location_regex: '(?:fixtures/global-namespace-pollution/bad/)?src/inventory\.gleam:1\b'
+      - path: fixtures/global-namespace-pollution/bad/src/fixture_app.gleam
+        line: 1
+        report_location_regex: '(?:fixtures/global-namespace-pollution/bad/)?src/fixture_app\.gleam:1\b'
+      - path: fixtures/global-namespace-pollution/bad/src/fixture_app.gleam
+        line: 2
+        report_location_regex: '(?:fixtures/global-namespace-pollution/bad/)?src/fixture_app\.gleam:2\b'
+    prohibited_false_positive_labels:
+      - Namespace trespassing
+    semantic_criterion: distribution and inventory are top-level modules rather than being under the fixture_app namespace.
+
+  - id: global-namespace-pollution-good
+    rule_slug: global-namespace-pollution
+    variant: good
+    fixture_path: fixtures/global-namespace-pollution/good
+    expected_clean_behavior:
+      no_paired_finding: true
+      no_violations: true
+    semantic_criterion: Cohesive distribution and inventory modules live under the fixture_app namespace.
+
+  - id: namespace-trespassing-bad
+    rule_slug: namespace-trespassing
+    variant: bad
+    fixture_path: fixtures/namespace-trespassing/bad
+    expected_classification: violation
+    expected_report_section: Violations
+    expected_finding_label: Namespace trespassing
+    anchors:
+      - path: fixtures/namespace-trespassing/bad/src/lustre/widget.gleam
+        line: 1
+        report_location_regex: '(?:fixtures/namespace-trespassing/bad/)?src/lustre/widget\.gleam:1\b'
+    prohibited_false_positive_labels:
+      - Global namespace pollution
+    semantic_criterion: The package defines a module in the lustre top-level namespace owned by another package.
+
+  - id: namespace-trespassing-good
+    rule_slug: namespace-trespassing
+    variant: good
+    fixture_path: fixtures/namespace-trespassing/good
+    expected_clean_behavior:
+      no_paired_finding: true
+      no_violations: true
+    semantic_criterion: The cohesive widget module remains inside the fixture_app namespace.
+
+  - id: grouping-by-design-pattern-bad
+    rule_slug: grouping-by-design-pattern
+    variant: bad
+    fixture_path: fixtures/grouping-by-design-pattern/bad
+    expected_classification: violation
+    expected_report_section: Violations
+    expected_finding_label: Grouping by design pattern
+    anchors:
+      - path: fixtures/grouping-by-design-pattern/bad/src/fixture_app/controller/order_controller.gleam
+        line: 1
+        report_location_regex: '(?:fixtures/grouping-by-design-pattern/bad/)?src/fixture_app/controller/order_controller\.gleam:1\b'
+      - path: fixtures/grouping-by-design-pattern/bad/src/fixture_app/service/order_service.gleam
+        line: 1
+        report_location_regex: '(?:fixtures/grouping-by-design-pattern/bad/)?src/fixture_app/service/order_service\.gleam:1\b'
+      - path: fixtures/grouping-by-design-pattern/bad/src/fixture_app/view/order_view.gleam
+        line: 1
+        report_location_regex: '(?:fixtures/grouping-by-design-pattern/bad/)?src/fixture_app/view/order_view\.gleam:1\b'
+      - path: fixtures/grouping-by-design-pattern/bad/src/fixture_app.gleam
+        line: 1
+        report_location_regex: '(?:fixtures/grouping-by-design-pattern/bad/)?src/fixture_app\.gleam:1\b'
+    semantic_criterion: Order behavior is organized into controller, service, and view technical layers rather than its business domain.
+
+  - id: grouping-by-design-pattern-good
+    rule_slug: grouping-by-design-pattern
+    variant: good
+    fixture_path: fixtures/grouping-by-design-pattern/good
+    expected_clean_behavior:
+      no_paired_finding: true
+      no_violations: true
+    semantic_criterion: A cohesive order API is grouped in a domain-oriented order module.
+
+  - id: check-then-assert-bad
+    rule_slug: check-then-assert
+    variant: bad
+    fixture_path: fixtures/check-then-assert/bad
+    stimulus_context: application_top_level_main
+    expected_classification: violation
+    expected_report_section: Violations
+    expected_finding_label: Check-then-assert
+    anchors:
+      - path: fixtures/check-then-assert/bad/src/fixture_app.gleam
+        line: 9
+        report_location_regex: '(?:fixtures/check-then-assert/bad/)?src/fixture_app\.gleam:9\b'
+      - path: fixtures/check-then-assert/bad/src/fixture_app.gleam
+        line: 10
+        report_location_regex: '(?:fixtures/check-then-assert/bad/)?src/fixture_app\.gleam:10\b'
+      - path: fixtures/check-then-assert/bad/src/fixture_app.gleam
+        line: 12
+        report_location_regex: '(?:fixtures/check-then-assert/bad/)?src/fixture_app\.gleam:12\b'
+    prohibited_false_positive_labels:
+      - Panicking in libraries
+    semantic_criterion: Application main checks result.is_ok and then asserts the same Result instead of matching or chaining it.
+
+  - id: check-then-assert-good
+    rule_slug: check-then-assert
+    variant: good
+    fixture_path: fixtures/check-then-assert/good
+    stimulus_context: application_top_level_main
+    expected_clean_behavior:
+      no_paired_finding: true
+      no_violations: true
+    prohibited_finding_labels:
+      - Check-then-assert
+    semantic_criterion: Application main pattern matches directly on the parsing Result.
+
+  - id: dynamic-ffi-bad
+    rule_slug: dynamic-ffi
+    variant: bad
+    fixture_path: fixtures/dynamic-ffi/bad
+    expected_classification: violation
+    expected_report_section: Violations
+    expected_finding_label: Using dynamic with FFI
+    anchors:
+      - path: fixtures/dynamic-ffi/bad/src/fixture_app.gleam
+        line: 4
+        report_location_regex: '(?:fixtures/dynamic-ffi/bad/)?src/fixture_app\.gleam:4\b'
+      - path: fixtures/dynamic-ffi/bad/src/fixture_app.gleam
+        line: 1
+        report_location_regex: '(?:fixtures/dynamic-ffi/bad/)?src/fixture_app\.gleam:1\b'
+    prohibited_false_positive_labels:
+      - Avoid unqualified importing of functions and constants
+    semantic_criterion: The FFI boundary accepts gleam/dynamic.Dynamic instead of a precise opaque type.
+
+  - id: dynamic-ffi-good
+    rule_slug: dynamic-ffi
+    variant: good
+    fixture_path: fixtures/dynamic-ffi/good
+    expected_clean_behavior:
+      no_paired_finding: true
+      no_violations: true
+    prohibited_finding_labels:
+      - Using dynamic with FFI
+    semantic_criterion: The FFI boundary uses an opaque Buffer type rather than Dynamic.
+
+  - id: match-all-variants-bad
+    rule_slug: match-all-variants
+    variant: bad
+    fixture_path: fixtures/match-all-variants/bad
+    expected_classification: violation
+    expected_report_section: Violations
+    expected_finding_label: Match all variants
+    anchors:
+      - path: fixtures/match-all-variants/bad/src/fixture_app.gleam
+        line: 9
+        report_location_regex: '(?:fixtures/match-all-variants/bad/)?src/fixture_app\.gleam:9\b'
+    semantic_criterion: A catch-all handles a closed Role custom type instead of explicitly matching Teacher.
+
+  - id: match-all-variants-good
+    rule_slug: match-all-variants
+    variant: good
+    fixture_path: fixtures/match-all-variants/good
+    expected_clean_behavior:
+      no_paired_finding: true
+      no_violations: true
+    semantic_criterion: Both Role variants are explicitly matched.
+
+  - id: category-theory-overuse-bad
+    rule_slug: category-theory-overuse
+    variant: bad
+    fixture_path: fixtures/category-theory-overuse/bad
+    expected_classification: violation
+    expected_report_section: Violations
+    expected_finding_label: Category theory overuse
+    anchors:
+      - path: fixtures/category-theory-overuse/bad/src/fixture_app.gleam
+        line: 3
+        report_location_regex: '(?:fixtures/category-theory-overuse/bad/)?src/fixture_app\.gleam:3\b'
+      - path: fixtures/category-theory-overuse/bad/src/fixture_app.gleam
+        line: 7
+        report_location_regex: '(?:fixtures/category-theory-overuse/bad/)?src/fixture_app\.gleam:7\b'
+    semantic_criterion: The generic Monoid abstraction adds category-theory machinery instead of solving a concrete operation.
+
+  - id: category-theory-overuse-good
+    rule_slug: category-theory-overuse
+    variant: good
+    fixture_path: fixtures/category-theory-overuse/good
+    expected_clean_behavior:
+      no_paired_finding: true
+      no_violations: true
+    prohibited_finding_labels:
+      - Category theory overuse
+    semantic_criterion: The code uses a direct concrete total_cost operation.
