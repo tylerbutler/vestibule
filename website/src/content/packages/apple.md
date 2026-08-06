@@ -21,11 +21,8 @@ highlights:
 code: |
   import vestibule_apple
 
-  let apple = vestibule_apple.init()
+  let assert Ok(apple) = vestibule_apple.try_init()
   let strategy = vestibule_apple.strategy(apple)
-
-  let assert Ok(checked_apple) = vestibule_apple.try_init()
-  let checked_strategy = vestibule_apple.strategy(checked_apple)
 notes:
   - Apple client_secret values are JWTs generated from Team ID, Key ID, Services ID, and the .p8 private key.
   - Do not commit the Apple private key; generate the client-secret JWT in your app or deployment pipeline.

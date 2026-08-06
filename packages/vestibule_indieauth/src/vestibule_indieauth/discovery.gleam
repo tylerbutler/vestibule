@@ -1,10 +1,11 @@
-/// IndieAuth endpoint discovery.
-///
-/// Implements the discovery algorithm from IndieAuth spec Section 4.1:
-/// 1. Fetch the user's profile URL
-/// 2. Look for `rel="indieauth-metadata"` — if found, fetch metadata JSON
-/// 3. Fall back to `rel="authorization_endpoint"` and `rel="token_endpoint"`
-/// 4. Check HTTP `Link` headers first, then HTML `<link>` tags
+//// IndieAuth endpoint discovery.
+////
+//// Implements the discovery algorithm from IndieAuth spec Section 4.1:
+//// 1. Fetch the user's profile URL
+//// 2. Look for `rel="indieauth-metadata"` — if found, fetch metadata JSON
+//// 3. Fall back to `rel="authorization_endpoint"` and `rel="token_endpoint"`
+//// 4. Check HTTP `Link` headers first, then HTML `<link>` tags
+
 import gleam/bool
 import gleam/dynamic/decode
 import gleam/http/request

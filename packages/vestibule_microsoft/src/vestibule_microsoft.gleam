@@ -81,19 +81,19 @@ fn build_strategy(
   strategy.new(
     provider: "microsoft",
     default_scopes: ["openid", "User.Read"],
-    authorize_url: fn(cfg, options, scopes, state) {
-      do_authorize_url(authority, cfg, options, scopes, state)
+    authorize_url: fn(client_config, options, scopes, state) {
+      do_authorize_url(authority, client_config, options, scopes, state)
     },
-    exchange_code: fn(cfg, code, code_verifier) {
-      do_exchange_code(authority, cfg, code, code_verifier)
+    exchange_code: fn(client_config, code, code_verifier) {
+      do_exchange_code(authority, client_config, code, code_verifier)
     },
-    fetch_user: fn(cfg, exchange) {
-      do_fetch_user(expected_tenant, cfg, exchange)
+    fetch_user: fn(client_config, exchange) {
+      do_fetch_user(expected_tenant, client_config, exchange)
     },
   )
   |> strategy.with_nonce()
-  |> strategy.with_refresh(fn(cfg, refresh_tok) {
-    do_refresh_token(authority, cfg, refresh_tok)
+  |> strategy.with_refresh(fn(client_config, refresh_token) {
+    do_refresh_token(authority, client_config, refresh_token)
   })
 }
 
@@ -116,7 +116,7 @@ fn do_parse_token_response(
       provider_support.RequiredScope(separator: " "),
     )
   case result {
-    Ok(creds) -> {
+    Ok(oauth_credentials) -> {
       logger.new(
         level: logger.Debug,
         event: "vestibule.provider.token_parse.success",
@@ -127,16 +127,16 @@ fn do_parse_token_response(
           logger.field("endpoint", endpoint),
           logger.bool_field(
             "has_refresh_token",
-            option.is_some(credentials.refresh_token(creds)),
+            option.is_some(credentials.refresh_token(oauth_credentials)),
           ),
           logger.int_field(
             "scope_count",
-            list.length(credentials.scopes(creds)),
+            list.length(credentials.scopes(oauth_credentials)),
           ),
         ],
       )
       |> logger.emit()
-      Ok(creds)
+      Ok(oauth_credentials)
     }
     Error(err) -> {
       logger.new(
@@ -200,7 +200,7 @@ pub fn parse_user_response(
 
 fn do_authorize_url(
   authority: String,
-  cfg: ClientConfig,
+  client_config: ClientConfig,
   options: AuthorizeOptions,
   scopes: List(String),
   state: String,
@@ -212,10 +212,14 @@ fn do_authorize_url(
     }),
   )
   use redirect <- result.try(
-    provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
+    provider_support.parse_redirect_uri(config.redirect_uri(client_config)),
   )
   let client =
-    glow_auth.Client(id: config.client_id(cfg), secret: "", site: site)
+    glow_auth.Client(
+      id: config.client_id(client_config),
+      secret: "",
+      site: site,
+    )
   let scopes = scopes_with_openid(scopes)
   let url =
     authorize_uri.build(
@@ -240,7 +244,7 @@ fn scopes_with_openid(scopes: List(String)) -> List(String) {
 
 fn do_exchange_code(
   authority: String,
-  cfg: ClientConfig,
+  client_config: ClientConfig,
   code: String,
   code_verifier: Option(String),
 ) -> Result(strategy.ExchangeResult, AuthError(e)) {
@@ -251,12 +255,12 @@ fn do_exchange_code(
     }),
   )
   use redirect <- result.try(
-    provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
+    provider_support.parse_redirect_uri(config.redirect_uri(client_config)),
   )
-  use client_secret <- result.try(config.client_secret(cfg))
+  use client_secret <- result.try(config.client_secret(client_config))
   let client =
     glow_auth.Client(
-      id: config.client_id(cfg),
+      id: config.client_id(client_config),
       secret: client_secret,
       site: site,
     )
@@ -315,9 +319,9 @@ fn do_exchange_code(
 fn parse_exchange_result(
   body: String,
 ) -> Result(strategy.ExchangeResult, AuthError(e)) {
-  use creds <- result.try(parse_token_response(body))
+  use oauth_credentials <- result.try(parse_token_response(body))
   Ok(strategy.exchange_result_with_artifacts(
-    creds,
+    oauth_credentials,
     id_token_artifacts(parse_id_token(body)),
   ))
 }
@@ -348,8 +352,8 @@ fn id_token_artifacts(
 
 fn do_refresh_token(
   authority: String,
-  cfg: ClientConfig,
-  refresh_tok: String,
+  client_config: ClientConfig,
+  refresh_token: String,
 ) -> Result(Credentials, AuthError(e)) {
   use site <- result.try(
     uri.parse(authority_base(authority))
@@ -357,10 +361,10 @@ fn do_refresh_token(
       error.config(reason: "Failed to parse Microsoft OAuth base URL")
     }),
   )
-  use client_secret <- result.try(config.client_secret(cfg))
+  use client_secret <- result.try(config.client_secret(client_config))
   let client =
     glow_auth.Client(
-      id: config.client_id(cfg),
+      id: config.client_id(client_config),
       secret: client_secret,
       site: site,
     )
@@ -368,7 +372,7 @@ fn do_refresh_token(
     token_request.refresh(
       client,
       uri_builder.RelativePath("/token"),
-      refresh_tok,
+      refresh_token,
     )
     |> request.set_header("accept", "application/json")
 
@@ -414,7 +418,7 @@ fn do_refresh_token(
 
 fn do_fetch_user(
   expected_tenant: Option(String),
-  _cfg: ClientConfig,
+  _client_config: ClientConfig,
   exchange: strategy.ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
   use _ <- result.try(enforce_tenant(expected_tenant, exchange))

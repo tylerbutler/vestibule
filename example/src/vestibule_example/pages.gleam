@@ -1,12 +1,12 @@
 import gleam/list
-import gleam/option.{type Option, None, Some}
+import gleam/option.{None, Some}
 import gleam/string
 import houdini
 import wisp
 
-import html
 import vestibule/auth.{type Auth}
 import vestibule/user_info
+import vestibule_example/html
 
 /// Landing page with dynamic provider buttons.
 pub fn landing(providers: List(String)) -> wisp.Response {
@@ -40,9 +40,9 @@ fn capitalize(s: String) -> String {
 /// Success page showing authenticated user info.
 pub fn success(auth: Auth) -> wisp.Response {
   let info = auth.info(auth)
-  let name = houdini.escape(option_or(user_info.name(info), "—"))
-  let email = houdini.escape(option_or(user_info.email(info), "—"))
-  let nickname = houdini.escape(option_or(user_info.nickname(info), "—"))
+  let name = houdini.escape(option.unwrap(user_info.name(info), "—"))
+  let email = houdini.escape(option.unwrap(user_info.email(info), "—"))
+  let nickname = houdini.escape(option.unwrap(user_info.nickname(info), "—"))
   let provider = houdini.escape(auth.provider(auth))
   let uid = houdini.escape(auth.uid(auth))
   let image_html = case user_info.image(info) {
@@ -71,11 +71,4 @@ pub fn success(auth: Auth) -> wisp.Response {
   <a href=\"/\">Back to home</a>
 </body>
 </html>", 200)
-}
-
-fn option_or(opt: Option(String), default: String) -> String {
-  case opt {
-    Some(value) -> value
-    None -> default
-  }
 }

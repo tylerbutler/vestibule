@@ -8,11 +8,11 @@ import vestibule/strategy
 import vestibule_indieauth
 import vestibule_indieauth/discovery.{DiscoveredEndpoints}
 
-pub fn main() {
+pub fn main() -> Nil {
   startest.run(startest.default_config())
 }
 
-pub fn authorize_url_includes_extra_params_test() {
+pub fn authorize_url_includes_extra_params_test() -> Nil {
   let endpoints =
     DiscoveredEndpoints(
       authorization_endpoint: "https://auth.example.com/authorize",
@@ -20,8 +20,9 @@ pub fn authorize_url_includes_extra_params_test() {
       issuer: None,
       userinfo_endpoint: None,
     )
-  let strat = vestibule_indieauth.strategy(endpoints, "https://me.example.com/")
-  let conf =
+  let indieauth_strategy =
+    vestibule_indieauth.strategy(endpoints, "https://me.example.com/")
+  let client_config =
     config.new(
       client_id: "client-id",
       redirect_uri: "http://localhost/callback",
@@ -33,8 +34,8 @@ pub fn authorize_url_includes_extra_params_test() {
 
   let assert Ok(url) =
     strategy.build_authorize_url(
-      strat,
-      config: conf,
+      indieauth_strategy,
+      config: client_config,
       options: options,
       scopes: ["profile"],
       state: "state",
@@ -43,7 +44,7 @@ pub fn authorize_url_includes_extra_params_test() {
   string.contains(url, "prompt=login") |> expect.to_be_true()
 }
 
-pub fn authorize_url_rejects_me_extra_param_test() {
+pub fn authorize_url_rejects_me_extra_param_test() -> Nil {
   let endpoints =
     DiscoveredEndpoints(
       authorization_endpoint: "https://auth.example.com/authorize",
@@ -51,8 +52,9 @@ pub fn authorize_url_rejects_me_extra_param_test() {
       issuer: None,
       userinfo_endpoint: None,
     )
-  let strat = vestibule_indieauth.strategy(endpoints, "https://me.example.com/")
-  let conf =
+  let indieauth_strategy =
+    vestibule_indieauth.strategy(endpoints, "https://me.example.com/")
+  let client_config =
     config.new(
       client_id: "client-id",
       redirect_uri: "http://localhost/callback",
@@ -64,8 +66,8 @@ pub fn authorize_url_rejects_me_extra_param_test() {
 
   let result =
     strategy.build_authorize_url(
-      strat,
-      config: conf,
+      indieauth_strategy,
+      config: client_config,
       options: options,
       scopes: ["profile"],
       state: "state",

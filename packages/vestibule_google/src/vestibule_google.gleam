@@ -43,7 +43,9 @@ pub fn strategy() -> Strategy(e) {
     default_scopes: ["openid", "profile", "email"],
     authorize_url: do_authorize_url,
     exchange_code: do_exchange_code,
-    fetch_user: fn(_cfg, exchange) { fetch_user_enforcing(exchange, None) },
+    fetch_user: fn(_client_config, exchange) {
+      fetch_user_enforcing(exchange, None)
+    },
   )
   |> strategy.with_nonce()
   |> strategy.with_refresh(do_refresh_token)
@@ -65,11 +67,17 @@ pub fn strategy_for_hosted_domain(hosted_domain: String) -> Strategy(e) {
   strategy.new(
     provider: "google",
     default_scopes: ["openid", "profile", "email"],
-    authorize_url: fn(cfg, options, scopes, state) {
-      do_authorize_url_with_hd(cfg, options, scopes, state, Some(hosted_domain))
+    authorize_url: fn(client_config, options, scopes, state) {
+      do_authorize_url_with_hd(
+        client_config,
+        options,
+        scopes,
+        state,
+        Some(hosted_domain),
+      )
     },
     exchange_code: do_exchange_code,
-    fetch_user: fn(_cfg, exchange) {
+    fetch_user: fn(_client_config, exchange) {
       fetch_user_enforcing(exchange, Some(hosted_domain))
     },
   )
@@ -93,7 +101,7 @@ fn do_parse_token_response(
 ) -> Result(Credentials, AuthError(e)) {
   let result = provider_support.parse_oauth_token_response(body, scope_parsing)
   case result {
-    Ok(creds) -> {
+    Ok(oauth_credentials) -> {
       logger.new(
         level: logger.Debug,
         event: "vestibule.provider.token_parse.success",
@@ -104,16 +112,16 @@ fn do_parse_token_response(
           logger.field("endpoint", endpoint),
           logger.bool_field(
             "has_refresh_token",
-            option.is_some(credentials.refresh_token(creds)),
+            option.is_some(credentials.refresh_token(oauth_credentials)),
           ),
           logger.int_field(
             "scope_count",
-            list.length(credentials.scopes(creds)),
+            list.length(credentials.scopes(oauth_credentials)),
           ),
         ],
       )
       |> logger.emit()
-      Ok(creds)
+      Ok(oauth_credentials)
     }
     Error(err) -> {
       logger.new(
@@ -256,16 +264,16 @@ pub fn validate_hosted_domain(
 }
 
 fn do_authorize_url(
-  cfg: ClientConfig,
+  client_config: ClientConfig,
   options: AuthorizeOptions,
   scopes: List(String),
   state: String,
 ) -> Result(String, AuthError(e)) {
-  do_authorize_url_with_hd(cfg, options, scopes, state, None)
+  do_authorize_url_with_hd(client_config, options, scopes, state, None)
 }
 
 fn do_authorize_url_with_hd(
-  cfg: ClientConfig,
+  client_config: ClientConfig,
   options: AuthorizeOptions,
   scopes: List(String),
   state: String,
@@ -278,10 +286,14 @@ fn do_authorize_url_with_hd(
     }),
   )
   use redirect <- result.try(
-    provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
+    provider_support.parse_redirect_uri(config.redirect_uri(client_config)),
   )
   let client =
-    glow_auth.Client(id: config.client_id(cfg), secret: "", site: site)
+    glow_auth.Client(
+      id: config.client_id(client_config),
+      secret: "",
+      site: site,
+    )
   let extra_params = case hosted_domain {
     Some(domain) -> [
       #("hd", domain),
@@ -304,7 +316,7 @@ fn do_authorize_url_with_hd(
 }
 
 fn do_exchange_code(
-  cfg: ClientConfig,
+  client_config: ClientConfig,
   code: String,
   code_verifier: Option(String),
 ) -> Result(strategy.ExchangeResult, AuthError(e)) {
@@ -315,12 +327,12 @@ fn do_exchange_code(
     }),
   )
   use redirect <- result.try(
-    provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
+    provider_support.parse_redirect_uri(config.redirect_uri(client_config)),
   )
-  use client_secret <- result.try(config.client_secret(cfg))
+  use client_secret <- result.try(config.client_secret(client_config))
   let client =
     glow_auth.Client(
-      id: config.client_id(cfg),
+      id: config.client_id(client_config),
       secret: client_secret,
       site: site,
     )
@@ -352,8 +364,11 @@ fn do_exchange_code(
         ),
       )
       parse_token_response(body)
-      |> result.map(fn(creds) {
-        strategy.exchange_result_with_artifacts(creds, id_token_artifacts(body))
+      |> result.map(fn(oauth_credentials) {
+        strategy.exchange_result_with_artifacts(
+          oauth_credentials,
+          id_token_artifacts(body),
+        )
       })
     }
     Error(_) -> {
@@ -375,8 +390,8 @@ fn do_exchange_code(
 }
 
 fn do_refresh_token(
-  cfg: ClientConfig,
-  refresh_tok: String,
+  client_config: ClientConfig,
+  refresh_token: String,
 ) -> Result(Credentials, AuthError(e)) {
   use site <- result.try(
     uri.parse("https://oauth2.googleapis.com")
@@ -384,10 +399,10 @@ fn do_refresh_token(
       error.config(reason: "Failed to parse Google OAuth base URL")
     }),
   )
-  use client_secret <- result.try(config.client_secret(cfg))
+  use client_secret <- result.try(config.client_secret(client_config))
   let client =
     glow_auth.Client(
-      id: config.client_id(cfg),
+      id: config.client_id(client_config),
       secret: client_secret,
       site: site,
     )
@@ -395,7 +410,7 @@ fn do_refresh_token(
     token_request.refresh(
       client,
       uri_builder.RelativePath("/token"),
-      refresh_tok,
+      refresh_token,
     )
     |> request.set_header("accept", "application/json")
 

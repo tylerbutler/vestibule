@@ -1,8 +1,9 @@
-/// Security-focused tests for the Apple Sign In strategy.
-///
-/// These tests verify security properties identified during the
-/// 2026-02-25 security audit. The Apple strategy uses ywt_core for
-/// JWT parsing/claims with a custom FFI backend for crypto verification.
+//// Security-focused tests for the Apple Sign In strategy.
+////
+//// These tests verify security properties identified during the
+//// 2026-02-25 security audit. The Apple strategy uses ywt_core for
+//// JWT parsing/claims with a custom FFI backend for crypto verification.
+
 import gleam/json as gleam_json
 import gleam/option.{None, Some}
 import gleam/time/duration
@@ -11,7 +12,7 @@ import startest/expect
 import vestibule/user_info
 import vestibule_apple
 import vestibule_apple/jwks
-import vestibule_apple/jwt
+import vestibule_apple/jwt_signing
 import ywt/claim
 import ywt/verify_key
 
@@ -25,12 +26,12 @@ pub fn main() -> Nil {
 
 /// Security: verify_id_token rejects a JWT signed with the wrong key.
 /// This is the core fix for finding C1.
-pub fn verify_id_token_rejects_wrong_key_test() {
-  let attacker_key = jwt.generate_test_key()
-  let legit_key = jwt.generate_test_key()
+pub fn verify_id_token_rejects_wrong_key_test() -> Nil {
+  let attacker_key = jwt_signing.generate_test_key()
+  let legit_key = jwt_signing.generate_test_key()
 
   let token =
-    jwt.encode(
+    jwt_signing.encode(
       [
         #("sub", gleam_json.string("attacker-uid")),
         #("email", gleam_json.string("victim@example.com")),
@@ -58,11 +59,11 @@ pub fn verify_id_token_rejects_wrong_key_test() {
 }
 
 /// Security: verify_id_token accepts a JWT signed with the correct key.
-pub fn verify_id_token_accepts_correct_key_test() {
-  let key = jwt.generate_test_key()
+pub fn verify_id_token_accepts_correct_key_test() -> Nil {
+  let key = jwt_signing.generate_test_key()
 
   let token =
-    jwt.encode(
+    jwt_signing.encode(
       [
         #("sub", gleam_json.string("user-123")),
         #("email", gleam_json.string("user@example.com")),
@@ -92,11 +93,11 @@ pub fn verify_id_token_accepts_correct_key_test() {
 }
 
 /// Security: verify_id_token rejects JWT with wrong issuer.
-pub fn verify_id_token_rejects_wrong_issuer_test() {
-  let key = jwt.generate_test_key()
+pub fn verify_id_token_rejects_wrong_issuer_test() -> Nil {
+  let key = jwt_signing.generate_test_key()
 
   let token =
-    jwt.encode(
+    jwt_signing.encode(
       [#("sub", gleam_json.string("uid"))],
       [
         claim.issuer("https://evil.example.com", []),
@@ -120,11 +121,11 @@ pub fn verify_id_token_rejects_wrong_issuer_test() {
 }
 
 /// Security: verify_id_token rejects JWT with wrong audience.
-pub fn verify_id_token_rejects_wrong_audience_test() {
-  let key = jwt.generate_test_key()
+pub fn verify_id_token_rejects_wrong_audience_test() -> Nil {
+  let key = jwt_signing.generate_test_key()
 
   let token =
-    jwt.encode(
+    jwt_signing.encode(
       [#("sub", gleam_json.string("uid"))],
       [
         claim.issuer("https://appleid.apple.com", []),
@@ -148,8 +149,8 @@ pub fn verify_id_token_rejects_wrong_audience_test() {
 }
 
 /// Security: verify_id_token rejects a completely forged JWT.
-pub fn verify_id_token_rejects_forged_jwt_test() {
-  let key = jwt.generate_test_key()
+pub fn verify_id_token_rejects_forged_jwt_test() -> Nil {
+  let key = jwt_signing.generate_test_key()
 
   let forged_payload =
     "eyJzdWIiOiJhdHRhY2tlci11aWQiLCJlbWFpbCI6InZpY3RpbUBleGFtcGxlLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjoidHJ1ZSJ9"
@@ -166,11 +167,11 @@ pub fn verify_id_token_rejects_forged_jwt_test() {
 }
 
 /// Security: verify_id_token handles email_verified correctly.
-pub fn verify_id_token_unverified_email_not_returned_test() {
-  let key = jwt.generate_test_key()
+pub fn verify_id_token_unverified_email_not_returned_test() -> Nil {
+  let key = jwt_signing.generate_test_key()
 
   let token =
-    jwt.encode(
+    jwt_signing.encode(
       [
         #("sub", gleam_json.string("uid")),
         #("email", gleam_json.string("user@example.com")),
@@ -203,7 +204,7 @@ pub fn verify_id_token_unverified_email_not_returned_test() {
 // ===========================================================================
 
 /// Security: JWKS parser handles valid Apple-format JWKS.
-pub fn parse_jwks_valid_test() {
+pub fn parse_jwks_valid_test() -> Nil {
   let jwks_json =
     "{\"keys\":[{\"kty\":\"EC\",\"kid\":\"test-key\",\"crv\":\"P-256\",\"x\":\"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU\",\"y\":\"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0\"}]}"
   let _ = jwks.parse_jwks(jwks_json) |> expect.to_be_ok()
@@ -211,13 +212,13 @@ pub fn parse_jwks_valid_test() {
 }
 
 /// Security: JWKS parser rejects invalid JSON.
-pub fn parse_jwks_rejects_invalid_json_test() {
+pub fn parse_jwks_rejects_invalid_json_test() -> Nil {
   let _ = jwks.parse_jwks("not json") |> expect.to_be_error()
   Nil
 }
 
 /// Security: JWKS parser accepts empty key set.
-pub fn parse_jwks_accepts_empty_keys_test() {
+pub fn parse_jwks_accepts_empty_keys_test() -> Nil {
   let result = jwks.parse_jwks("{\"keys\":[]}")
   let assert Ok(keys) = result
   let _ = keys |> expect.to_equal([])
@@ -229,7 +230,7 @@ pub fn parse_jwks_accepts_empty_keys_test() {
 // ===========================================================================
 
 /// Security: error response without error_description should still be detected.
-pub fn apple_token_error_without_description_test() {
+pub fn apple_token_error_without_description_test() -> Nil {
   let _ =
     vestibule_apple.parse_token_response("{\"error\":\"invalid_client\"}")
     |> expect.to_be_error()
@@ -237,7 +238,7 @@ pub fn apple_token_error_without_description_test() {
 }
 
 /// Security: HTML error response from misconfigured proxy should not crash.
-pub fn apple_token_response_handles_html_test() {
+pub fn apple_token_response_handles_html_test() -> Nil {
   let _ =
     vestibule_apple.parse_token_response(
       "<html><body>502 Bad Gateway</body></html>",
@@ -247,7 +248,7 @@ pub fn apple_token_response_handles_html_test() {
 }
 
 /// Security: empty response should not crash.
-pub fn apple_token_response_handles_empty_test() {
+pub fn apple_token_response_handles_empty_test() -> Nil {
   let _ =
     vestibule_apple.parse_token_response("")
     |> expect.to_be_error()

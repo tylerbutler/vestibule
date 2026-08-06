@@ -7,13 +7,13 @@ import vestibule/user_info
 
 import vestibule_indieauth/token
 
-pub fn main() {
+pub fn main() -> Nil {
   startest.run(startest.default_config())
 }
 
 // === parse_token_response ===
 
-pub fn parse_token_response_full_test() {
+pub fn parse_token_response_full_test() -> Nil {
   let json =
     "{
     \"access_token\": \"XXXXXX\",
@@ -25,30 +25,30 @@ pub fn parse_token_response_full_test() {
   }"
 
   let result = token.parse_token_response(json)
-  let assert Ok(creds) = result
+  let assert Ok(oauth_credentials) = result
 
-  creds
+  oauth_credentials
   |> credentials.token
   |> expect.to_equal("XXXXXX")
 
-  creds
+  oauth_credentials
   |> credentials.token_type
   |> expect.to_equal("Bearer")
 
-  creds
+  oauth_credentials
   |> credentials.scopes
   |> expect.to_equal(["profile", "email", "create"])
 
-  creds
+  oauth_credentials
   |> credentials.expires_in
   |> expect.to_equal(Some(3600))
 
-  creds
+  oauth_credentials
   |> credentials.refresh_token
   |> expect.to_equal(Some("RRRRRR"))
 }
 
-pub fn parse_token_response_minimal_test() {
+pub fn parse_token_response_minimal_test() -> Nil {
   let json =
     "{
     \"access_token\": \"abc123\",
@@ -58,26 +58,26 @@ pub fn parse_token_response_minimal_test() {
   }"
 
   let result = token.parse_token_response(json)
-  let assert Ok(creds) = result
+  let assert Ok(oauth_credentials) = result
 
-  creds
+  oauth_credentials
   |> credentials.token
   |> expect.to_equal("abc123")
 
-  creds
+  oauth_credentials
   |> credentials.scopes
   |> expect.to_equal(["profile"])
 
-  creds
+  oauth_credentials
   |> credentials.expires_in
   |> expect.to_equal(None)
 
-  creds
+  oauth_credentials
   |> credentials.refresh_token
   |> expect.to_equal(None)
 }
 
-pub fn parse_token_response_empty_scope_test() {
+pub fn parse_token_response_empty_scope_test() -> Nil {
   let json =
     "{
     \"access_token\": \"abc\",
@@ -86,14 +86,14 @@ pub fn parse_token_response_empty_scope_test() {
   }"
 
   let result = token.parse_token_response(json)
-  let assert Ok(creds) = result
+  let assert Ok(oauth_credentials) = result
 
-  creds
+  oauth_credentials
   |> credentials.scopes
   |> expect.to_equal([])
 }
 
-pub fn parse_token_response_error_test() {
+pub fn parse_token_response_error_test() -> Nil {
   let json =
     "{
     \"error\": \"invalid_grant\",
@@ -106,7 +106,7 @@ pub fn parse_token_response_error_test() {
   Nil
 }
 
-pub fn parse_token_response_error_no_description_test() {
+pub fn parse_token_response_error_no_description_test() -> Nil {
   let json = "{ \"error\": \"access_denied\" }"
 
   let _ =
@@ -115,7 +115,7 @@ pub fn parse_token_response_error_no_description_test() {
   Nil
 }
 
-pub fn parse_token_response_invalid_json_test() {
+pub fn parse_token_response_invalid_json_test() -> Nil {
   let _ =
     token.parse_token_response("not json at all")
     |> expect.to_be_error()
@@ -124,7 +124,7 @@ pub fn parse_token_response_invalid_json_test() {
 
 // === parse_profile_from_token_response ===
 
-pub fn parse_profile_full_test() {
+pub fn parse_profile_full_test() -> Nil {
   let json =
     "{
     \"access_token\": \"XXXXXX\",
@@ -158,7 +158,7 @@ pub fn parse_profile_full_test() {
   |> expect.to_equal(Some("user@example.net"))
 }
 
-pub fn parse_profile_no_profile_object_test() {
+pub fn parse_profile_no_profile_object_test() -> Nil {
   let json =
     "{
     \"access_token\": \"abc\",
@@ -179,7 +179,7 @@ pub fn parse_profile_no_profile_object_test() {
   |> expect.to_equal(None)
 }
 
-pub fn parse_profile_partial_test() {
+pub fn parse_profile_partial_test() -> Nil {
   let json =
     "{
     \"access_token\": \"abc\",
@@ -203,7 +203,7 @@ pub fn parse_profile_partial_test() {
   |> expect.to_equal(None)
 }
 
-pub fn parse_profile_missing_me_test() {
+pub fn parse_profile_missing_me_test() -> Nil {
   let json = "{ \"access_token\": \"abc\", \"token_type\": \"Bearer\" }"
 
   let _ =
@@ -214,7 +214,7 @@ pub fn parse_profile_missing_me_test() {
 
 // === parse_userinfo_response ===
 
-pub fn parse_userinfo_full_test() {
+pub fn parse_userinfo_full_test() -> Nil {
   let json =
     "{
     \"me\": \"https://user.example.net/\",
@@ -240,7 +240,7 @@ pub fn parse_userinfo_full_test() {
   |> expect.to_equal(Some("https://user.example.net/photo.jpg"))
 }
 
-pub fn parse_userinfo_minimal_test() {
+pub fn parse_userinfo_minimal_test() -> Nil {
   let json = "{ \"me\": \"https://user.example.net/\" }"
 
   let result = token.parse_userinfo_response(json)
@@ -256,7 +256,7 @@ pub fn parse_userinfo_minimal_test() {
   |> expect.to_equal(None)
 }
 
-pub fn parse_userinfo_invalid_json_test() {
+pub fn parse_userinfo_invalid_json_test() -> Nil {
   let _ =
     token.parse_userinfo_response("bad json")
     |> expect.to_be_error()

@@ -36,14 +36,18 @@ type SessionState {
 }
 
 /// Errors returned by checked state store operations.
+///
+/// The `reason` fields carry the raw failure reason reported by the
+/// underlying ETS owner process, to aid debugging failures that do not map
+/// to a more specific variant.
 pub type StateStoreError {
   OwnerUnavailable
   OperationTimedOut
   TableAlreadyExists
-  TableCreateFailed
+  TableCreateFailed(reason: String)
   TableNotFound
-  InsertFailed
-  CleanupFailed
+  InsertFailed(reason: String)
+  CleanupFailed(reason: String)
 }
 
 /// Try to initialize the state store. Call once per VM at application
@@ -154,7 +158,7 @@ fn map_create_error(reason: String) -> StateStoreError {
     "timeout" -> OperationTimedOut
     "table_already_exists" -> TableAlreadyExists
     "table_not_found" -> TableNotFound
-    _ -> TableCreateFailed
+    other -> TableCreateFailed(reason: other)
   }
 }
 
@@ -163,7 +167,7 @@ fn map_insert_error(reason: String) -> StateStoreError {
     "owner_init_failed" | "owner_unavailable" -> OwnerUnavailable
     "timeout" -> OperationTimedOut
     "table_not_found" -> TableNotFound
-    _ -> InsertFailed
+    other -> InsertFailed(reason: other)
   }
 }
 
@@ -172,7 +176,7 @@ fn map_cleanup_error(reason: String) -> StateStoreError {
     "owner_init_failed" | "owner_unavailable" -> OwnerUnavailable
     "timeout" -> OperationTimedOut
     "table_not_found" -> TableNotFound
-    _ -> CleanupFailed
+    other -> CleanupFailed(reason: other)
   }
 }
 

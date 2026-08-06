@@ -4,13 +4,13 @@ import startest/expect
 
 import vestibule_indieauth/discovery
 
-pub fn main() {
+pub fn main() -> Nil {
   startest.run(startest.default_config())
 }
 
 // === parse_metadata ===
 
-pub fn parse_metadata_full_test() {
+pub fn parse_metadata_full_test() -> Nil {
   let json =
     "{
     \"issuer\": \"https://indieauth.example.com/\",
@@ -36,7 +36,7 @@ pub fn parse_metadata_full_test() {
   |> expect.to_equal(Some("https://indieauth.example.com/userinfo"))
 }
 
-pub fn parse_metadata_minimal_test() {
+pub fn parse_metadata_minimal_test() -> Nil {
   let json =
     "{
     \"authorization_endpoint\": \"https://example.com/auth\",
@@ -59,7 +59,7 @@ pub fn parse_metadata_minimal_test() {
   |> expect.to_equal(None)
 }
 
-pub fn parse_metadata_missing_auth_endpoint_test() {
+pub fn parse_metadata_missing_auth_endpoint_test() -> Nil {
   let json = "{ \"token_endpoint\": \"https://example.com/token\" }"
 
   let _ =
@@ -68,7 +68,7 @@ pub fn parse_metadata_missing_auth_endpoint_test() {
   Nil
 }
 
-pub fn parse_metadata_missing_token_endpoint_test() {
+pub fn parse_metadata_missing_token_endpoint_test() -> Nil {
   let json = "{ \"authorization_endpoint\": \"https://example.com/auth\" }"
 
   let _ =
@@ -77,7 +77,7 @@ pub fn parse_metadata_missing_token_endpoint_test() {
   Nil
 }
 
-pub fn parse_metadata_invalid_json_test() {
+pub fn parse_metadata_invalid_json_test() -> Nil {
   let _ =
     discovery.parse_metadata("not json")
     |> expect.to_be_error()
@@ -86,7 +86,7 @@ pub fn parse_metadata_invalid_json_test() {
 
 // === find_link_header_rel ===
 
-pub fn find_link_header_basic_test() {
+pub fn find_link_header_basic_test() -> Nil {
   let headers = [
     #(
       "Link",
@@ -100,7 +100,7 @@ pub fn find_link_header_basic_test() {
   ))
 }
 
-pub fn find_link_header_unquoted_rel_test() {
+pub fn find_link_header_unquoted_rel_test() -> Nil {
   let headers = [
     #("Link", "<https://example.com/auth>; rel=authorization_endpoint"),
   ]
@@ -109,7 +109,7 @@ pub fn find_link_header_unquoted_rel_test() {
   |> expect.to_equal(Some("https://example.com/auth"))
 }
 
-pub fn find_link_header_case_insensitive_test() {
+pub fn find_link_header_case_insensitive_test() -> Nil {
   let headers = [
     #("link", "<https://example.com/auth>; rel=\"Authorization_Endpoint\""),
   ]
@@ -118,7 +118,7 @@ pub fn find_link_header_case_insensitive_test() {
   |> expect.to_equal(Some("https://example.com/auth"))
 }
 
-pub fn find_link_header_multiple_entries_test() {
+pub fn find_link_header_multiple_entries_test() -> Nil {
   let headers = [
     #(
       "Link",
@@ -130,7 +130,7 @@ pub fn find_link_header_multiple_entries_test() {
   |> expect.to_equal(Some("https://example.com/auth"))
 }
 
-pub fn find_link_header_not_found_test() {
+pub fn find_link_header_not_found_test() -> Nil {
   let headers = [
     #("Link", "<https://example.com/micropub>; rel=\"micropub\""),
   ]
@@ -139,7 +139,7 @@ pub fn find_link_header_not_found_test() {
   |> expect.to_equal(None)
 }
 
-pub fn find_link_header_no_link_headers_test() {
+pub fn find_link_header_no_link_headers_test() -> Nil {
   let headers = [#("Content-Type", "text/html")]
 
   discovery.find_link_header_rel(headers, "authorization_endpoint")
@@ -148,7 +148,7 @@ pub fn find_link_header_no_link_headers_test() {
 
 // === find_html_link_rel ===
 
-pub fn find_html_link_rel_basic_test() {
+pub fn find_html_link_rel_basic_test() -> Nil {
   let html =
     "<html><head><link rel=\"authorization_endpoint\" href=\"https://example.com/auth\"></head></html>"
 
@@ -156,7 +156,7 @@ pub fn find_html_link_rel_basic_test() {
   |> expect.to_equal(Some("https://example.com/auth"))
 }
 
-pub fn find_html_link_rel_metadata_test() {
+pub fn find_html_link_rel_metadata_test() -> Nil {
   let html =
     "<html><head>
     <link rel=\"indieauth-metadata\" href=\"https://example.com/.well-known/oauth-authorization-server\">
@@ -168,7 +168,7 @@ pub fn find_html_link_rel_metadata_test() {
   ))
 }
 
-pub fn find_html_link_rel_relative_href_test() {
+pub fn find_html_link_rel_relative_href_test() -> Nil {
   let html =
     "<html><head><link rel=\"token_endpoint\" href=\"/token\"></head></html>"
 
@@ -176,7 +176,7 @@ pub fn find_html_link_rel_relative_href_test() {
   |> expect.to_equal(Some("/token"))
 }
 
-pub fn find_html_link_rel_not_found_test() {
+pub fn find_html_link_rel_not_found_test() -> Nil {
   let html =
     "<html><head><link rel=\"stylesheet\" href=\"/style.css\"></head></html>"
 
@@ -184,12 +184,12 @@ pub fn find_html_link_rel_not_found_test() {
   |> expect.to_equal(None)
 }
 
-pub fn find_html_link_rel_empty_html_test() {
+pub fn find_html_link_rel_empty_html_test() -> Nil {
   discovery.find_html_link_rel("", "authorization_endpoint")
   |> expect.to_equal(None)
 }
 
-pub fn find_html_link_rel_multiple_links_first_wins_test() {
+pub fn find_html_link_rel_multiple_links_first_wins_test() -> Nil {
   let html =
     "<html><head>
     <link rel=\"authorization_endpoint\" href=\"https://first.example.com/auth\">

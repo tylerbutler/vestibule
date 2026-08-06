@@ -13,7 +13,7 @@ pub fn main() -> Nil {
   startest.run(startest.default_config())
 }
 
-pub fn parse_token_response_success_test() {
+pub fn parse_token_response_success_test() -> Nil {
   let body =
     "{\"access_token\":\"ya29.test_token\",\"expires_in\":3599,\"scope\":\"openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile\",\"token_type\":\"Bearer\"}"
   let _ =
@@ -35,7 +35,7 @@ pub fn parse_token_response_success_test() {
   Nil
 }
 
-pub fn parse_token_response_with_refresh_token_test() {
+pub fn parse_token_response_with_refresh_token_test() -> Nil {
   let body =
     "{\"access_token\":\"ya29.test\",\"expires_in\":3600,\"refresh_token\":\"1//test_refresh\",\"scope\":\"openid\",\"token_type\":\"Bearer\"}"
   let _ =
@@ -53,15 +53,15 @@ pub fn parse_token_response_with_refresh_token_test() {
   Nil
 }
 
-pub fn parse_token_response_empty_scope_test() {
+pub fn parse_token_response_empty_scope_test() -> Nil {
   let body =
     "{\"access_token\":\"ya29.test\",\"expires_in\":3600,\"scope\":\"\",\"token_type\":\"Bearer\"}"
-  let assert Ok(creds) = vestibule_google.parse_token_response(body)
-  let _ = credentials.scopes(creds) |> expect.to_equal([])
+  let assert Ok(oauth_credentials) = vestibule_google.parse_token_response(body)
+  let _ = credentials.scopes(oauth_credentials) |> expect.to_equal([])
   Nil
 }
 
-pub fn parse_token_response_error_test() {
+pub fn parse_token_response_error_test() -> Nil {
   let body =
     "{\"error\":\"invalid_grant\",\"error_description\":\"Token has been expired or revoked.\"}"
   let _ =
@@ -70,7 +70,7 @@ pub fn parse_token_response_error_test() {
   Nil
 }
 
-pub fn parse_token_response_error_without_description_test() {
+pub fn parse_token_response_error_without_description_test() -> Nil {
   let body = "{\"error\":\"invalid_grant\"}"
   let _ =
     vestibule_google.parse_token_response(body)
@@ -83,7 +83,7 @@ pub fn parse_token_response_error_without_description_test() {
   Nil
 }
 
-pub fn parse_user_response_full_test() {
+pub fn parse_user_response_full_test() -> Nil {
   let body =
     "{\"sub\":\"1234567890\",\"name\":\"Jane Doe\",\"given_name\":\"Jane\",\"family_name\":\"Doe\",\"picture\":\"https://lh3.googleusercontent.com/photo.jpg\",\"email\":\"jane@example.com\",\"email_verified\":true}"
   let assert Ok(#(uid, info)) = vestibule_google.parse_user_response(body)
@@ -98,7 +98,7 @@ pub fn parse_user_response_full_test() {
   Nil
 }
 
-pub fn parse_user_response_unverified_email_test() {
+pub fn parse_user_response_unverified_email_test() -> Nil {
   let body =
     "{\"sub\":\"999\",\"name\":\"Test\",\"email\":\"unverified@example.com\",\"email_verified\":false}"
   let assert Ok(#(_uid, info)) = vestibule_google.parse_user_response(body)
@@ -108,7 +108,7 @@ pub fn parse_user_response_unverified_email_test() {
   Nil
 }
 
-pub fn parse_user_response_minimal_test() {
+pub fn parse_user_response_minimal_test() -> Nil {
   let body = "{\"sub\":\"abc-123\"}"
   let assert Ok(#(uid, info)) = vestibule_google.parse_user_response(body)
   let _ = uid |> expect.to_equal("abc-123")
@@ -119,9 +119,9 @@ pub fn parse_user_response_minimal_test() {
   Nil
 }
 
-pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
-  let strat = vestibule_google.strategy()
-  let conf =
+pub fn authorize_url_invalid_redirect_uri_returns_error_test() -> Nil {
+  let google_strategy = vestibule_google.strategy()
+  let client_config =
     config.new(
       client_id: "client-id",
       redirect_uri: "not a uri",
@@ -129,8 +129,8 @@ pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
     )
   let _ =
     strategy.build_authorize_url(
-      strat,
-      config: conf,
+      google_strategy,
+      config: client_config,
       options: config.authorize_options(),
       scopes: ["openid"],
       state: "state",
@@ -139,9 +139,9 @@ pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
   Nil
 }
 
-pub fn authorize_url_includes_extra_params_test() {
-  let strat = vestibule_google.strategy()
-  let conf =
+pub fn authorize_url_includes_extra_params_test() -> Nil {
+  let google_strategy = vestibule_google.strategy()
+  let client_config =
     config.new(
       client_id: "client-id",
       redirect_uri: "http://localhost/callback",
@@ -152,8 +152,8 @@ pub fn authorize_url_includes_extra_params_test() {
     |> config.with_extra_params([#("prompt", "consent")])
   let assert Ok(url) =
     strategy.build_authorize_url(
-      strat,
-      config: conf,
+      google_strategy,
+      config: client_config,
       options: options,
       scopes: ["openid"],
       state: "state",
@@ -164,7 +164,7 @@ pub fn authorize_url_includes_extra_params_test() {
 
 // --- Hosted-domain (hd) enforcement ---
 
-pub fn parse_user_response_with_hd_present_test() {
+pub fn parse_user_response_with_hd_present_test() -> Nil {
   let body =
     "{\"sub\":\"42\",\"email\":\"jane@corp.example\",\"email_verified\":true,\"hd\":\"corp.example\"}"
   let assert Ok(#(uid, _info, hd)) =
@@ -174,7 +174,7 @@ pub fn parse_user_response_with_hd_present_test() {
   Nil
 }
 
-pub fn parse_user_response_with_hd_absent_test() {
+pub fn parse_user_response_with_hd_absent_test() -> Nil {
   let body =
     "{\"sub\":\"42\",\"email\":\"jane@gmail.com\",\"email_verified\":true}"
   let assert Ok(#(_uid, _info, hd)) =
@@ -183,7 +183,7 @@ pub fn parse_user_response_with_hd_absent_test() {
   Nil
 }
 
-pub fn validate_hosted_domain_match_test() {
+pub fn validate_hosted_domain_match_test() -> Nil {
   let _ =
     vestibule_google.validate_hosted_domain(
       required: Some("corp.example"),
@@ -194,7 +194,7 @@ pub fn validate_hosted_domain_match_test() {
   Nil
 }
 
-pub fn validate_hosted_domain_mismatch_fails_test() {
+pub fn validate_hosted_domain_mismatch_fails_test() -> Nil {
   let _ =
     vestibule_google.validate_hosted_domain(
       required: Some("corp.example"),
@@ -212,7 +212,7 @@ pub fn validate_hosted_domain_mismatch_fails_test() {
   Nil
 }
 
-pub fn validate_hosted_domain_missing_claim_fails_test() {
+pub fn validate_hosted_domain_missing_claim_fails_test() -> Nil {
   let _ =
     vestibule_google.validate_hosted_domain(
       required: Some("corp.example"),
@@ -230,7 +230,7 @@ pub fn validate_hosted_domain_missing_claim_fails_test() {
   Nil
 }
 
-pub fn validate_hosted_domain_not_required_passes_through_test() {
+pub fn validate_hosted_domain_not_required_passes_through_test() -> Nil {
   let _ =
     vestibule_google.validate_hosted_domain(
       required: None,
@@ -246,9 +246,10 @@ pub fn validate_hosted_domain_not_required_passes_through_test() {
   Nil
 }
 
-pub fn strategy_for_hosted_domain_authorize_url_includes_hd_hint_test() {
-  let strat = vestibule_google.strategy_for_hosted_domain("corp.example")
-  let conf =
+pub fn strategy_for_hosted_domain_authorize_url_includes_hd_hint_test() -> Nil {
+  let google_strategy =
+    vestibule_google.strategy_for_hosted_domain("corp.example")
+  let client_config =
     config.new(
       client_id: "client-id",
       redirect_uri: "http://localhost/callback",
@@ -256,8 +257,8 @@ pub fn strategy_for_hosted_domain_authorize_url_includes_hd_hint_test() {
     )
   let assert Ok(url) =
     strategy.build_authorize_url(
-      strat,
-      config: conf,
+      google_strategy,
+      config: client_config,
       options: config.authorize_options(),
       scopes: ["openid"],
       state: "state",

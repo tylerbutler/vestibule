@@ -21,7 +21,7 @@ fn fake_id_token(payload_json: String) -> String {
   header <> "." <> payload <> ".sig"
 }
 
-pub fn verify_tenant_match_test() {
+pub fn verify_tenant_match_test() -> Nil {
   let token =
     fake_id_token("{\"tid\":\"72f988bf-86f1-41af-91ab-2d7cd011db47\"}")
   let _ =
@@ -34,7 +34,7 @@ pub fn verify_tenant_match_test() {
   Nil
 }
 
-pub fn verify_tenant_case_insensitive_test() {
+pub fn verify_tenant_case_insensitive_test() -> Nil {
   let token =
     fake_id_token("{\"tid\":\"72F988BF-86F1-41AF-91AB-2D7CD011DB47\"}")
   let _ =
@@ -46,7 +46,7 @@ pub fn verify_tenant_case_insensitive_test() {
   Nil
 }
 
-pub fn verify_tenant_mismatch_rejected_test() {
+pub fn verify_tenant_mismatch_rejected_test() -> Nil {
   let token = fake_id_token("{\"tid\":\"other-tenant-guid\"}")
   let _ =
     vestibule_microsoft.verify_tenant(
@@ -57,7 +57,7 @@ pub fn verify_tenant_mismatch_rejected_test() {
   Nil
 }
 
-pub fn verify_tenant_missing_tid_rejected_test() {
+pub fn verify_tenant_missing_tid_rejected_test() -> Nil {
   let token = fake_id_token("{\"sub\":\"abc\"}")
   let _ =
     vestibule_microsoft.verify_tenant(
@@ -68,7 +68,7 @@ pub fn verify_tenant_missing_tid_rejected_test() {
   Nil
 }
 
-pub fn verify_tenant_malformed_token_rejected_test() {
+pub fn verify_tenant_malformed_token_rejected_test() -> Nil {
   let _ =
     vestibule_microsoft.verify_tenant(
       expected_tenant: "expected-tenant-guid",
@@ -78,7 +78,7 @@ pub fn verify_tenant_malformed_token_rejected_test() {
   Nil
 }
 
-pub fn id_token_tenant_extracts_tid_test() {
+pub fn id_token_tenant_extracts_tid_test() -> Nil {
   let token = fake_id_token("{\"tid\":\"abc-123\",\"sub\":\"u1\"}")
   let _ =
     vestibule_microsoft.id_token_tenant(token)
@@ -87,9 +87,10 @@ pub fn id_token_tenant_extracts_tid_test() {
   Nil
 }
 
-pub fn strategy_for_tenant_authorize_url_uses_tenant_endpoint_test() {
-  let strat = vestibule_microsoft.strategy_for_tenant("my-tenant-id")
-  let conf =
+pub fn strategy_for_tenant_authorize_url_uses_tenant_endpoint_test() -> Nil {
+  let microsoft_strategy =
+    vestibule_microsoft.strategy_for_tenant("my-tenant-id")
+  let client_config =
     config.new(
       client_id: "client-id",
       redirect_uri: "http://localhost/callback",
@@ -97,8 +98,8 @@ pub fn strategy_for_tenant_authorize_url_uses_tenant_endpoint_test() {
     )
   let assert Ok(url) =
     strategy.build_authorize_url(
-      strat,
-      config: conf,
+      microsoft_strategy,
+      config: client_config,
       options: config.authorize_options(),
       scopes: ["openid", "User.Read"],
       state: "state",
@@ -111,25 +112,26 @@ pub fn strategy_for_tenant_authorize_url_uses_tenant_endpoint_test() {
   Nil
 }
 
-pub fn strategy_for_tenant_default_scopes_include_openid_test() {
-  let strat = vestibule_microsoft.strategy_for_tenant("my-tenant-id")
+pub fn strategy_for_tenant_default_scopes_include_openid_test() -> Nil {
+  let microsoft_strategy =
+    vestibule_microsoft.strategy_for_tenant("my-tenant-id")
   let _ =
-    strategy.default_scopes(strat)
+    strategy.default_scopes(microsoft_strategy)
     |> expect.to_equal(["openid", "User.Read"])
   Nil
 }
 
-pub fn common_strategy_default_scopes_include_openid_test() {
-  let strat = vestibule_microsoft.strategy()
+pub fn common_strategy_default_scopes_include_openid_test() -> Nil {
+  let microsoft_strategy = vestibule_microsoft.strategy()
   let _ =
-    strategy.default_scopes(strat)
+    strategy.default_scopes(microsoft_strategy)
     |> expect.to_equal(["openid", "User.Read"])
   Nil
 }
 
-pub fn common_strategy_authorize_url_uses_common_endpoint_test() {
-  let strat = vestibule_microsoft.strategy()
-  let conf =
+pub fn common_strategy_authorize_url_uses_common_endpoint_test() -> Nil {
+  let microsoft_strategy = vestibule_microsoft.strategy()
+  let client_config =
     config.new(
       client_id: "client-id",
       redirect_uri: "http://localhost/callback",
@@ -137,8 +139,8 @@ pub fn common_strategy_authorize_url_uses_common_endpoint_test() {
     )
   let assert Ok(url) =
     strategy.build_authorize_url(
-      strat,
-      config: conf,
+      microsoft_strategy,
+      config: client_config,
       options: config.authorize_options(),
       scopes: ["User.Read"],
       state: "state",
@@ -149,9 +151,9 @@ pub fn common_strategy_authorize_url_uses_common_endpoint_test() {
   Nil
 }
 
-pub fn custom_scopes_add_openid_for_nonce_test() {
-  let strat = vestibule_microsoft.strategy()
-  let conf =
+pub fn custom_scopes_add_openid_for_nonce_test() -> Nil {
+  let microsoft_strategy = vestibule_microsoft.strategy()
+  let client_config =
     config.new(
       client_id: "client-id",
       redirect_uri: "http://localhost/callback",
@@ -159,8 +161,8 @@ pub fn custom_scopes_add_openid_for_nonce_test() {
     )
   let assert Ok(url) =
     strategy.build_authorize_url(
-      strat,
-      config: conf,
+      microsoft_strategy,
+      config: client_config,
       options: config.authorize_options(),
       scopes: ["User.Read"],
       state: "state",
@@ -170,7 +172,7 @@ pub fn custom_scopes_add_openid_for_nonce_test() {
   Nil
 }
 
-pub fn parse_token_response_success_test() {
+pub fn parse_token_response_success_test() -> Nil {
   let body =
     "{\"token_type\":\"Bearer\",\"scope\":\"User.Read profile openid email\",\"expires_in\":3736,\"ext_expires_in\":3736,\"access_token\":\"eyJ0eXAi_test_token\",\"refresh_token\":\"AwABAAAA_test_refresh\"}"
   let _ =
@@ -188,7 +190,7 @@ pub fn parse_token_response_success_test() {
   Nil
 }
 
-pub fn parse_token_response_without_refresh_token_test() {
+pub fn parse_token_response_without_refresh_token_test() -> Nil {
   let body =
     "{\"token_type\":\"Bearer\",\"scope\":\"User.Read\",\"expires_in\":3600,\"access_token\":\"test_token\"}"
   let _ =
@@ -206,15 +208,16 @@ pub fn parse_token_response_without_refresh_token_test() {
   Nil
 }
 
-pub fn parse_token_response_empty_scope_test() {
+pub fn parse_token_response_empty_scope_test() -> Nil {
   let body =
     "{\"token_type\":\"Bearer\",\"scope\":\"\",\"expires_in\":3600,\"access_token\":\"test_token\"}"
-  let assert Ok(creds) = vestibule_microsoft.parse_token_response(body)
-  let _ = credentials.scopes(creds) |> expect.to_equal([])
+  let assert Ok(oauth_credentials) =
+    vestibule_microsoft.parse_token_response(body)
+  let _ = credentials.scopes(oauth_credentials) |> expect.to_equal([])
   Nil
 }
 
-pub fn parse_token_response_error_test() {
+pub fn parse_token_response_error_test() -> Nil {
   let body =
     "{\"error\":\"invalid_grant\",\"error_description\":\"AADSTS70000: The provided value for the input parameter 'code' is not valid.\"}"
   let _ =
@@ -223,7 +226,7 @@ pub fn parse_token_response_error_test() {
   Nil
 }
 
-pub fn parse_user_response_full_test() {
+pub fn parse_user_response_full_test() -> Nil {
   let body =
     "{\"id\":\"87d349ed-44d7-43e1-9a83-5f2406dee5bd\",\"displayName\":\"Adele Vance\",\"mail\":\"AdeleV@contoso.com\",\"userPrincipalName\":\"AdeleV@contoso.com\",\"jobTitle\":\"Retail Manager\"}"
   let assert Ok(#(uid, info)) = vestibule_microsoft.parse_user_response(body)
@@ -238,7 +241,7 @@ pub fn parse_user_response_full_test() {
   Nil
 }
 
-pub fn parse_user_response_minimal_test() {
+pub fn parse_user_response_minimal_test() -> Nil {
   let body = "{\"id\":\"abc-123\",\"userPrincipalName\":\"user@example.com\"}"
   let assert Ok(#(uid, info)) = vestibule_microsoft.parse_user_response(body)
   let _ = uid |> expect.to_equal("abc-123")
@@ -252,7 +255,7 @@ pub fn parse_user_response_minimal_test() {
   Nil
 }
 
-pub fn parse_user_response_mail_preferred_over_upn_test() {
+pub fn parse_user_response_mail_preferred_over_upn_test() -> Nil {
   let body =
     "{\"id\":\"abc\",\"mail\":\"real@example.com\",\"userPrincipalName\":\"upn@example.com\"}"
   let assert Ok(#(_uid, info)) = vestibule_microsoft.parse_user_response(body)
@@ -260,9 +263,9 @@ pub fn parse_user_response_mail_preferred_over_upn_test() {
   Nil
 }
 
-pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
-  let strat = vestibule_microsoft.strategy()
-  let conf =
+pub fn authorize_url_invalid_redirect_uri_returns_error_test() -> Nil {
+  let microsoft_strategy = vestibule_microsoft.strategy()
+  let client_config =
     config.new(
       client_id: "client-id",
       redirect_uri: "not a uri",
@@ -270,8 +273,8 @@ pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
     )
   let _ =
     strategy.build_authorize_url(
-      strat,
-      config: conf,
+      microsoft_strategy,
+      config: client_config,
       options: config.authorize_options(),
       scopes: ["User.Read"],
       state: "state",
@@ -280,9 +283,9 @@ pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
   Nil
 }
 
-pub fn authorize_url_includes_extra_params_test() {
-  let strat = vestibule_microsoft.strategy()
-  let conf =
+pub fn authorize_url_includes_extra_params_test() -> Nil {
+  let microsoft_strategy = vestibule_microsoft.strategy()
+  let client_config =
     config.new(
       client_id: "client-id",
       redirect_uri: "http://localhost/callback",
@@ -293,8 +296,8 @@ pub fn authorize_url_includes_extra_params_test() {
     |> config.with_extra_params([#("prompt", "select_account")])
   let assert Ok(url) =
     strategy.build_authorize_url(
-      strat,
-      config: conf,
+      microsoft_strategy,
+      config: client_config,
       options: options,
       scopes: ["User.Read"],
       state: "state",
