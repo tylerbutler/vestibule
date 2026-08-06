@@ -3,7 +3,7 @@ version = "0.0.0"
 description = "Strategy-based OAuth2 authentication for Gleam"
 licences = ["MIT"]
 repository = { type = "github", user = "tylerbutler", repo = "vestibule" }
-gleam = ">= 1.7.0"
+gleam = ">= 1.11.0"
 
 internal_modules = [
   "vestibule/internal",
@@ -22,7 +22,7 @@ gleam_json = ">= 3.1.0 and < 4.0.0"
 gleam_time = ">= 1.7.0 and < 2.0.0"
 
 [dev-dependencies]
-startest = ">= 0.8.0 and < 1.0.0"
+gleeunit = ">= 1.6.0 and < 2.0.0"
 glinter = ">= 2.19.0 and < 3.0.0"
 
 [tools.glinter]

@@ -4,13 +4,12 @@
 /// properties. They were relocated from vestibule core's security_test
 /// (audit findings M6) when OIDC discovery moved into this package.
 import gleam/option.{None, Some}
-import startest
-import startest/expect
+import gleeunit
 import vestibule/user_info
 import vestibule_oidc
 
 pub fn main() -> Nil {
-  startest.run(startest.default_config())
+  gleeunit.main()
 }
 
 // ===========================================================================
@@ -27,14 +26,14 @@ pub fn oidc_issuer_mismatch_is_detected_test() {
   // Parser itself accepts it (validation happens at fetch_configuration level)
   let result = vestibule_oidc.parse_discovery_document(json)
   let assert Ok(parsed) = result
-  vestibule_oidc.issuer(parsed) |> expect.to_equal("https://evil.example.com")
+  assert vestibule_oidc.issuer(parsed) == "https://evil.example.com"
 }
 
 /// Security: OIDC discovery parser must handle missing required fields.
 pub fn oidc_discovery_missing_issuer_test() {
   let json =
     "{\"authorization_endpoint\":\"https://example.com/auth\",\"token_endpoint\":\"https://example.com/token\",\"userinfo_endpoint\":\"https://example.com/userinfo\"}"
-  let _ = vestibule_oidc.parse_discovery_document(json) |> expect.to_be_error()
+  let assert Error(_) = vestibule_oidc.parse_discovery_document(json)
   Nil
 }
 
@@ -42,7 +41,7 @@ pub fn oidc_discovery_missing_issuer_test() {
 pub fn oidc_discovery_missing_auth_endpoint_test() {
   let json =
     "{\"issuer\":\"https://example.com\",\"token_endpoint\":\"https://example.com/token\",\"userinfo_endpoint\":\"https://example.com/userinfo\"}"
-  let _ = vestibule_oidc.parse_discovery_document(json) |> expect.to_be_error()
+  let assert Error(_) = vestibule_oidc.parse_discovery_document(json)
   Nil
 }
 
@@ -50,7 +49,7 @@ pub fn oidc_discovery_missing_auth_endpoint_test() {
 pub fn oidc_discovery_handles_deeply_nested_json_test() {
   // Deeply nested JSON should not crash
   let json = "{\"issuer\":{\"nested\":{\"deep\":true}}}"
-  let _ = vestibule_oidc.parse_discovery_document(json) |> expect.to_be_error()
+  let assert Error(_) = vestibule_oidc.parse_discovery_document(json)
   Nil
 }
 
@@ -62,14 +61,13 @@ pub fn oidc_discovery_handles_deeply_nested_json_test() {
 pub fn oidc_token_response_detects_error_test() {
   let json =
     "{\"error\":\"invalid_grant\",\"error_description\":\"Expired code\"}"
-  let _ = vestibule_oidc.parse_token_response(json) |> expect.to_be_error()
+  let assert Error(_) = vestibule_oidc.parse_token_response(json)
   Nil
 }
 
 /// Security: OIDC token response parser handles malformed JSON.
 pub fn oidc_token_response_handles_malformed_json_test() {
-  let _ =
-    vestibule_oidc.parse_token_response("{invalid") |> expect.to_be_error()
+  let assert Error(_) = vestibule_oidc.parse_token_response("{invalid")
   Nil
 }
 
@@ -81,7 +79,7 @@ pub fn oidc_token_response_handles_malformed_json_test() {
 /// Without sub, the uid would be undefined -- a security issue.
 pub fn oidc_userinfo_requires_sub_test() {
   let json = "{\"name\":\"No Sub\",\"email\":\"nosub@example.com\"}"
-  let _ = vestibule_oidc.parse_userinfo_response(json) |> expect.to_be_error()
+  let assert Error(_) = vestibule_oidc.parse_userinfo_response(json)
   Nil
 }
 
@@ -93,8 +91,7 @@ pub fn oidc_userinfo_handles_xss_in_name_test() {
   let assert Ok(#(_, info)) = result
   // The XSS payload is stored as a plain string; escaping is the
   // responsibility of the presentation layer.
-  user_info.name(info)
-  |> expect.to_equal(Some("<script>alert(1)</script>"))
+  assert user_info.name(info) == Some("<script>alert(1)</script>")
 }
 
 /// Security: OIDC userinfo should not trust unverified emails.
@@ -103,5 +100,5 @@ pub fn oidc_rejects_unverified_email_test() {
     "{\"sub\":\"user-1\",\"email\":\"unverified@example.com\",\"email_verified\":false}"
   let result = vestibule_oidc.parse_userinfo_response(json)
   let assert Ok(#(_, info)) = result
-  user_info.email(info) |> expect.to_equal(None)
+  assert user_info.email(info) == None
 }

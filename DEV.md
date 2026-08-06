@@ -169,14 +169,11 @@ just test-all
 
 ### Writing Tests
 
-Tests use the `startest` framework:
+Tests use the `gleeunit` framework with the `assert` keyword:
 
 ```gleam
-import startest/expect
-
 pub fn my_feature_test() {
-  my_function("input")
-  |> expect.to_equal(expected_output)
+  assert my_function("input") == expected_output
 }
 ```
 

@@ -1,5 +1,4 @@
 import gleam/list
-import startest/expect
 import vestibule/config
 import vestibule/error
 import vestibule/registry
@@ -32,8 +31,7 @@ fn test_config() -> config.ClientConfig {
 
 pub fn new_registry_has_no_providers_test() -> Nil {
   let reg = registry.new()
-  registry.providers(reg)
-  |> expect.to_equal([])
+  assert registry.providers(reg) == []
 }
 
 pub fn register_and_get_provider_test() -> Nil {
@@ -43,14 +41,12 @@ pub fn register_and_get_provider_test() -> Nil {
     registry.new()
     |> registry.register(strategy: strategy, config: client_config)
   let assert Ok(#(s, _c)) = registry.get(reg, provider: "github")
-  strategy.provider(s) |> expect.to_equal("github")
+  assert strategy.provider(s) == "github"
 }
 
 pub fn get_unknown_provider_returns_error_test() -> Nil {
   let reg = registry.new()
-  registry.get(reg, provider: "unknown")
-  |> expect.to_be_error()
-  |> expect.to_equal(Nil)
+  assert registry.get(reg, provider: "unknown") == Error(Nil)
 }
 
 pub fn providers_returns_registered_names_test() -> Nil {
@@ -67,9 +63,9 @@ pub fn providers_returns_registered_names_test() -> Nil {
       config: test_config(),
     )
   let names = registry.providers(reg)
-  names |> list.contains("github") |> expect.to_be_true()
-  names |> list.contains("microsoft") |> expect.to_be_true()
-  names |> list.length |> expect.to_equal(2)
+  assert list.contains(names, "github")
+  assert list.contains(names, "microsoft")
+  assert list.length(names) == 2
 }
 
 pub fn register_duplicate_provider_is_rejected_test() -> Nil {
@@ -80,10 +76,12 @@ pub fn register_duplicate_provider_is_rejected_test() -> Nil {
       config: test_config(),
     )
 
-  reg
-  |> registry.register(strategy: test_strategy("github"), config: test_config())
-  |> expect.to_be_error()
-  |> expect.to_equal(registry.DuplicateProvider("github"))
+  assert registry.register(
+      reg,
+      strategy: test_strategy("github"),
+      config: test_config(),
+    )
+    == Error(registry.DuplicateProvider("github"))
 }
 
 pub fn register_duplicate_does_not_replace_trusted_entry_test() -> Nil {
@@ -114,7 +112,7 @@ pub fn register_duplicate_does_not_replace_trusted_entry_test() -> Nil {
     )
 
   let assert Ok(#(_s, c)) = registry.get(reg, provider: "github")
-  config.client_id(c) |> expect.to_equal("trusted_id")
+  assert config.client_id(c) == "trusted_id"
 }
 
 pub fn register_or_replace_overwrites_existing_test() -> Nil {
@@ -142,6 +140,6 @@ pub fn register_or_replace_overwrites_existing_test() -> Nil {
     )
 
   let assert Ok(#(_s, c)) = registry.get(reg, provider: "github")
-  config.client_id(c) |> expect.to_equal("second_id")
-  registry.providers(reg) |> list.length |> expect.to_equal(1)
+  assert config.client_id(c) == "second_id"
+  assert list.length(registry.providers(reg)) == 1
 }

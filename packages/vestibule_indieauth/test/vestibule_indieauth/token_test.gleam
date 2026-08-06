@@ -1,15 +1,9 @@
 import gleam/option.{None, Some}
-import startest
-import startest/expect
 
 import vestibule/credentials
 import vestibule/user_info
 
 import vestibule_indieauth/token
-
-pub fn main() {
-  startest.run(startest.default_config())
-}
 
 // === parse_token_response ===
 
@@ -27,25 +21,15 @@ pub fn parse_token_response_full_test() {
   let result = token.parse_token_response(json)
   let assert Ok(creds) = result
 
-  creds
-  |> credentials.token
-  |> expect.to_equal("XXXXXX")
+  assert credentials.token(creds) == "XXXXXX"
 
-  creds
-  |> credentials.token_type
-  |> expect.to_equal("Bearer")
+  assert credentials.token_type(creds) == "Bearer"
 
-  creds
-  |> credentials.scopes
-  |> expect.to_equal(["profile", "email", "create"])
+  assert credentials.scopes(creds) == ["profile", "email", "create"]
 
-  creds
-  |> credentials.expires_in
-  |> expect.to_equal(Some(3600))
+  assert credentials.expires_in(creds) == Some(3600)
 
-  creds
-  |> credentials.refresh_token
-  |> expect.to_equal(Some("RRRRRR"))
+  assert credentials.refresh_token(creds) == Some("RRRRRR")
 }
 
 pub fn parse_token_response_minimal_test() {
@@ -60,21 +44,13 @@ pub fn parse_token_response_minimal_test() {
   let result = token.parse_token_response(json)
   let assert Ok(creds) = result
 
-  creds
-  |> credentials.token
-  |> expect.to_equal("abc123")
+  assert credentials.token(creds) == "abc123"
 
-  creds
-  |> credentials.scopes
-  |> expect.to_equal(["profile"])
+  assert credentials.scopes(creds) == ["profile"]
 
-  creds
-  |> credentials.expires_in
-  |> expect.to_equal(None)
+  assert credentials.expires_in(creds) == None
 
-  creds
-  |> credentials.refresh_token
-  |> expect.to_equal(None)
+  assert credentials.refresh_token(creds) == None
 }
 
 pub fn parse_token_response_empty_scope_test() {
@@ -88,9 +64,7 @@ pub fn parse_token_response_empty_scope_test() {
   let result = token.parse_token_response(json)
   let assert Ok(creds) = result
 
-  creds
-  |> credentials.scopes
-  |> expect.to_equal([])
+  assert credentials.scopes(creds) == []
 }
 
 pub fn parse_token_response_error_test() {
@@ -100,25 +74,19 @@ pub fn parse_token_response_error_test() {
     \"error_description\": \"The authorization code has expired\"
   }"
 
-  let _ =
-    token.parse_token_response(json)
-    |> expect.to_be_error()
+  let assert Error(_) = token.parse_token_response(json)
   Nil
 }
 
 pub fn parse_token_response_error_no_description_test() {
   let json = "{ \"error\": \"access_denied\" }"
 
-  let _ =
-    token.parse_token_response(json)
-    |> expect.to_be_error()
+  let assert Error(_) = token.parse_token_response(json)
   Nil
 }
 
 pub fn parse_token_response_invalid_json_test() {
-  let _ =
-    token.parse_token_response("not json at all")
-    |> expect.to_be_error()
+  let assert Error(_) = token.parse_token_response("not json at all")
   Nil
 }
 
@@ -142,20 +110,15 @@ pub fn parse_profile_full_test() {
   let result = token.parse_profile_from_token_response(json)
   let assert Ok(profile) = result
 
-  profile.me
-  |> expect.to_equal("https://user.example.net/")
+  assert profile.me == "https://user.example.net/"
 
-  profile.name
-  |> expect.to_equal(Some("Example User"))
+  assert profile.name == Some("Example User")
 
-  profile.url
-  |> expect.to_equal(Some("https://user.example.net/"))
+  assert profile.url == Some("https://user.example.net/")
 
-  profile.photo
-  |> expect.to_equal(Some("https://user.example.net/photo.jpg"))
+  assert profile.photo == Some("https://user.example.net/photo.jpg")
 
-  profile.email
-  |> expect.to_equal(Some("user@example.net"))
+  assert profile.email == Some("user@example.net")
 }
 
 pub fn parse_profile_no_profile_object_test() {
@@ -169,14 +132,11 @@ pub fn parse_profile_no_profile_object_test() {
   let result = token.parse_profile_from_token_response(json)
   let assert Ok(profile) = result
 
-  profile.me
-  |> expect.to_equal("https://user.example.net/")
+  assert profile.me == "https://user.example.net/"
 
-  profile.name
-  |> expect.to_equal(None)
+  assert profile.name == None
 
-  profile.email
-  |> expect.to_equal(None)
+  assert profile.email == None
 }
 
 pub fn parse_profile_partial_test() {
@@ -193,22 +153,17 @@ pub fn parse_profile_partial_test() {
   let result = token.parse_profile_from_token_response(json)
   let assert Ok(profile) = result
 
-  profile.name
-  |> expect.to_equal(Some("Just a Name"))
+  assert profile.name == Some("Just a Name")
 
-  profile.email
-  |> expect.to_equal(None)
+  assert profile.email == None
 
-  profile.photo
-  |> expect.to_equal(None)
+  assert profile.photo == None
 }
 
 pub fn parse_profile_missing_me_test() {
   let json = "{ \"access_token\": \"abc\", \"token_type\": \"Bearer\" }"
 
-  let _ =
-    token.parse_profile_from_token_response(json)
-    |> expect.to_be_error()
+  let assert Error(_) = token.parse_profile_from_token_response(json)
   Nil
 }
 
@@ -227,17 +182,13 @@ pub fn parse_userinfo_full_test() {
   let result = token.parse_userinfo_response(json)
   let assert Ok(#(uid, info)) = result
 
-  uid
-  |> expect.to_equal("https://user.example.net/")
+  assert uid == "https://user.example.net/"
 
-  user_info.name(info)
-  |> expect.to_equal(Some("Example User"))
+  assert user_info.name(info) == Some("Example User")
 
-  user_info.email(info)
-  |> expect.to_equal(Some("user@example.net"))
+  assert user_info.email(info) == Some("user@example.net")
 
-  user_info.image(info)
-  |> expect.to_equal(Some("https://user.example.net/photo.jpg"))
+  assert user_info.image(info) == Some("https://user.example.net/photo.jpg")
 }
 
 pub fn parse_userinfo_minimal_test() {
@@ -246,19 +197,14 @@ pub fn parse_userinfo_minimal_test() {
   let result = token.parse_userinfo_response(json)
   let assert Ok(#(uid, info)) = result
 
-  uid
-  |> expect.to_equal("https://user.example.net/")
+  assert uid == "https://user.example.net/"
 
-  user_info.name(info)
-  |> expect.to_equal(None)
+  assert user_info.name(info) == None
 
-  user_info.email(info)
-  |> expect.to_equal(None)
+  assert user_info.email(info) == None
 }
 
 pub fn parse_userinfo_invalid_json_test() {
-  let _ =
-    token.parse_userinfo_response("bad json")
-    |> expect.to_be_error()
+  let assert Error(_) = token.parse_userinfo_response("bad json")
   Nil
 }

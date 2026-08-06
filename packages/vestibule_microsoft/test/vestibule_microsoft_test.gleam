@@ -1,8 +1,7 @@
 import gleam/bit_array
 import gleam/option.{None, Some}
 import gleam/string
-import startest
-import startest/expect
+import gleeunit
 import vestibule/config
 import vestibule/credentials
 import vestibule/strategy
@@ -10,7 +9,7 @@ import vestibule/user_info
 import vestibule_microsoft
 
 pub fn main() -> Nil {
-  startest.run(startest.default_config())
+  gleeunit.main()
 }
 
 /// Build a minimal unsigned JWT (header.payload.signature) whose payload is the
@@ -24,67 +23,56 @@ fn fake_id_token(payload_json: String) -> String {
 pub fn verify_tenant_match_test() {
   let token =
     fake_id_token("{\"tid\":\"72f988bf-86f1-41af-91ab-2d7cd011db47\"}")
-  let _ =
-    vestibule_microsoft.verify_tenant(
+  assert vestibule_microsoft.verify_tenant(
       expected_tenant: "72f988bf-86f1-41af-91ab-2d7cd011db47",
       id_token: token,
     )
-    |> expect.to_be_ok()
-    |> expect.to_equal("72f988bf-86f1-41af-91ab-2d7cd011db47")
-  Nil
+    == Ok("72f988bf-86f1-41af-91ab-2d7cd011db47")
 }
 
 pub fn verify_tenant_case_insensitive_test() {
   let token =
     fake_id_token("{\"tid\":\"72F988BF-86F1-41AF-91AB-2D7CD011DB47\"}")
-  let _ =
+  let assert Ok(_) =
     vestibule_microsoft.verify_tenant(
       expected_tenant: "72f988bf-86f1-41af-91ab-2d7cd011db47",
       id_token: token,
     )
-    |> expect.to_be_ok()
   Nil
 }
 
 pub fn verify_tenant_mismatch_rejected_test() {
   let token = fake_id_token("{\"tid\":\"other-tenant-guid\"}")
-  let _ =
+  let assert Error(_) =
     vestibule_microsoft.verify_tenant(
       expected_tenant: "expected-tenant-guid",
       id_token: token,
     )
-    |> expect.to_be_error()
   Nil
 }
 
 pub fn verify_tenant_missing_tid_rejected_test() {
   let token = fake_id_token("{\"sub\":\"abc\"}")
-  let _ =
+  let assert Error(_) =
     vestibule_microsoft.verify_tenant(
       expected_tenant: "expected-tenant-guid",
       id_token: token,
     )
-    |> expect.to_be_error()
   Nil
 }
 
 pub fn verify_tenant_malformed_token_rejected_test() {
-  let _ =
+  let assert Error(_) =
     vestibule_microsoft.verify_tenant(
       expected_tenant: "expected-tenant-guid",
       id_token: "not-a-jwt",
     )
-    |> expect.to_be_error()
   Nil
 }
 
 pub fn id_token_tenant_extracts_tid_test() {
   let token = fake_id_token("{\"tid\":\"abc-123\",\"sub\":\"u1\"}")
-  let _ =
-    vestibule_microsoft.id_token_tenant(token)
-    |> expect.to_be_ok()
-    |> expect.to_equal("abc-123")
-  Nil
+  assert vestibule_microsoft.id_token_tenant(token) == Ok("abc-123")
 }
 
 pub fn strategy_for_tenant_authorize_url_uses_tenant_endpoint_test() {
@@ -103,28 +91,20 @@ pub fn strategy_for_tenant_authorize_url_uses_tenant_endpoint_test() {
       scopes: ["openid", "User.Read"],
       state: "state",
     )
-  let _ =
-    {
-      string.contains(url, "login.microsoftonline.com/my-tenant-id/oauth2/v2.0")
-    }
-    |> expect.to_be_true()
-  Nil
+  assert string.contains(
+    url,
+    "login.microsoftonline.com/my-tenant-id/oauth2/v2.0",
+  )
 }
 
 pub fn strategy_for_tenant_default_scopes_include_openid_test() {
   let strat = vestibule_microsoft.strategy_for_tenant("my-tenant-id")
-  let _ =
-    strategy.default_scopes(strat)
-    |> expect.to_equal(["openid", "User.Read"])
-  Nil
+  assert strategy.default_scopes(strat) == ["openid", "User.Read"]
 }
 
 pub fn common_strategy_default_scopes_include_openid_test() {
   let strat = vestibule_microsoft.strategy()
-  let _ =
-    strategy.default_scopes(strat)
-    |> expect.to_equal(["openid", "User.Read"])
-  Nil
+  assert strategy.default_scopes(strat) == ["openid", "User.Read"]
 }
 
 pub fn common_strategy_authorize_url_uses_common_endpoint_test() {
@@ -143,10 +123,7 @@ pub fn common_strategy_authorize_url_uses_common_endpoint_test() {
       scopes: ["User.Read"],
       state: "state",
     )
-  let _ =
-    { string.contains(url, "login.microsoftonline.com/common/oauth2/v2.0") }
-    |> expect.to_be_true()
-  Nil
+  assert string.contains(url, "login.microsoftonline.com/common/oauth2/v2.0")
 }
 
 pub fn custom_scopes_add_openid_for_nonce_test() {
@@ -165,18 +142,15 @@ pub fn custom_scopes_add_openid_for_nonce_test() {
       scopes: ["User.Read"],
       state: "state",
     )
-  let _ = { string.contains(url, "openid") } |> expect.to_be_true()
-  let _ = { string.contains(url, "User.Read") } |> expect.to_be_true()
-  Nil
+  assert string.contains(url, "openid")
+  assert string.contains(url, "User.Read")
 }
 
 pub fn parse_token_response_success_test() {
   let body =
     "{\"token_type\":\"Bearer\",\"scope\":\"User.Read profile openid email\",\"expires_in\":3736,\"ext_expires_in\":3736,\"access_token\":\"eyJ0eXAi_test_token\",\"refresh_token\":\"AwABAAAA_test_refresh\"}"
-  let _ =
-    vestibule_microsoft.parse_token_response(body)
-    |> expect.to_be_ok()
-    |> expect.to_equal(
+  assert vestibule_microsoft.parse_token_response(body)
+    == Ok(
       credentials.new(
         token: "eyJ0eXAi_test_token",
         refresh_token: Some("AwABAAAA_test_refresh"),
@@ -185,16 +159,13 @@ pub fn parse_token_response_success_test() {
         scopes: ["User.Read", "profile", "openid", "email"],
       ),
     )
-  Nil
 }
 
 pub fn parse_token_response_without_refresh_token_test() {
   let body =
     "{\"token_type\":\"Bearer\",\"scope\":\"User.Read\",\"expires_in\":3600,\"access_token\":\"test_token\"}"
-  let _ =
-    vestibule_microsoft.parse_token_response(body)
-    |> expect.to_be_ok()
-    |> expect.to_equal(
+  assert vestibule_microsoft.parse_token_response(body)
+    == Ok(
       credentials.new(
         token: "test_token",
         refresh_token: None,
@@ -203,23 +174,19 @@ pub fn parse_token_response_without_refresh_token_test() {
         scopes: ["User.Read"],
       ),
     )
-  Nil
 }
 
 pub fn parse_token_response_empty_scope_test() {
   let body =
     "{\"token_type\":\"Bearer\",\"scope\":\"\",\"expires_in\":3600,\"access_token\":\"test_token\"}"
   let assert Ok(creds) = vestibule_microsoft.parse_token_response(body)
-  let _ = credentials.scopes(creds) |> expect.to_equal([])
-  Nil
+  assert credentials.scopes(creds) == []
 }
 
 pub fn parse_token_response_error_test() {
   let body =
     "{\"error\":\"invalid_grant\",\"error_description\":\"AADSTS70000: The provided value for the input parameter 'code' is not valid.\"}"
-  let _ =
-    vestibule_microsoft.parse_token_response(body)
-    |> expect.to_be_error()
+  let assert Error(_) = vestibule_microsoft.parse_token_response(body)
   Nil
 }
 
@@ -227,37 +194,33 @@ pub fn parse_user_response_full_test() {
   let body =
     "{\"id\":\"87d349ed-44d7-43e1-9a83-5f2406dee5bd\",\"displayName\":\"Adele Vance\",\"mail\":\"AdeleV@contoso.com\",\"userPrincipalName\":\"AdeleV@contoso.com\",\"jobTitle\":\"Retail Manager\"}"
   let assert Ok(#(uid, info)) = vestibule_microsoft.parse_user_response(body)
-  let _ = uid |> expect.to_equal("87d349ed-44d7-43e1-9a83-5f2406dee5bd")
-  let _ = user_info.name(info) |> expect.to_equal(Some("Adele Vance"))
-  let _ = user_info.email(info) |> expect.to_equal(Some("AdeleV@contoso.com"))
-  let _ =
-    user_info.nickname(info) |> expect.to_equal(Some("AdeleV@contoso.com"))
-  let _ = user_info.description(info) |> expect.to_equal(Some("Retail Manager"))
+  assert uid == "87d349ed-44d7-43e1-9a83-5f2406dee5bd"
+  assert user_info.name(info) == Some("Adele Vance")
+  assert user_info.email(info) == Some("AdeleV@contoso.com")
+  assert user_info.nickname(info) == Some("AdeleV@contoso.com")
+  assert user_info.description(info) == Some("Retail Manager")
   // Microsoft Graph doesn't provide a direct image URL
-  let _ = user_info.image(info) |> expect.to_equal(None)
-  Nil
+  assert user_info.image(info) == None
 }
 
 pub fn parse_user_response_minimal_test() {
   let body = "{\"id\":\"abc-123\",\"userPrincipalName\":\"user@example.com\"}"
   let assert Ok(#(uid, info)) = vestibule_microsoft.parse_user_response(body)
-  let _ = uid |> expect.to_equal("abc-123")
-  let _ = user_info.name(info) |> expect.to_equal(None)
+  assert uid == "abc-123"
+  assert user_info.name(info) == None
   // UPN is not a verified email, so email should be None
-  let _ = user_info.email(info) |> expect.to_equal(None)
-  let _ = user_info.nickname(info) |> expect.to_equal(Some("user@example.com"))
-  let _ = user_info.description(info) |> expect.to_equal(None)
+  assert user_info.email(info) == None
+  assert user_info.nickname(info) == Some("user@example.com")
+  assert user_info.description(info) == None
   // No gravatar when no verified email
-  let _ = user_info.image(info) |> expect.to_equal(None)
-  Nil
+  assert user_info.image(info) == None
 }
 
 pub fn parse_user_response_mail_preferred_over_upn_test() {
   let body =
     "{\"id\":\"abc\",\"mail\":\"real@example.com\",\"userPrincipalName\":\"upn@example.com\"}"
   let assert Ok(#(_uid, info)) = vestibule_microsoft.parse_user_response(body)
-  let _ = user_info.email(info) |> expect.to_equal(Some("real@example.com"))
-  Nil
+  assert user_info.email(info) == Some("real@example.com")
 }
 
 pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
@@ -268,7 +231,7 @@ pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
       redirect_uri: "not a uri",
       auth: config.ClientSecret("secret"),
     )
-  let _ =
+  let assert Error(_) =
     strategy.build_authorize_url(
       strat,
       config: conf,
@@ -276,7 +239,6 @@ pub fn authorize_url_invalid_redirect_uri_returns_error_test() {
       scopes: ["User.Read"],
       state: "state",
     )
-    |> expect.to_be_error()
   Nil
 }
 
@@ -299,7 +261,5 @@ pub fn authorize_url_includes_extra_params_test() {
       scopes: ["User.Read"],
       state: "state",
     )
-  let _ =
-    { string.contains(url, "prompt=select_account") } |> expect.to_be_true()
-  Nil
+  assert string.contains(url, "prompt=select_account")
 }

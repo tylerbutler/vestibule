@@ -1,6 +1,5 @@
 import gleam/dict
 import gleam/string
-import startest/expect
 import vestibule/config
 import vestibule/error
 import vestibule/registry
@@ -51,7 +50,5 @@ pub fn start_authorization_threads_custom_options_to_strategy_test() -> Nil {
       options: options,
     )
 
-  url
-  |> string.contains("prompt=consent")
-  |> expect.to_be_true()
+  assert string.contains(url, "prompt=consent")
 }

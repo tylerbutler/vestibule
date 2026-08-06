@@ -1,0 +1,3 @@
+package = "vestibule_oidc"
+kind = "Dependencies"
+body = "Switch test framework from startest to gleeunit"

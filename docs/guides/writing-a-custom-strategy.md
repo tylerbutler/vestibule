@@ -215,7 +215,7 @@ name = "vestibule_twitch"
 version = "0.1.0"
 description = "Twitch OAuth strategy for vestibule"
 licences = ["MIT"]
-gleam = ">= 1.7.0"
+gleam = ">= 1.11.0"
 
 [dependencies]
 vestibule = ">= 1.0.0 and < 2.0.0"
@@ -226,7 +226,7 @@ gleam_json = ">= 3.1.0 and < 4.0.0"
 glow_auth = ">= 1.0.1 and < 2.0.0"
 
 [dev-dependencies]
-startest = ">= 0.8.0 and < 1.0.0"
+gleeunit = ">= 1.6.0 and < 2.0.0"
 ```
 
 Create `src/vestibule_twitch.gleam` -- this single module will hold the entire strategy.
@@ -843,38 +843,32 @@ Here is a complete test file for the Twitch strategy:
 ```gleam
 import gleam/dict
 import gleam/option.{None, Some}
-import startest
-import startest/expect
+import gleeunit
 import vestibule/credentials
 import vestibule/user_info as ui
 import vestibule_twitch
 
 pub fn main() -> Nil {
-  startest.run(startest.default_config())
+  gleeunit.main()
 }
 
 pub fn parse_token_response_success_test() {
   let body =
     "{\"access_token\":\"cfabdegwdoklmawdzdo98xt2fo512y\",\"expires_in\":14346,\"refresh_token\":\"eyJfMzUtNDU0OC04MWYwLTQ5MDY5ODY4NGNlMSJ9\",\"scope\":[\"user:read:email\"],\"token_type\":\"bearer\"}"
-  vestibule_twitch.parse_token_response(body)
-  |> expect.to_be_ok()
-  |> expect.to_equal(
-    credentials.new(
+  assert vestibule_twitch.parse_token_response(body)
+    == Ok(credentials.new(
       token: "cfabdegwdoklmawdzdo98xt2fo512y",
       refresh_token: Some("eyJfMzUtNDU0OC04MWYwLTQ5MDY5ODY4NGNlMSJ9"),
       token_type: "bearer",
       expires_in: Some(14346),
       scopes: ["user:read:email"],
-    ),
-  )
+    ))
 }
 
 pub fn parse_token_response_error_test() {
   let body =
     "{\"error\":\"Unauthorized\",\"message\":\"Invalid authorization code\"}"
-  let _ =
-    vestibule_twitch.parse_token_response(body)
-    |> expect.to_be_error()
+  let assert Error(_) = vestibule_twitch.parse_token_response(body)
   Nil
 }
 
@@ -882,27 +876,25 @@ pub fn parse_user_response_full_test() {
   let body =
     "{\"data\":[{\"id\":\"44322889\",\"login\":\"dallas\",\"display_name\":\"dallas\",\"profile_image_url\":\"https://static-cdn.jtvnw.net/jtv_user_pictures/dallas-profile.png\",\"description\":\"Just a chill streamer\",\"email\":\"dallas@example.com\"}]}"
   let assert Ok(#(uid, info)) = vestibule_twitch.parse_user_response(body)
-  uid |> expect.to_equal("44322889")
-  ui.name(info) |> expect.to_equal(Some("dallas"))
-  ui.nickname(info) |> expect.to_equal(Some("dallas"))
-  ui.email(info) |> expect.to_equal(Some("dallas@example.com"))
-  ui.image(info)
-  |> expect.to_equal(
-    Some("https://static-cdn.jtvnw.net/jtv_user_pictures/dallas-profile.png"),
-  )
-  ui.description(info) |> expect.to_equal(Some("Just a chill streamer"))
-  ui.urls(info)
-  |> expect.to_equal(dict.from_list([#("twitch_url", "https://twitch.tv/dallas")]))
+  assert uid == "44322889"
+  assert ui.name(info) == Some("dallas")
+  assert ui.nickname(info) == Some("dallas")
+  assert ui.email(info) == Some("dallas@example.com")
+  assert ui.image(info)
+    == Some("https://static-cdn.jtvnw.net/jtv_user_pictures/dallas-profile.png")
+  assert ui.description(info) == Some("Just a chill streamer")
+  assert ui.urls(info)
+    == dict.from_list([#("twitch_url", "https://twitch.tv/dallas")])
 }
 
 pub fn parse_user_response_minimal_test() {
   let body =
     "{\"data\":[{\"id\":\"12345\",\"login\":\"testuser\"}]}"
   let assert Ok(#(uid, info)) = vestibule_twitch.parse_user_response(body)
-  uid |> expect.to_equal("12345")
-  ui.name(info) |> expect.to_equal(None)
-  ui.email(info) |> expect.to_equal(None)
-  ui.nickname(info) |> expect.to_equal(Some("testuser"))
+  assert uid == "12345"
+  assert ui.name(info) == None
+  assert ui.email(info) == None
+  assert ui.nickname(info) == Some("testuser")
 }
 ```
 

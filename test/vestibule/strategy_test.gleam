@@ -1,25 +1,25 @@
 import gleam/http/request
 import gleam/option
-import startest/expect
 import vestibule/config
 import vestibule/credentials
 import vestibule/error
 import vestibule/strategy
 
 pub fn authorization_header_accepts_mixed_case_bearer_test() -> Nil {
-  credentials.new(
-    token: "abc",
-    refresh_token: option.None,
-    token_type: "BeArEr",
-    expires_in: option.None,
-    scopes: [],
-  )
-  |> strategy.authorization_header()
-  |> expect.to_equal(Ok("Bearer abc"))
+  let header =
+    credentials.new(
+      token: "abc",
+      refresh_token: option.None,
+      token_type: "BeArEr",
+      expires_in: option.None,
+      scopes: [],
+    )
+    |> strategy.authorization_header()
+  assert header == Ok("Bearer abc")
 }
 
 pub fn authorization_header_rejects_unsupported_token_type_test() -> Nil {
-  let _ =
+  let assert Error(_) =
     credentials.new(
       token: "abc",
       refresh_token: option.None,
@@ -28,48 +28,47 @@ pub fn authorization_header_rejects_unsupported_token_type_test() -> Nil {
       scopes: [],
     )
     |> strategy.authorization_header()
-    |> expect.to_be_error()
   Nil
 }
 
 pub fn append_code_verifier_appends_to_empty_body_test() -> Nil {
   let assert Ok(req) = request.to("https://example.com/token")
 
-  req
-  |> request.set_body("")
-  |> strategy.append_code_verifier(option.Some("verifier"))
-  |> fn(req) { req.body }
-  |> expect.to_equal("code_verifier=verifier")
+  let req =
+    req
+    |> request.set_body("")
+    |> strategy.append_code_verifier(option.Some("verifier"))
+  assert req.body == "code_verifier=verifier"
 }
 
 pub fn append_code_verifier_appends_to_existing_body_test() -> Nil {
   let assert Ok(req) = request.to("https://example.com/token")
 
-  req
-  |> request.set_body("grant_type=authorization_code")
-  |> strategy.append_code_verifier(option.Some("verifier"))
-  |> fn(req) { req.body }
-  |> expect.to_equal("grant_type=authorization_code&code_verifier=verifier")
+  let req =
+    req
+    |> request.set_body("grant_type=authorization_code")
+    |> strategy.append_code_verifier(option.Some("verifier"))
+  assert req.body == "grant_type=authorization_code&code_verifier=verifier"
 }
 
 pub fn append_code_verifier_encodes_special_chars_test() -> Nil {
   let assert Ok(req) = request.to("https://example.com/token")
 
-  req
-  |> request.set_body("grant_type=authorization_code")
-  |> strategy.append_code_verifier(option.Some("a+b/c="))
-  |> fn(req) { req.body }
-  |> expect.to_equal("grant_type=authorization_code&code_verifier=a%2Bb%2Fc%3D")
+  let req =
+    req
+    |> request.set_body("grant_type=authorization_code")
+    |> strategy.append_code_verifier(option.Some("a+b/c="))
+  assert req.body == "grant_type=authorization_code&code_verifier=a%2Bb%2Fc%3D"
 }
 
 pub fn append_code_verifier_none_preserves_body_test() -> Nil {
   let assert Ok(req) = request.to("https://example.com/token")
 
-  req
-  |> request.set_body("grant_type=authorization_code")
-  |> strategy.append_code_verifier(option.None)
-  |> fn(req) { req.body }
-  |> expect.to_equal("grant_type=authorization_code")
+  let req =
+    req
+    |> request.set_body("grant_type=authorization_code")
+    |> strategy.append_code_verifier(option.None)
+  assert req.body == "grant_type=authorization_code"
 }
 
 pub fn credentials_accessors_return_token_fields_test() -> Nil {
@@ -82,13 +81,12 @@ pub fn credentials_accessors_return_token_fields_test() -> Nil {
       scopes: ["read:user"],
     )
 
-  credentials.token(oauth_credentials) |> expect.to_equal("access-token")
-  credentials.refresh_token(oauth_credentials)
-  |> expect.to_equal(option.Some("refresh-token"))
-  credentials.token_type(oauth_credentials) |> expect.to_equal("Bearer")
-  credentials.expires_in(oauth_credentials)
-  |> expect.to_equal(option.Some(3600))
-  credentials.scopes(oauth_credentials) |> expect.to_equal(["read:user"])
+  assert credentials.token(oauth_credentials) == "access-token"
+  assert credentials.refresh_token(oauth_credentials)
+    == option.Some("refresh-token")
+  assert credentials.token_type(oauth_credentials) == "Bearer"
+  assert credentials.expires_in(oauth_credentials) == option.Some(3600)
+  assert credentials.scopes(oauth_credentials) == ["read:user"]
 }
 
 fn test_config() -> config.ClientConfig {
@@ -116,9 +114,10 @@ fn bare_strategy(provider: String) -> strategy.Strategy(e) {
 }
 
 pub fn refresh_token_unset_returns_refresh_unsupported_test() -> Nil {
-  bare_strategy("no-refresh")
-  |> strategy.refresh_token(config: test_config(), refresh_token: "tok")
-  |> expect.to_equal(Error(error.refresh_unsupported()))
+  let result =
+    bare_strategy("no-refresh")
+    |> strategy.refresh_token(config: test_config(), refresh_token: "tok")
+  assert result == Error(error.refresh_unsupported())
 }
 
 pub fn with_refresh_makes_refresh_supported_test() -> Nil {
@@ -131,21 +130,22 @@ pub fn with_refresh_makes_refresh_supported_test() -> Nil {
       scopes: [],
     )
 
-  bare_strategy("has-refresh")
-  |> strategy.with_refresh(fn(_client_config, _token) { Ok(oauth_credentials) })
-  |> strategy.refresh_token(config: test_config(), refresh_token: "tok")
-  |> expect.to_equal(Ok(oauth_credentials))
+  let result =
+    bare_strategy("has-refresh")
+    |> strategy.with_refresh(fn(_client_config, _token) {
+      Ok(oauth_credentials)
+    })
+    |> strategy.refresh_token(config: test_config(), refresh_token: "tok")
+  assert result == Ok(oauth_credentials)
 }
 
 pub fn with_nonce_enables_uses_nonce_test() -> Nil {
-  bare_strategy("oidc")
-  |> strategy.with_nonce()
-  |> strategy.uses_nonce()
-  |> expect.to_be_true()
+  let oidc =
+    bare_strategy("oidc")
+    |> strategy.with_nonce()
+  assert strategy.uses_nonce(oidc)
 }
 
 pub fn new_defaults_uses_nonce_to_false_test() -> Nil {
-  bare_strategy("plain")
-  |> strategy.uses_nonce()
-  |> expect.to_be_false()
+  assert !strategy.uses_nonce(bare_strategy("plain"))
 }

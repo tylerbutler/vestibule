@@ -1,6 +1,5 @@
 import gleam/dict
 import gleam/string
-import startest/expect
 import vestibule/config
 import vestibule/error
 
@@ -12,9 +11,9 @@ pub fn new_creates_client_config_test() -> Nil {
       auth: config.ClientSecret("secret"),
     )
 
-  config.client_id(c) |> expect.to_equal("id")
-  config.redirect_uri(c) |> expect.to_equal("http://localhost/callback")
-  config.client_auth(c) |> expect.to_equal(config.ClientSecret("secret"))
+  assert config.client_id(c) == "id"
+  assert config.redirect_uri(c) == "http://localhost/callback"
+  assert config.client_auth(c) == config.ClientSecret("secret")
 }
 
 pub fn client_secret_returns_secret_for_secret_auth_test() -> Nil {
@@ -25,7 +24,7 @@ pub fn client_secret_returns_secret_for_secret_auth_test() -> Nil {
       auth: config.ClientSecret("secret"),
     )
 
-  config.client_secret(c) |> expect.to_equal(Ok("secret"))
+  assert config.client_secret(c) == Ok("secret")
 }
 
 pub fn client_secret_rejects_assertion_auth_test() -> Nil {
@@ -38,11 +37,9 @@ pub fn client_secret_rejects_assertion_auth_test() -> Nil {
 
   case config.client_secret(c) {
     Error(err) -> {
-      error.kind(err) |> expect.to_equal(error.ConfigKind)
-      error.message(err)
-      |> expect.to_equal(
-        "Invalid configuration: Client authentication does not provide a client_secret",
-      )
+      assert error.kind(err) == error.ConfigKind
+      assert error.message(err)
+        == "Invalid configuration: Client authentication does not provide a client_secret"
     }
     _ -> panic as "expected ConfigError for client assertion"
   }
@@ -58,11 +55,9 @@ pub fn client_secret_rejects_public_client_test() -> Nil {
 
   case config.client_secret(c) {
     Error(err) -> {
-      error.kind(err) |> expect.to_equal(error.ConfigKind)
-      error.message(err)
-      |> expect.to_equal(
-        "Invalid configuration: Client authentication does not provide a client_secret",
-      )
+      assert error.kind(err) == error.ConfigKind
+      assert error.message(err)
+        == "Invalid configuration: Client authentication does not provide a client_secret"
     }
     _ -> panic as "expected ConfigError for public client"
   }
@@ -71,8 +66,8 @@ pub fn client_secret_rejects_public_client_test() -> Nil {
 pub fn authorize_options_start_empty_test() -> Nil {
   let options = config.authorize_options()
 
-  config.scopes(options) |> expect.to_equal([])
-  config.extra_params(options) |> expect.to_equal(dict.new())
+  assert config.scopes(options) == []
+  assert config.extra_params(options) == dict.new()
 }
 
 pub fn with_scopes_replaces_authorize_option_scopes_test() -> Nil {
@@ -81,7 +76,7 @@ pub fn with_scopes_replaces_authorize_option_scopes_test() -> Nil {
     |> config.with_scopes(["user:email", "read:org"])
     |> config.with_scopes(["profile"])
 
-  config.scopes(options) |> expect.to_equal(["profile"])
+  assert config.scopes(options) == ["profile"]
 }
 
 pub fn with_extra_params_adds_authorize_option_params_test() -> Nil {
@@ -89,8 +84,8 @@ pub fn with_extra_params_adds_authorize_option_params_test() -> Nil {
     config.authorize_options()
     |> config.with_extra_params([#("allow_signup", "false")])
 
-  config.extra_params(options)
-  |> expect.to_equal(dict.from_list([#("allow_signup", "false")]))
+  assert config.extra_params(options)
+    == dict.from_list([#("allow_signup", "false")])
 }
 
 pub fn with_extra_params_merges_across_calls_test() -> Nil {
@@ -101,14 +96,12 @@ pub fn with_extra_params_merges_across_calls_test() -> Nil {
     options
     |> config.with_extra_params([#("login", "b"), #("prompt", "consent")])
 
-  config.extra_params(options)
-  |> expect.to_equal(
-    dict.from_list([
+  assert config.extra_params(options)
+    == dict.from_list([
       #("allow_signup", "false"),
       #("login", "b"),
       #("prompt", "consent"),
-    ]),
-  )
+    ])
 }
 
 pub fn with_extra_params_rejects_reserved_authorization_params_test() -> Nil {
@@ -130,12 +123,11 @@ fn assert_reserved_param_rejected(param: String) -> Nil {
 
   case result {
     Error(err) -> {
-      error.kind(err) |> expect.to_equal(error.ConfigKind)
-      error.message(err)
-      |> string.contains(
+      assert error.kind(err) == error.ConfigKind
+      assert string.contains(
+        error.message(err),
         "Reserved authorization parameter not allowed: " <> param,
       )
-      |> expect.to_be_true()
     }
     _ -> panic as "expected ConfigError for reserved authorization parameter"
   }

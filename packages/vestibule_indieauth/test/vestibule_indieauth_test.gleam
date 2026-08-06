@@ -1,7 +1,6 @@
 import gleam/option.{None}
 import gleam/string
-import startest
-import startest/expect
+import gleeunit
 import vestibule/config
 import vestibule/error
 import vestibule/strategy
@@ -9,7 +8,7 @@ import vestibule_indieauth
 import vestibule_indieauth/discovery.{DiscoveredEndpoints}
 
 pub fn main() {
-  startest.run(startest.default_config())
+  gleeunit.main()
 }
 
 pub fn authorize_url_includes_extra_params_test() {
@@ -40,7 +39,7 @@ pub fn authorize_url_includes_extra_params_test() {
       state: "state",
     )
 
-  string.contains(url, "prompt=login") |> expect.to_be_true()
+  assert string.contains(url, "prompt=login")
 }
 
 pub fn authorize_url_rejects_me_extra_param_test() {
@@ -73,10 +72,11 @@ pub fn authorize_url_rejects_me_extra_param_test() {
 
   case result {
     Error(err) -> {
-      error.kind(err) |> expect.to_equal(error.ConfigKind)
-      error.message(err)
-      |> string.contains("Reserved authorization parameter not allowed: me")
-      |> expect.to_be_true()
+      assert error.kind(err) == error.ConfigKind
+      assert string.contains(
+        error.message(err),
+        "Reserved authorization parameter not allowed: me",
+      )
     }
     _ -> panic as "expected ConfigError for reserved IndieAuth me parameter"
   }

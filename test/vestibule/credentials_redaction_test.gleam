@@ -5,7 +5,6 @@
 import gleam/dict
 import gleam/option.{None, Some}
 import gleam/string
-import startest/expect
 import vestibule/auth
 import vestibule/credentials
 import vestibule/user_info
@@ -27,8 +26,8 @@ fn sample_credentials() -> credentials.Credentials {
 pub fn inspect_credentials_does_not_leak_tokens_test() -> Nil {
   let rendered = string.inspect(sample_credentials())
 
-  string.contains(rendered, access_token) |> expect.to_be_false()
-  string.contains(rendered, refresh_secret) |> expect.to_be_false()
+  assert !string.contains(rendered, access_token)
+  assert !string.contains(rendered, refresh_secret)
 }
 
 pub fn inspect_auth_does_not_leak_tokens_test() -> Nil {
@@ -43,16 +42,15 @@ pub fn inspect_auth_does_not_leak_tokens_test() -> Nil {
 
   let rendered = string.inspect(result)
 
-  string.contains(rendered, access_token) |> expect.to_be_false()
-  string.contains(rendered, refresh_secret) |> expect.to_be_false()
+  assert !string.contains(rendered, access_token)
+  assert !string.contains(rendered, refresh_secret)
 }
 
 pub fn accessors_still_expose_raw_tokens_test() -> Nil {
   let oauth_credentials = sample_credentials()
 
-  credentials.token(oauth_credentials) |> expect.to_equal(access_token)
-  credentials.refresh_token(oauth_credentials)
-  |> expect.to_equal(Some(refresh_secret))
+  assert credentials.token(oauth_credentials) == access_token
+  assert credentials.refresh_token(oauth_credentials) == Some(refresh_secret)
 }
 
 pub fn credentials_without_refresh_token_inspects_cleanly_test() -> Nil {
@@ -65,9 +63,7 @@ pub fn credentials_without_refresh_token_inspects_cleanly_test() -> Nil {
       scopes: [],
     )
 
-  string.inspect(oauth_credentials)
-  |> string.contains(access_token)
-  |> expect.to_be_false()
+  assert !string.contains(string.inspect(oauth_credentials), access_token)
 
-  credentials.refresh_token(oauth_credentials) |> expect.to_equal(None)
+  assert credentials.refresh_token(oauth_credentials) == None
 }

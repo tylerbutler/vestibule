@@ -7,7 +7,6 @@ import gleam/dict
 import gleam/option.{None, Some}
 import gleam/set
 import gleam/string
-import startest/expect
 import vestibule
 import vestibule/authorization_request
 import vestibule/config
@@ -71,14 +70,14 @@ fn test_strategy() -> Strategy(e) {
 
 /// Security: empty state values must always be rejected.
 pub fn state_validate_rejects_both_empty_test() -> Nil {
-  state.validate(received: "", expected: "")
-  |> expect.to_equal(Error(error.state_mismatch()))
+  assert state.validate(received: "", expected: "")
+    == Error(error.state_mismatch())
 }
 
 /// Security: whitespace-only state values must be rejected.
 pub fn state_validate_rejects_whitespace_only_test() -> Nil {
-  state.validate(received: "   ", expected: "   ")
-  |> expect.to_equal(Error(error.state_mismatch()))
+  assert state.validate(received: "   ", expected: "   ")
+    == Error(error.state_mismatch())
 }
 
 /// Security: generated states must have sufficient entropy.
@@ -86,7 +85,7 @@ pub fn state_validate_rejects_whitespace_only_test() -> Nil {
 pub fn state_generation_entropy_is_sufficient_test() -> Nil {
   let s = state.generate()
   // Must be at least 43 chars (256 bits base64url-encoded)
-  { string.length(s) >= 43 } |> expect.to_be_true()
+  assert string.length(s) >= 43
 }
 
 /// Security: state tokens must be unique across generations.
@@ -105,7 +104,7 @@ pub fn state_generation_produces_unique_values_test() -> Nil {
     state.generate(),
   ]
   // All 10 should be unique
-  unique_count(states) |> expect.to_equal(10)
+  assert unique_count(states) == 10
 }
 
 /// Security: near-miss states must be rejected.
@@ -115,16 +114,16 @@ pub fn state_validate_rejects_near_miss_test() -> Nil {
   // Flip the last character
   let prefix = string.drop_end(s, 1)
   let tampered = prefix <> "X"
-  state.validate(received: tampered, expected: s)
-  |> expect.to_equal(Error(error.state_mismatch()))
+  assert state.validate(received: tampered, expected: s)
+    == Error(error.state_mismatch())
 }
 
 /// Security: swapped state values must be rejected.
 pub fn state_validate_rejects_swapped_values_test() -> Nil {
   let a = state.generate()
   let b = state.generate()
-  state.validate(received: a, expected: b)
-  |> expect.to_equal(Error(error.state_mismatch()))
+  assert state.validate(received: a, expected: b)
+    == Error(error.state_mismatch())
 }
 
 // ===========================================================================
@@ -135,18 +134,18 @@ pub fn state_validate_rejects_swapped_values_test() -> Nil {
 /// No +, /, or = padding (RFC 7636 Section 4.1).
 pub fn pkce_verifier_uses_url_safe_chars_only_test() -> Nil {
   let verifier = pkce.generate_verifier()
-  { string.contains(verifier, "+") } |> expect.to_be_false()
-  { string.contains(verifier, "/") } |> expect.to_be_false()
-  { string.contains(verifier, "=") } |> expect.to_be_false()
+  assert !string.contains(verifier, "+")
+  assert !string.contains(verifier, "/")
+  assert !string.contains(verifier, "=")
 }
 
 /// Security: PKCE challenge must use URL-safe base64 characters only.
 pub fn pkce_challenge_uses_url_safe_chars_only_test() -> Nil {
   let verifier = pkce.generate_verifier()
   let challenge = pkce.compute_challenge(verifier)
-  { string.contains(challenge, "+") } |> expect.to_be_false()
-  { string.contains(challenge, "/") } |> expect.to_be_false()
-  { string.contains(challenge, "=") } |> expect.to_be_false()
+  assert !string.contains(challenge, "+")
+  assert !string.contains(challenge, "/")
+  assert !string.contains(challenge, "=")
 }
 
 /// Security: PKCE verifiers must be unique (CSPRNG).
@@ -158,7 +157,7 @@ pub fn pkce_verifiers_are_unique_test() -> Nil {
     pkce.generate_verifier(),
     pkce.generate_verifier(),
   ]
-  unique_count(verifiers) |> expect.to_equal(5)
+  assert unique_count(verifiers) == 5
 }
 
 /// Security: different verifiers must produce different challenges.
@@ -166,7 +165,7 @@ pub fn pkce_verifiers_are_unique_test() -> Nil {
 pub fn pkce_different_verifiers_produce_different_challenges_test() -> Nil {
   let c1 = pkce.generate_verifier() |> pkce.compute_challenge()
   let c2 = pkce.generate_verifier() |> pkce.compute_challenge()
-  { c1 != c2 } |> expect.to_be_true()
+  assert c1 != c2
 }
 
 // ===========================================================================
@@ -190,8 +189,8 @@ pub fn create_authorization_request_always_includes_pkce_test() -> Nil {
       options: config.authorize_options(),
     )
   let url = authorization_request.url(auth_req)
-  { string.contains(url, "code_challenge=") } |> expect.to_be_true()
-  { string.contains(url, "code_challenge_method=S256") } |> expect.to_be_true()
+  assert string.contains(url, "code_challenge=")
+  assert string.contains(url, "code_challenge_method=S256")
 }
 
 /// Security: create_authorization_request state and verifier must differ on each call.
@@ -215,13 +214,9 @@ pub fn create_authorization_request_produces_fresh_state_and_verifier_test() -> 
       config: client_config,
       options: config.authorize_options(),
     )
-  { authorization_request.state(req1) != authorization_request.state(req2) }
-  |> expect.to_be_true()
-  {
-    authorization_request.code_verifier(req1)
+  assert authorization_request.state(req1) != authorization_request.state(req2)
+  assert authorization_request.code_verifier(req1)
     != authorization_request.code_verifier(req2)
-  }
-  |> expect.to_be_true()
 }
 
 // ===========================================================================
@@ -240,15 +235,16 @@ pub fn callback_rejects_state_mismatch_test() -> Nil {
     )
   let params =
     dict.from_list([#("code", "valid_code"), #("state", "attacker_state")])
-  vestibule.handle_callback(
-    strategy,
-    config: client_config,
-    callback_params: params,
-    expected_state: "real_state",
-    code_verifier: "verifier",
-    expected_nonce: None,
-  )
-  |> expect.to_equal(Error(error.state_mismatch()))
+  let result =
+    vestibule.handle_callback(
+      strategy,
+      config: client_config,
+      callback_params: params,
+      expected_state: "real_state",
+      code_verifier: "verifier",
+      expected_nonce: None,
+    )
+  assert result == Error(error.state_mismatch())
 }
 
 /// Security: missing state parameter must be rejected.
@@ -261,15 +257,16 @@ pub fn callback_rejects_missing_state_test() -> Nil {
       redirect_uri: "https://localhost/cb",
     )
   let params = dict.from_list([#("code", "valid_code")])
-  vestibule.handle_callback(
-    strategy,
-    config: client_config,
-    callback_params: params,
-    expected_state: "expected",
-    code_verifier: "verifier",
-    expected_nonce: None,
-  )
-  |> expect.to_equal(Error(error.missing_callback_param("state")))
+  let result =
+    vestibule.handle_callback(
+      strategy,
+      config: client_config,
+      callback_params: params,
+      expected_state: "expected",
+      code_verifier: "verifier",
+      expected_nonce: None,
+    )
+  assert result == Error(error.missing_callback_param("state"))
 }
 
 /// Security: empty callback params must be rejected.
@@ -281,15 +278,16 @@ pub fn callback_rejects_empty_params_test() -> Nil {
       auth: config.ClientSecret("secret"),
       redirect_uri: "https://localhost/cb",
     )
-  vestibule.handle_callback(
-    strategy,
-    config: client_config,
-    callback_params: dict.new(),
-    expected_state: "expected",
-    code_verifier: "verifier",
-    expected_nonce: None,
-  )
-  |> expect.to_equal(Error(error.missing_callback_param("state")))
+  let result =
+    vestibule.handle_callback(
+      strategy,
+      config: client_config,
+      callback_params: dict.new(),
+      expected_state: "expected",
+      code_verifier: "verifier",
+      expected_nonce: None,
+    )
+  assert result == Error(error.missing_callback_param("state"))
 }
 
 /// Security: provider error responses must be detected.
@@ -310,20 +308,21 @@ pub fn callback_detects_provider_error_test() -> Nil {
       #("error", "access_denied"),
       #("error_description", "User denied access"),
     ])
-  vestibule.handle_callback(
-    strategy,
-    config: client_config,
-    callback_params: params,
-    expected_state: state_val,
-    code_verifier: "verifier",
-    expected_nonce: None,
-  )
-  |> expect.to_be_error()
-  |> expect.to_equal(error.provider(
-    code: "access_denied",
-    description: "User denied access",
-    uri: None,
-  ))
+  let result =
+    vestibule.handle_callback(
+      strategy,
+      config: client_config,
+      callback_params: params,
+      expected_state: state_val,
+      code_verifier: "verifier",
+      expected_nonce: None,
+    )
+  assert result
+    == Error(error.provider(
+      code: "access_denied",
+      description: "User denied access",
+      uri: None,
+    ))
 }
 
 pub fn callback_preserves_provider_error_uri_test() -> Nil {
@@ -342,20 +341,21 @@ pub fn callback_preserves_provider_error_uri_test() -> Nil {
       #("error_description", "User denied access"),
       #("error_uri", "https://example.com/access-denied"),
     ])
-  vestibule.handle_callback(
-    strategy,
-    config: client_config,
-    callback_params: params,
-    expected_state: state_val,
-    code_verifier: "verifier",
-    expected_nonce: None,
-  )
-  |> expect.to_be_error()
-  |> expect.to_equal(error.provider(
-    code: "access_denied",
-    description: "User denied access",
-    uri: Some("https://example.com/access-denied"),
-  ))
+  let result =
+    vestibule.handle_callback(
+      strategy,
+      config: client_config,
+      callback_params: params,
+      expected_state: state_val,
+      code_verifier: "verifier",
+      expected_nonce: None,
+    )
+  assert result
+    == Error(error.provider(
+      code: "access_denied",
+      description: "User denied access",
+      uri: Some("https://example.com/access-denied"),
+    ))
 }
 
 /// Security: state validation must happen before provider errors are surfaced.
@@ -373,15 +373,16 @@ pub fn callback_rejects_provider_error_when_state_mismatch_test() -> Nil {
       #("error", "access_denied"),
       #("error_description", "User denied access"),
     ])
-  vestibule.handle_callback(
-    strategy,
-    config: client_config,
-    callback_params: params,
-    expected_state: "expected_state",
-    code_verifier: "verifier",
-    expected_nonce: None,
-  )
-  |> expect.to_equal(Error(error.state_mismatch()))
+  let result =
+    vestibule.handle_callback(
+      strategy,
+      config: client_config,
+      callback_params: params,
+      expected_state: "expected_state",
+      code_verifier: "verifier",
+      expected_nonce: None,
+    )
+  assert result == Error(error.state_mismatch())
 }
 
 /// Security: extra unexpected parameters should not cause crashes.
@@ -410,7 +411,7 @@ pub fn callback_ignores_extra_params_test() -> Nil {
       code_verifier: "verifier",
       expected_nonce: None,
     )
-  let _ = result |> expect.to_be_ok()
+  let assert Ok(_) = result
   Nil
 }
 
@@ -421,23 +422,21 @@ pub fn callback_ignores_extra_params_test() -> Nil {
 /// Security: refresh response parser must handle malformed JSON gracefully.
 pub fn refresh_response_handles_html_error_page_test() -> Nil {
   let body = "<html><body><h1>500 Internal Server Error</h1></body></html>"
-  let _ =
+  let assert Error(_) =
     provider_support.parse_oauth_token_response(
       body,
       provider_support.OptionalScope(" "),
     )
-    |> expect.to_be_error()
   Nil
 }
 
 /// Security: refresh response parser must handle empty body.
 pub fn refresh_response_handles_empty_body_test() -> Nil {
-  let _ =
+  let assert Error(_) =
     provider_support.parse_oauth_token_response(
       "",
       provider_support.OptionalScope(" "),
     )
-    |> expect.to_be_error()
   Nil
 }
 
@@ -445,16 +444,11 @@ pub fn refresh_response_handles_empty_body_test() -> Nil {
 /// Finding L5 -- some providers omit error_description.
 pub fn refresh_response_handles_error_without_description_test() -> Nil {
   let body = "{\"error\":\"invalid_grant\"}"
-  provider_support.parse_oauth_token_response(
-    body,
-    provider_support.OptionalScope(" "),
-  )
-  |> expect.to_be_error()
-  |> expect.to_equal(error.provider(
-    code: "invalid_grant",
-    description: "",
-    uri: None,
-  ))
+  assert provider_support.parse_oauth_token_response(
+      body,
+      provider_support.OptionalScope(" "),
+    )
+    == Error(error.provider(code: "invalid_grant", description: "", uri: None))
 }
 
 /// Security: refresh response with extremely long token should not crash.
@@ -468,8 +462,7 @@ pub fn refresh_response_handles_long_token_test() -> Nil {
       provider_support.OptionalScope(" "),
     )
   let assert Ok(oauth_credentials) = result
-  { string.length(credentials.token(oauth_credentials)) == 10_000 }
-  |> expect.to_be_true()
+  assert string.length(credentials.token(oauth_credentials)) == 10_000
 }
 
 // ===========================================================================
@@ -478,12 +471,11 @@ pub fn refresh_response_handles_long_token_test() -> Nil {
 
 /// Security: null bytes in state parameter must not bypass validation.
 pub fn state_validate_handles_null_bytes_test() -> Nil {
-  let _ =
+  let assert Ok(_) =
     state.validate(received: "abc\u{0000}def", expected: "abc\u{0000}def")
-    |> expect.to_be_ok()
 
-  state.validate(received: "abc\u{0000}def", expected: "abcXdef")
-  |> expect.to_equal(Error(error.state_mismatch()))
+  assert state.validate(received: "abc\u{0000}def", expected: "abcXdef")
+    == Error(error.state_mismatch())
 }
 
 /// Security: Unicode normalization should not affect state comparison.
@@ -492,19 +484,17 @@ pub fn state_validate_handles_null_bytes_test() -> Nil {
 pub fn state_validate_is_byte_level_comparison_test() -> Nil {
   // These are the same visual character but different byte sequences
   // e-acute: U+00E9 (single codepoint) vs e + combining acute U+0065 U+0301
-  state.validate(received: "\u{00E9}", expected: "e\u{0301}")
-  |> expect.to_equal(Error(error.state_mismatch()))
+  assert state.validate(received: "\u{00E9}", expected: "e\u{0301}")
+    == Error(error.state_mismatch())
 }
 
 /// Security: very long state values should not crash.
 pub fn state_validate_handles_long_values_test() -> Nil {
   let long = string.repeat("a", 10_000)
-  let _ =
-    state.validate(received: long, expected: long)
-    |> expect.to_be_ok()
+  let assert Ok(_) = state.validate(received: long, expected: long)
 
-  state.validate(received: long, expected: long <> "x")
-  |> expect.to_equal(Error(error.state_mismatch()))
+  assert state.validate(received: long, expected: long <> "x")
+    == Error(error.state_mismatch())
 }
 
 // ===========================================================================

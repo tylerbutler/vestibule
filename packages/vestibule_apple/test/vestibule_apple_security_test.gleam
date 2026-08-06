@@ -6,18 +6,12 @@
 import gleam/json as gleam_json
 import gleam/option.{None, Some}
 import gleam/time/duration
-import startest
-import startest/expect
 import vestibule/user_info
 import vestibule_apple
 import vestibule_apple/jwks
 import vestibule_apple/jwt
 import ywt/claim
 import ywt/verify_key
-
-pub fn main() -> Nil {
-  startest.run(startest.default_config())
-}
 
 // ===========================================================================
 // JWT Signature Verification Tests (Audit finding C1 -- FIXED)
@@ -47,13 +41,12 @@ pub fn verify_id_token_rejects_wrong_key_test() {
       attacker_key,
     )
 
-  let result =
+  let assert Error(_) =
     vestibule_apple.verify_id_token(
       jwt: token,
       keys: [verify_key.derived(legit_key)],
       client_id: "com.example.app",
     )
-  let _ = result |> expect.to_be_error()
   Nil
 }
 
@@ -86,9 +79,8 @@ pub fn verify_id_token_accepts_correct_key_test() {
       client_id: "com.example.app",
     )
   let assert Ok(#(uid, info)) = result
-  let _ = uid |> expect.to_equal("user-123")
-  let _ = user_info.email(info) |> expect.to_equal(Some("user@example.com"))
-  Nil
+  assert uid == "user-123"
+  assert user_info.email(info) == Some("user@example.com")
 }
 
 /// Security: verify_id_token rejects JWT with wrong issuer.
@@ -109,13 +101,12 @@ pub fn verify_id_token_rejects_wrong_issuer_test() {
       key,
     )
 
-  let result =
+  let assert Error(_) =
     vestibule_apple.verify_id_token(
       jwt: token,
       keys: [verify_key.derived(key)],
       client_id: "com.example.app",
     )
-  let _ = result |> expect.to_be_error()
   Nil
 }
 
@@ -137,13 +128,12 @@ pub fn verify_id_token_rejects_wrong_audience_test() {
       key,
     )
 
-  let result =
+  let assert Error(_) =
     vestibule_apple.verify_id_token(
       jwt: token,
       keys: [verify_key.derived(key)],
       client_id: "com.example.app",
     )
-  let _ = result |> expect.to_be_error()
   Nil
 }
 
@@ -155,13 +145,12 @@ pub fn verify_id_token_rejects_forged_jwt_test() {
     "eyJzdWIiOiJhdHRhY2tlci11aWQiLCJlbWFpbCI6InZpY3RpbUBleGFtcGxlLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjoidHJ1ZSJ9"
   let forged_jwt = "eyJhbGciOiJIUzI1NiJ9." <> forged_payload <> ".AAAA"
 
-  let result =
+  let assert Error(_) =
     vestibule_apple.verify_id_token(
       jwt: forged_jwt,
       keys: [verify_key.derived(key)],
       client_id: "com.example.app",
     )
-  let _ = result |> expect.to_be_error()
   Nil
 }
 
@@ -193,9 +182,8 @@ pub fn verify_id_token_unverified_email_not_returned_test() {
       keys: [verify_key.derived(key)],
       client_id: "com.example.app",
     )
-  let _ = user_info.email(info) |> expect.to_equal(None)
-  let _ = user_info.nickname(info) |> expect.to_equal(Some("user@example.com"))
-  Nil
+  assert user_info.email(info) == None
+  assert user_info.nickname(info) == Some("user@example.com")
 }
 
 // ===========================================================================
@@ -206,13 +194,13 @@ pub fn verify_id_token_unverified_email_not_returned_test() {
 pub fn parse_jwks_valid_test() {
   let jwks_json =
     "{\"keys\":[{\"kty\":\"EC\",\"kid\":\"test-key\",\"crv\":\"P-256\",\"x\":\"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU\",\"y\":\"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0\"}]}"
-  let _ = jwks.parse_jwks(jwks_json) |> expect.to_be_ok()
+  let assert Ok(_) = jwks.parse_jwks(jwks_json)
   Nil
 }
 
 /// Security: JWKS parser rejects invalid JSON.
 pub fn parse_jwks_rejects_invalid_json_test() {
-  let _ = jwks.parse_jwks("not json") |> expect.to_be_error()
+  let assert Error(_) = jwks.parse_jwks("not json")
   Nil
 }
 
@@ -220,8 +208,7 @@ pub fn parse_jwks_rejects_invalid_json_test() {
 pub fn parse_jwks_accepts_empty_keys_test() {
   let result = jwks.parse_jwks("{\"keys\":[]}")
   let assert Ok(keys) = result
-  let _ = keys |> expect.to_equal([])
-  Nil
+  assert keys == []
 }
 
 // ===========================================================================
@@ -230,26 +217,22 @@ pub fn parse_jwks_accepts_empty_keys_test() {
 
 /// Security: error response without error_description should still be detected.
 pub fn apple_token_error_without_description_test() {
-  let _ =
+  let assert Error(_) =
     vestibule_apple.parse_token_response("{\"error\":\"invalid_client\"}")
-    |> expect.to_be_error()
   Nil
 }
 
 /// Security: HTML error response from misconfigured proxy should not crash.
 pub fn apple_token_response_handles_html_test() {
-  let _ =
+  let assert Error(_) =
     vestibule_apple.parse_token_response(
       "<html><body>502 Bad Gateway</body></html>",
     )
-    |> expect.to_be_error()
   Nil
 }
 
 /// Security: empty response should not crash.
 pub fn apple_token_response_handles_empty_test() {
-  let _ =
-    vestibule_apple.parse_token_response("")
-    |> expect.to_be_error()
+  let assert Error(_) = vestibule_apple.parse_token_response("")
   Nil
 }

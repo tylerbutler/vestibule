@@ -1,15 +1,15 @@
 import gleam/http/response
 import gleam/option.{None, Some}
 import gleam/string
-import startest/expect
 import vestibule/credentials
 import vestibule/error
 import vestibule/provider_support
 
 pub fn check_response_status_accepts_2xx_test() -> Nil {
-  response.Response(status: 204, headers: [], body: "ok")
-  |> provider_support.check_response_status()
-  |> expect.to_equal(Ok("ok"))
+  let result =
+    response.Response(status: 204, headers: [], body: "ok")
+    |> provider_support.check_response_status()
+  assert result == Ok("ok")
 }
 
 pub fn check_response_status_rejects_non_2xx_test() -> Nil {
@@ -19,9 +19,9 @@ pub fn check_response_status_rejects_non_2xx_test() -> Nil {
 
   case result {
     Error(err) -> {
-      error.kind(err) |> expect.to_equal(error.HttpKind)
-      error.http_status(err) |> expect.to_equal(Some(500))
-      error.http_summary(err) |> expect.to_equal(Some("boom"))
+      assert error.kind(err) == error.HttpKind
+      assert error.http_status(err) == Some(500)
+      assert error.http_summary(err) == Some("boom")
     }
     _ -> panic as "expected HttpError"
   }
@@ -35,22 +35,20 @@ pub fn http_error_truncates_long_body_test() -> Nil {
 
   case result {
     Error(err) -> {
-      error.http_status(err) |> expect.to_equal(Some(400))
+      assert error.http_status(err) == Some(400)
       let summary = error.http_summary(err) |> option.unwrap("")
-      { string.length(summary) <= 120 } |> expect.to_be_true()
+      assert string.length(summary) <= 120
     }
     _ -> panic as "expected HttpError"
   }
 }
 
 pub fn require_https_accepts_https_test() -> Nil {
-  provider_support.require_https("https://example.com")
-  |> expect.to_equal(Ok(Nil))
+  assert provider_support.require_https("https://example.com") == Ok(Nil)
 }
 
 pub fn require_https_allows_localhost_http_test() -> Nil {
-  provider_support.require_https("http://localhost/callback")
-  |> expect.to_equal(Ok(Nil))
+  assert provider_support.require_https("http://localhost/callback") == Ok(Nil)
 }
 
 pub fn require_https_rejects_remote_http_test() -> Nil {
@@ -58,10 +56,11 @@ pub fn require_https_rejects_remote_http_test() -> Nil {
 
   case result {
     Error(err) -> {
-      error.kind(err) |> expect.to_equal(error.ConfigKind)
-      error.message(err)
-      |> string.contains("HTTPS required for endpoint URL: http://example.com")
-      |> expect.to_be_true()
+      assert error.kind(err) == error.ConfigKind
+      assert string.contains(
+        error.message(err),
+        "HTTPS required for endpoint URL: http://example.com",
+      )
     }
     _ -> panic as "expected ConfigError"
   }
@@ -72,100 +71,92 @@ pub fn require_https_rejects_https_without_host_test() -> Nil {
 
   case result {
     Error(err) -> {
-      error.kind(err) |> expect.to_equal(error.ConfigKind)
-      error.message(err)
-      |> string.contains("URL must include a host: https:///callback")
-      |> expect.to_be_true()
+      assert error.kind(err) == error.ConfigKind
+      assert string.contains(
+        error.message(err),
+        "URL must include a host: https:///callback",
+      )
     }
     _ -> panic as "expected ConfigError"
   }
 }
 
 pub fn require_public_https_accepts_public_host_test() -> Nil {
-  provider_support.require_public_https("https://accounts.example.com/userinfo")
-  |> expect.to_equal(Ok(Nil))
+  assert provider_support.require_public_https(
+      "https://accounts.example.com/userinfo",
+    )
+    == Ok(Nil)
 }
 
 pub fn require_public_https_rejects_http_test() -> Nil {
-  let _ =
+  let assert Error(_) =
     provider_support.require_public_https("http://accounts.example.com")
-    |> expect.to_be_error()
   Nil
 }
 
 pub fn require_public_https_rejects_localhost_test() -> Nil {
-  let _ =
+  let assert Error(_) =
     provider_support.require_public_https("https://localhost/userinfo")
-    |> expect.to_be_error()
   Nil
 }
 
 pub fn require_public_https_rejects_loopback_ipv4_test() -> Nil {
-  let _ =
+  let assert Error(_) =
     provider_support.require_public_https("https://127.0.0.1/userinfo")
-    |> expect.to_be_error()
   Nil
 }
 
 pub fn require_public_https_rejects_loopback_ipv6_test() -> Nil {
-  let _ =
+  let assert Error(_) =
     provider_support.require_public_https("https://[::1]/userinfo")
-    |> expect.to_be_error()
   Nil
 }
 
 pub fn require_public_https_rejects_private_10_test() -> Nil {
-  let _ =
+  let assert Error(_) =
     provider_support.require_public_https("https://10.0.0.5/userinfo")
-    |> expect.to_be_error()
   Nil
 }
 
 pub fn require_public_https_rejects_private_192_168_test() -> Nil {
-  let _ =
+  let assert Error(_) =
     provider_support.require_public_https("https://192.168.1.1/userinfo")
-    |> expect.to_be_error()
   Nil
 }
 
 pub fn require_public_https_rejects_private_172_16_test() -> Nil {
-  let _ =
+  let assert Error(_) =
     provider_support.require_public_https("https://172.16.0.1/userinfo")
-    |> expect.to_be_error()
   Nil
 }
 
 pub fn require_public_https_rejects_link_local_metadata_test() -> Nil {
-  let _ =
+  let assert Error(_) =
     provider_support.require_public_https("https://169.254.169.254/userinfo")
-    |> expect.to_be_error()
   Nil
 }
 
 pub fn require_public_https_rejects_cgnat_test() -> Nil {
-  let _ =
+  let assert Error(_) =
     provider_support.require_public_https("https://100.64.0.1/userinfo")
-    |> expect.to_be_error()
   Nil
 }
 
 pub fn require_public_https_rejects_ula_ipv6_test() -> Nil {
-  let _ =
+  let assert Error(_) =
     provider_support.require_public_https("https://[fd00::1]/userinfo")
-    |> expect.to_be_error()
   Nil
 }
 
 pub fn require_public_https_rejects_link_local_ipv6_test() -> Nil {
-  let _ =
+  let assert Error(_) =
     provider_support.require_public_https("https://[fe80::1]/userinfo")
-    |> expect.to_be_error()
   Nil
 }
 
 pub fn require_public_https_allows_public_ipv4_test() -> Nil {
-  provider_support.require_public_https("https://8.8.8.8/userinfo")
-  |> expect.to_equal(Ok(Nil))
+  assert provider_support.require_public_https("https://8.8.8.8/userinfo")
+    == Ok(Nil)
 }
 
 pub fn parse_redirect_uri_rejects_remote_http_test() -> Nil {
@@ -174,12 +165,11 @@ pub fn parse_redirect_uri_rejects_remote_http_test() -> Nil {
 
   case result {
     Error(err) -> {
-      error.kind(err) |> expect.to_equal(error.ConfigKind)
-      error.message(err)
-      |> string.contains(
+      assert error.kind(err) == error.ConfigKind
+      assert string.contains(
+        error.message(err),
         "Redirect URI must use HTTPS (except localhost): http://example.com/callback",
       )
-      |> expect.to_be_true()
     }
     _ -> panic as "expected ConfigError"
   }
@@ -190,27 +180,29 @@ pub fn parse_redirect_uri_rejects_https_without_host_test() -> Nil {
 
   case result {
     Error(err) -> {
-      error.kind(err) |> expect.to_equal(error.ConfigKind)
-      error.message(err)
-      |> string.contains("Redirect URI must include a host: https:///callback")
-      |> expect.to_be_true()
+      assert error.kind(err) == error.ConfigKind
+      assert string.contains(
+        error.message(err),
+        "Redirect URI must include a host: https:///callback",
+      )
     }
     _ -> panic as "expected ConfigError"
   }
 }
 
 pub fn append_query_params_preserves_existing_query_test() -> Nil {
-  provider_support.append_query_params("https://example.com/auth?existing=1", [
-    #("prompt", "consent"),
-  ])
-  |> expect.to_equal("https://example.com/auth?existing=1&prompt=consent")
+  assert provider_support.append_query_params(
+      "https://example.com/auth?existing=1",
+      [#("prompt", "consent")],
+    )
+    == "https://example.com/auth?existing=1&prompt=consent"
 }
 
 pub fn append_query_params_encodes_values_test() -> Nil {
-  provider_support.append_query_params("https://example.com/auth", [
-    #("state", "a&b=c"),
-  ])
-  |> expect.to_equal("https://example.com/auth?state=a%26b%3Dc")
+  assert provider_support.append_query_params("https://example.com/auth", [
+      #("state", "a&b=c"),
+    ])
+    == "https://example.com/auth?state=a%26b%3Dc"
 }
 
 pub fn check_token_error_returns_provider_error_test() -> Nil {
@@ -219,14 +211,12 @@ pub fn check_token_error_returns_provider_error_test() -> Nil {
       "{\"error\":\"invalid_grant\",\"error_description\":\"expired\"}",
     )
 
-  result
-  |> expect.to_equal(
-    Error(error.provider(
+  assert result
+    == Error(error.provider(
       code: "invalid_grant",
       description: "expired",
       uri: None,
-    )),
-  )
+    ))
 }
 
 pub fn check_token_error_preserves_error_uri_test() -> Nil {
@@ -235,26 +225,23 @@ pub fn check_token_error_preserves_error_uri_test() -> Nil {
       "{\"error\":\"invalid_grant\",\"error_description\":\"expired\",\"error_uri\":\"https://example.com/error\"}",
     )
 
-  result
-  |> expect.to_equal(
-    Error(error.provider(
+  assert result
+    == Error(error.provider(
       code: "invalid_grant",
       description: "expired",
       uri: Some("https://example.com/error"),
-    )),
-  )
+    ))
 }
 
 pub fn parse_oauth_token_response_required_scope_success_test() -> Nil {
   let body =
     "{\"access_token\":\"tok\",\"token_type\":\"Bearer\",\"refresh_token\":\"ref\",\"expires_in\":3600,\"scope\":\"repo,user:email\"}"
 
-  provider_support.parse_oauth_token_response(
-    body,
-    provider_support.RequiredScope(","),
-  )
-  |> expect.to_equal(
-    Ok(
+  assert provider_support.parse_oauth_token_response(
+      body,
+      provider_support.RequiredScope(","),
+    )
+    == Ok(
       credentials.new(
         token: "tok",
         refresh_token: Some("ref"),
@@ -262,8 +249,7 @@ pub fn parse_oauth_token_response_required_scope_success_test() -> Nil {
         expires_in: Some(3600),
         scopes: ["repo", "user:email"],
       ),
-    ),
-  )
+    )
 }
 
 pub fn parse_oauth_token_response_required_scope_empty_test() -> Nil {
@@ -275,18 +261,17 @@ pub fn parse_oauth_token_response_required_scope_empty_test() -> Nil {
       body,
       provider_support.RequiredScope(","),
     )
-  credentials.scopes(oauth_credentials) |> expect.to_equal([])
+  assert credentials.scopes(oauth_credentials) == []
 }
 
 pub fn parse_oauth_token_response_optional_scope_missing_test() -> Nil {
   let body = "{\"access_token\":\"tok\",\"token_type\":\"Bearer\"}"
 
-  provider_support.parse_oauth_token_response(
-    body,
-    provider_support.OptionalScope(" "),
-  )
-  |> expect.to_equal(
-    Ok(
+  assert provider_support.parse_oauth_token_response(
+      body,
+      provider_support.OptionalScope(" "),
+    )
+    == Ok(
       credentials.new(
         token: "tok",
         refresh_token: None,
@@ -294,8 +279,7 @@ pub fn parse_oauth_token_response_optional_scope_missing_test() -> Nil {
         expires_in: None,
         scopes: [],
       ),
-    ),
-  )
+    )
 }
 
 pub fn parse_oauth_token_response_optional_scope_empty_test() -> Nil {
@@ -307,7 +291,7 @@ pub fn parse_oauth_token_response_optional_scope_empty_test() -> Nil {
       body,
       provider_support.OptionalScope(" "),
     )
-  credentials.scopes(oauth_credentials) |> expect.to_equal([])
+  assert credentials.scopes(oauth_credentials) == []
 }
 
 pub fn parse_oauth_token_response_no_scope_ignores_present_scope_test() -> Nil {
@@ -316,24 +300,22 @@ pub fn parse_oauth_token_response_no_scope_ignores_present_scope_test() -> Nil {
 
   let assert Ok(oauth_credentials) =
     provider_support.parse_oauth_token_response(body, provider_support.NoScope)
-  credentials.scopes(oauth_credentials) |> expect.to_equal([])
+  assert credentials.scopes(oauth_credentials) == []
 }
 
 pub fn parse_oauth_token_response_calls_check_token_error_first_test() -> Nil {
   let body =
     "{\"error\":\"invalid_client\",\"error_description\":\"bad secret\"}"
 
-  provider_support.parse_oauth_token_response(
-    body,
-    provider_support.RequiredScope(" "),
-  )
-  |> expect.to_equal(
-    Error(error.provider(
+  assert provider_support.parse_oauth_token_response(
+      body,
+      provider_support.RequiredScope(" "),
+    )
+    == Error(error.provider(
       code: "invalid_client",
       description: "bad secret",
       uri: None,
-    )),
-  )
+    ))
 }
 
 pub fn parse_oauth_token_response_malformed_json_is_decode_error_test() -> Nil {
@@ -345,13 +327,9 @@ pub fn parse_oauth_token_response_malformed_json_is_decode_error_test() -> Nil {
 
   case result {
     Error(err) -> {
-      error.kind(err) |> expect.to_equal(error.DecodeKind)
-      error.message(err)
-      |> string.contains("token response")
-      |> expect.to_be_true()
-      error.message(err)
-      |> string.contains("UnexpectedByte(\"0x6F\")")
-      |> expect.to_be_true()
+      assert error.kind(err) == error.DecodeKind
+      assert string.contains(error.message(err), "token response")
+      assert string.contains(error.message(err), "UnexpectedByte(\"0x6F\")")
     }
     _ -> panic as "expected DecodeError"
   }
@@ -367,13 +345,9 @@ pub fn parse_oauth_token_response_requires_access_token_test() -> Nil {
 
   case result {
     Error(err) -> {
-      error.kind(err) |> expect.to_equal(error.DecodeKind)
-      error.message(err)
-      |> string.contains("token response")
-      |> expect.to_be_true()
-      error.message(err)
-      |> string.contains("access_token")
-      |> expect.to_be_true()
+      assert error.kind(err) == error.DecodeKind
+      assert string.contains(error.message(err), "token response")
+      assert string.contains(error.message(err), "access_token")
     }
     _ -> panic as "expected DecodeError"
   }
@@ -389,11 +363,9 @@ pub fn parse_oauth_token_response_requires_token_type_test() -> Nil {
 
   case result {
     Error(err) -> {
-      error.kind(err) |> expect.to_equal(error.DecodeKind)
-      error.message(err)
-      |> string.contains("token response")
-      |> expect.to_be_true()
-      error.message(err) |> string.contains("token_type") |> expect.to_be_true()
+      assert error.kind(err) == error.DecodeKind
+      assert string.contains(error.message(err), "token response")
+      assert string.contains(error.message(err), "token_type")
     }
     _ -> panic as "expected DecodeError"
   }
@@ -409,11 +381,9 @@ pub fn parse_oauth_token_response_required_scope_rejects_missing_scope_test() ->
 
   case result {
     Error(err) -> {
-      error.kind(err) |> expect.to_equal(error.DecodeKind)
-      error.message(err)
-      |> string.contains("token response")
-      |> expect.to_be_true()
-      error.message(err) |> string.contains("scope") |> expect.to_be_true()
+      assert error.kind(err) == error.DecodeKind
+      assert string.contains(error.message(err), "token response")
+      assert string.contains(error.message(err), "scope")
     }
     _ -> panic as "expected DecodeError"
   }
@@ -427,9 +397,9 @@ pub fn check_response_status_truncates_error_body_test() -> Nil {
 
   case result {
     Error(err) -> {
-      error.http_status(err) |> expect.to_equal(Some(502))
+      assert error.http_status(err) == Some(502)
       let summary = error.http_summary(err) |> option.unwrap("")
-      { string.length(summary) <= 120 } |> expect.to_be_true()
+      assert string.length(summary) <= 120
     }
     _ -> panic as "expected HttpError"
   }
@@ -446,12 +416,11 @@ pub fn fetch_json_with_auth_rejects_remote_http_before_sending_token_test() -> N
 
   case result {
     Error(err) -> {
-      error.kind(err) |> expect.to_equal(error.ConfigKind)
-      error.message(err)
-      |> string.contains(
+      assert error.kind(err) == error.ConfigKind
+      assert string.contains(
+        error.message(err),
         "HTTPS required for endpoint URL: http://example.com/userinfo",
       )
-      |> expect.to_be_true()
     }
     _ -> panic as "expected ConfigError before sending bearer token"
   }
