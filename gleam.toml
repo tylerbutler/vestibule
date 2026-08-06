@@ -74,7 +74,8 @@ docs = ["example"]
 package = "vestibule"
 format = "v{series}"
 
-# Tag individual package versions in addition to series tags
+# Tag individual package versions in addition to repository series tags,
+# but not package level series tags.
 [tools.trellis.publish]
 tag_mode = "exact"
 

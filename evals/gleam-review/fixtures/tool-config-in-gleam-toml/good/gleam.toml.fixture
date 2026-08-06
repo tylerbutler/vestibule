@@ -1,0 +1,5 @@
+name = "fixture_app"
+version = "0.1.0"
+
+[tools.security_scan]
+level = "strict"
