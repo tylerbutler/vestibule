@@ -498,6 +498,8 @@ stimuli:
       files:
         - src: fixtures/tool-config-in-gleam-toml/good
           dest: .
+      commands:
+        - cp gleam.toml.fixture gleam.toml
     constraints: { max_turns: 12, max_tokens: 12000, max_duration: 2m }
     rubric:
       - "The review recognizes security-scanner settings under tools.security_scan in gleam.toml, does not misclassify this clean case as a violation, completely reviews the staged workspace without ## Violations, and avoids unsupported findings."
