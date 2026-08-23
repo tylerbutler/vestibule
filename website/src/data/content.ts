@@ -72,7 +72,7 @@ const staticSearchEntries: SearchEntry[] = [
     href: "/docs/search",
     category: "Start",
     description: "Search Vestibule documentation and package guides.",
-    terms: "search docs documentation api reference hexdocs"
+    terms: "search docs documentation api reference"
   }
 ];
 
@@ -86,12 +86,6 @@ export const docsHref = (entry: DocsEntry) => `/docs/${docsSlug(entry)}`;
 export const packageSlug = (entry: PackageEntry) => stripExtension(entry.id);
 
 export const packageHref = (entry: PackageEntry) => `/docs/packages/${packageSlug(entry)}`;
-
-export const packageHexUrl = (entry: PackageEntry) =>
-  `https://hex.pm/packages/${entry.data.name}`;
-
-export const packageDocsUrl = (entry: PackageEntry) =>
-  `https://hexdocs.pm/${entry.data.name}`;
 
 export const packageReferenceUrl = (entry: PackageEntry) =>
   `/docs/reference/${entry.data.name}`;
@@ -201,7 +195,7 @@ export async function getSearchEntries() {
         href: packageReferenceUrl(entry),
         category: "API reference",
         description: `Open the generated API reference for ${entry.data.name}.`,
-        terms: `${entry.data.name} generated API reference modules functions types hexdocs`
+        terms: `${entry.data.name} generated API reference modules functions types`
       }
     ])
   ];
