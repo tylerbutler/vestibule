@@ -337,7 +337,6 @@ toc:
 searchTerms:
   - api
   - reference
-  - hexdocs
   - vestibule
 ---
 
@@ -346,6 +345,8 @@ searchTerms:
 This reference is generated from Gleam's docs metadata for the Vestibule packages: ${packageNames}.
 
 > **Generated content:** Pages under ${inlineCode(referenceBaseHref)} are generated from Gleam's docs metadata and reflect every public type, function, and constant.
+
+Vestibule packages are not published on Hex. Follow the [installation guide](/docs/installation) to add them as Git dependencies with Gleam 1.18 or later.
 
 ## Packages
 

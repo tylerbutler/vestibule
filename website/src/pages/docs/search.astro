@@ -38,8 +38,8 @@ const entries = await getSearchEntries();
         <button class="search-reset" type="reset" data-search-reset disabled>Clear search</button>
       </div>
       <p id="docs-search-hint">
-        Search covers docs pages, provider packages, OAuth concepts, and HexDocs
-        API references.
+        Search covers docs pages, provider packages, OAuth concepts, and the
+        generated API reference.
       </p>
       <div class="search-suggestions" aria-label="Common searches">
         <span>Common searches:</span>
@@ -74,7 +74,7 @@ const entries = await getSearchEntries();
             <span class="chip">{entry.category}</span>
             <strong>{entry.title}</strong>
             <span>{entry.description}</span>
-            {entry.external && <span class="result-meta">HexDocs reference</span>}
+            {entry.external && <span class="result-meta">External reference</span>}
           </a>
         </li>
       ))}

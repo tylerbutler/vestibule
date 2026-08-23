@@ -136,12 +136,12 @@ const moduleLabel = (subTitle: string, label: string) =>
           <summary>Search &amp; links</summary>
           <nav aria-label="Site links">
             <a href="/docs/search" data-search-trigger>Search</a>
-            <a href="https://hex.pm/packages/vestibule">Hex</a>
+            <a href="/docs/installation">Install</a>
             <a href="https://github.com/tylerbutler/vestibule">GitHub</a>
           </nav>
         </details>
         <a class="header-link" href="/docs/search" data-search-trigger data-search-hint>Search</a>
-        <a class="header-link" href="https://hex.pm/packages/vestibule">Hex</a>
+        <a class="header-link" href="/docs/installation">Install</a>
         <a class="header-link" href="https://github.com/tylerbutler/vestibule">GitHub</a>
         <button
           class="theme-toggle"
@@ -304,7 +304,7 @@ const moduleLabel = (subTitle: string, label: string) =>
                 <strong>{entry.title}</strong>
                 <span>{entry.description}</span>
               </span>
-              {entry.external && <span class="result-meta">HexDocs ↗</span>}
+              {entry.external && <span class="result-meta">External ↗</span>}
             </li>
           ))}
         </ul>

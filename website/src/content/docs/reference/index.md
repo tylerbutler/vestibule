@@ -14,7 +14,6 @@ toc:
 searchTerms:
   - api
   - reference
-  - hexdocs
   - vestibule
 ---
 
@@ -23,6 +22,8 @@ searchTerms:
 This reference is generated from Gleam's docs metadata for the Vestibule packages: `vestibule`, `vestibule_apple`, `vestibule_github`, `vestibule_google`, `vestibule_indieauth`, `vestibule_microsoft`, `vestibule_mist`, `vestibule_oidc`, `vestibule_wisp`.
 
 > **Generated content:** Pages under `/docs/reference` are generated from Gleam's docs metadata and reflect every public type, function, and constant.
+
+Vestibule packages are not published on Hex. Follow the [installation guide](/docs/installation) to add them as Git dependencies with Gleam 1.18 or later.
 
 ## Packages
 
