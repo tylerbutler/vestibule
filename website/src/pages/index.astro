@@ -95,10 +95,10 @@ const installBlocks = routeOptions.flatMap((route) =>
       <p class="intro-label">Strategy-based OAuth2 authentication for Gleam</p>
       <h1>OAuth <span class="nowrap">sign-in</span> for Gleam apps, without the guesswork.</h1>
       <p class="lead">
-        Vestibule gives Gleam applications a consistent request/callback flow,
-        normalized auth results, PKCE, CSRF state, provider strategies, and Wisp
-        or Mist middleware without hiding the security responsibilities your app
-        still owns.
+        Vestibule gives Gleam applications a consistent request and callback
+        flow. It includes normalized auth results, PKCE, CSRF state, provider
+        strategies, and Wisp or Mist middleware. Your app remains responsible
+        for its user accounts and sessions.
       </p>
       <div class="hero-actions">
         <a class="button primary" href="#get-started">Build your install block</a>
@@ -139,8 +139,8 @@ const installBlocks = routeOptions.flatMap((route) =>
       <p class="intro-label">Start here</p>
       <h2 id="setup-heading">Build the dependency block for your app.</h2>
       <p>
-        Choose your server and identity provider. Vestibule will prepare the
-        exact Git dependencies, then send you to the matching implementation path.
+        Choose your server and identity provider. Vestibule prepares the Git
+        dependencies and links to the applicable implementation path.
       </p>
     </div>
 
@@ -216,11 +216,11 @@ const installBlocks = routeOptions.flatMap((route) =>
       <section class="setup-panel setup-result" data-setup-panel="result" aria-live="polite">
         <p class="setup-legend-step">Step 3 of 3</p>
         <h3 data-setup-focus tabindex="-1">
-          <span data-setup-result-title>Wisp + GitHub</span> is ready to install.
+          The <span data-setup-result-title>Wisp + GitHub</span> dependency block is ready.
         </h3>
         <p>
-          Paste this into <code>gleam.toml</code>. The quick start shows where
-          request, callback, and session responsibilities belong.
+          Add this block to <code>gleam.toml</code>. The quick start explains
+          how to handle requests, callbacks, and sessions.
         </p>
         <div class="setup-code-options">
           {installBlocks.map((block) => (
@@ -254,7 +254,7 @@ const installBlocks = routeOptions.flatMap((route) =>
   <section class="boundary-section" aria-labelledby="callback-boundary">
     <div class="section-heading">
       <h2 id="callback-boundary">Keep the callback boundary explicit.</h2>
-      <p>Vestibule validates provider callbacks. Your app owns the data and session around them.</p>
+      <p>Vestibule validates provider callbacks. Your app stores callback data and manages user sessions.</p>
     </div>
     <div class="responsibility-grid">
       <div>
@@ -283,7 +283,7 @@ const installBlocks = routeOptions.flatMap((route) =>
     <div>
       <h2 id="secure-defaults">Ready to wire sign-in?</h2>
       <p>
-        Follow the request and callback path, then connect the normalized auth
+        Follow the request and callback path. Then connect the normalized auth
         result to your application's session.
       </p>
     </div>

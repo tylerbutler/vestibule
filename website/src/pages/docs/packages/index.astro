@@ -39,8 +39,8 @@ const routeLabel = (slug: string) =>
     <header class="doc-hero">
       <h1>Package overview</h1>
       <p>
-        Vestibule is split by responsibility: core flow, transport middleware,
-        and provider strategy packages.
+        Vestibule separates the core flow, transport middleware, and provider
+        strategies into different packages.
       </p>
     </header>
 
@@ -48,9 +48,9 @@ const routeLabel = (slug: string) =>
       <div class="section-heading">
         <h2>Choose who owns the auth routes</h2>
         <p>
-          Start with Wisp or Mist middleware when your server layer should own
-          request and callback routes. Use core directly when your app owns that
-          transport boundary.
+          Start with Wisp or Mist middleware if it can handle the request and
+          callback routes. Use core directly if your app must handle those
+          routes.
         </p>
       </div>
       <div class="route-choice-list package-route-list">
@@ -76,8 +76,8 @@ const routeLabel = (slug: string) =>
       <div class="section-heading">
         <h2>Add provider strategies after the route shape</h2>
         <p>
-          Provider packages plug into the base request/callback flow. Choose them
-          for the identity providers your app supports.
+          Add provider packages to the base request and callback flow. Add one
+          package for each identity provider that your app supports.
         </p>
       </div>
       <table class="provider-table">
@@ -114,8 +114,8 @@ const routeLabel = (slug: string) =>
       <div class="section-heading">
         <h2>Read generated API reference</h2>
         <p>
-          Reference pages are generated from Gleam docs metadata during the
-          website build, so they stay aligned with each package's public API.
+          The website build generates reference pages from Gleam docs metadata.
+          Thus, each page matches the package's public API.
         </p>
       </div>
       <table class="provider-table">

@@ -27,12 +27,12 @@ searchTerms:
 
 # Installation
 
-> **Pre-1.0:** Vestibule is not yet version 1.0. Minor releases can change the
-> API. Review release notes before updating the tag used by your application.
+> **Pre-1.0:** Vestibule has not reached version 1.0. A minor release can change
+> the API. Read the release notes before you update your application's tag.
 
 Install Vestibule packages from
-[GitHub](https://github.com/tylerbutler/vestibule). **None of the packages are
-published on Hex.** Add them as Git dependencies in `gleam.toml`:
+[GitHub](https://github.com/tylerbutler/vestibule). **The packages are not
+available on Hex.** Add these Git dependencies to `gleam.toml`:
 
 ```toml
 [dependencies]
@@ -41,23 +41,23 @@ vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref =
 vestibule_wisp = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_wisp" }
 ```
 
-Then download the dependencies:
+Download the dependencies:
 
 ```bash
 gleam deps download
 ```
 
-`gleam add` installs Hex packages, so it cannot install Vestibule. Add the Git
-dependency entries by hand.
+`gleam add` installs packages from Hex. It cannot install Vestibule. Add the Git
+dependency entries to `gleam.toml`.
 
 ## Packages
 
-A typical application needs `vestibule`, one provider strategy, and optionally
-one middleware integration.
+A typical application requires `vestibule` and one provider strategy. Add one
+middleware integration if your application uses Wisp or Mist.
 
 | Package | Add it when |
 |---|---|
-| `vestibule` | Always — core OAuth2 flow, shared types, PKCE, state validation, and token refresh |
+| `vestibule` | Always: core OAuth2 flow, shared types, PKCE, state validation, and token refresh |
 | `vestibule_github` | Users sign in with GitHub |
 | `vestibule_google` | Users sign in with Google |
 | `vestibule_microsoft` | Users sign in with Microsoft |
@@ -67,8 +67,8 @@ one middleware integration.
 | `vestibule_wisp` | Your application uses Wisp |
 | `vestibule_mist` | Your application uses Mist directly |
 
-For a companion package, use the same `git` and `ref` values shown above and
-set `path` to `packages/<package_name>`.
+For each companion package, use the same `git` and `ref` values. Set `path` to
+`packages/<package_name>`.
 
 ## Requirements
 
@@ -77,21 +77,20 @@ set `path` to `packages/<package_name>`.
 
 ### Why Gleam 1.18?
 
-Vestibule is a monorepo. Companion packages live in subdirectories such as
-`packages/vestibule_github` and `packages/vestibule_wisp`. Git dependencies use
-the `path` field to select one of those subdirectories, and Gleam added Git path
-dependencies in version 1.18. Older Gleam versions cannot install the companion
-packages.
+Vestibule is a monorepo. Companion packages are in subdirectories such as
+`packages/vestibule_github` and `packages/vestibule_wisp`. The `path` field
+selects a package subdirectory. Gleam added this field for Git dependencies in
+version 1.18. Older Gleam versions cannot install companion packages.
 
-This requirement applies to the Gleam version that resolves the dependencies.
-The packages themselves declare support for older compiler versions, but you
-need Gleam 1.18 or later to use the Git dependency entries above.
+This requirement applies when Gleam resolves the dependencies. The packages
+support older compiler versions. However, you must use Gleam 1.18 or later to
+install them from this monorepo.
 
 ## Choosing a ref
 
-The examples use the moving `vestibule-v0.0` series tag. It tracks the newest
-compatible release in the 0.0 series. Use the same ref for every Vestibule
-package in your application; do not mix package versions.
+The examples use the moving `vestibule-v0.0` series tag. This tag points to the
+newest compatible release in the 0.0 series. Use the same ref for all Vestibule
+packages in your application. Do not mix package versions.
 
 See [GitHub Releases](https://github.com/tylerbutler/vestibule/releases) for
 immutable release tags and release notes.

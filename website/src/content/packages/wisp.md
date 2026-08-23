@@ -2,20 +2,20 @@
 name: vestibule_wisp
 navLabel: Wisp middleware
 kind: Wisp middleware
-summary: Wisp request/callback routing for Vestibule, including signed session cookie handling and one-time ETS state storage.
+summary: Wisp request and callback routing with signed session cookies and single-use ETS state storage.
 install:
   - "[dependencies]"
   - 'vestibule = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0" }'
   - 'vestibule_wisp = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_wisp" }'
   - 'vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_github" }'
-useWhen: Use Wisp middleware when your app already routes requests with Wisp and you want the request and callback phases handled for you.
+useWhen: Use Wisp middleware if your app routes requests with Wisp. The middleware handles the request and callback phases.
 setup:
   - Configure Wisp with a strong, stable secret key base.
   - Initialize the shared state store once per BEAM VM.
   - Register one or more provider strategies in a registry.
   - Route /auth/:provider and /auth/:provider/callback to the middleware.
 highlights:
-  - Handles both GET and POST callbacks; Apple uses response_mode=form_post.
+  - Handles GET and POST callbacks. Apple uses response_mode=form_post.
   - Default cookie name uses the __Host- prefix to defend against cookie tossing.
   - Cookie TTL and server-side state-store TTL share the same value.
   - Structured callback errors are available for custom handling.
@@ -61,7 +61,7 @@ code: |
 notes:
   - Custom cookie names are automatically given the __Host- prefix under the default SecureOnly cookie security.
   - Use with_cookie_security(AllowInsecure) for local development over plain HTTP, where browsers reject __Host- cookies.
-  - Use callback_phase_auth_result when your app needs structured logging or custom user-facing error recovery.
+  - Use callback_phase_auth_result for structured logging or custom error recovery.
 navOrder: 20
 searchTerms:
   - routing

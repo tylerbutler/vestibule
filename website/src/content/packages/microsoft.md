@@ -2,22 +2,22 @@
 name: vestibule_microsoft
 navLabel: Microsoft strategy
 kind: Provider strategy
-summary: Microsoft OAuth strategy using Microsoft Graph /me, with helpers for tenant-specific sign-in.
+summary: Microsoft OAuth strategy that uses Microsoft Graph /me and supports tenant-specific sign-in.
 install:
   - "[dependencies]"
   - 'vestibule_microsoft = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_microsoft" }'
-useWhen: Use Microsoft when users authenticate with Microsoft personal, work, or school accounts.
+useWhen: Use Microsoft if users sign in with Microsoft personal, work, or school accounts.
 defaultScopes: openid User.Read
 setup:
   - Create a Microsoft Entra ID app registration.
-  - Choose supported account types that match your tenant behavior.
+  - Select the account types that your tenant supports.
   - Add Web redirect URIs for development and production.
   - Copy the Application client ID and client secret value.
 highlights:
   - The default strategy uses /common and performs no tenant validation.
   - strategy_for_tenant targets tenant-specific endpoints.
   - Tenant validation checks the tid claim in the returned ID token.
-  - userPrincipalName is exposed as nickname, not verified email.
+  - userPrincipalName becomes the nickname. It is not a verified email address.
 code: |
   import vestibule/config
   import vestibule_microsoft
@@ -37,7 +37,7 @@ code: |
     )
 notes:
   - Pass the tenant GUID, not a verified domain, when restricting to one tenant.
-  - Microsoft Graph /me does not include profile photos; fetch photos separately if needed.
+  - Microsoft Graph /me does not include profile photos. Fetch photos separately if needed.
 navOrder: 50
 searchTerms:
   - entra
