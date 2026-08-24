@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Changed"
+body = "Publish a moving major repository tag alongside each minor tag."

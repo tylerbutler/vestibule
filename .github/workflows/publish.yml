@@ -52,9 +52,9 @@ jobs:
 
       # Record the release as tags: one immutable {name}-v{version} per
       # releasable package, each carrying a GitHub Release bodied from the
-      # matching CHANGELOG section, plus the repo-wide moving v{series} tag
-      # (derived from vestibule's version), force-moved to this release and
-      # carrying no Release of its own.
+      # matching CHANGELOG section, plus the repo-wide moving major and minor
+      # v{series} tags (derived from vestibule's version), force-moved to this
+      # release and carrying no Releases of their own.
       - name: Tag and release
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}

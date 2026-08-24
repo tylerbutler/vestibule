@@ -273,22 +273,22 @@ Edit fragments, not changelogs.
 
 ### Tags
 
-A release writes two kinds of tag, both configured under
+A release writes three kinds of tag, all configured under
 `[tools.trellis.publish]`:
 
 | Tag | Scope | Lifecycle |
 | --- | --- | --- |
-| `vestibule-v0.0.1` | One per releasable package (`tag_mode = "exact"`) | Immutable. Created once, never rewritten, carries the GitHub Release bodied from the matching CHANGELOG section. |
-| `v0.0` | One for the whole repository (`[tools.trellis.publish.repository_series]`, keyed to `vestibule`'s version) | Moving. Force-moved to the newest release in its series, so consumers pin a series instead of chasing patches. Carries no GitHub Release — it would silently retarget on the next move. |
+| `vestibule-v0.0.1` | One per releasable package (`package_tags = ["exact"]`) | Immutable. Created once, never rewritten, carries the GitHub Release bodied from the matching CHANGELOG section. |
+| `v0.0` | One minor tag for the whole repository (`repository_tags = ["major", "minor"]`, keyed to `vestibule`'s version) | Moving. Force-moved to the newest release in that minor series. Carries no GitHub Release. |
+| `v0` | One major tag for the whole repository | Moving. Force-moved to the newest release in that major series. Carries no GitHub Release. |
 
-There are no per-package *series* tags: `tag_mode = "exact"` writes only the
-exact-version tags, and the single repo-wide `v{series}` tag stands in for all
-of them.
+There are no per-package *series* tags: `package_tags = ["exact"]` writes only
+exact-version package tags. The repo-wide `v{series}` tags provide both major
+and minor moving refs for all packages.
 
-The series is derived from the version and is never configured. While the major
-is 0, every minor bump is breaking, so the series is `major.minor`
-(`0.0.1`, `0.0.2` → `v0.0`); from 1.0 on it is the major alone (`1.2.1`,
-`1.9.0` → `v1`). A prerelease belongs to no series and moves no tag.
+The tag values are derived from the version: `0.0.1` moves both `v0` and
+`v0.0`, while `0.1.0` moves `v0` and `v0.1`. A prerelease moves no repository
+tag.
 
 `trellis tag plan` lists the tags the current versions call for and don't have
 yet, both kinds included.

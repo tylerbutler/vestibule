@@ -143,13 +143,14 @@ Local development can use `.mise.toml` for flexible versions.
 5. Merge PR → `trellis tag create --github-release` records the release as tags and GitHub Releases; nothing goes to Hex
 
 ### Tags
-A release writes two kinds of tag:
-- **`{name}-v{version}`** (e.g. `vestibule-v0.0.1`) — one per releasable package, via `tag_mode = "exact"`. Immutable, created once, carries the GitHub Release bodied from the matching CHANGELOG section
-- **`v{series}`** (e.g. `v0.0`) — one for the whole repo, via `[tools.trellis.publish.repository_series]` keyed to `vestibule`'s version. Moving; force-moved to the newest release in its series so consumers can pin a series instead of chasing patches. Carries no GitHub Release, since it would silently retarget on the next move
+A release writes three kinds of tag:
+- **`{name}-v{version}`** (e.g. `vestibule-v0.0.1`) — one per releasable package, via `package_tags = ["exact"]`. Immutable, created once, carries the GitHub Release bodied from the matching CHANGELOG section
+- **`v0.0`** — one minor moving tag for the whole repo, keyed to `vestibule`'s version
+- **`v0`** — one major moving tag for the whole repo; both repository tags are force-moved to the newest matching release and carry no GitHub Release
 
-There are no per-package *series* tags — the repo-wide `v{series}` tag stands in for all of them.
+There are no per-package *series* tags — the repo-wide major and minor `v{series}` tags stand in for all of them.
 
-The series is derived from the version, never configured: `major.minor` while the major is 0 (every minor bump being breaking), the major alone from 1.0 on. Prereleases belong to no series and move no tag.
+The tags are derived from the version: `0.0.1` moves `v0` and `v0.0`, while `0.1.0` moves `v0` and `v0.1`. Prereleases move no repository tag.
 
 ### Publishing Details
 Releases are **git-only**: `[tools.trellis.publish.lifecycle] default = "git_only"` in the root `gleam.toml` puts every package on the git lifecycle, so a release is tags plus GitHub Releases and nothing reaches Hex. The release workflow has no publish step, since `trellis publish` only selects `hex`-lifecycle packages. To ship to Hex later, move the packages to the `hex` lifecycle, add a `trellis publish --all-untagged` step with `HEXPM_API_KEY`, and restore a lockfile refresh — see the note at the top of `publish.yml`. When it is on:
