@@ -5,7 +5,7 @@ kind: Provider strategy
 summary: Sign in with Apple strategy that verifies ID tokens with JWKS and supports form_post callbacks.
 install:
   - "[dependencies]"
-  - 'vestibule_apple = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_apple" }'
+  - 'vestibule_apple = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0", path = "packages/vestibule_apple" }'
 useWhen: Use Apple if your web application needs Sign in with Apple and can generate a client-secret JWT.
 defaultScopes: name email
 setup:

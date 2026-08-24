@@ -5,7 +5,7 @@ kind: Provider strategy
 summary: OpenID Connect discovery that builds a strategy from a standards-compliant issuer URL, including a self-hosted provider.
 install:
   - "[dependencies]"
-  - 'vestibule_oidc = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_oidc" }'
+  - 'vestibule_oidc = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0", path = "packages/vestibule_oidc" }'
 useWhen: Use OIDC discovery to authenticate with an OpenID Connect provider, including a self-hosted provider. Supply its issuer URL instead of configuring each endpoint.
 defaultScopes: "openid profile email"
 setup:

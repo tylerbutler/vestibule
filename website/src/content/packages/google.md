@@ -5,7 +5,7 @@ kind: Provider strategy
 summary: Google OAuth strategy with verified-email handling, hosted-domain enforcement, and refresh-token guidance.
 install:
   - "[dependencies]"
-  - 'vestibule_google = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_google" }'
+  - 'vestibule_google = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0", path = "packages/vestibule_google" }'
 useWhen: Use Google if users sign in with Google or Google Workspace accounts and your app requires normalized profile data.
 defaultScopes: openid email profile
 setup:

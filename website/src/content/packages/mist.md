@@ -5,9 +5,9 @@ kind: Mist middleware
 summary: Plain Mist request and callback routing with HMAC-SHA256 signed session cookies and the shared Vestibule state store.
 install:
   - "[dependencies]"
-  - 'vestibule = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0" }'
-  - 'vestibule_mist = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_mist" }'
-  - 'vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_github" }'
+  - 'vestibule = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0" }'
+  - 'vestibule_mist = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0", path = "packages/vestibule_mist" }'
+  - 'vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0", path = "packages/vestibule_github" }'
 useWhen: Use Mist middleware if your app runs directly on Mist and does not use Wisp.
 setup:
   - Load a high-entropy secret key base from configuration or a secrets manager.

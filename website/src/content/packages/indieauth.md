@@ -5,7 +5,7 @@ kind: Provider strategy
 summary: Decentralized IndieAuth strategy for sign-in with a user-controlled URL and endpoints discovered at run time.
 install:
   - "[dependencies]"
-  - 'vestibule_indieauth = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_indieauth" }'
+  - 'vestibule_indieauth = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0", path = "packages/vestibule_indieauth" }'
 useWhen: Use IndieAuth if users sign in with their own domains instead of a centralized provider. The strategy discovers endpoints for each user and does not require an app client secret.
 defaultScopes: "profile"
 setup:

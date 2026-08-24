@@ -63,7 +63,7 @@ const routeOptions = [
     href: "/docs/quick-start#core-path"
   }
 ];
-const gitSource = `git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0"`;
+const gitSource = `git = "https://github.com/tylerbutler/vestibule.git", ref = "v0"`;
 const dependencyLine = (name: string, path = "") =>
   `${name} = { ${gitSource}${path ? `, path = "${path}"` : ""} }`;
 const defaultInstallBlock = [
