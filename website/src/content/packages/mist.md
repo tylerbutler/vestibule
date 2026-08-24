@@ -2,20 +2,20 @@
 name: vestibule_mist
 navLabel: Mist middleware
 kind: Mist middleware
-summary: Plain Mist request/callback routing with HMAC-SHA256 signed session cookies and the shared Vestibule state store.
+summary: Plain Mist request and callback routing with HMAC-SHA256 signed session cookies and the shared Vestibule state store.
 install:
   - "[dependencies]"
   - 'vestibule = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0" }'
   - 'vestibule_mist = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_mist" }'
   - 'vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_github" }'
-useWhen: Use Mist middleware when you run directly on Mist and want the same auth ergonomics without Wisp.
+useWhen: Use Mist middleware if your app runs directly on Mist and does not use Wisp.
 setup:
   - Load a high-entropy secret key base from configuration or a secrets manager.
   - Create Options with vestibule_mist.new_options(secret_key_base).
   - Initialize the shared state store once per BEAM VM.
   - Dispatch request and callback paths from your Mist handler.
 highlights:
-  - No unsafe default secret; applications must supply one.
+  - Applications must supply a secret. The package has no unsafe default secret.
   - Sets HttpOnly, SameSite=Lax, Path=/, and Secure by default.
   - Supports GET and application/x-www-form-urlencoded POST callbacks.
   - Structured callback errors mirror the Wisp integration.
@@ -52,7 +52,7 @@ code: |
   }
 notes:
   - "Use with_cookie_security(AllowInsecure) only for local HTTP development."
-  - Changing the cookie secret invalidates in-flight OAuth callbacks.
+  - A cookie-secret change invalidates OAuth callbacks that are in progress.
 navOrder: 30
 searchTerms:
   - hmac

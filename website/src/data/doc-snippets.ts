@@ -141,8 +141,8 @@ case
       // Wrong state: treat as hostile. Log server-side, restart the flow.
       error.StateMismatchKind -> restart_sign_in()
 
-      // The provider rejected the request (e.g. denied consent). Inspect
-      // error.provider_error(err) for the structured code/description.
+      // The provider rejected the request. For example, the user denied
+      // consent. Inspect error.provider_error(err) for the structured details.
       error.ProviderKind -> back_to_login()
 
       // Transient upstream failures are worth a retry prompt.
@@ -153,16 +153,18 @@ case
     }
 }`;
 
-export const discoverCode = `import vestibule/oidc
+export const discoverCode = `import vestibule_oidc
 
-let assert Ok(strategy) = oidc.discover("https://accounts.google.com")`;
+let assert Ok(strategy) =
+  vestibule_oidc.discover("https://accounts.google.com")`;
 
 export const selfHostedCode = `import vestibule
 import vestibule/config
-import vestibule/oidc
+import vestibule_oidc
 
 // Discovery reads https://your-pocket-id-instance/.well-known/openid-configuration
-let assert Ok(strategy) = oidc.discover("https://your-pocket-id-instance")
+let assert Ok(strategy) =
+  vestibule_oidc.discover("https://your-pocket-id-instance")
 let client_config =
   config.new(
     client_id: "your-client-id",
@@ -239,7 +241,7 @@ licences = ["MIT"]
 gleam = ">= 1.7.0"
 
 [dependencies]
-vestibule = ">= 1.0.0 and < 2.0.0"
+vestibule = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0" }
 gleam_stdlib = ">= 0.48.0 and < 2.0.0"
 gleam_http = ">= 4.3.0 and < 5.0.0"
 gleam_httpc = ">= 5.0.0 and < 6.0.0"

@@ -2,11 +2,11 @@
 name: vestibule_oidc
 navLabel: OIDC discovery
 kind: Provider strategy
-summary: OpenID Connect discovery that auto-configures a strategy from any standards-compliant issuer URL, including self-hosted providers.
+summary: OpenID Connect discovery that builds a strategy from a standards-compliant issuer URL, including a self-hosted provider.
 install:
   - "[dependencies]"
   - 'vestibule_oidc = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_oidc" }'
-useWhen: Use OIDC discovery when you want to authenticate against any OpenID Connect provider — including self-hosted ones — by pointing at its issuer URL instead of hand-wiring endpoints.
+useWhen: Use OIDC discovery to authenticate with an OpenID Connect provider, including a self-hosted provider. Supply its issuer URL instead of configuring each endpoint.
 defaultScopes: "openid profile email"
 setup:
   - Register a client with your OIDC provider and copy the client ID and secret.
@@ -14,10 +14,10 @@ setup:
   - Call discover with the provider's issuer URL to fetch its well-known configuration.
   - Pair the discovered strategy with config.new holding your client credentials.
 highlights:
-  - One-step discover reads /.well-known/openid-configuration and builds a Strategy.
+  - discover reads /.well-known/openid-configuration and builds a Strategy.
   - Issuer validation rejects discovery documents whose issuer does not match the requested URL.
-  - HTTPS and public-host enforcement on issuer and endpoints guards against SSRF.
-  - Standard OIDC claims (sub, name, email, preferred_username, picture) map to UserInfo.
+  - HTTPS and public-host checks on the issuer and endpoints reduce SSRF risk.
+  - Standard OIDC claims map to UserInfo. These claims include sub, name, email, preferred_username, and picture.
   - Email is only populated when the provider reports email_verified.
 code: |
   import vestibule
@@ -45,7 +45,7 @@ code: |
 notes:
   - Discovery performs HTTP requests, so the strategy targets the Erlang (BEAM) runtime only.
   - Store authorization_request.nonce(auth_request) and pass it as `expected_nonce` during callback handling.
-  - For multi-tenant apps, sanitize user-supplied issuer URLs before calling discover to prevent SSRF.
+  - For a multi-tenant app, allow only issuers that your application trusts. Built-in URL checks do not define your tenant policy.
 navOrder: 70
 searchTerms:
   - oidc

@@ -2,21 +2,21 @@
 name: vestibule_indieauth
 navLabel: IndieAuth strategy
 kind: Provider strategy
-summary: Decentralized IndieAuth strategy where users sign in with a URL they control and endpoints are discovered dynamically.
+summary: Decentralized IndieAuth strategy for sign-in with a user-controlled URL and endpoints discovered at run time.
 install:
   - "[dependencies]"
   - 'vestibule_indieauth = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_indieauth" }'
-useWhen: Use IndieAuth when you want users to authenticate with their own domain instead of a centralized provider, with no per-app client secret and per-user endpoints discovered at runtime.
+useWhen: Use IndieAuth if users sign in with their own domains instead of a centralized provider. The strategy discovers endpoints for each user and does not require an app client secret.
 defaultScopes: "profile"
 setup:
-  - Host your application at a stable HTTPS URL — this URL is your client_id.
-  - "Use `auth: config.PublicClient`; IndieAuth clients are public and do not send a client secret."
+  - Host your application at a stable HTTPS URL. This URL is your client_id.
+  - "Use `auth: config.PublicClient`. IndieAuth clients are public and do not send a client secret."
   - Register the redirect URI your app uses for the callback.
   - Call discover with the user-supplied profile URL before starting the flow.
 highlights:
-  - Identity is a URL — auth.uid(auth) returns the user's canonical me URL.
+  - The identity is a URL. auth.uid(auth) returns the user's canonical me URL.
   - Endpoints are discovered per user from their homepage (metadata, Link headers, then HTML link tags).
-  - Public-client semantics — no client_secret is sent during token exchange.
+  - The strategy uses a public client. It does not send a client_secret during token exchange.
   - PKCE is used for the authorization code flow.
   - Profile name, email, and photo are populated from the token or userinfo response when available.
 code: |
@@ -45,8 +45,8 @@ code: |
     )
 notes:
   - Discovery performs HTTP requests, so the strategy targets the Erlang (BEAM) runtime only.
-  - Each user may resolve to different authorization and token endpoints; always discover per login.
-  - When a userinfo endpoint is discovered it is queried for profile data; otherwise the me URL is used as the identity.
+  - Each user can use different authorization and token endpoints. Run discovery for each login.
+  - The strategy requests profile data from a discovered userinfo endpoint. If no endpoint is available, it uses the me URL as the identity.
 navOrder: 65
 searchTerms:
   - indieauth

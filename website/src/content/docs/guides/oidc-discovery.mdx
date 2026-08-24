@@ -14,7 +14,7 @@ toc:
   - href: "#register-client"
     label: Register a client
   - href: "#nonce"
-    label: Nonce and replay protection
+    label: Nonce validation
 searchTerms:
   - oidc
   - openid connect
@@ -33,28 +33,28 @@ import { discoverCode, selfHostedCode } from "../../../data/doc-snippets";
 <section id="discover">
   <h2>Discover a provider</h2>
   <p>
-    Any standards-compliant OpenID Connect provider can be turned into a
-    Vestibule strategy from its issuer URL. <code>oidc.discover</code> reads the
-    provider's <code>/.well-known/openid-configuration</code> document and
-    returns a ready-to-use strategy.
+    <code>vestibule_oidc.discover</code> builds a Vestibule strategy for a
+    standards-compliant OpenID Connect provider. Supply the provider's issuer
+    URL. The function reads the provider's{" "}
+    <code>/.well-known/openid-configuration</code> document and returns the
+    strategy.
   </p>
   <CodeBlock code={discoverCode} lang="gleam" />
   <p>
-    The discovered strategy plugs into the same two-phase flow, registry, and
+    Use the discovered strategy with the same two-phase flow and registry. You
+    can also use it with
     <a href="/docs/packages/wisp">vestibule_wisp</a> or
-    <a href="/docs/packages/mist">vestibule_mist</a> middleware as the dedicated
-    provider packages.
+    <a href="/docs/packages/mist">vestibule_mist</a> middleware.
   </p>
 </section>
 
 <section id="self-hosted">
   <h2>Self-hosted providers</h2>
   <p>
-    Because <code>oidc.discover</code> only needs an issuer URL, self-hosted
-    providers such as <a href="https://pocket-id.org">Pocket ID</a> work the same
-    way. Point <code>discover</code> at your instance's base URL and pair the
-    resulting strategy with a <code>config.new</code> holding your client
-    credentials.
+    <code>vestibule_oidc.discover</code> also supports self-hosted providers
+    such as <a href="https://pocket-id.org">Pocket ID</a>. Supply the base URL of
+    your instance. Then use <code>config.new</code> to add your client
+    credentials to the discovered strategy.
   </p>
   <CodeBlock code={selfHostedCode} lang="gleam" />
 </section>
@@ -62,44 +62,46 @@ import { discoverCode, selfHostedCode } from "../../../data/doc-snippets";
 <section id="register-client">
   <h2>Register a client</h2>
   <p>
-    Register a client in your provider before discovery can be used end to end:
+    Register a client with your provider before you start the authorization
+    flow:
   </p>
   <ul className="check-list">
     <li>
-      <strong>Redirect URI</strong> — must exactly match the one passed to
-      <code>config.new</code> (for example
-      <code>https://app.example.com/auth/oidc/callback</code>). Production
-      redirect URIs and OIDC issuers must use HTTPS;
+      <strong>Redirect URI:</strong> Use the exact URI that you pass to{" "}
+      <code>config.new</code>. For example, use{" "}
+      <code>https://app.example.com/auth/oidc/callback</code>. Production
+      redirect URIs and OIDC issuers must use HTTPS.
       <code>http://localhost</code> and <code>http://127.0.0.1</code> are
       permitted for local development only.
     </li>
     <li>
-      <strong>Scopes</strong> — request <code>openid email profile</code> so
-      Vestibule can populate the user's id, email, and name.
-      <code>user_info.email</code> only returns a value when the provider reports
+      <strong>Scopes:</strong> Request <code>openid email profile</code> so that
+      Vestibule can return the user's ID, email address, and name.
+      <code>user_info.email</code> returns a value only if the provider reports
       <code>email_verified</code>.
     </li>
     <li>
-      <strong>Client credentials</strong> — copy the issued client ID and secret
-      into <code>config.new</code>.
+      <strong>Client credentials:</strong> Copy the client ID and secret into{" "}
+      <code>config.new</code>.
     </li>
   </ul>
 </section>
 
 <section id="nonce" className="security-callout">
   <div>
-    <h2>Nonce and replay protection</h2>
+    <h2>Nonce validation</h2>
     <p>
-      The discover-built strategy does not currently generate or validate an
-      OIDC <code>nonce</code>. PKCE still protects the authorization code, but if
-      you need id_token replay protection beyond PKCE, validate the
-      <code>nonce</code> yourself when consuming the <code>id_token</code>
-      artifact returned in <code>ExchangeResult</code>.
+      A discovered strategy uses an OIDC <code>nonce</code>. Vestibule generates
+      the nonce and adds it to the authorization request. It validates the nonce
+      in the returned <code>id_token</code> during callback handling. Wisp and
+      Mist middleware store the nonce for you. If you use core directly, store{" "}
+      <code>authorization_request.nonce(auth_request)</code> and supply it as{" "}
+      <code>expected_nonce</code> during callback handling.
     </p>
   </div>
 </section>
 
 <nav className="next-links" aria-label="Next documentation links">
   <a href="/docs/packages">Compare packages</a>
-  <a href="/docs/reference/vestibule-oidc">vestibule/oidc API reference</a>
+  <a href="/docs/reference/vestibule_oidc">vestibule_oidc API reference</a>
 </nav>

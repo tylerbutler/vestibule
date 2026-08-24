@@ -40,55 +40,58 @@ import {
       <span className="path-label">Recommended for Wisp and Mist apps</span>
       <h2>Let middleware own the auth routes</h2>
       <p>
-        If your app uses Wisp or Mist, start here. Add core, a provider strategy,
-        and the middleware package for your server layer. Use the advanced core
-        path only when your app needs to own routing, session storage, and
-        callback handling directly.
+        If your app uses Wisp or Mist, start here. Add the core package, one
+        provider strategy, and the middleware package for your server. Use the
+        advanced core path only if your app must control the routes, session
+        storage, and callback handling.
       </p>
       <div className="scope-note">
-        <strong>Start here for Wisp or Mist:</strong> middleware owns the
-        request and callback routes. Add provider packages after this base flow
-        works.
+        <strong>Start here for Wisp or Mist:</strong> middleware handles the
+        request and callback routes. First, make this base flow work. Then add
+        more provider packages.
       </div>
       <p>
-        Vestibule packages are not published on Hex. Add them from GitHub using
-        the moving <code>vestibule-v0.0</code> tag. This requires Gleam 1.18 or
-        later because companion packages use Git path dependencies. See the{" "}
-        <a href="/docs/installation">installation guide</a> for package paths
-        and version details.
+        Vestibule packages are not available on Hex. Add them from GitHub with
+        the moving <code>vestibule-v0.0</code> tag. Use Gleam 1.18 or later
+        because companion packages use Git path dependencies. See the{" "}
+        <a href="/docs/installation">installation guide</a> for paths and
+        version information.
       </p>
       <CodeBlock code={middlewareInstallCode} lang="toml" />
 
       <h2>Route request and callback phases</h2>
       <p>
-        Register strategies once, initialize the state store once, then pass
-        request and callback routes to the middleware.
+        Register the strategies once. Initialize the state store once. Then
+        route the request and callback paths to the middleware.
       </p>
       <p>
-        <strong>What to notice:</strong> the request route starts the redirect
-        and stores transient callback data; the callback route returns an auth
-        result only after state and PKCE checks pass.
+        <strong>What to notice:</strong> the request route stores temporary
+        callback data and starts the redirect. The callback route returns an
+        auth result only after state and PKCE validation.
       </p>
       <CodeBlock code={wispCode} lang="gleam" />
 
       <ul className="responsibility-list" aria-label="Middleware responsibilities before redirecting">
         <li>
           <strong>Initialize the state store once.</strong>
-          Reusing it lets middleware bind callback data to the user flow.
+          Reuse the store so that middleware can bind callback data to the user
+          flow.
         </li>
         <li>
-          <strong>Delete callback data after success or failure.</strong>
-          The middleware consumes one-time state; your app should not reuse a
-          failed callback.
+          <strong>Let middleware consume callback data.</strong>
+          After state validation, middleware removes the stored values before
+          token exchange. A malformed callback or state mismatch does not
+          remove a valid login session.
         </li>
         <li>
           <strong>Map <code>auth.uid(auth)</code> to your own account.</strong>
-          Vestibule authenticates the provider identity; your app owns sessions.
+          Vestibule authenticates the provider identity. Your app manages user
+          accounts and sessions.
         </li>
       </ul>
 
       <div className="scope-note">
-        <strong>Using Mist?</strong> The route shape is the same; use{" "}
+        <strong>Using Mist?</strong> The route shape is the same. Use{" "}
         <a href="/docs/packages/mist">vestibule_mist</a> for plain Mist
         handlers.
       </div>
@@ -105,40 +108,42 @@ import {
     </summary>
     <div className="path-body">
       <p>
-        Core gives you the authorization URL, state, and PKCE verifier, then
-        validates the callback after your app supplies the stored values.
+        Core returns the authorization URL, state, and PKCE verifier. Your app
+        stores the values and supplies them when it validates the callback.
       </p>
       <CodeBlock code={coreInstallCode} lang="toml" />
 
       <h2>Handle the two phases yourself</h2>
       <p>
-        Store <code>authorization_request.state(auth_request)</code> and{" "}
-        <code>authorization_request.code_verifier(auth_request)</code> before
-        redirecting to <code>authorization_request.url(auth_request)</code>.
-        Pass the stored values back during callback validation and delete them
-        after success.
+        Before the redirect, store{" "}
+        <code>authorization_request.state(auth_request)</code> and{" "}
+        <code>authorization_request.code_verifier(auth_request)</code>. Then
+        redirect to <code>authorization_request.url(auth_request)</code>.
+        Supply the stored values during callback validation. Delete them after
+        a successful callback.
       </p>
       <p>
-        <strong>What to notice:</strong> asserting is safe only while creating
-        the authorization request. The callback can be stale, forged, or rejected
-        by the provider, so handle every error branch.
+        <strong>What to notice:</strong> use an assertion only when you create
+        the authorization request. A callback can be stale or forged. The
+        provider can also reject it. Handle each error result.
       </p>
       <CodeBlock code={coreCode} lang="gleam" />
 
       <ul className="responsibility-list warning" aria-label="Core flow responsibilities">
         <li>
           <strong>Store state and PKCE verifier server-side before redirecting.</strong>
-          Bind them to the user's session and expire them quickly.
+          Bind the values to the user's session. Set a short expiration time.
         </li>
         <li>
-          <strong>Delete stored callback data after every result.</strong>
-          Success, provider rejection, and state mismatch should all consume the
-          stored values.
+          <strong>Do not reuse stored callback data.</strong>
+          Delete the stored values after a successful callback. Expire unused
+          values quickly. A state mismatch must not delete a valid login
+          session.
         </li>
         <li>
           <strong>Never assert the callback result.</strong>
-          Stale tabs, denied consent, network errors, and forged state are normal
-          runtime cases.
+          A stale tab, denied consent, a network error, or a forged state value
+          can occur at run time.
         </li>
       </ul>
     </div>
@@ -148,16 +153,16 @@ import {
 <section id="callback-failure">
   <h2>When the callback fails</h2>
   <p>
-    Most callback failures are benign — a stale tab, the back button, or a
-    re-used link. Some are hostile, like a forged <code>state</code>. Vestibule
-    returns a typed error for both so you can respond safely instead of crashing
-    the request.
+    Many callback failures are harmless. Examples include a stale tab, use of
+    the back button, or a reused link. A forged <code>state</code> value is
+    hostile. Vestibule returns a typed error for each failure, so your app can
+    respond without a crash.
   </p>
 
   <p>
-    <strong>What to notice:</strong> every failure restarts or exits the OAuth
-    flow. Only transient upstream errors should offer a retry; a state mismatch
-    should never be retried with the same callback data.
+    <strong>What to notice:</strong> stop the current OAuth flow after a
+    failure. Offer a retry only for a temporary upstream error. Never retry a
+    state mismatch with the same callback data.
   </p>
   <CodeBlock code={callbackFailureCode} lang="gleam" />
 
@@ -165,27 +170,27 @@ import {
     <div>
       <h3>Why a callback fails</h3>
       <ul className="check-list">
-        <li><strong>StateMismatchKind</strong> — wrong or missing state; possible CSRF.</li>
-        <li><strong>ProviderKind</strong> — the provider rejected the request (e.g. denied consent).</li>
-        <li><strong>MissingCallbackParamKind</strong> — the provider omitted a required value.</li>
-        <li><strong>NetworkKind / CodeExchangeKind</strong> — a transient upstream problem.</li>
+        <li><strong>StateMismatchKind</strong>: The state is wrong or missing. This can indicate CSRF.</li>
+        <li><strong>ProviderKind</strong>: The provider rejected the request. For example, the user denied consent.</li>
+        <li><strong>MissingCallbackParamKind</strong>: The provider omitted a required value.</li>
+        <li><strong>NetworkKind / CodeExchangeKind</strong>: A temporary upstream problem occurred.</li>
       </ul>
     </div>
     <div>
       <h3>How to respond</h3>
       <ul className="check-list warning">
-        <li>Discard the stored state and verifier on every failure.</li>
-        <li>Restart the flow for stale tabs, reused links, and state mismatch.</li>
-        <li>Offer retry only for transient network or code-exchange failures.</li>
-        <li>Log the specific error server-side; show users a generic sign-in failure.</li>
+        <li>Discard the failed callback. Do not reuse its parameters.</li>
+        <li>Restart the flow after a stale tab, reused link, or state mismatch.</li>
+        <li>Offer a retry only for a temporary network or code-exchange failure.</li>
+        <li>Log the specific error on the server. Show users a generic sign-in error.</li>
       </ul>
     </div>
   </div>
 
   <div className="scope-note">
-    <strong>Do not leak the error.</strong> The <code>reason</code> can name
-    internal details; log it server-side and return a generic message to the
-    browser.
+    <strong>Do not expose the error.</strong> The <code>reason</code> can
+    contain internal details. Log it on the server and return a generic message
+    to the browser.
   </div>
 </section>
 
@@ -193,16 +198,17 @@ import {
   <div>
     <h2>Before shipping</h2>
     <p>
-      Check these before enabling sign-in for real users. Keep OAuth callback
-      data server-side, short-lived, and bound to the user's session. Reject
-      missing or mismatched callbacks.
+      Complete these checks before you enable sign-in for users. Keep OAuth
+      callback data on the server. Give the data a short expiration time and
+      bind it to the user's session. Reject missing or mismatched callbacks.
     </p>
   </div>
   <ul className="check-list">
     <li>Production redirect URIs must use HTTPS.</li>
-    <li>State and PKCE verifier values must be short-lived and server-side.</li>
+    <li>Store state and PKCE verifier values on the server for a short time.</li>
+    <li>Remove client secrets, authorization codes, and PKCE verifiers from logs and error reports.</li>
     <li>Bearer tokens must be redacted from logs and error reports.</li>
-    <li>Cookie-secret rotation invalidates in-flight OAuth callbacks.</li>
+    <li>A cookie-secret change invalidates OAuth callbacks that are in progress.</li>
   </ul>
 </section>
 
