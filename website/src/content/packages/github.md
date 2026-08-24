@@ -5,7 +5,7 @@ kind: Provider strategy
 summary: GitHub OAuth strategy with normalized profile data and verified-primary-email lookup.
 install:
   - "[dependencies]"
-  - 'vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_github" }'
+  - 'vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0", path = "packages/vestibule_github" }'
 useWhen: Use GitHub if users sign in with GitHub accounts. The strategy returns profile data and the verified primary email address when available.
 defaultScopes: "user:email"
 setup:

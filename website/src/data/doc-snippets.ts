@@ -1,11 +1,11 @@
 export const middlewareInstallCode = `[dependencies]
-vestibule = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0" }
-vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_github" }
-vestibule_wisp = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_wisp" }`;
+vestibule = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0" }
+vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0", path = "packages/vestibule_github" }
+vestibule_wisp = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0", path = "packages/vestibule_wisp" }`;
 
 export const coreInstallCode = `[dependencies]
-vestibule = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0" }
-vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_github" }`;
+vestibule = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0" }
+vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0", path = "packages/vestibule_github" }`;
 
 export const coreCode = `import gleam/dict
 import gleam/option
@@ -241,7 +241,7 @@ licences = ["MIT"]
 gleam = ">= 1.7.0"
 
 [dependencies]
-vestibule = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0" }
+vestibule = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0" }
 gleam_stdlib = ">= 0.48.0 and < 2.0.0"
 gleam_http = ">= 4.3.0 and < 5.0.0"
 gleam_httpc = ">= 5.0.0 and < 6.0.0"

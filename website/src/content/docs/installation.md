@@ -36,9 +36,9 @@ available on Hex.** Add these Git dependencies to `gleam.toml`:
 
 ```toml
 [dependencies]
-vestibule = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0" }
-vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_github" }
-vestibule_wisp = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_wisp" }
+vestibule = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0" }
+vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0", path = "packages/vestibule_github" }
+vestibule_wisp = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0", path = "packages/vestibule_wisp" }
 ```
 
 Download the dependencies:
@@ -88,9 +88,10 @@ install them from this monorepo.
 
 ## Choosing a ref
 
-The examples use the moving `vestibule-v0.0` series tag. This tag points to the
-newest compatible release in the 0.0 series. Use the same ref for all Vestibule
-packages in your application. Do not mix package versions.
+The examples use the moving `v0` major tag. This tag points to the newest
+pre-1.0 release. Because minor releases can contain breaking changes before
+1.0, read the release notes when the tag moves. Use the same ref for all
+Vestibule packages in your application. Do not mix package versions.
 
 See [GitHub Releases](https://github.com/tylerbutler/vestibule/releases) for
 immutable release tags and release notes.

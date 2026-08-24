@@ -5,9 +5,9 @@ kind: Wisp middleware
 summary: Wisp request and callback routing with signed session cookies and single-use ETS state storage.
 install:
   - "[dependencies]"
-  - 'vestibule = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0" }'
-  - 'vestibule_wisp = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_wisp" }'
-  - 'vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_github" }'
+  - 'vestibule = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0" }'
+  - 'vestibule_wisp = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0", path = "packages/vestibule_wisp" }'
+  - 'vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0", path = "packages/vestibule_github" }'
 useWhen: Use Wisp middleware if your app routes requests with Wisp. The middleware handles the request and callback phases.
 setup:
   - Configure Wisp with a strong, stable secret key base.

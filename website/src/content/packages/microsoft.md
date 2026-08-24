@@ -5,7 +5,7 @@ kind: Provider strategy
 summary: Microsoft OAuth strategy that uses Microsoft Graph /me and supports tenant-specific sign-in.
 install:
   - "[dependencies]"
-  - 'vestibule_microsoft = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_microsoft" }'
+  - 'vestibule_microsoft = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0", path = "packages/vestibule_microsoft" }'
 useWhen: Use Microsoft if users sign in with Microsoft personal, work, or school accounts.
 defaultScopes: openid User.Read
 setup:

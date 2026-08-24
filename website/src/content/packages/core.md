@@ -5,8 +5,8 @@ kind: Core package
 summary: Core types, a two-phase OAuth2 flow, PKCE, CSRF state, token refresh, and a shared state store.
 install:
   - "[dependencies]"
-  - 'vestibule = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0" }'
-  - 'vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_github" }'
+  - 'vestibule = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0" }'
+  - 'vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0", path = "packages/vestibule_github" }'
 useWhen: Use the core package if your app must control the request and callback phases or provide a custom transport integration.
 setup:
   - Register a provider application and copy its client ID and secret.
