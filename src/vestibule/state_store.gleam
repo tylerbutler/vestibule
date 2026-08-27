@@ -13,6 +13,12 @@
 //// `vestibule_mist`, etc.). Applications that load more than one
 //// transport share a single ETS owner process and may share a store.
 ////
+//// The owner process is started lazily and is not supervised. If it dies,
+//// every in-flight session is lost (those logins fail and users retry), but
+//// the store heals itself: the next operation on an existing handle
+//// respawns the owner and recreates the table with the same capacity, so a
+//// crash never leaves authentication broken until the VM restarts.
+////
 //// ## Capacity and expiry
 ////
 //// Starting a flow is an unauthenticated operation, so the store bounds

@@ -298,3 +298,40 @@ pub fn peek_rejects_other_provider_without_burning_session_test() -> Nil {
   |> expect.to_be_ok()
   |> expect.to_equal(#("state", "verifier", None))
 }
+
+// === owner process recovery ===
+
+pub fn store_recovers_after_owner_crash_test() -> Nil {
+  // The ETS owner is unsupervised. If it dies, in-flight sessions are lost,
+  // but the store must heal itself on the next call instead of failing
+  // every login until the VM restarts.
+  let name = "vestibule_owner_recovery_test"
+  let assert Ok(table) = state_store.try_init_named(name)
+  let assert Ok(old_session) =
+    state_store.try_store(
+      table,
+      provider: "test",
+      state: "state",
+      code_verifier: "verifier",
+      nonce: None,
+    )
+
+  kill_owner()
+
+  let assert Ok(new_session) =
+    state_store.try_store(
+      table,
+      provider: "test",
+      state: "state-after-crash",
+      code_verifier: "verifier",
+      nonce: None,
+    )
+  state_store.consume(table, old_session, provider: "test")
+  |> expect.to_be_error()
+  state_store.consume(table, new_session, provider: "test")
+  |> expect.to_be_ok()
+  |> expect.to_equal(#("state-after-crash", "verifier", None))
+}
+
+@external(erlang, "vestibule_state_store_test_ffi", "kill_owner")
+fn kill_owner() -> Nil
