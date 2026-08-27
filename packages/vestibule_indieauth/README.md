@@ -84,12 +84,19 @@ let assert Ok(auth) =
 3. **Authorization** — Standard OAuth 2.0 authorization code flow with PKCE
 4. **Token exchange** — Code is exchanged at the discovered token endpoint;
    the response includes the user's canonical URL (`me`) and optional profile info
+5. **Profile URL confirmation** — The `me` returned by the token endpoint is the
+   user's identity, not the URL they typed. If it differs from the typed URL, the
+   library re-discovers the returned URL and only accepts it when it is served by
+   the same authorization server the flow used (IndieAuth §5.3.4). A userinfo
+   endpoint may add profile details but cannot change the confirmed `me`
 
 ## Key Differences from Other Providers
 
 - **No client secret** — IndieAuth clients are public; use `config.PublicClient`
 - **client_id is your app's URL** — Not an opaque ID from a developer console
-- **User identity is a URL** — `auth.uid(auth)` returns the user's canonical URL
+- **User identity is a URL** — `auth.uid(auth)` returns the user's confirmed
+  canonical URL, which may differ from the URL they typed (for example, a shared
+  authorization server returns the URL of the account that actually signed in)
 - **Endpoints are per-user** — Each user may have different authorization/token endpoints
 - **Discovery required** — Call `discover()` before starting the auth flow
 

@@ -3,6 +3,7 @@ import startest
 import startest/expect
 
 import vestibule/credentials
+import vestibule/error
 import vestibule/user_info
 
 import vestibule_indieauth/token
@@ -261,4 +262,12 @@ pub fn parse_userinfo_invalid_json_test() -> Nil {
     token.parse_userinfo_response("bad json")
     |> expect.to_be_error()
   Nil
+}
+
+// === exchange response: me is required ===
+
+pub fn parse_profile_requires_me_test() -> Nil {
+  let json = "{ \"access_token\": \"abc\", \"token_type\": \"Bearer\" }"
+  let assert Error(err) = token.parse_profile_from_token_response(json)
+  error.kind(err) |> expect.to_equal(error.UserInfoKind)
 }
