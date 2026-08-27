@@ -3,9 +3,7 @@ import startest
 import startest/expect
 
 import vestibule/error
-import vestibule_indieauth/discovery.{
-  type DiscoveredEndpoints, DiscoveredEndpoints,
-}
+import vestibule_indieauth/discovery.{DiscoveredEndpoints}
 
 pub fn main() -> Nil {
   startest.run(startest.default_config())
