@@ -7,9 +7,12 @@
 //// for single-use storage of in-flight flow state.
 
 import gleam/bit_array
+import gleam/crypto
 import gleam/dict
 import gleam/http
+import gleam/http/cookie
 import gleam/http/request
+import gleam/http/response
 import gleam/list
 import gleam/option
 import gleam/result
@@ -43,10 +46,25 @@ pub type CookieSecurity {
   AllowInsecure
 }
 
+/// How the session cookie's `SameSite` attribute is set.
+pub type CookieSameSite {
+  /// `SameSite=Lax` (default), set via `wisp.set_cookie`. Sent on top-level
+  /// GET navigations, which is how every provider that redirects back with
+  /// query parameters delivers its callback.
+  Lax
+  /// `SameSite=None; Secure`. Required for providers that deliver the
+  /// callback with a cross-site POST (`response_mode=form_post`, e.g. Apple):
+  /// browsers do not send `Lax` cookies on cross-site POSTs, so the callback
+  /// would fail with `MissingOrInvalidSessionCookie(CookieAbsent)`. Browsers
+  /// only honour `SameSite=None` together with `Secure`, so `Secure` is always
+  /// set for this mode, even for plain-HTTP localhost requests.
+  CrossSite
+}
+
 /// Middleware configuration options.
 ///
 /// Construct with `default_options` and customize with `with_cookie_name`,
-/// `with_session_ttl_seconds`, and `with_cookie_security`. The type is opaque
+/// `with_session_ttl_seconds`, `with_cookie_security`, and `with_same_site`. The type is opaque
 /// so the effective cookie name always matches the cookie security: host-bound
 /// (`__Host-` prefixed) under `SecureOnly`, unprefixed under `AllowInsecure`
 /// (browsers reject `__Host-` cookies that are not `Secure`). A host-bound
@@ -62,6 +80,7 @@ pub opaque type Options {
     cookie_name: String,
     session_ttl_seconds: Int,
     cookie_security: CookieSecurity,
+    same_site: CookieSameSite,
   )
 }
 
@@ -124,6 +143,7 @@ pub fn default_options() -> Options {
     cookie_name: default_cookie_base_name,
     session_ttl_seconds: 600,
     cookie_security: SecureOnly,
+    same_site: Lax,
   )
 }
 
@@ -158,6 +178,16 @@ pub fn with_cookie_security(
   security: CookieSecurity,
 ) -> Options {
   Options(..options, cookie_security: security)
+}
+
+/// Set the session cookie's `SameSite` attribute. See `CookieSameSite`.
+pub fn with_same_site(options: Options, same_site: CookieSameSite) -> Options {
+  Options(..options, same_site: same_site)
+}
+
+/// The session cookie's `SameSite` setting for these options.
+pub fn same_site(options: Options) -> CookieSameSite {
+  options.same_site
 }
 
 /// The effective session cookie name: host-bound (`__Host-` prefixed) under
@@ -311,13 +341,7 @@ pub fn request_phase_with_options(
         ),
       )
       wisp.redirect(url)
-      |> wisp.set_cookie(
-        req,
-        cookie_name(middleware_options),
-        session_id,
-        wisp.Signed,
-        session_ttl_seconds(middleware_options),
-      )
+      |> set_session_cookie(req, middleware_options, session_id)
     }
   }
 }
@@ -495,6 +519,41 @@ pub fn callback_phase_auth_result_with_options(
     Error(err) -> log_callback_error(provider, err)
   }
   outcome
+}
+
+/// Set the signed session cookie.
+///
+/// `wisp.set_cookie` always emits `SameSite=Lax`, so the cross-site variant
+/// signs the value the same way (`wisp.sign_message`, SHA-512 — what
+/// `wisp.get_cookie(_, _, wisp.Signed)` verifies) and sets the attributes
+/// itself.
+fn set_session_cookie(
+  response: Response,
+  req: Request,
+  options: Options,
+  session_id: String,
+) -> Response {
+  case options.same_site {
+    Lax ->
+      wisp.set_cookie(
+        response,
+        req,
+        cookie_name(options),
+        session_id,
+        wisp.Signed,
+        session_ttl_seconds(options),
+      )
+    CrossSite -> {
+      let value = wisp.sign_message(req, <<session_id:utf8>>, crypto.Sha512)
+      let attributes =
+        cookie.Attributes(
+          ..cookie.defaults(http.Https),
+          max_age: option.Some(session_ttl_seconds(options)),
+          same_site: option.Some(cookie.None),
+        )
+      response.set_cookie(response, cookie_name(options), value, attributes)
+    }
+  }
 }
 
 /// Read and verify the signed session cookie, distinguishing "no cookie was
