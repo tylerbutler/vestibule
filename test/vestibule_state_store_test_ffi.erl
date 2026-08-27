@@ -1,6 +1,7 @@
 -module(vestibule_state_store_test_ffi).
 
--export([state_store_survives_creator_process_exit/0, count_store_entries/1]).
+-export([state_store_survives_creator_process_exit/0, count_store_entries/1,
+         trigger_owner_sweep/1]).
 
 state_store_survives_creator_process_exit() ->
     Name = <<"vestibule_owner_lifetime_test">>,
@@ -9,7 +10,7 @@ state_store_survives_creator_process_exit() ->
     Parent = self(),
     Pid = spawn(fun() ->
         Result =
-            case vestibule_state_store_ffi:create_table(Name) of
+            case vestibule_state_store_ffi:create_table(Name, 100000) of
                 {ok, Store} ->
                     vestibule_state_store_ffi:insert(Store, Key, Value);
                 Error ->
@@ -39,3 +40,10 @@ count_store_entries(Name) ->
         {ok, Count} -> Count;
         {error, _} -> -1
     end.
+
+%% Deliver the owner's periodic sweep tick immediately. The owner processes
+%% its mailbox in order, so a subsequent synchronous call (e.g. count/1)
+%% observes the sweep's effect.
+trigger_owner_sweep(Name) ->
+    vestibule_state_store_owner ! {sweep, Name},
+    nil.

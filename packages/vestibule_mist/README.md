@@ -164,5 +164,7 @@ to query parameters.
 `vestibule_mist` simultaneously; a single ETS owner process is shared
 across all transports.
 
-See the `vestibule/state_store` API docs for `try_init`, `init_named`,
-`store`, `retrieve`, and TTL semantics.
+See the `vestibule/state_store` API docs for `try_init`, `try_init_named`,
+`try_init_with_capacity`, TTL, and capacity semantics. A store holds at most
+100 000 live sessions by default; once full, `request_phase` fails with a
+generic error until sessions are consumed or expire.

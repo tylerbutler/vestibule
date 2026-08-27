@@ -12,8 +12,20 @@
 //// This is the shared store used by transport packages (`vestibule_wisp`,
 //// `vestibule_mist`, etc.). Applications that load more than one
 //// transport share a single ETS owner process and may share a store.
+////
+//// ## Capacity and expiry
+////
+//// Starting a flow is an unauthenticated operation, so the store bounds
+//// what a client can pin in memory: every store has a maximum number of
+//// live entries (`try_init_with_capacity`, default 100 000), and a store
+//// that is full refuses new flows with `StoreFull` rather than growing.
+//// Expired entries are rejected on read, reclaimed on demand when the store
+//// is at capacity, and swept periodically by the owner process; inserts
+//// themselves are O(1). Rate-limit the request endpoint upstream if you
+//// need a stronger guarantee than the capacity cap provides.
 
 import gleam/bit_array
+import gleam/bool
 import gleam/crypto
 import gleam/option.{type Option}
 import gleam/order
@@ -22,6 +34,10 @@ import gleam/time/duration
 import gleam/time/timestamp
 
 const default_ttl_seconds = 600
+
+/// Default upper bound on live sessions per store. Each entry is a few
+/// hundred bytes, so this caps a store at roughly tens of megabytes.
+const default_max_entries = 100_000
 
 /// The state store table.
 ///
@@ -56,6 +72,12 @@ pub type StateStoreError {
   TableNotFound
   InsertFailed(reason: String)
   CleanupFailed(reason: String)
+  /// The store holds `max_entries` live sessions and no expired ones could
+  /// be reclaimed. New flows are refused until sessions are consumed or
+  /// expire.
+  StoreFull
+  /// `try_init_with_capacity` was given a `max_entries` of zero or less.
+  InvalidCapacity
 }
 
 /// Try to initialize the state store. Call once per VM at application
@@ -64,14 +86,34 @@ pub fn try_init() -> Result(StateStore, StateStoreError) {
   try_init_named("vestibule_sessions")
 }
 
-/// Try to initialize a named state store. Returns `Error(TableAlreadyExists)`
-/// if the table already exists, or another `StateStoreError` if the owner
-/// process or ETS operation fails.
+/// Try to initialize a named state store with the default capacity. Returns
+/// `Error(TableAlreadyExists)` if the table already exists, or another
+/// `StateStoreError` if the owner process or ETS operation fails.
 pub fn try_init_named(name: String) -> Result(StateStore, StateStoreError) {
-  case create_table(name) {
+  try_init_with_capacity(name: name, max_entries: default_max_entries)
+}
+
+/// Try to initialize a named state store that holds at most `max_entries`
+/// live sessions. Once full, `try_store` fails with `StoreFull` until
+/// sessions are consumed or expire. Returns `Error(InvalidCapacity)` when
+/// `max_entries` is not positive.
+pub fn try_init_with_capacity(
+  name name: String,
+  max_entries max_entries: Int,
+) -> Result(StateStore, StateStoreError) {
+  use <- bool.guard(when: max_entries <= 0, return: Error(InvalidCapacity))
+  case create_table(name, max_entries) {
     Ok(table) -> Ok(StateStore(table))
     Error(reason) -> Error(map_create_error(reason))
   }
+}
+
+/// Remove every expired session from the store now, returning how many were
+/// removed. The owner process does this on a timer and on demand when the
+/// store is at capacity, so calling it is optional.
+pub fn sweep_expired(table: StateStore) -> Result(Int, StateStoreError) {
+  cleanup_expired(table.table)
+  |> result.map_error(map_cleanup_error)
 }
 
 /// Try to store a CSRF state value, PKCE code verifier, and optional OIDC
@@ -106,11 +148,6 @@ pub fn try_store_with_ttl(
   nonce nonce: Option(String),
   ttl_seconds ttl_seconds: Int,
 ) -> Result(String, StateStoreError) {
-  use _ <- result.try(
-    cleanup_expired(table.table, timestamp.system_time())
-    |> result.map_error(map_cleanup_error),
-  )
-
   let session_id =
     crypto.strong_random_bytes(16)
     |> bit_array.base64_url_encode(False)
@@ -163,7 +200,6 @@ pub fn peek(
       case is_expired(session) {
         True -> {
           let _deleted = delete_key(table.table, session_id)
-          let _cleaned = cleanup_expired(table.table, timestamp.system_time())
           Error(Nil)
         }
         False -> validate_session(session, provider)
@@ -188,6 +224,7 @@ fn map_insert_error(reason: String) -> StateStoreError {
     "owner_init_failed" | "owner_unavailable" -> OwnerUnavailable
     "timeout" -> OperationTimedOut
     "table_not_found" -> TableNotFound
+    "store_full" -> StoreFull
     other -> InsertFailed(reason: other)
   }
 }
@@ -229,7 +266,7 @@ fn is_expired(session: SessionState) -> Bool {
 // is incompatible with current Gleam dependencies. Prefer replacing this with
 // Bravo again once a compatible Bravo version is available on Hex.
 @external(erlang, "vestibule_state_store_ffi", "create_table")
-fn create_table(name: String) -> Result(EtsTable, String)
+fn create_table(name: String, max_entries: Int) -> Result(EtsTable, String)
 
 @external(erlang, "vestibule_state_store_ffi", "insert")
 fn insert(
@@ -248,7 +285,4 @@ fn lookup(table: EtsTable, key: String) -> Result(SessionState, String)
 fn delete_key(table: EtsTable, key: String) -> Result(Nil, String)
 
 @external(erlang, "vestibule_state_store_ffi", "cleanup_expired")
-fn cleanup_expired(
-  table: EtsTable,
-  now: timestamp.Timestamp,
-) -> Result(Int, String)
+fn cleanup_expired(table: EtsTable) -> Result(Int, String)
