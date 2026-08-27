@@ -2,6 +2,13 @@
 //// PKCE `code_verifier`). Entries are deleted on first read to prevent
 //// replay.
 ////
+//// Every entry is bound to the provider that started the flow, and reading
+//// it back requires naming the same provider. Without that binding a
+//// session minted for provider A would satisfy provider B's callback,
+//// letting an attacker-controlled provider redirect the browser to another
+//// provider's callback with the still-valid `state` (an OAuth mix-up attack
+//// that ends in login CSRF or account-linking takeover).
+////
 //// This is the shared store used by transport packages (`vestibule_wisp`,
 //// `vestibule_mist`, etc.). Applications that load more than one
 //// transport share a single ETS owner process and may share a store.
@@ -28,6 +35,7 @@ type EtsTable
 
 type SessionState {
   SessionState(
+    provider: String,
     state: String,
     code_verifier: String,
     nonce: Option(String),
@@ -67,15 +75,20 @@ pub fn try_init_named(name: String) -> Result(StateStore, StateStoreError) {
 }
 
 /// Try to store a CSRF state value, PKCE code verifier, and optional OIDC
-/// nonce, returning a session ID.
+/// nonce for a flow started with `provider`, returning a session ID.
+///
+/// `provider` is the strategy's provider name; `consume` and `peek` must be
+/// called with the same value.
 pub fn try_store(
   table: StateStore,
+  provider provider: String,
   state state: String,
   code_verifier code_verifier: String,
   nonce nonce: Option(String),
 ) -> Result(String, StateStoreError) {
   try_store_with_ttl(
     table,
+    provider: provider,
     state: state,
     code_verifier: code_verifier,
     nonce: nonce,
@@ -84,9 +97,10 @@ pub fn try_store(
 }
 
 /// Try to store a CSRF state value, PKCE verifier, and optional OIDC nonce
-/// with a TTL, returning a session ID.
+/// for a flow started with `provider`, with a TTL, returning a session ID.
 pub fn try_store_with_ttl(
   table: StateStore,
+  provider provider: String,
   state state: String,
   code_verifier code_verifier: String,
   nonce nonce: Option(String),
@@ -108,7 +122,7 @@ pub fn try_store_with_ttl(
     insert(
       table.table,
       session_id,
-      SessionState(state:, code_verifier:, nonce:, expires_at:),
+      SessionState(provider:, state:, code_verifier:, nonce:, expires_at:),
     )
   {
     Ok(Nil) -> Ok(session_id)
@@ -118,13 +132,16 @@ pub fn try_store_with_ttl(
 
 /// Consume a CSRF state, code verifier, and optional nonce by session ID.
 ///
-/// Returns `Error(Nil)` if not found, expired, or already consumed.
+/// Returns `Error(Nil)` if not found, expired, already consumed, or stored
+/// for a different `provider`. The entry is removed in every case, so a
+/// cross-provider attempt burns the session rather than leaving it usable.
 pub fn consume(
   table: StateStore,
   session_id: String,
+  provider provider: String,
 ) -> Result(#(String, String, Option(String)), Nil) {
   case take(table.table, session_id) {
-    Ok(session) -> validate_session(session)
+    Ok(session) -> validate_session(session, provider)
     Error(_) -> Error(Nil)
   }
 }
@@ -132,20 +149,24 @@ pub fn consume(
 /// Look up a CSRF state, code verifier, and optional nonce by session ID
 /// without consuming it.
 ///
-/// Expired sessions are treated as missing and removed from the store.
+/// Expired sessions are treated as missing and removed from the store. A
+/// session stored for a different `provider` is treated as missing but left
+/// in place, so a wrong-provider probe cannot burn a legitimate in-flight
+/// login.
 pub fn peek(
   table: StateStore,
   session_id: String,
+  provider provider: String,
 ) -> Result(#(String, String, Option(String)), Nil) {
   case lookup(table.table, session_id) {
     Ok(session) -> {
-      case validate_session(session) {
-        Ok(value) -> Ok(value)
-        Error(Nil) -> {
+      case is_expired(session) {
+        True -> {
           let _deleted = delete_key(table.table, session_id)
           let _cleaned = cleanup_expired(table.table, timestamp.system_time())
           Error(Nil)
         }
+        False -> validate_session(session, provider)
       }
     }
     Error(_) -> Error(Nil)
@@ -182,11 +203,25 @@ fn map_cleanup_error(reason: String) -> StateStoreError {
 
 fn validate_session(
   session: SessionState,
+  provider: String,
 ) -> Result(#(String, String, Option(String)), Nil) {
-  let SessionState(state:, code_verifier:, nonce:, expires_at:) = session
-  case timestamp.compare(timestamp.system_time(), expires_at) {
-    order.Lt -> Ok(#(state, code_verifier, nonce))
-    _ -> Error(Nil)
+  let SessionState(
+    provider: stored_provider,
+    state:,
+    code_verifier:,
+    nonce:,
+    ..,
+  ) = session
+  case is_expired(session) || stored_provider != provider {
+    True -> Error(Nil)
+    False -> Ok(#(state, code_verifier, nonce))
+  }
+}
+
+fn is_expired(session: SessionState) -> Bool {
+  case timestamp.compare(timestamp.system_time(), session.expires_at) {
+    order.Lt -> False
+    _ -> True
   }
 }
 

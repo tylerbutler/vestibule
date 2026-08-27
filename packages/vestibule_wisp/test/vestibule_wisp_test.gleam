@@ -227,6 +227,7 @@ pub fn callback_phase_auth_result_with_options_uses_cookie_name_test() -> Nil {
   let assert Ok(session_id) =
     state_store.try_store(
       store,
+      provider: "test",
       state: "state",
       code_verifier: "verifier",
       nonce: option.None,
@@ -259,6 +260,7 @@ pub fn callback_phase_auth_result_malformed_post_body_returns_invalid_params_tes
   let assert Ok(session_id) =
     state_store.try_store(
       store,
+      provider: "test",
       state: "state",
       code_verifier: "verifier",
       nonce: option.None,
@@ -283,6 +285,7 @@ pub fn callback_phase_auth_result_missing_state_does_not_consume_session_test() 
   let assert Ok(session_id) =
     state_store.try_store(
       store,
+      provider: "test",
       state: "state",
       code_verifier: "verifier",
       nonce: option.None,
@@ -390,6 +393,7 @@ pub fn callback_phase_default_error_response_does_not_render_provider_details_te
   let assert Ok(session_id) =
     state_store.try_store(
       store,
+      provider: "test",
       state: "state",
       code_verifier: "verifier",
       nonce: option.None,
@@ -430,6 +434,7 @@ pub fn callback_phase_auth_result_preserves_provider_error_details_test() -> Nil
   let assert Ok(session_id) =
     state_store.try_store(
       store,
+      provider: "test",
       state: "state",
       code_verifier: "verifier",
       nonce: option.None,
