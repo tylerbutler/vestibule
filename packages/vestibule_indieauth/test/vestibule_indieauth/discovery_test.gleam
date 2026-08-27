@@ -2,7 +2,10 @@ import gleam/option.{None, Some}
 import startest
 import startest/expect
 
-import vestibule_indieauth/discovery
+import vestibule/error
+import vestibule_indieauth/discovery.{
+  type DiscoveredEndpoints, DiscoveredEndpoints,
+}
 
 pub fn main() -> Nil {
   startest.run(startest.default_config())
@@ -198,4 +201,68 @@ pub fn find_html_link_rel_multiple_links_first_wins_test() -> Nil {
 
   discovery.find_html_link_rel(html, "authorization_endpoint")
   |> expect.to_equal(Some("https://first.example.com/auth"))
+}
+
+// === discovered endpoints must be public HTTPS ===
+
+pub fn parse_metadata_rejects_http_token_endpoint_test() -> Nil {
+  let json =
+    "{
+    \"authorization_endpoint\": \"https://auth.example.com/authorize\",
+    \"token_endpoint\": \"http://auth.example.com/token\"
+  }"
+  let assert Error(err) = discovery.parse_metadata(json)
+  error.kind(err) |> expect.to_equal(error.ConfigKind)
+}
+
+pub fn parse_metadata_rejects_private_userinfo_endpoint_test() -> Nil {
+  let json =
+    "{
+    \"authorization_endpoint\": \"https://auth.example.com/authorize\",
+    \"token_endpoint\": \"https://auth.example.com/token\",
+    \"userinfo_endpoint\": \"https://169.254.169.254/latest/meta-data/\"
+  }"
+  let _ =
+    discovery.parse_metadata(json)
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn parse_metadata_rejects_loopback_authorization_endpoint_test() -> Nil {
+  let json =
+    "{
+    \"authorization_endpoint\": \"https://127.0.0.1/authorize\",
+    \"token_endpoint\": \"https://auth.example.com/token\"
+  }"
+  let _ =
+    discovery.parse_metadata(json)
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn validate_endpoints_accepts_public_https_test() -> Nil {
+  let endpoints =
+    DiscoveredEndpoints(
+      authorization_endpoint: "https://auth.example.com/authorize",
+      token_endpoint: "https://auth.example.com/token",
+      issuer: Some("https://auth.example.com/"),
+      userinfo_endpoint: Some("https://auth.example.com/userinfo"),
+    )
+  discovery.validate_endpoints(endpoints)
+  |> expect.to_be_ok()
+  |> expect.to_equal(endpoints)
+}
+
+pub fn validate_endpoints_rejects_private_issuer_test() -> Nil {
+  let endpoints =
+    DiscoveredEndpoints(
+      authorization_endpoint: "https://auth.example.com/authorize",
+      token_endpoint: "https://auth.example.com/token",
+      issuer: Some("https://10.0.0.5/"),
+      userinfo_endpoint: None,
+    )
+  let _ =
+    discovery.validate_endpoints(endpoints)
+    |> expect.to_be_error()
+  Nil
 }

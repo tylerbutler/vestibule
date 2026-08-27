@@ -13,6 +13,7 @@ import gleam/string
 import gleam/uri.{type Uri}
 
 import vestibule/error.{type AuthError}
+import vestibule/provider_support
 
 /// Validate a user profile URL per IndieAuth spec Section 3.2.
 ///
@@ -24,6 +25,10 @@ import vestibule/error.{type AuthError}
 /// - Not contain a username or password
 /// - Not contain a port
 /// - Have a domain name host (not an IP address)
+///
+/// Additionally, because the profile URL is fetched server-side during
+/// discovery, `localhost`, `*.local`, and other non-public hosts are
+/// rejected so the login form cannot be used to reach internal services.
 pub fn validate_profile_url(raw_url: String) -> Result(String, AuthError(e)) {
   let url = canonicalize(raw_url)
   case uri.parse(url) {
@@ -59,6 +64,7 @@ fn validate_profile_uri(
       }
     _ -> Error(error.config(reason: "Profile URL is missing a host"))
   })
+  use _ <- result.try(provider_support.require_public_host(url))
   use _ <- result.try(case parsed.port {
     Some(_) ->
       Error(error.config(reason: "Profile URL must not contain a port"))

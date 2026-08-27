@@ -3,6 +3,7 @@ import startest
 import startest/expect
 
 import vestibule/credentials
+import vestibule/error
 import vestibule/user_info
 
 import vestibule_indieauth/token
@@ -261,4 +262,38 @@ pub fn parse_userinfo_invalid_json_test() -> Nil {
     token.parse_userinfo_response("bad json")
     |> expect.to_be_error()
   Nil
+}
+
+// === request sites refuse non-public endpoints before any network I/O ===
+
+pub fn exchange_code_rejects_non_public_token_endpoint_test() -> Nil {
+  let assert Error(err) =
+    token.exchange_code(
+      "http://169.254.169.254/latest/api/token",
+      "https://app.example.com/",
+      "https://app.example.com/callback",
+      "code",
+      None,
+    )
+  error.kind(err) |> expect.to_equal(error.ConfigKind)
+}
+
+pub fn refresh_rejects_non_public_token_endpoint_test() -> Nil {
+  let assert Error(err) =
+    token.refresh("https://10.0.0.5/token", "https://app.example.com/", "rt")
+  error.kind(err) |> expect.to_equal(error.ConfigKind)
+}
+
+pub fn fetch_userinfo_rejects_non_public_endpoint_test() -> Nil {
+  let creds =
+    credentials.new(
+      token: "t",
+      refresh_token: None,
+      token_type: "Bearer",
+      expires_in: None,
+      scopes: [],
+    )
+  let assert Error(err) =
+    token.fetch_userinfo("https://localhost/userinfo", creds)
+  error.kind(err) |> expect.to_equal(error.ConfigKind)
 }
