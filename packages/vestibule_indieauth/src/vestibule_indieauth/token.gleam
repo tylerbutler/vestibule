@@ -52,6 +52,7 @@ pub fn exchange_code(
   code: String,
   code_verifier: Option(String),
 ) -> Result(#(Credentials, IndieAuthProfile), AuthError(e)) {
+  use _ <- result.try(provider_support.require_public_https(token_endpoint))
   let body =
     uri.query_to_string([
       #("grant_type", "authorization_code"),
@@ -107,6 +108,7 @@ pub fn refresh(
   client_id: String,
   refresh_token: String,
 ) -> Result(Credentials, AuthError(e)) {
+  use _ <- result.try(provider_support.require_public_https(token_endpoint))
   let body =
     uri.query_to_string([
       #("grant_type", "refresh_token"),
@@ -278,6 +280,7 @@ pub fn fetch_userinfo(
   userinfo_url: String,
   oauth_credentials: Credentials,
 ) -> Result(#(String, UserInfo), AuthError(e)) {
+  use _ <- result.try(provider_support.require_public_https(userinfo_url))
   use auth_header <- result.try(strategy.authorization_header(oauth_credentials))
 
   use req <- result.try(

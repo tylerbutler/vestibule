@@ -456,3 +456,74 @@ pub fn fetch_json_with_auth_rejects_remote_http_before_sending_token_test() -> N
     _ -> panic as "expected ConfigError before sending bearer token"
   }
 }
+
+// Forms Erlang's resolver accepts as loopback that a naive dotted-quad parse
+// would treat as public hostnames (verified with `inet:getaddr/2`).
+
+pub fn require_public_https_rejects_shorthand_ipv4_test() -> Nil {
+  let _ =
+    provider_support.require_public_https("https://127.1/userinfo")
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn require_public_https_rejects_decimal_ipv4_test() -> Nil {
+  let _ =
+    provider_support.require_public_https("https://2130706433/userinfo")
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn require_public_https_rejects_octal_ipv4_test() -> Nil {
+  let _ =
+    provider_support.require_public_https("https://0177.0.0.1/userinfo")
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn require_public_https_rejects_trailing_dot_localhost_test() -> Nil {
+  let _ =
+    provider_support.require_public_https("https://localhost./userinfo")
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn require_public_https_rejects_ipv4_mapped_ipv6_test() -> Nil {
+  let _ =
+    provider_support.require_public_https("https://[::ffff:127.0.0.1]/userinfo")
+    |> expect.to_be_error()
+  Nil
+}
+
+// === require_public_host ===
+
+pub fn require_public_host_accepts_http_public_host_test() -> Nil {
+  provider_support.require_public_host("http://user.example.com/")
+  |> expect.to_be_ok()
+}
+
+pub fn require_public_host_accepts_https_public_host_test() -> Nil {
+  provider_support.require_public_host("https://user.example.com/")
+  |> expect.to_be_ok()
+}
+
+pub fn require_public_host_rejects_localhost_test() -> Nil {
+  let _ =
+    provider_support.require_public_host("http://localhost/")
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn require_public_host_rejects_private_ipv4_test() -> Nil {
+  let _ =
+    provider_support.require_public_host("http://10.0.0.5/")
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn require_public_host_rejects_missing_host_test() -> Nil {
+  let _ =
+    provider_support.require_public_host("http:///path")
+    |> expect.to_be_error()
+  Nil
+}

@@ -21,6 +21,7 @@ import gleam/uri
 import presentable_soup as soup
 
 import vestibule/error.{type AuthError}
+import vestibule/provider_support
 
 /// Endpoints discovered from a user's IndieAuth server.
 pub type DiscoveredEndpoints {
@@ -98,6 +99,9 @@ fn find_metadata_url(
 fn fetch_metadata(
   metadata_url: String,
 ) -> Result(DiscoveredEndpoints, AuthError(e)) {
+  // The metadata URL comes from the user's own page, so it is as untrusted
+  // as the endpoints it will yield.
+  use _ <- result.try(provider_support.require_public_https(metadata_url))
   use req <- result.try(
     request.to(metadata_url)
     |> result.replace_error(error.config(
@@ -156,11 +160,41 @@ pub fn parse_metadata(
   }
 
   case json.parse(body, decoder) {
-    Ok(endpoints) -> Ok(endpoints)
+    Ok(endpoints) -> validate_endpoints(endpoints)
     Error(err) ->
       Error(error.config(
         reason: "Failed to parse IndieAuth metadata: " <> string.inspect(err),
       ))
+  }
+}
+
+/// Require every discovered endpoint to be a public HTTPS URL.
+///
+/// Discovered endpoints are chosen by whoever controls the profile URL, so
+/// without this check a login attempt could point the server's token or
+/// userinfo requests at loopback, private, or cloud-metadata addresses
+/// (SSRF). Applied to metadata, link-relation discovery, and endpoints
+/// restored from `vestibule_indieauth.parse_endpoints`.
+pub fn validate_endpoints(
+  endpoints: DiscoveredEndpoints,
+) -> Result(DiscoveredEndpoints, AuthError(e)) {
+  use _ <- result.try(provider_support.require_public_https(
+    endpoints.authorization_endpoint,
+  ))
+  use _ <- result.try(provider_support.require_public_https(
+    endpoints.token_endpoint,
+  ))
+  use _ <- result.try(require_public_https_option(endpoints.issuer))
+  use _ <- result.try(require_public_https_option(endpoints.userinfo_endpoint))
+  Ok(endpoints)
+}
+
+fn require_public_https_option(
+  url: Option(String),
+) -> Result(Nil, AuthError(e)) {
+  case url {
+    Some(value) -> provider_support.require_public_https(value)
+    None -> Ok(Nil)
   }
 }
 
@@ -185,7 +219,7 @@ fn discover_from_link_rels(
 
   case auth_endpoint, token_endpoint {
     Some(auth), Some(token) ->
-      Ok(DiscoveredEndpoints(
+      validate_endpoints(DiscoveredEndpoints(
         authorization_endpoint: auth,
         token_endpoint: token,
         issuer: None,

@@ -128,22 +128,46 @@ pub fn require_public_https(url: String) -> Result(Nil, AuthError(e)) {
   case uri.parse(url) {
     Ok(parsed) ->
       case parsed.scheme {
-        option.Some("https") ->
-          case parsed.host {
-            option.Some("") | option.None ->
-              Error(error.config(reason: "URL must include a host: " <> url))
-            option.Some(host) ->
-              case is_non_public_host(host) {
-                True ->
-                  Error(error.config(
-                    reason: "Endpoint host is not publicly routable (loopback, private, or link-local addresses are not allowed for discovered endpoints): "
-                    <> url,
-                  ))
-                False -> Ok(Nil)
-              }
-          }
+        option.Some("https") -> require_public_host(url)
         _ ->
           Error(error.config(reason: "HTTPS required for endpoint URL: " <> url))
+      }
+    Error(_) -> Error(error.config(reason: "Invalid URL: " <> url))
+  }
+}
+
+/// Validate that a URL targets a publicly-routable host, whatever its scheme.
+///
+/// This is the host half of `require_public_https`, for URLs that are fetched
+/// server-side but where plain `http` is legitimately allowed — for example
+/// an IndieAuth profile URL supplied by the person logging in. Loopback,
+/// private, link-local, shared (CGNAT), multicast, and reserved IPv4/IPv6
+/// literals are rejected, as are `localhost`, `*.localhost`, and `*.local`
+/// names. Numeric hosts that are not a canonical dotted quad (`127.1`,
+/// `2130706433`, `0177.0.0.1`) are rejected outright, because the system
+/// resolver accepts them as aliases that this check cannot classify.
+///
+/// Hostnames that resolve via DNS cannot be classified here and are treated
+/// as public; callers that accept fully untrusted URLs should additionally
+/// restrict resolution at the network layer.
+///
+/// Returns Ok(Nil) if valid, or an AuthError of kind `ConfigKind` describing
+/// the issue.
+pub fn require_public_host(url: String) -> Result(Nil, AuthError(e)) {
+  case uri.parse(url) {
+    Ok(parsed) ->
+      case parsed.host {
+        option.Some("") | option.None ->
+          Error(error.config(reason: "URL must include a host: " <> url))
+        option.Some(host) ->
+          case is_non_public_host(host) {
+            True ->
+              Error(error.config(
+                reason: "Host is not publicly routable (loopback, private, or link-local addresses are not allowed here): "
+                <> url,
+              ))
+            False -> Ok(Nil)
+          }
       }
     Error(_) -> Error(error.config(reason: "Invalid URL: " <> url))
   }
@@ -153,23 +177,44 @@ pub fn require_public_https(url: String) -> Result(Nil, AuthError(e)) {
 ///
 /// Catches the `localhost`/`.local` hostnames plus IPv4 and IPv6 literals in
 /// loopback, private, link-local, shared (CGNAT), and unspecified ranges.
-/// Hostnames that resolve via DNS cannot be classified here and are treated
-/// as public; callers that accept fully untrusted issuers should additionally
-/// restrict resolution at the network layer.
+/// Purely numeric hosts that are not a canonical four-octet dotted quad are
+/// treated as non-public too: the resolver accepts shorthand (`127.1`),
+/// decimal (`2130706433`), and leading-zero octal (`0177.0.0.1`) forms as
+/// loopback, and none of them can be classified safely here.
 fn is_non_public_host(host: String) -> Bool {
   let normalized =
     host
     |> string.lowercase
     |> strip_ipv6_brackets
+    |> strip_trailing_dot
 
   case is_blocked_hostname(normalized) {
     True -> True
     False ->
-      case parse_ipv4(normalized) {
-        Ok(octets) -> is_non_public_ipv4(octets)
-        Error(_) -> is_non_public_ipv6(normalized)
+      case is_numeric_host(normalized) {
+        True ->
+          case parse_ipv4(normalized) {
+            Ok(octets) -> is_non_public_ipv4(octets)
+            Error(_) -> True
+          }
+        False -> is_non_public_ipv6(normalized)
       }
   }
+}
+
+fn strip_trailing_dot(host: String) -> String {
+  use <- bool.guard(when: !string.ends_with(host, "."), return: host)
+  string.drop_end(host, 1)
+}
+
+/// True when the host consists solely of ASCII digits and dots — i.e. it can
+/// only be an IPv4 literal in some form, never a DNS name.
+fn is_numeric_host(host: String) -> Bool {
+  host != ""
+  && string.to_graphemes(host)
+  |> list.all(fn(grapheme) {
+    grapheme == "." || result.is_ok(int.parse(grapheme))
+  })
 }
 
 fn strip_ipv6_brackets(host: String) -> String {
@@ -200,8 +245,12 @@ fn parse_ipv4(host: String) -> Result(#(Int, Int, Int, Int), Nil) {
 }
 
 fn parse_octet(segment: String) -> Result(Int, Nil) {
+  // A leading zero on a multi-digit octet is octal to the resolver
+  // (`0177` is 127), so only canonical decimal octets are accepted.
+  let has_leading_zero =
+    string.length(segment) > 1 && string.starts_with(segment, "0")
   case int.parse(segment) {
-    Ok(value) if value >= 0 && value <= 255 -> Ok(value)
+    Ok(value) if value >= 0 && value <= 255 && !has_leading_zero -> Ok(value)
     _ -> Error(Nil)
   }
 }

@@ -62,7 +62,7 @@ pub fn signed_cookie_verify_malformed_token_fails_test() -> Nil {
 // === options ===
 
 pub fn new_options_uses_default_cookie_contract_test() -> Nil {
-  let options = vestibule_mist.new_options(test_secret())
+  let assert Ok(options) = vestibule_mist.new_options(test_secret())
   vestibule_mist.cookie_name(options)
   |> expect.to_equal("__Host-vestibule_session")
   vestibule_mist.session_ttl_seconds(options) |> expect.to_equal(600)
@@ -271,6 +271,7 @@ pub fn callback_wrong_secret_reports_invalid_signature_test() -> Nil {
   let assert Ok(session_id) =
     state_store.try_store(
       store,
+      provider: "test",
       state: "state",
       code_verifier: "verifier",
       nonce: option.None,
@@ -306,6 +307,7 @@ pub fn callback_missing_state_does_not_consume_session_test() -> Nil {
   let assert Ok(session_id) =
     state_store.try_store(
       store,
+      provider: "test",
       state: "state",
       code_verifier: "verifier",
       nonce: option.None,
@@ -376,6 +378,7 @@ pub fn callback_auth_result_preserves_provider_error_details_test() -> Nil {
   let assert Ok(session_id) =
     state_store.try_store(
       store,
+      provider: "test",
       state: "state",
       code_verifier: "verifier",
       nonce: option.None,
@@ -417,6 +420,7 @@ pub fn callback_custom_cookie_name_is_honored_test() -> Nil {
   let assert Ok(session_id) =
     state_store.try_store(
       store,
+      provider: "test",
       state: "state",
       code_verifier: "verifier",
       nonce: option.None,
@@ -467,7 +471,8 @@ fn test_secret() -> BitArray {
 }
 
 fn test_options() -> vestibule_mist.Options {
-  vestibule_mist.new_options(test_secret())
+  let assert Ok(options) = vestibule_mist.new_options(test_secret())
+  options
 }
 
 fn test_strategy() -> Strategy(e) {
@@ -541,4 +546,59 @@ fn find_header(
   name: String,
 ) -> Result(String, Nil) {
   list.key_find(headers, name)
+}
+
+// === secret_key_base minimum ===
+
+pub fn new_options_rejects_short_secret_test() -> Nil {
+  vestibule_mist.new_options(<<>>)
+  |> expect.to_equal(
+    Error(vestibule_mist.SecretKeyBaseTooShort(
+      minimum_bytes: 32,
+      actual_bytes: 0,
+    )),
+  )
+  vestibule_mist.new_options(<<"0123456789abcdef0123456789abcde":utf8>>)
+  |> expect.to_be_error()
+  Nil
+}
+
+pub fn new_options_accepts_minimum_length_secret_test() -> Nil {
+  let _ =
+    vestibule_mist.new_options(<<"0123456789abcdef0123456789abcdef":utf8>>)
+    |> expect.to_be_ok()
+  Nil
+}
+
+// === SameSite ===
+
+pub fn request_phase_cross_site_cookie_sets_same_site_none_and_secure_test() -> Nil {
+  let req = request.new() |> request.set_path("/auth/test")
+  let assert Ok(store) = state_store.try_init_named("test_mist_cross_site")
+  let assert Ok(registry) =
+    registry.new()
+    |> registry.register(strategy: test_strategy(), config: test_config())
+
+  let resp =
+    vestibule_mist.request_phase(
+      req,
+      registry,
+      "test",
+      store,
+      config.authorize_options(),
+      test_options()
+        |> vestibule_mist.with_cookie_security(vestibule_mist.AllowInsecure)
+        |> vestibule_mist.with_same_site(vestibule_mist.CrossSite),
+    )
+
+  let assert Ok(cookie_header) = find_header(resp.headers, "set-cookie")
+  { string.contains(cookie_header, "SameSite=None") } |> expect.to_be_true()
+  // SameSite=None is only honoured by browsers with Secure, even when the
+  // caller opted out of Secure for local development.
+  { string.contains(cookie_header, "Secure") } |> expect.to_be_true()
+}
+
+pub fn same_site_defaults_to_lax_test() -> Nil {
+  vestibule_mist.same_site(test_options())
+  |> expect.to_equal(vestibule_mist.Lax)
 }

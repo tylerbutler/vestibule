@@ -99,6 +99,11 @@ let assert Ok(auth) =
   authorization server returns the URL of the account that actually signed in)
 - **Endpoints are per-user** — Each user may have different authorization/token endpoints
 - **Discovery required** — Call `discover()` before starting the auth flow
+- **Endpoints must be public HTTPS** — Discovered endpoints are chosen by whoever
+  controls the profile URL, so the library refuses `http://` endpoints and any
+  host that is loopback, private, link-local, or `localhost`/`*.local` (this
+  also applies to the profile URL itself). A local IndieAuth server therefore
+  needs a public HTTPS hostname (for example via a tunnel) rather than `localhost`
 
 ## Resuming a flow across request and callback
 

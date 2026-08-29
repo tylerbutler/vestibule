@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Fixed"
+body = "The state store now heals itself if its unsupervised ETS owner process dies: the next operation respawns the owner and recreates the table with the same capacity instead of failing every login until the VM restarts. Callers no longer wait out the 5 s timeout when the owner is dead, and stray messages no longer accumulate in its mailbox"

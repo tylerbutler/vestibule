@@ -1,0 +1,3 @@
+package = "vestibule_indieauth"
+kind = "Security"
+body = "Discovered IndieAuth endpoints (metadata URL, authorization, token, issuer, userinfo) and endpoints restored via `parse_endpoints` must now be public HTTPS URLs, and profile URLs must not point at localhost or other non-public hosts. Previously an attacker-controlled profile page could direct the server's token and userinfo requests at loopback, private, or cloud-metadata addresses (SSRF)"

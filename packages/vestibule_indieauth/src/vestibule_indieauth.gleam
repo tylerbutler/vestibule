@@ -171,10 +171,14 @@ pub fn parse_endpoints(
       me,
     ))
   }
-  json.parse(value, decoder)
-  |> result.replace_error(error.config(
-    reason: "Failed to parse serialized IndieAuth endpoints",
-  ))
+  use #(endpoints, me) <- result.try(
+    json.parse(value, decoder)
+    |> result.replace_error(error.config(
+      reason: "Failed to parse serialized IndieAuth endpoints",
+    )),
+  )
+  use endpoints <- result.try(discovery.validate_endpoints(endpoints))
+  Ok(#(endpoints, me))
 }
 
 /// Create a strategy from previously discovered endpoints.

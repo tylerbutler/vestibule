@@ -21,7 +21,7 @@ HMAC-SHA256 cookie signing. You **must** supply a strong, stable secret key
 base when building `Options`:
 
 ```gleam
-let options = vestibule_mist.new_options(secret_key_base)
+let assert Ok(options) = vestibule_mist.new_options(secret_key_base)
 ```
 
 There is no `default_options/0` — the secret has no safe default. Use a
@@ -50,7 +50,7 @@ import vestibule/config
 import vestibule/state_store
 
 let assert Ok(store) = state_store.try_init()
-let options = vestibule_mist.new_options(secret_key_base)
+let assert Ok(options) = vestibule_mist.new_options(secret_key_base)
 ```
 
 Then dispatch from your mist handler:
@@ -86,16 +86,15 @@ fn handle_request(req: Request(Connection)) -> Response(ResponseData) {
 
 ## Options
 
-`Options` carries the secret plus cookie configuration. Override fields with
-record-update syntax:
+`Options` carries the secret plus cookie configuration. It is opaque;
+customize it with the `with_*` builders:
 
 ```gleam
+let assert Ok(options) = vestibule_mist.new_options(secret_key_base)
 let options =
-  vestibule_mist.Options(
-    ..vestibule_mist.new_options(secret_key_base),
-    cookie_name: "my_app_oauth_session",
-    session_ttl_seconds: 300,
-  )
+  options
+  |> vestibule_mist.with_cookie_name("my_app_oauth_session")
+  |> vestibule_mist.with_session_ttl_seconds(300)
 ```
 
 Defaults match `vestibule_wisp`: cookie name `__Host-vestibule_session`, TTL
@@ -105,6 +104,16 @@ value. The cookie is set with `HttpOnly`, `SameSite=Lax`, `Path=/`, and
 `with_cookie_security(AllowInsecure)`, which drops both the `Secure` attribute
 and the `__Host-` prefix (browsers reject `__Host-` cookies that are not
 `Secure`).
+
+`new_options` returns `Error(SecretKeyBaseTooShort(..))` if the secret is
+shorter than 32 bytes; generate it once from a CSPRNG and keep it out of
+source control.
+
+Providers that deliver the callback with a cross-site POST
+(`response_mode=form_post`, e.g. Apple) never see a `SameSite=Lax` cookie.
+For those, use `with_same_site(CrossSite)`, which emits `SameSite=None;
+Secure` (`Secure` is forced even under `AllowInsecure`, because browsers
+ignore `SameSite=None` without it).
 
 If the signed cookie is missing, invalid, or signed with a different secret,
 the structured API returns `MissingOrInvalidSessionCookie(reason)`, where
@@ -164,5 +173,7 @@ to query parameters.
 `vestibule_mist` simultaneously; a single ETS owner process is shared
 across all transports.
 
-See the `vestibule/state_store` API docs for `try_init`, `init_named`,
-`store`, `retrieve`, and TTL semantics.
+See the `vestibule/state_store` API docs for `try_init`, `try_init_named`,
+`try_init_with_capacity`, TTL, and capacity semantics. A store holds at most
+100 000 live sessions by default; once full, `request_phase` fails with a
+generic error until sessions are consumed or expire.

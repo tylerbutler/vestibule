@@ -8,6 +8,7 @@ gleam = ">= 1.7.0"
 [dependencies]
 vestibule = { path = "../.." }
 wisp = ">= 2.2.0 and < 3.0.0"
+gleam_crypto = ">= 1.5.0 and < 2.0.0"
 gleam_stdlib = ">= 0.48.0 and < 2.0.0"
 gleam_http = ">= 4.3.0 and < 5.0.0"
 

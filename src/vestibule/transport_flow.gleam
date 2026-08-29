@@ -70,6 +70,7 @@ pub fn start_authorization(
     use session_id <- result.try(
       state_store.try_store_with_ttl(
         store,
+        provider: strategy.provider(strategy),
         state: authorization_request.state(auth_request),
         code_verifier: authorization_request.code_verifier(auth_request),
         nonce: authorization_request.nonce(auth_request),
@@ -235,7 +236,7 @@ pub fn finish_callback(
   use received_state <- result.try(state_result)
 
   let peek_result =
-    state_store.peek(store, session_id)
+    state_store.peek(store, session_id, provider: provider)
     |> result.map_error(fn(_) { CallbackSessionUnavailable })
   case peek_result {
     Ok(_) ->
@@ -293,7 +294,7 @@ pub fn finish_callback(
   use _ <- result.try(validate_result)
 
   let consume_result =
-    state_store.consume(store, session_id)
+    state_store.consume(store, session_id, provider: provider)
     |> result.map_error(fn(_) { CallbackSessionUnavailable })
   case consume_result {
     Ok(_) ->
