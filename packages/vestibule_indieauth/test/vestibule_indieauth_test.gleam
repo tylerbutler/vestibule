@@ -2,8 +2,7 @@ import gleam/dict
 import gleam/dynamic
 import gleam/option.{None}
 import gleam/string
-import startest
-import startest/expect
+import gleeunit
 import vestibule/config
 import vestibule/credentials
 import vestibule/error
@@ -14,7 +13,7 @@ import vestibule_indieauth/discovery.{
 }
 
 pub fn main() -> Nil {
-  startest.run(startest.default_config())
+  gleeunit.main()
 }
 
 pub fn authorize_url_includes_extra_params_test() -> Nil {
@@ -46,7 +45,10 @@ pub fn authorize_url_includes_extra_params_test() -> Nil {
       state: "state",
     )
 
-  string.contains(url, "prompt=login") |> expect.to_be_true()
+  string.contains(url, "prompt=login")
+  |> fn(actual) {
+    assert actual
+  }
 }
 
 pub fn authorize_url_rejects_me_extra_param_test() -> Nil {
@@ -80,10 +82,15 @@ pub fn authorize_url_rejects_me_extra_param_test() -> Nil {
 
   case result {
     Error(err) -> {
-      error.kind(err) |> expect.to_equal(error.ConfigKind)
+      error.kind(err)
+      |> fn(actual) {
+        assert actual == error.ConfigKind
+      }
       error.message(err)
       |> string.contains("Reserved authorization parameter not allowed: me")
-      |> expect.to_be_true()
+      |> fn(actual) {
+        assert actual
+      }
     }
     _ -> panic as "expected ConfigError for reserved IndieAuth me parameter"
   }
@@ -134,9 +141,15 @@ pub fn fetch_user_uses_verified_me_as_uid_test() -> Nil {
       config: test_client_config(),
       exchange: exchange_with_me(option.Some("https://ME.example.com")),
     )
-    |> expect.to_be_ok()
+    |> fn(result) {
+      let assert Ok(value) = result
+      value
+    }
 
-  strategy.user_result_uid(user) |> expect.to_equal("https://me.example.com/")
+  strategy.user_result_uid(user)
+  |> fn(actual) {
+    assert actual == "https://me.example.com/"
+  }
 }
 
 pub fn fetch_user_rejects_missing_me_test() -> Nil {
@@ -150,7 +163,10 @@ pub fn fetch_user_rejects_missing_me_test() -> Nil {
       exchange: exchange_with_me(None),
     )
   let assert Error(err) = result
-  error.kind(err) |> expect.to_equal(error.UserInfoKind)
+  error.kind(err)
+  |> fn(actual) {
+    assert actual == error.UserInfoKind
+  }
 }
 
 pub fn fetch_user_rejects_unconfirmed_foreign_me_test() -> Nil {
@@ -167,6 +183,11 @@ pub fn fetch_user_rejects_unconfirmed_foreign_me_test() -> Nil {
       config: test_client_config(),
       exchange: exchange_with_me(option.Some("https://localhost/")),
     )
-  let _ = result |> expect.to_be_error()
+  let _ =
+    result
+    |> fn(result) {
+      let assert Error(value) = result
+      value
+    }
   Nil
 }

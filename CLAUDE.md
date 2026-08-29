@@ -95,18 +95,15 @@ case result {
 - `gleam_stdlib` - Standard library
 
 ### Development
-- `startest` - Testing framework
+- `gleeunit` - Testing framework
 
 ## Testing
 
-Tests use `startest` framework:
+Tests use the `gleeunit` framework with the `assert` keyword:
 
 ```gleam
-import startest/expect
-
 pub fn example_test() {
-  some_function()
-  |> expect.to_equal(expected_value)
+  assert some_function() == expected_value
 }
 ```
 

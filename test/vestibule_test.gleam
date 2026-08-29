@@ -4,8 +4,7 @@ import gleam/dynamic
 import gleam/dynamic/decode
 import gleam/option.{None, Some}
 import gleam/string
-import startest
-import startest/expect
+import gleeunit
 import vestibule
 import vestibule/auth
 import vestibule/authorization_request
@@ -16,7 +15,7 @@ import vestibule/strategy.{type Strategy}
 import vestibule/user_info
 
 pub fn main() -> Nil {
-  startest.run(startest.default_config())
+  gleeunit.main()
 }
 
 // A fake strategy for testing the orchestrator
@@ -50,9 +49,8 @@ fn test_strategy() -> Strategy(e) {
       }
     },
     fetch_user: fn(_client_config, exchange) {
-      strategy.exchange_credentials(exchange)
-      |> credentials.token()
-      |> expect.to_equal("test_token")
+      assert credentials.token(strategy.exchange_credentials(exchange))
+        == "test_token"
       Ok(strategy.user_result(
         uid: "user123",
         info: user_info.new()
@@ -162,17 +160,17 @@ pub fn create_authorization_request_returns_authorization_request_test() -> Nil 
   let state = authorization_request.state(req)
   let verifier = authorization_request.code_verifier(req)
   // URL should contain the state
-  { string.contains(url, state) } |> expect.to_be_true()
+  assert string.contains(url, state)
   // State should be non-empty
-  { string.length(state) >= 43 } |> expect.to_be_true()
+  assert string.length(state) >= 43
   // Code verifier should be non-empty
-  { string.length(verifier) >= 43 } |> expect.to_be_true()
+  assert string.length(verifier) >= 43
   // URL should contain PKCE params
-  { string.contains(url, "code_challenge=") } |> expect.to_be_true()
-  { string.contains(url, "code_challenge_method=S256") } |> expect.to_be_true()
+  assert string.contains(url, "code_challenge=")
+  assert string.contains(url, "code_challenge_method=S256")
   // A plain OAuth2 strategy (uses_nonce: False) must not emit a nonce.
-  { string.contains(url, "nonce=") } |> expect.to_be_false()
-  { option.is_none(authorization_request.nonce(req)) } |> expect.to_be_true()
+  assert !string.contains(url, "nonce=")
+  assert option.is_none(authorization_request.nonce(req))
 }
 
 pub fn create_authorization_request_emits_nonce_for_oidc_strategy_test() -> Nil {
@@ -191,10 +189,10 @@ pub fn create_authorization_request_emits_nonce_for_oidc_strategy_test() -> Nil 
     )
   let url = authorization_request.url(req)
   // OIDC strategy emits a nonce in the URL and stores it for validation.
-  { string.contains(url, "nonce=") } |> expect.to_be_true()
+  assert string.contains(url, "nonce=")
   let assert Some(value) = authorization_request.nonce(req)
-  { string.contains(url, value) } |> expect.to_be_true()
-  { string.length(value) >= 43 } |> expect.to_be_true()
+  assert string.contains(url, value)
+  assert string.length(value) >= 43
 }
 
 pub fn create_authorization_request_appends_pkce_before_url_fragment_test() -> Nil {
@@ -212,10 +210,8 @@ pub fn create_authorization_request_appends_pkce_before_url_fragment_test() -> N
     )
   let url = authorization_request.url(req)
 
-  { string.contains(url, "&existing=1&code_challenge=") }
-  |> expect.to_be_true()
-  { string.contains(url, "code_challenge_method=S256#provider-fragment") }
-  |> expect.to_be_true()
+  assert string.contains(url, "&existing=1&code_challenge=")
+  assert string.contains(url, "code_challenge_method=S256#provider-fragment")
 }
 
 pub fn create_authorization_request_uses_config_scopes_when_present_test() -> Nil {
@@ -236,8 +232,8 @@ pub fn create_authorization_request_uses_config_scopes_when_present_test() -> Ni
       options: options,
     )
   let url = authorization_request.url(req)
-  { string.contains(url, "custom_scope") } |> expect.to_be_true()
-  { string.contains(url, "default_scope") } |> expect.to_be_false()
+  assert string.contains(url, "custom_scope")
+  assert !string.contains(url, "default_scope")
 }
 
 pub fn create_authorization_request_uses_default_scopes_when_config_empty_test() -> Nil {
@@ -255,7 +251,7 @@ pub fn create_authorization_request_uses_default_scopes_when_config_empty_test()
       options: config.authorize_options(),
     )
   let url = authorization_request.url(req)
-  { string.contains(url, "default_scope") } |> expect.to_be_true()
+  assert string.contains(url, "default_scope")
 }
 
 pub fn handle_callback_succeeds_with_valid_params_test() -> Nil {
@@ -278,10 +274,10 @@ pub fn handle_callback_succeeds_with_valid_params_test() -> Nil {
       expected_nonce: None,
     )
   let assert Ok(authed) = result
-  auth.uid(authed) |> expect.to_equal("user123")
-  auth.provider(authed) |> expect.to_equal("test")
-  user_info.name(auth.info(authed)) |> expect.to_equal(Some("Test User"))
-  credentials.token(auth.credentials(authed)) |> expect.to_equal("test_token")
+  assert auth.uid(authed) == "user123"
+  assert auth.provider(authed) == "test"
+  assert user_info.name(auth.info(authed)) == Some("Test User")
+  assert credentials.token(auth.credentials(authed)) == "test_token"
 }
 
 pub fn handle_callback_populates_auth_extra_from_strategy_user_result_test() -> Nil {
@@ -305,8 +301,7 @@ pub fn handle_callback_populates_auth_extra_from_strategy_user_result_test() -> 
       expected_nonce: None,
     )
   let assert Ok(raw_provider) = dict.get(auth.extra(authed), "raw_provider")
-  decode.run(raw_provider, decode.string)
-  |> expect.to_equal(Ok("from-provider"))
+  assert decode.run(raw_provider, decode.string) == Ok("from-provider")
 }
 
 pub fn handle_callback_passes_exchange_artifacts_to_fetch_user_test() -> Nil {
@@ -329,9 +324,8 @@ pub fn handle_callback_passes_exchange_artifacts_to_fetch_user_test() -> Nil {
       expected_nonce: None,
     )
 
-  auth.uid(authed) |> expect.to_equal("from-exchange")
-  credentials.token(auth.credentials(authed))
-  |> expect.to_equal("artifact_token")
+  assert auth.uid(authed) == "from-exchange"
+  assert credentials.token(auth.credentials(authed)) == "artifact_token"
 }
 
 pub fn refresh_token_delegates_to_strategy_refresh_token_test() -> Nil {
@@ -343,13 +337,14 @@ pub fn refresh_token_delegates_to_strategy_refresh_token_test() -> Nil {
       redirect_uri: "http://localhost/cb",
     )
 
-  vestibule.refresh_token(
-    strategy,
-    config: client_config,
-    refresh_token: "refresh-123",
-  )
-  |> expect.to_equal(
-    Ok(
+  let refreshed =
+    vestibule.refresh_token(
+      strategy,
+      config: client_config,
+      refresh_token: "refresh-123",
+    )
+  assert refreshed
+    == Ok(
       credentials.new(
         token: "delegated:refresh-123:client-id",
         refresh_token: Some("rotated_by_strategy"),
@@ -357,8 +352,7 @@ pub fn refresh_token_delegates_to_strategy_refresh_token_test() -> Nil {
         expires_in: Some(3600),
         scopes: ["delegated_scope"],
       ),
-    ),
-  )
+    )
 }
 
 pub fn handle_callback_fails_on_state_mismatch_test() -> Nil {
@@ -379,7 +373,7 @@ pub fn handle_callback_fails_on_state_mismatch_test() -> Nil {
       code_verifier: "test_verifier",
       expected_nonce: None,
     )
-  let _ = result |> expect.to_be_error()
+  let assert Error(_) = result
   Nil
 }
 
@@ -393,15 +387,16 @@ pub fn missing_callback_state_is_structured_test() -> Nil {
     )
   let params = dict.from_list([#("code", "valid_code")])
 
-  vestibule.handle_callback(
-    strategy,
-    config: client_config,
-    callback_params: params,
-    expected_state: "expected",
-    code_verifier: "test_verifier",
-    expected_nonce: None,
-  )
-  |> expect.to_equal(Error(error.missing_callback_param("state")))
+  let result =
+    vestibule.handle_callback(
+      strategy,
+      config: client_config,
+      callback_params: params,
+      expected_state: "expected",
+      code_verifier: "test_verifier",
+      expected_nonce: None,
+    )
+  assert result == Error(error.missing_callback_param("state"))
 }
 
 pub fn handle_callback_fails_on_missing_code_test() -> Nil {
@@ -423,7 +418,7 @@ pub fn handle_callback_fails_on_missing_code_test() -> Nil {
       code_verifier: "test_verifier",
       expected_nonce: None,
     )
-  let _ = result |> expect.to_be_error()
+  let assert Error(_) = result
   Nil
 }
 
@@ -438,15 +433,16 @@ pub fn missing_callback_code_is_structured_test() -> Nil {
   let state = "test_state"
   let params = dict.from_list([#("state", state)])
 
-  vestibule.handle_callback(
-    strategy,
-    config: client_config,
-    callback_params: params,
-    expected_state: state,
-    code_verifier: "test_verifier",
-    expected_nonce: None,
-  )
-  |> expect.to_equal(Error(error.missing_callback_param("code")))
+  let result =
+    vestibule.handle_callback(
+      strategy,
+      config: client_config,
+      callback_params: params,
+      expected_state: state,
+      code_verifier: "test_verifier",
+      expected_nonce: None,
+    )
+  assert result == Error(error.missing_callback_param("code"))
 }
 
 pub fn logging_does_not_change_core_result_shapes_test() -> Nil {
@@ -469,7 +465,7 @@ pub fn logging_does_not_change_core_result_shapes_test() -> Nil {
       #("state", authorization_request.state(req)),
     ])
 
-  let _ =
+  let assert Ok(_) =
     vestibule.handle_callback(
       strategy,
       config: client_config,
@@ -478,15 +474,13 @@ pub fn logging_does_not_change_core_result_shapes_test() -> Nil {
       code_verifier: authorization_request.code_verifier(req),
       expected_nonce: None,
     )
-    |> expect.to_be_ok()
 
-  let _ =
+  let assert Ok(_) =
     vestibule.refresh_token(
       strategy,
       config: client_config,
       refresh_token: "refresh-123",
     )
-    |> expect.to_be_ok()
   Nil
 }
 
@@ -585,7 +579,7 @@ fn nonce_params() -> dict.Dict(String, String) {
 pub fn handle_callback_accepts_matching_nonce_test() -> Nil {
   let id_token = make_id_token("{\"sub\":\"user123\",\"nonce\":\"the-nonce\"}")
   let strategy = nonce_strategy(id_token)
-  let _ =
+  let assert Ok(_) =
     vestibule.handle_callback(
       strategy,
       config: nonce_config(),
@@ -594,7 +588,6 @@ pub fn handle_callback_accepts_matching_nonce_test() -> Nil {
       code_verifier: "verifier",
       expected_nonce: Some("the-nonce"),
     )
-    |> expect.to_be_ok()
   Nil
 }
 
@@ -602,51 +595,51 @@ pub fn handle_callback_rejects_mismatched_nonce_test() -> Nil {
   let id_token =
     make_id_token("{\"sub\":\"user123\",\"nonce\":\"wrong-nonce\"}")
   let strategy = nonce_strategy(id_token)
-  vestibule.handle_callback(
-    strategy,
-    config: nonce_config(),
-    callback_params: nonce_params(),
-    expected_state: "expected",
-    code_verifier: "verifier",
-    expected_nonce: Some("the-nonce"),
-  )
-  |> result_error_kind()
-  |> expect.to_equal(Some(error.invalid_nonce()))
+  let result =
+    vestibule.handle_callback(
+      strategy,
+      config: nonce_config(),
+      callback_params: nonce_params(),
+      expected_state: "expected",
+      code_verifier: "verifier",
+      expected_nonce: Some("the-nonce"),
+    )
+  assert result_error_kind(result) == Some(error.invalid_nonce())
 }
 
 pub fn handle_callback_rejects_missing_nonce_claim_test() -> Nil {
   let id_token = make_id_token("{\"sub\":\"user123\"}")
   let strategy = nonce_strategy(id_token)
-  vestibule.handle_callback(
-    strategy,
-    config: nonce_config(),
-    callback_params: nonce_params(),
-    expected_state: "expected",
-    code_verifier: "verifier",
-    expected_nonce: Some("the-nonce"),
-  )
-  |> result_error_kind()
-  |> expect.to_equal(Some(error.invalid_nonce()))
+  let result =
+    vestibule.handle_callback(
+      strategy,
+      config: nonce_config(),
+      callback_params: nonce_params(),
+      expected_state: "expected",
+      code_verifier: "verifier",
+      expected_nonce: Some("the-nonce"),
+    )
+  assert result_error_kind(result) == Some(error.invalid_nonce())
 }
 
 pub fn handle_callback_rejects_missing_id_token_when_nonce_expected_test() -> Nil {
   let strategy = nonce_strategy_without_id_token()
-  vestibule.handle_callback(
-    strategy,
-    config: nonce_config(),
-    callback_params: nonce_params(),
-    expected_state: "expected",
-    code_verifier: "verifier",
-    expected_nonce: Some("the-nonce"),
-  )
-  |> result_error_kind()
-  |> expect.to_equal(Some(error.invalid_nonce()))
+  let result =
+    vestibule.handle_callback(
+      strategy,
+      config: nonce_config(),
+      callback_params: nonce_params(),
+      expected_state: "expected",
+      code_verifier: "verifier",
+      expected_nonce: Some("the-nonce"),
+    )
+  assert result_error_kind(result) == Some(error.invalid_nonce())
 }
 
 pub fn handle_callback_skips_nonce_for_plain_oauth_strategy_test() -> Nil {
   // uses_nonce: False strategy ignores any id_token nonce entirely.
   let strategy = test_strategy()
-  let _ =
+  let assert Ok(_) =
     vestibule.handle_callback(
       strategy,
       config: nonce_config(),
@@ -655,7 +648,6 @@ pub fn handle_callback_skips_nonce_for_plain_oauth_strategy_test() -> Nil {
       code_verifier: "verifier",
       expected_nonce: None,
     )
-    |> expect.to_be_ok()
   Nil
 }
 
@@ -685,5 +677,8 @@ pub fn handle_callback_rejects_missing_expected_nonce_for_nonce_strategy_test() 
       expected_nonce: None,
     )
   let assert Error(err) = result
-  error.kind(err) |> expect.to_equal(error.InvalidNonceKind)
+  error.kind(err)
+  |> fn(actual) {
+    assert actual == error.InvalidNonceKind
+  }
 }

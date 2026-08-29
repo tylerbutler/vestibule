@@ -1,6 +1,5 @@
 import gleam/option.{None, Some}
 import gleam/string
-import startest/expect
 import vestibule/state_store
 
 pub fn store_and_retrieve_state_and_verifier_test() -> Nil {
@@ -16,8 +15,13 @@ pub fn store_and_retrieve_state_and_verifier_test() -> Nil {
       nonce: None,
     )
   state_store.consume(table, session_id, provider: "test")
-  |> expect.to_be_ok()
-  |> expect.to_equal(#(state, verifier, None))
+  |> fn(result) {
+    let assert Ok(value) = result
+    value
+  }
+  |> fn(actual) {
+    assert actual == #(state, verifier, None)
+  }
 }
 
 pub fn retrieve_deletes_after_use_test() -> Nil {
@@ -32,7 +36,10 @@ pub fn retrieve_deletes_after_use_test() -> Nil {
     )
   let _ = state_store.consume(table, session_id, provider: "test")
   state_store.consume(table, session_id, provider: "test")
-  |> expect.to_be_error()
+  |> fn(result) {
+    let assert Error(value) = result
+    value
+  }
 }
 
 pub fn consume_deletes_after_use_test() -> Nil {
@@ -47,28 +54,42 @@ pub fn consume_deletes_after_use_test() -> Nil {
       nonce: None,
     )
   state_store.consume(table, session_id, provider: "test")
-  |> expect.to_be_ok()
+  |> fn(result) {
+    let assert Ok(value) = result
+    value
+  }
   state_store.consume(table, session_id, provider: "test")
-  |> expect.to_be_error()
+  |> fn(result) {
+    let assert Error(value) = result
+    value
+  }
 }
 
 pub fn retrieve_unknown_returns_error_test() -> Nil {
   let assert Ok(table) =
     state_store.try_init_named("test_unknown_returns_error")
   state_store.consume(table, "nonexistent-session-id", provider: "test")
-  |> expect.to_be_error()
+  |> fn(result) {
+    let assert Error(value) = result
+    value
+  }
 }
 
 pub fn try_init_named_returns_error_for_duplicate_table_test() -> Nil {
   let name = "vestibule_duplicate_test"
   let assert Ok(_) = state_store.try_init_named(name)
   let result = state_store.try_init_named(name)
-  result |> expect.to_equal(Error(state_store.TableAlreadyExists))
+  result
+  |> fn(actual) {
+    assert actual == Error(state_store.TableAlreadyExists)
+  }
 }
 
 pub fn state_store_survives_creator_process_exit_test() -> Nil {
   state_store_survives_creator_process_exit()
-  |> expect.to_be_true()
+  |> fn(actual) {
+    assert actual
+  }
 }
 
 pub fn try_store_returns_session_id_and_retrievable_value_test() -> Nil {
@@ -84,10 +105,18 @@ pub fn try_store_returns_session_id_and_retrievable_value_test() -> Nil {
       nonce: None,
     )
 
-  { string.length(session_id) > 0 } |> expect.to_be_true()
+  { string.length(session_id) > 0 }
+  |> fn(actual) {
+    assert actual
+  }
   state_store.consume(table, session_id, provider: "test")
-  |> expect.to_be_ok()
-  |> expect.to_equal(#(state, verifier, None))
+  |> fn(result) {
+    let assert Ok(value) = result
+    value
+  }
+  |> fn(actual) {
+    assert actual == #(state, verifier, None)
+  }
 }
 
 pub fn try_store_with_ttl_stores_retrievable_value_test() -> Nil {
@@ -106,8 +135,13 @@ pub fn try_store_with_ttl_stores_retrievable_value_test() -> Nil {
     )
 
   state_store.consume(table, session_id, provider: "test")
-  |> expect.to_be_ok()
-  |> expect.to_equal(#(state, verifier, None))
+  |> fn(result) {
+    let assert Ok(value) = result
+    value
+  }
+  |> fn(actual) {
+    assert actual == #(state, verifier, None)
+  }
 }
 
 pub fn retrieve_consumes_expired_session_test() -> Nil {
@@ -124,9 +158,15 @@ pub fn retrieve_consumes_expired_session_test() -> Nil {
     )
 
   state_store.consume(table, session_id, provider: "test")
-  |> expect.to_be_error()
+  |> fn(result) {
+    let assert Error(value) = result
+    value
+  }
   state_store.consume(table, session_id, provider: "test")
-  |> expect.to_be_error()
+  |> fn(result) {
+    let assert Error(value) = result
+    value
+  }
 }
 
 pub fn expired_sessions_are_removed_by_sweep_not_on_insert_test() -> Nil {
@@ -153,10 +193,19 @@ pub fn expired_sessions_are_removed_by_sweep_not_on_insert_test() -> Nil {
       nonce: None,
       ttl_seconds: 600,
     )
-  count_store_entries(name) |> expect.to_equal(2)
+  count_store_entries(name)
+  |> fn(actual) {
+    assert actual == 2
+  }
 
-  state_store.sweep_expired(table) |> expect.to_equal(Ok(1))
-  count_store_entries(name) |> expect.to_equal(1)
+  state_store.sweep_expired(table)
+  |> fn(actual) {
+    assert actual == Ok(1)
+  }
+  count_store_entries(name)
+  |> fn(actual) {
+    assert actual == 1
+  }
 }
 
 pub fn owner_periodic_sweep_removes_expired_sessions_test() -> Nil {
@@ -171,12 +220,18 @@ pub fn owner_periodic_sweep_removes_expired_sessions_test() -> Nil {
       nonce: None,
       ttl_seconds: 0,
     )
-  count_store_entries(name) |> expect.to_equal(1)
+  count_store_entries(name)
+  |> fn(actual) {
+    assert actual == 1
+  }
 
   // Deliver the owner's own sweep tick early; the following count is
   // serviced by the same process after it, so this is deterministic.
   trigger_owner_sweep(name)
-  count_store_entries(name) |> expect.to_equal(0)
+  count_store_entries(name)
+  |> fn(actual) {
+    assert actual == 0
+  }
 }
 
 pub fn store_rejects_new_sessions_when_full_test() -> Nil {
@@ -194,8 +249,14 @@ pub fn store_rejects_new_sessions_when_full_test() -> Nil {
   }
   let assert Ok(first) = store("one")
   let assert Ok(_) = store("two")
-  store("three") |> expect.to_equal(Error(state_store.StoreFull))
-  count_store_entries(name) |> expect.to_equal(2)
+  store("three")
+  |> fn(actual) {
+    assert actual == Error(state_store.StoreFull)
+  }
+  count_store_entries(name)
+  |> fn(actual) {
+    assert actual == 2
+  }
 
   // Consuming a session frees a slot.
   let assert Ok(_) = state_store.consume(table, first, provider: "test")
@@ -225,12 +286,18 @@ pub fn store_reclaims_expired_sessions_before_reporting_full_test() -> Nil {
       code_verifier: "verifier",
       nonce: None,
     )
-  count_store_entries(name) |> expect.to_equal(1)
+  count_store_entries(name)
+  |> fn(actual) {
+    assert actual == 1
+  }
 }
 
 pub fn try_init_with_capacity_rejects_non_positive_capacity_test() -> Nil {
   state_store.try_init_with_capacity(name: "vestibule_zero_cap", max_entries: 0)
-  |> expect.to_be_error()
+  |> fn(result) {
+    let assert Error(value) = result
+    value
+  }
   Nil
 }
 
@@ -245,8 +312,13 @@ pub fn store_persists_and_returns_nonce_test() -> Nil {
       nonce: Some("test-nonce-value"),
     )
   state_store.consume(table, session_id, provider: "test")
-  |> expect.to_be_ok()
-  |> expect.to_equal(#("state-with-nonce", "verifier", Some("test-nonce-value")))
+  |> fn(result) {
+    let assert Ok(value) = result
+    value
+  }
+  |> fn(actual) {
+    assert actual == #("state-with-nonce", "verifier", Some("test-nonce-value"))
+  }
 }
 
 @external(erlang, "vestibule_state_store_test_ffi", "state_store_survives_creator_process_exit")
@@ -276,7 +348,10 @@ pub fn consume_rejects_other_provider_test() -> Nil {
       nonce: None,
     )
   state_store.consume(table, session_id, provider: "beta")
-  |> expect.to_be_error()
+  |> fn(result) {
+    let assert Error(value) = result
+    value
+  }
 }
 
 pub fn peek_rejects_other_provider_without_burning_session_test() -> Nil {
@@ -290,13 +365,26 @@ pub fn peek_rejects_other_provider_without_burning_session_test() -> Nil {
       nonce: None,
     )
   state_store.peek(table, session_id, provider: "beta")
-  |> expect.to_be_error()
+  |> fn(result) {
+    let assert Error(value) = result
+    value
+  }
   state_store.peek(table, session_id, provider: "alpha")
-  |> expect.to_be_ok()
-  |> expect.to_equal(#("state", "verifier", None))
+  |> fn(result) {
+    let assert Ok(value) = result
+    value
+  }
+  |> fn(actual) {
+    assert actual == #("state", "verifier", None)
+  }
   state_store.consume(table, session_id, provider: "alpha")
-  |> expect.to_be_ok()
-  |> expect.to_equal(#("state", "verifier", None))
+  |> fn(result) {
+    let assert Ok(value) = result
+    value
+  }
+  |> fn(actual) {
+    assert actual == #("state", "verifier", None)
+  }
 }
 
 // === owner process recovery ===
@@ -327,10 +415,18 @@ pub fn store_recovers_after_owner_crash_test() -> Nil {
       nonce: None,
     )
   state_store.consume(table, old_session, provider: "test")
-  |> expect.to_be_error()
+  |> fn(result) {
+    let assert Error(value) = result
+    value
+  }
   state_store.consume(table, new_session, provider: "test")
-  |> expect.to_be_ok()
-  |> expect.to_equal(#("state-after-crash", "verifier", None))
+  |> fn(result) {
+    let assert Ok(value) = result
+    value
+  }
+  |> fn(actual) {
+    assert actual == #("state-after-crash", "verifier", None)
+  }
 }
 
 @external(erlang, "vestibule_state_store_test_ffi", "kill_owner")

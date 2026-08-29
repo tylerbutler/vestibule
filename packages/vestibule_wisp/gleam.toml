@@ -3,7 +3,7 @@ version = "0.0.0"
 description = "Wisp middleware for vestibule OAuth authentication"
 licences = ["MIT"]
 repository = { type = "github", user = "tylerbutler", repo = "vestibule", path = "packages/vestibule_wisp" }
-gleam = ">= 1.7.0"
+gleam = ">= 1.11.0"
 
 [dependencies]
 vestibule = { path = "../.." }
@@ -13,7 +13,7 @@ gleam_stdlib = ">= 0.48.0 and < 2.0.0"
 gleam_http = ">= 4.3.0 and < 5.0.0"
 
 [dev-dependencies]
-startest = ">= 0.8.0 and < 1.0.0"
+gleeunit = ">= 1.6.0 and < 2.0.0"
 glinter = ">= 2.19.0 and < 3.0.0"
 
 # See root gleam.toml for rationale; these rules conflict with vestibule's

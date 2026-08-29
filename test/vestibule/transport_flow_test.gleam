@@ -1,7 +1,6 @@
 import gleam/dict
 import gleam/option
 import gleam/string
-import startest/expect
 import vestibule/auth
 import vestibule/config
 import vestibule/credentials
@@ -57,7 +56,9 @@ pub fn start_authorization_threads_custom_options_to_strategy_test() -> Nil {
 
   url
   |> string.contains("prompt=consent")
-  |> expect.to_be_true()
+  |> fn(actual) {
+    assert actual
+  }
 }
 
 // === provider binding (mix-up attack) ===
@@ -135,7 +136,9 @@ pub fn finish_callback_rejects_session_started_for_another_provider_test() -> Ni
     params: params,
     session_id: session_id,
   )
-  |> expect.to_equal(Error(transport_flow.CallbackSessionUnavailable))
+  |> fn(actual) {
+    assert actual == Error(transport_flow.CallbackSessionUnavailable)
+  }
 
   // The rejected attempt must not have burned the legitimate in-flight login.
   let assert Ok(alpha) = transport_flow.ensure_callback_provider(reg, "alpha")
@@ -146,5 +149,8 @@ pub fn finish_callback_rejects_session_started_for_another_provider_test() -> Ni
       params: params,
       session_id: session_id,
     )
-  auth.uid(auth) |> expect.to_equal("alpha-user")
+  auth.uid(auth)
+  |> fn(actual) {
+    assert actual == "alpha-user"
+  }
 }

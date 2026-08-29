@@ -1,7 +1,7 @@
 name = "vestibule_example"
 version = "0.0.0"
 description = "Example Wisp app demonstrating vestibule with multiple OAuth providers"
-gleam = ">= 1.7.0"
+gleam = ">= 1.11.0"
 
 [dependencies]
 vestibule = { path = ".." }
@@ -22,7 +22,7 @@ git = "https://github.com/Michael-Mark-Edu/bravo"
 ref = "0f49223187fe57f646642ad0be12468c400401a2"
 
 [dev-dependencies]
-startest = ">= 0.8.0 and < 1.0.0"
+gleeunit = ">= 1.6.0 and < 2.0.0"
 glinter = ">= 2.19.0 and < 3.0.0"
 
 [tools.glinter]

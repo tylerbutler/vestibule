@@ -1,16 +1,10 @@
 import gleam/option.{None, Some}
-import startest
-import startest/expect
 
 import vestibule/credentials
 import vestibule/error
 import vestibule/user_info
 
 import vestibule_indieauth/token
-
-pub fn main() -> Nil {
-  startest.run(startest.default_config())
-}
 
 // === parse_token_response ===
 
@@ -30,23 +24,33 @@ pub fn parse_token_response_full_test() -> Nil {
 
   oauth_credentials
   |> credentials.token
-  |> expect.to_equal("XXXXXX")
+  |> fn(actual) {
+    assert actual == "XXXXXX"
+  }
 
   oauth_credentials
   |> credentials.token_type
-  |> expect.to_equal("Bearer")
+  |> fn(actual) {
+    assert actual == "Bearer"
+  }
 
   oauth_credentials
   |> credentials.scopes
-  |> expect.to_equal(["profile", "email", "create"])
+  |> fn(actual) {
+    assert actual == ["profile", "email", "create"]
+  }
 
   oauth_credentials
   |> credentials.expires_in
-  |> expect.to_equal(Some(3600))
+  |> fn(actual) {
+    assert actual == Some(3600)
+  }
 
   oauth_credentials
   |> credentials.refresh_token
-  |> expect.to_equal(Some("RRRRRR"))
+  |> fn(actual) {
+    assert actual == Some("RRRRRR")
+  }
 }
 
 pub fn parse_token_response_minimal_test() -> Nil {
@@ -63,19 +67,27 @@ pub fn parse_token_response_minimal_test() -> Nil {
 
   oauth_credentials
   |> credentials.token
-  |> expect.to_equal("abc123")
+  |> fn(actual) {
+    assert actual == "abc123"
+  }
 
   oauth_credentials
   |> credentials.scopes
-  |> expect.to_equal(["profile"])
+  |> fn(actual) {
+    assert actual == ["profile"]
+  }
 
   oauth_credentials
   |> credentials.expires_in
-  |> expect.to_equal(None)
+  |> fn(actual) {
+    assert actual == None
+  }
 
   oauth_credentials
   |> credentials.refresh_token
-  |> expect.to_equal(None)
+  |> fn(actual) {
+    assert actual == None
+  }
 }
 
 pub fn parse_token_response_empty_scope_test() -> Nil {
@@ -91,7 +103,9 @@ pub fn parse_token_response_empty_scope_test() -> Nil {
 
   oauth_credentials
   |> credentials.scopes
-  |> expect.to_equal([])
+  |> fn(actual) {
+    assert actual == []
+  }
 }
 
 pub fn parse_token_response_error_test() -> Nil {
@@ -103,7 +117,10 @@ pub fn parse_token_response_error_test() -> Nil {
 
   let _ =
     token.parse_token_response(json)
-    |> expect.to_be_error()
+    |> fn(result) {
+      let assert Error(value) = result
+      value
+    }
   Nil
 }
 
@@ -112,14 +129,20 @@ pub fn parse_token_response_error_no_description_test() -> Nil {
 
   let _ =
     token.parse_token_response(json)
-    |> expect.to_be_error()
+    |> fn(result) {
+      let assert Error(value) = result
+      value
+    }
   Nil
 }
 
 pub fn parse_token_response_invalid_json_test() -> Nil {
   let _ =
     token.parse_token_response("not json at all")
-    |> expect.to_be_error()
+    |> fn(result) {
+      let assert Error(value) = result
+      value
+    }
   Nil
 }
 
@@ -144,19 +167,29 @@ pub fn parse_profile_full_test() -> Nil {
   let assert Ok(profile) = result
 
   profile.me
-  |> expect.to_equal("https://user.example.net/")
+  |> fn(actual) {
+    assert actual == "https://user.example.net/"
+  }
 
   profile.name
-  |> expect.to_equal(Some("Example User"))
+  |> fn(actual) {
+    assert actual == Some("Example User")
+  }
 
   profile.url
-  |> expect.to_equal(Some("https://user.example.net/"))
+  |> fn(actual) {
+    assert actual == Some("https://user.example.net/")
+  }
 
   profile.photo
-  |> expect.to_equal(Some("https://user.example.net/photo.jpg"))
+  |> fn(actual) {
+    assert actual == Some("https://user.example.net/photo.jpg")
+  }
 
   profile.email
-  |> expect.to_equal(Some("user@example.net"))
+  |> fn(actual) {
+    assert actual == Some("user@example.net")
+  }
 }
 
 pub fn parse_profile_no_profile_object_test() -> Nil {
@@ -171,13 +204,19 @@ pub fn parse_profile_no_profile_object_test() -> Nil {
   let assert Ok(profile) = result
 
   profile.me
-  |> expect.to_equal("https://user.example.net/")
+  |> fn(actual) {
+    assert actual == "https://user.example.net/"
+  }
 
   profile.name
-  |> expect.to_equal(None)
+  |> fn(actual) {
+    assert actual == None
+  }
 
   profile.email
-  |> expect.to_equal(None)
+  |> fn(actual) {
+    assert actual == None
+  }
 }
 
 pub fn parse_profile_partial_test() -> Nil {
@@ -195,13 +234,19 @@ pub fn parse_profile_partial_test() -> Nil {
   let assert Ok(profile) = result
 
   profile.name
-  |> expect.to_equal(Some("Just a Name"))
+  |> fn(actual) {
+    assert actual == Some("Just a Name")
+  }
 
   profile.email
-  |> expect.to_equal(None)
+  |> fn(actual) {
+    assert actual == None
+  }
 
   profile.photo
-  |> expect.to_equal(None)
+  |> fn(actual) {
+    assert actual == None
+  }
 }
 
 pub fn parse_profile_missing_me_test() -> Nil {
@@ -209,7 +254,10 @@ pub fn parse_profile_missing_me_test() -> Nil {
 
   let _ =
     token.parse_profile_from_token_response(json)
-    |> expect.to_be_error()
+    |> fn(result) {
+      let assert Error(value) = result
+      value
+    }
   Nil
 }
 
@@ -229,16 +277,24 @@ pub fn parse_userinfo_full_test() -> Nil {
   let assert Ok(#(uid, info)) = result
 
   uid
-  |> expect.to_equal("https://user.example.net/")
+  |> fn(actual) {
+    assert actual == "https://user.example.net/"
+  }
 
   user_info.name(info)
-  |> expect.to_equal(Some("Example User"))
+  |> fn(actual) {
+    assert actual == Some("Example User")
+  }
 
   user_info.email(info)
-  |> expect.to_equal(Some("user@example.net"))
+  |> fn(actual) {
+    assert actual == Some("user@example.net")
+  }
 
   user_info.image(info)
-  |> expect.to_equal(Some("https://user.example.net/photo.jpg"))
+  |> fn(actual) {
+    assert actual == Some("https://user.example.net/photo.jpg")
+  }
 }
 
 pub fn parse_userinfo_minimal_test() -> Nil {
@@ -248,19 +304,28 @@ pub fn parse_userinfo_minimal_test() -> Nil {
   let assert Ok(#(uid, info)) = result
 
   uid
-  |> expect.to_equal("https://user.example.net/")
+  |> fn(actual) {
+    assert actual == "https://user.example.net/"
+  }
 
   user_info.name(info)
-  |> expect.to_equal(None)
+  |> fn(actual) {
+    assert actual == None
+  }
 
   user_info.email(info)
-  |> expect.to_equal(None)
+  |> fn(actual) {
+    assert actual == None
+  }
 }
 
 pub fn parse_userinfo_invalid_json_test() -> Nil {
   let _ =
     token.parse_userinfo_response("bad json")
-    |> expect.to_be_error()
+    |> fn(result) {
+      let assert Error(value) = result
+      value
+    }
   Nil
 }
 
@@ -269,7 +334,10 @@ pub fn parse_userinfo_invalid_json_test() -> Nil {
 pub fn parse_profile_requires_me_test() -> Nil {
   let json = "{ \"access_token\": \"abc\", \"token_type\": \"Bearer\" }"
   let assert Error(err) = token.parse_profile_from_token_response(json)
-  error.kind(err) |> expect.to_equal(error.UserInfoKind)
+  error.kind(err)
+  |> fn(actual) {
+    assert actual == error.UserInfoKind
+  }
 }
 
 // === request sites refuse non-public endpoints before any network I/O ===
@@ -283,13 +351,19 @@ pub fn exchange_code_rejects_non_public_token_endpoint_test() -> Nil {
       "code",
       None,
     )
-  error.kind(err) |> expect.to_equal(error.ConfigKind)
+  error.kind(err)
+  |> fn(actual) {
+    assert actual == error.ConfigKind
+  }
 }
 
 pub fn refresh_rejects_non_public_token_endpoint_test() -> Nil {
   let assert Error(err) =
     token.refresh("https://10.0.0.5/token", "https://app.example.com/", "rt")
-  error.kind(err) |> expect.to_equal(error.ConfigKind)
+  error.kind(err)
+  |> fn(actual) {
+    assert actual == error.ConfigKind
+  }
 }
 
 pub fn fetch_userinfo_rejects_non_public_endpoint_test() -> Nil {
@@ -303,5 +377,8 @@ pub fn fetch_userinfo_rejects_non_public_endpoint_test() -> Nil {
     )
   let assert Error(err) =
     token.fetch_userinfo("https://localhost/userinfo", creds)
-  error.kind(err) |> expect.to_equal(error.ConfigKind)
+  error.kind(err)
+  |> fn(actual) {
+    assert actual == error.ConfigKind
+  }
 }

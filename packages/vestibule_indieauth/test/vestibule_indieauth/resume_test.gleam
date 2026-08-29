@@ -1,13 +1,7 @@
 import gleam/option.{None, Some}
-import startest
-import startest/expect
 
 import vestibule_indieauth
 import vestibule_indieauth/discovery.{DiscoveredEndpoints}
-
-pub fn main() -> Nil {
-  startest.run(startest.default_config())
-}
 
 // === serialize_endpoints / parse_endpoints ===
 
@@ -22,8 +16,13 @@ pub fn serialize_parse_round_trip_test() -> Nil {
 
   vestibule_indieauth.serialize_endpoints(endpoints, "https://me.example.com/")
   |> vestibule_indieauth.parse_endpoints()
-  |> expect.to_be_ok()
-  |> expect.to_equal(#(endpoints, "https://me.example.com/"))
+  |> fn(result) {
+    let assert Ok(value) = result
+    value
+  }
+  |> fn(actual) {
+    assert actual == #(endpoints, "https://me.example.com/")
+  }
 }
 
 pub fn serialize_parse_round_trip_with_none_test() -> Nil {
@@ -37,21 +36,32 @@ pub fn serialize_parse_round_trip_with_none_test() -> Nil {
 
   vestibule_indieauth.serialize_endpoints(endpoints, "https://me.example.com/")
   |> vestibule_indieauth.parse_endpoints()
-  |> expect.to_be_ok()
-  |> expect.to_equal(#(endpoints, "https://me.example.com/"))
+  |> fn(result) {
+    let assert Ok(value) = result
+    value
+  }
+  |> fn(actual) {
+    assert actual == #(endpoints, "https://me.example.com/")
+  }
 }
 
 pub fn parse_rejects_garbage_test() -> Nil {
   let _ =
     vestibule_indieauth.parse_endpoints("not json")
-    |> expect.to_be_error()
+    |> fn(result) {
+      let assert Error(value) = result
+      value
+    }
   Nil
 }
 
 pub fn parse_rejects_missing_fields_test() -> Nil {
   let _ =
     vestibule_indieauth.parse_endpoints("{\"me\":\"https://me.example.com/\"}")
-    |> expect.to_be_error()
+    |> fn(result) {
+      let assert Error(value) = result
+      value
+    }
   Nil
 }
 
@@ -63,6 +73,9 @@ pub fn parse_rejects_non_public_endpoints_test() -> Nil {
     vestibule_indieauth.parse_endpoints(
       "{\"me\":\"https://me.example.com/\",\"authorization_endpoint\":\"https://auth.example.com/authorize\",\"token_endpoint\":\"http://10.0.0.5:8500/v1/kv/secret\",\"issuer\":null,\"userinfo_endpoint\":null}",
     )
-    |> expect.to_be_error()
+    |> fn(result) {
+      let assert Error(value) = result
+      value
+    }
   Nil
 }

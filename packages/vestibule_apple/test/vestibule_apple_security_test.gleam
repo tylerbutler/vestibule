@@ -7,18 +7,12 @@
 import gleam/json as gleam_json
 import gleam/option.{None, Some}
 import gleam/time/duration
-import startest
-import startest/expect
 import vestibule/user_info
 import vestibule_apple
 import vestibule_apple/jwks
 import vestibule_apple/jwt_signing
 import ywt/claim
 import ywt/verify_key
-
-pub fn main() -> Nil {
-  startest.run(startest.default_config())
-}
 
 // ===========================================================================
 // JWT Signature Verification Tests (Audit finding C1 -- FIXED)
@@ -54,7 +48,12 @@ pub fn verify_id_token_rejects_wrong_key_test() -> Nil {
       keys: [verify_key.derived(legit_key)],
       client_id: "com.example.app",
     )
-  let _ = result |> expect.to_be_error()
+  let _ =
+    result
+    |> fn(result) {
+      let assert Error(value) = result
+      value
+    }
   Nil
 }
 
@@ -87,8 +86,16 @@ pub fn verify_id_token_accepts_correct_key_test() -> Nil {
       client_id: "com.example.app",
     )
   let assert Ok(#(uid, info)) = result
-  let _ = uid |> expect.to_equal("user-123")
-  let _ = user_info.email(info) |> expect.to_equal(Some("user@example.com"))
+  let _ =
+    uid
+    |> fn(actual) {
+      assert actual == "user-123"
+    }
+  let _ =
+    user_info.email(info)
+    |> fn(actual) {
+      assert actual == Some("user@example.com")
+    }
   Nil
 }
 
@@ -116,7 +123,12 @@ pub fn verify_id_token_rejects_wrong_issuer_test() -> Nil {
       keys: [verify_key.derived(key)],
       client_id: "com.example.app",
     )
-  let _ = result |> expect.to_be_error()
+  let _ =
+    result
+    |> fn(result) {
+      let assert Error(value) = result
+      value
+    }
   Nil
 }
 
@@ -144,7 +156,12 @@ pub fn verify_id_token_rejects_wrong_audience_test() -> Nil {
       keys: [verify_key.derived(key)],
       client_id: "com.example.app",
     )
-  let _ = result |> expect.to_be_error()
+  let _ =
+    result
+    |> fn(result) {
+      let assert Error(value) = result
+      value
+    }
   Nil
 }
 
@@ -162,7 +179,12 @@ pub fn verify_id_token_rejects_forged_jwt_test() -> Nil {
       keys: [verify_key.derived(key)],
       client_id: "com.example.app",
     )
-  let _ = result |> expect.to_be_error()
+  let _ =
+    result
+    |> fn(result) {
+      let assert Error(value) = result
+      value
+    }
   Nil
 }
 
@@ -194,8 +216,16 @@ pub fn verify_id_token_unverified_email_not_returned_test() -> Nil {
       keys: [verify_key.derived(key)],
       client_id: "com.example.app",
     )
-  let _ = user_info.email(info) |> expect.to_equal(None)
-  let _ = user_info.nickname(info) |> expect.to_equal(Some("user@example.com"))
+  let _ =
+    user_info.email(info)
+    |> fn(actual) {
+      assert actual == None
+    }
+  let _ =
+    user_info.nickname(info)
+    |> fn(actual) {
+      assert actual == Some("user@example.com")
+    }
   Nil
 }
 
@@ -207,13 +237,23 @@ pub fn verify_id_token_unverified_email_not_returned_test() -> Nil {
 pub fn parse_jwks_valid_test() -> Nil {
   let jwks_json =
     "{\"keys\":[{\"kty\":\"EC\",\"kid\":\"test-key\",\"crv\":\"P-256\",\"x\":\"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU\",\"y\":\"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0\"}]}"
-  let _ = jwks.parse_jwks(jwks_json) |> expect.to_be_ok()
+  let _ =
+    jwks.parse_jwks(jwks_json)
+    |> fn(result) {
+      let assert Ok(value) = result
+      value
+    }
   Nil
 }
 
 /// Security: JWKS parser rejects invalid JSON.
 pub fn parse_jwks_rejects_invalid_json_test() -> Nil {
-  let _ = jwks.parse_jwks("not json") |> expect.to_be_error()
+  let _ =
+    jwks.parse_jwks("not json")
+    |> fn(result) {
+      let assert Error(value) = result
+      value
+    }
   Nil
 }
 
@@ -221,7 +261,11 @@ pub fn parse_jwks_rejects_invalid_json_test() -> Nil {
 pub fn parse_jwks_accepts_empty_keys_test() -> Nil {
   let result = jwks.parse_jwks("{\"keys\":[]}")
   let assert Ok(keys) = result
-  let _ = keys |> expect.to_equal([])
+  let _ =
+    keys
+    |> fn(actual) {
+      assert actual == []
+    }
   Nil
 }
 
@@ -233,7 +277,10 @@ pub fn parse_jwks_accepts_empty_keys_test() -> Nil {
 pub fn apple_token_error_without_description_test() -> Nil {
   let _ =
     vestibule_apple.parse_token_response("{\"error\":\"invalid_client\"}")
-    |> expect.to_be_error()
+    |> fn(result) {
+      let assert Error(value) = result
+      value
+    }
   Nil
 }
 
@@ -243,7 +290,10 @@ pub fn apple_token_response_handles_html_test() -> Nil {
     vestibule_apple.parse_token_response(
       "<html><body>502 Bad Gateway</body></html>",
     )
-    |> expect.to_be_error()
+    |> fn(result) {
+      let assert Error(value) = result
+      value
+    }
   Nil
 }
 
@@ -251,6 +301,9 @@ pub fn apple_token_response_handles_html_test() -> Nil {
 pub fn apple_token_response_handles_empty_test() -> Nil {
   let _ =
     vestibule_apple.parse_token_response("")
-    |> expect.to_be_error()
+    |> fn(result) {
+      let assert Error(value) = result
+      value
+    }
   Nil
 }

@@ -1,17 +1,11 @@
 import gleam/option.{None, Some}
 import gleam/string
-import startest
-import startest/expect
 
 import vestibule/error
 import vestibule_indieauth/discovery.{
   type DiscoveredEndpoints, DiscoveredEndpoints,
 }
 import vestibule_indieauth/profile
-
-pub fn main() -> Nil {
-  startest.run(startest.default_config())
-}
 
 const me = "https://me.example.com/"
 
@@ -39,8 +33,13 @@ pub fn identical_me_is_accepted_without_rediscovery_test() -> Nil {
     endpoints: endpoints(),
     rediscover: never_rediscover,
   )
-  |> expect.to_be_ok()
-  |> expect.to_equal(me)
+  |> fn(result) {
+    let assert Ok(value) = result
+    value
+  }
+  |> fn(actual) {
+    assert actual == me
+  }
 }
 
 pub fn canonically_equal_me_is_accepted_without_rediscovery_test() -> Nil {
@@ -51,8 +50,13 @@ pub fn canonically_equal_me_is_accepted_without_rediscovery_test() -> Nil {
     endpoints: endpoints(),
     rediscover: never_rediscover,
   )
-  |> expect.to_be_ok()
-  |> expect.to_equal(me)
+  |> fn(result) {
+    let assert Ok(value) = result
+    value
+  }
+  |> fn(actual) {
+    assert actual == me
+  }
 }
 
 pub fn different_me_on_same_server_is_accepted_test() -> Nil {
@@ -64,12 +68,20 @@ pub fn different_me_on_same_server_is_accepted_test() -> Nil {
     returned_me: returned,
     endpoints: endpoints(),
     rediscover: fn(url) {
-      url |> expect.to_equal(returned)
+      url
+      |> fn(actual) {
+        assert actual == returned
+      }
       Ok(endpoints())
     },
   )
-  |> expect.to_be_ok()
-  |> expect.to_equal(returned)
+  |> fn(result) {
+    let assert Ok(value) = result
+    value
+  }
+  |> fn(actual) {
+    assert actual == returned
+  }
 }
 
 pub fn different_me_with_different_authorization_endpoint_is_rejected_test() -> Nil {
@@ -88,10 +100,15 @@ pub fn different_me_with_different_authorization_endpoint_is_rejected_test() -> 
       },
     )
   let assert Error(err) = result
-  error.kind(err) |> expect.to_equal(error.UserInfoKind)
+  error.kind(err)
+  |> fn(actual) {
+    assert actual == error.UserInfoKind
+  }
   error.message(err)
   |> string.contains("authorization server")
-  |> expect.to_be_true()
+  |> fn(actual) {
+    assert actual
+  }
 }
 
 pub fn different_me_with_different_token_endpoint_is_rejected_test() -> Nil {
@@ -112,7 +129,12 @@ pub fn different_me_with_different_token_endpoint_is_rejected_test() -> Nil {
         )
       },
     )
-  let _ = result |> expect.to_be_error()
+  let _ =
+    result
+    |> fn(result) {
+      let assert Error(value) = result
+      value
+    }
   Nil
 }
 
@@ -124,7 +146,12 @@ pub fn different_me_that_fails_rediscovery_is_rejected_test() -> Nil {
       endpoints: endpoints(),
       rediscover: fn(_) { Error(error.network(reason: "boom")) },
     )
-  let _ = result |> expect.to_be_error()
+  let _ =
+    result
+    |> fn(result) {
+      let assert Error(value) = result
+      value
+    }
   Nil
 }
 
@@ -136,7 +163,12 @@ pub fn invalid_returned_me_is_rejected_test() -> Nil {
       endpoints: endpoints(),
       rediscover: fn(_) { Ok(endpoints()) },
     )
-  let _ = result |> expect.to_be_error()
+  let _ =
+    result
+    |> fn(result) {
+      let assert Error(value) = result
+      value
+    }
   Nil
 }
 
@@ -147,8 +179,13 @@ pub fn require_same_profile_url_accepts_canonical_match_test() -> Nil {
     expected_me: me,
     actual_me: "https://ME.example.com",
   )
-  |> expect.to_be_ok()
-  |> expect.to_equal(me)
+  |> fn(result) {
+    let assert Ok(value) = result
+    value
+  }
+  |> fn(actual) {
+    assert actual == me
+  }
 }
 
 pub fn require_same_profile_url_rejects_mismatch_test() -> Nil {
@@ -158,13 +195,21 @@ pub fn require_same_profile_url_rejects_mismatch_test() -> Nil {
       actual_me: "https://victim.example.com/",
     )
   let assert Error(err) = result
-  error.kind(err) |> expect.to_equal(error.UserInfoKind)
+  error.kind(err)
+  |> fn(actual) {
+    assert actual == error.UserInfoKind
+  }
 }
 
 pub fn require_same_profile_url_rejects_invalid_test() -> Nil {
   let result =
     profile.require_same_profile_url(expected_me: me, actual_me: "not a url#x")
-  let _ = result |> expect.to_be_error()
+  let _ =
+    result
+    |> fn(result) {
+      let assert Error(value) = result
+      value
+    }
   Nil
 }
 
@@ -178,6 +223,11 @@ pub fn none_userinfo_is_fine_test() -> Nil {
     endpoints: no_userinfo,
     rediscover: fn(_) { Ok(no_userinfo) },
   )
-  |> expect.to_be_ok()
-  |> expect.to_equal("https://other.example.com/")
+  |> fn(result) {
+    let assert Ok(value) = result
+    value
+  }
+  |> fn(actual) {
+    assert actual == "https://other.example.com/"
+  }
 }
