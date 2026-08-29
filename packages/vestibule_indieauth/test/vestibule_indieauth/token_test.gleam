@@ -264,6 +264,14 @@ pub fn parse_userinfo_invalid_json_test() -> Nil {
   Nil
 }
 
+// === exchange response: me is required ===
+
+pub fn parse_profile_requires_me_test() -> Nil {
+  let json = "{ \"access_token\": \"abc\", \"token_type\": \"Bearer\" }"
+  let assert Error(err) = token.parse_profile_from_token_response(json)
+  error.kind(err) |> expect.to_equal(error.UserInfoKind)
+}
+
 // === request sites refuse non-public endpoints before any network I/O ===
 
 pub fn exchange_code_rejects_non_public_token_endpoint_test() -> Nil {

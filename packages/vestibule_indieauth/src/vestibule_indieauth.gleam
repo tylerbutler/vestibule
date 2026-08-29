@@ -26,6 +26,7 @@
 //// 3. Falls back from HTTP `Link` headers to HTML `<link>` tags at each tier
 
 import gleam/dict
+import gleam/dynamic
 import gleam/dynamic/decode
 import gleam/json
 import gleam/option.{type Option, None, Some}
@@ -42,6 +43,7 @@ import vestibule/user_info
 import vestibule_indieauth/discovery.{
   type DiscoveredEndpoints, DiscoveredEndpoints,
 }
+import vestibule_indieauth/profile
 import vestibule_indieauth/token
 import vestibule_indieauth/url
 
@@ -262,15 +264,22 @@ fn do_exchange_code(
   code: String,
   code_verifier: Option(String),
 ) -> Result(strategy.ExchangeResult, AuthError(e)) {
-  token.exchange_code(
+  use #(oauth_credentials, asserted) <- result.try(token.exchange_code(
     endpoints.token_endpoint,
     config.client_id(client_config),
     config.redirect_uri(client_config),
     code,
     code_verifier,
-  )
-  |> result.map(strategy.exchange_result)
+  ))
+  Ok(strategy.exchange_result_with_artifacts(
+    oauth_credentials,
+    dict.from_list([#(me_artifact, dynamic.string(asserted.me))]),
+  ))
 }
+
+/// Artifact key under which the token response's `me` is carried from the
+/// exchange step to `fetch_user`.
+const me_artifact = "me"
 
 fn do_refresh_token(
   endpoints: DiscoveredEndpoints,
@@ -289,29 +298,57 @@ fn do_fetch_user(
   me: String,
   exchange: strategy.ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
-  let oauth_credentials = strategy.exchange_credentials(exchange)
-  // IndieAuth returns profile info in the token response, so we
-  // store it on the credentials. If the token endpoint returned
-  // profile info, we already have it. For IndieAuth, the uid is
-  // the canonical "me" URL.
-  //
-  // If a userinfo_endpoint was discovered, fetch from it.
-  // Otherwise, return minimal info with the me URL as identity.
+  // The `me` the user typed is only a claim. The identity is the profile URL
+  // the token endpoint returned, and only once it has been confirmed to be
+  // served by the same authorization server this flow used (IndieAuth
+  // §5.3.4). Anything else would let a token or userinfo endpoint log the
+  // caller in as an arbitrary user.
+  use asserted_me <- result.try(asserted_me(exchange))
+  use verified_me <- result.try(profile.confirm_profile_url(
+    expected_me: me,
+    returned_me: asserted_me,
+    endpoints: endpoints,
+    rediscover: discovery.discover_endpoints,
+  ))
+
   case endpoints.userinfo_endpoint {
     Some(userinfo_url) -> {
-      use #(uid, info) <- result.try(token.fetch_userinfo(
+      let oauth_credentials = strategy.exchange_credentials(exchange)
+      use #(userinfo_me, info) <- result.try(token.fetch_userinfo(
         userinfo_url,
         oauth_credentials,
       ))
-      Ok(strategy.user_result(uid: uid, info: info, extra: dict.new()))
+      // The userinfo endpoint may enrich the profile but may not change the
+      // identity established by the token exchange.
+      use _ <- result.try(profile.require_same_profile_url(
+        expected_me: verified_me,
+        actual_me: userinfo_me,
+      ))
+      Ok(strategy.user_result(uid: verified_me, info: info, extra: dict.new()))
     }
     None ->
-      // Return minimal user info — the me URL is the identity
       Ok(strategy.user_result(
-        uid: me,
+        uid: verified_me,
         info: user_info.new()
-          |> user_info.with_urls(dict.from_list([#("url", me)])),
+          |> user_info.with_urls(dict.from_list([#("url", verified_me)])),
         extra: dict.new(),
+      ))
+  }
+}
+
+/// Read the `me` the token endpoint asserted from the exchange artifacts.
+fn asserted_me(
+  exchange: strategy.ExchangeResult,
+) -> Result(String, AuthError(e)) {
+  case dict.get(strategy.exchange_artifacts(exchange), me_artifact) {
+    Ok(value) ->
+      decode.run(value, decode.string)
+      |> result.replace_error(error.user_info(
+        reason: "Token response `me` artifact is not a string",
+      ))
+    Error(Nil) ->
+      Error(error.user_info(
+        reason: "Token response did not include the required `me` profile URL",
       ))
   }
 }

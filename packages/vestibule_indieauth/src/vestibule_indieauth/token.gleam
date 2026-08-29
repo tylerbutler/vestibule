@@ -41,13 +41,17 @@ pub type IndieAuthProfile {
 ///
 /// IndieAuth uses public client semantics — no `client_secret` is sent.
 /// The `client_id` is the application's URL.
+///
+/// Returns the credentials together with the profile the server asserted
+/// (whose `me` is required). The caller must confirm that `me` before
+/// treating it as the user's identity — see `vestibule_indieauth/profile`.
 pub fn exchange_code(
   token_endpoint: String,
   client_id: String,
   redirect_uri: String,
   code: String,
   code_verifier: Option(String),
-) -> Result(Credentials, AuthError(e)) {
+) -> Result(#(Credentials, IndieAuthProfile), AuthError(e)) {
   use _ <- result.try(provider_support.require_public_https(token_endpoint))
   let body =
     uri.query_to_string([
@@ -83,7 +87,9 @@ pub fn exchange_code(
           endpoint: "token",
         ),
       )
-      parse_token_response(body)
+      use oauth_credentials <- result.try(parse_token_response(body))
+      use profile <- result.try(parse_profile_from_token_response(body))
+      Ok(#(oauth_credentials, profile))
     }
     Error(_) ->
       Error(error.network(
