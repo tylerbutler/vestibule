@@ -139,7 +139,7 @@ with_table(Name, Tables, Fun) ->
 
 cleanup_expired_entries(Table, Now) ->
     ets:foldl(fun
-        ({Key, {session_state, _State, _Verifier, _Nonce, ExpiresAt}}, Count) ->
+        ({Key, {session_state, _Provider, _State, _Verifier, _Nonce, ExpiresAt}}, Count) ->
             case timestamp_lte(ExpiresAt, Now) of
                 true ->
                     ets:delete(Table, Key),

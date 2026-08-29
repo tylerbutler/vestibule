@@ -271,6 +271,7 @@ pub fn callback_wrong_secret_reports_invalid_signature_test() -> Nil {
   let assert Ok(session_id) =
     state_store.try_store(
       store,
+      provider: "test",
       state: "state",
       code_verifier: "verifier",
       nonce: option.None,
@@ -306,6 +307,7 @@ pub fn callback_missing_state_does_not_consume_session_test() -> Nil {
   let assert Ok(session_id) =
     state_store.try_store(
       store,
+      provider: "test",
       state: "state",
       code_verifier: "verifier",
       nonce: option.None,
@@ -376,6 +378,7 @@ pub fn callback_auth_result_preserves_provider_error_details_test() -> Nil {
   let assert Ok(session_id) =
     state_store.try_store(
       store,
+      provider: "test",
       state: "state",
       code_verifier: "verifier",
       nonce: option.None,
@@ -417,6 +420,7 @@ pub fn callback_custom_cookie_name_is_honored_test() -> Nil {
   let assert Ok(session_id) =
     state_store.try_store(
       store,
+      provider: "test",
       state: "state",
       code_verifier: "verifier",
       nonce: option.None,
