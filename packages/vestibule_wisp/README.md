@@ -191,5 +191,9 @@ stores through the module functions.
   application startup and simple examples.
 - `retrieve` consumes state exactly once.
 - Expired sessions are treated as missing and removed from the store.
+- A store holds at most 100 000 live sessions by default
+  (`try_init_with_capacity` to change it); once full, `request_phase` fails
+  with a generic error until sessions are consumed or expire. Rate-limit
+  `/auth/*` upstream if that bound is not enough for you.
 - The same store can be shared with `vestibule_mist`; a single ETS owner
   process is shared across all transports.

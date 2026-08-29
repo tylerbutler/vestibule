@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Security"
+body = "The state store no longer scans the whole table on every insert (an unauthenticated client could make every login request and callback time out by starting flows in a loop). Expired sessions are now swept by the owner process on a timer and reclaimed on demand; stores are bounded by a live-session cap (default 100 000, configurable with the new `state_store.try_init_with_capacity`) and refuse new flows with `StoreFull` when full. Added `state_store.sweep_expired`"
