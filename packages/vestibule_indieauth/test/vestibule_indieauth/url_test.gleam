@@ -115,3 +115,20 @@ pub fn canonicalize_preserves_http_test() -> Nil {
   url.canonicalize("http://example.com/")
   |> expect.to_equal("http://example.com/")
 }
+
+// Profile URLs are fetched server-side during discovery, so a non-public
+// host would turn the login form into an SSRF primitive.
+
+pub fn rejects_localhost_profile_url_test() -> Nil {
+  let _ =
+    url.validate_profile_url("http://localhost/")
+    |> expect.to_be_error()
+  Nil
+}
+
+pub fn rejects_dot_local_profile_url_test() -> Nil {
+  let _ =
+    url.validate_profile_url("https://printer.local/")
+    |> expect.to_be_error()
+  Nil
+}

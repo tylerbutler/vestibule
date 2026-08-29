@@ -54,3 +54,15 @@ pub fn parse_rejects_missing_fields_test() -> Nil {
     |> expect.to_be_error()
   Nil
 }
+
+pub fn parse_rejects_non_public_endpoints_test() -> Nil {
+  // Serialized endpoints normally come from a signed cookie, but the token
+  // and userinfo requests must never be pointed at an internal host even if
+  // that trust boundary is misconfigured.
+  let _ =
+    vestibule_indieauth.parse_endpoints(
+      "{\"me\":\"https://me.example.com/\",\"authorization_endpoint\":\"https://auth.example.com/authorize\",\"token_endpoint\":\"http://10.0.0.5:8500/v1/kv/secret\",\"issuer\":null,\"userinfo_endpoint\":null}",
+    )
+    |> expect.to_be_error()
+  Nil
+}
