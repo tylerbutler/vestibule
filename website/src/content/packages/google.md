@@ -5,17 +5,17 @@ kind: Provider strategy
 summary: Google OAuth strategy with verified-email handling, hosted-domain enforcement, and refresh-token guidance.
 install:
   - "[dependencies]"
-  - 'vestibule_google = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_google" }'
-useWhen: Use Google when users sign in with Google or Google Workspace accounts and your app needs normalized profile data.
+  - 'vestibule_google = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0", path = "packages/vestibule_google" }'
+useWhen: Use Google if users sign in with Google or Google Workspace accounts and your app requires normalized profile data.
 defaultScopes: openid email profile
 setup:
   - Create a Google Cloud project.
   - Configure OAuth consent screen with openid, email, and profile scopes.
   - Create a Web application OAuth client ID.
-  - Add development and HTTPS production redirect URIs exactly.
+  - Add the exact redirect URIs for development and HTTPS production.
 highlights:
   - user_info.email only returns a value when email_verified is true.
-  - config.with_extra_params can request offline access.
+  - Use config.with_extra_params to request offline access.
   - strategy_for_hosted_domain validates the hd claim server-side.
   - The hd authorization parameter alone is only an account-picker hint.
 code: |

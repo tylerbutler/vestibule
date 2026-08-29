@@ -661,3 +661,24 @@ fn result_error_kind(
     Error(err) -> Some(err)
   }
 }
+
+pub fn handle_callback_rejects_missing_expected_nonce_for_nonce_strategy_test() -> Nil {
+  // A strategy that uses a nonce must never fall open when the caller has
+  // no stored nonce to compare against; that would silently drop id_token
+  // replay protection.
+  let strategy = nonce_strategy(make_id_token("{\"nonce\":\"the-nonce\"}"))
+  let result =
+    vestibule.handle_callback(
+      strategy,
+      config: nonce_config(),
+      callback_params: nonce_params(),
+      expected_state: "expected",
+      code_verifier: "verifier",
+      expected_nonce: None,
+    )
+  let assert Error(err) = result
+  error.kind(err)
+  |> fn(actual) {
+    assert actual == error.InvalidNonceKind
+  }
+}

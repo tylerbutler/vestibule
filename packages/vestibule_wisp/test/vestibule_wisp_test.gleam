@@ -1,3 +1,4 @@
+import gleam/bit_array
 import gleam/dict
 import gleam/http
 import gleam/http/request
@@ -222,6 +223,7 @@ pub fn callback_phase_auth_result_with_options_uses_cookie_name_test() -> Nil {
   let assert Ok(session_id) =
     state_store.try_store(
       store,
+      provider: "test",
       state: "state",
       code_verifier: "verifier",
       nonce: option.None,
@@ -254,6 +256,7 @@ pub fn callback_phase_auth_result_malformed_post_body_returns_invalid_params_tes
   let assert Ok(session_id) =
     state_store.try_store(
       store,
+      provider: "test",
       state: "state",
       code_verifier: "verifier",
       nonce: option.None,
@@ -278,6 +281,7 @@ pub fn callback_phase_auth_result_missing_state_does_not_consume_session_test() 
   let assert Ok(session_id) =
     state_store.try_store(
       store,
+      provider: "test",
       state: "state",
       code_verifier: "verifier",
       nonce: option.None,
@@ -385,6 +389,7 @@ pub fn callback_phase_default_error_response_does_not_render_provider_details_te
   let assert Ok(session_id) =
     state_store.try_store(
       store,
+      provider: "test",
       state: "state",
       code_verifier: "verifier",
       nonce: option.None,
@@ -424,6 +429,7 @@ pub fn callback_phase_auth_result_preserves_provider_error_details_test() -> Nil
   let assert Ok(session_id) =
     state_store.try_store(
       store,
+      provider: "test",
       state: "state",
       code_verifier: "verifier",
       nonce: option.None,
@@ -448,4 +454,117 @@ pub fn callback_phase_auth_result_preserves_provider_error_details_test() -> Nil
         uri: option.None,
       )),
     )
+}
+
+// === SameSite ===
+
+pub fn request_phase_cross_site_cookie_sets_same_site_none_and_secure_test() -> Nil {
+  let assert Ok(store) = state_store.try_init_named("test_wisp_cross_site")
+  let assert Ok(registry) =
+    registry.new()
+    |> registry.register(strategy: test_strategy(), config: test_config())
+  let req = simulate.request(http.Get, "/auth/test")
+
+  let response =
+    vestibule_wisp.request_phase_with_options(
+      req,
+      registry: registry,
+      provider: "test",
+      state_store: store,
+      authorize_options: config.authorize_options(),
+      middleware_options: vestibule_wisp.default_options()
+        |> vestibule_wisp.with_same_site(vestibule_wisp.CrossSite),
+    )
+
+  let set_cookie = case list.key_find(response.headers, "set-cookie") {
+    Ok(value) -> value
+    Error(_) -> panic as "expected a set-cookie header"
+  }
+  { string.contains(set_cookie, "__Host-vestibule_session=") }
+  |> fn(actual) {
+    assert actual
+  }
+  { string.contains(set_cookie, "SameSite=None") }
+  |> fn(actual) {
+    assert actual
+  }
+  { string.contains(set_cookie, "Secure") }
+  |> fn(actual) {
+    assert actual
+  }
+  { string.contains(set_cookie, "HttpOnly") }
+  |> fn(actual) {
+    assert actual
+  }
+  { string.contains(set_cookie, "Path=/") }
+  |> fn(actual) {
+    assert actual
+  }
+}
+
+pub fn cross_site_cookie_is_accepted_by_callback_test() -> Nil {
+  // The cross-site cookie is signed by hand rather than via wisp.set_cookie,
+  // so prove the callback's wisp.get_cookie(Signed) still verifies it.
+  let assert Ok(store) = state_store.try_init_named("test_wisp_cross_site_cb")
+  let assert Ok(registry) =
+    registry.new()
+    |> registry.register(strategy: test_strategy(), config: test_config())
+  let options =
+    vestibule_wisp.default_options()
+    |> vestibule_wisp.with_same_site(vestibule_wisp.CrossSite)
+
+  let response =
+    vestibule_wisp.request_phase_with_options(
+      simulate.request(http.Get, "/auth/test"),
+      registry: registry,
+      provider: "test",
+      state_store: store,
+      authorize_options: config.authorize_options(),
+      middleware_options: options,
+    )
+  let assert Ok(set_cookie) = list.key_find(response.headers, "set-cookie")
+  let assert Ok(#(cookie_pair, _attributes)) =
+    string.split_once(set_cookie, ";")
+  // Recover the stored state so the callback can present a matching one.
+  let assert Ok(#(_, cookie_value)) = string.split_once(cookie_pair, "=")
+  let assert Ok(session_bits) =
+    wisp.verify_signed_message(
+      simulate.request(http.Get, "/auth/test"),
+      cookie_value,
+    )
+  let assert Ok(session_id) = bit_array.to_string(session_bits)
+  let assert Ok(#(state, _verifier, _nonce)) =
+    state_store.peek(store, session_id, provider: "test")
+
+  let callback =
+    simulate.request(
+      http.Post,
+      "/auth/test/callback?state=" <> state <> "&code=code",
+    )
+    |> simulate.header("cookie", cookie_pair)
+
+  // Past the cookie stage: the fake strategy's exchange fails, which is the
+  // next step after the session was found and consumed.
+  let result =
+    vestibule_wisp.callback_phase_auth_result_with_options(
+      callback,
+      registry: registry,
+      provider: "test",
+      state_store: store,
+      options: options,
+    )
+  case result {
+    Error(vestibule_wisp.MissingOrInvalidSessionCookie(_)) ->
+      panic as "cross-site cookie was not accepted by the callback"
+    Error(vestibule_wisp.SessionUnavailable) ->
+      panic as "session was not found for the cross-site cookie"
+    _ -> Nil
+  }
+}
+
+pub fn same_site_defaults_to_lax_test() -> Nil {
+  vestibule_wisp.same_site(vestibule_wisp.default_options())
+  |> fn(actual) {
+    assert actual == vestibule_wisp.Lax
+  }
 }

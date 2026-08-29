@@ -1,8 +1,9 @@
-/// IndieAuth token exchange and response parsing.
-///
-/// Handles the token exchange step of the IndieAuth flow where
-/// the authorization code is exchanged for an access token and
-/// the user's canonical profile URL.
+//// IndieAuth token exchange and response parsing.
+////
+//// Handles the token exchange step of the IndieAuth flow where
+//// the authorization code is exchanged for an access token and
+//// the user's canonical profile URL.
+
 import gleam/dict
 import gleam/dynamic/decode
 import gleam/http
@@ -40,13 +41,18 @@ pub type IndieAuthProfile {
 ///
 /// IndieAuth uses public client semantics — no `client_secret` is sent.
 /// The `client_id` is the application's URL.
+///
+/// Returns the credentials together with the profile the server asserted
+/// (whose `me` is required). The caller must confirm that `me` before
+/// treating it as the user's identity — see `vestibule_indieauth/profile`.
 pub fn exchange_code(
   token_endpoint: String,
   client_id: String,
   redirect_uri: String,
   code: String,
   code_verifier: Option(String),
-) -> Result(Credentials, AuthError(e)) {
+) -> Result(#(Credentials, IndieAuthProfile), AuthError(e)) {
+  use _ <- result.try(provider_support.require_public_https(token_endpoint))
   let body =
     uri.query_to_string([
       #("grant_type", "authorization_code"),
@@ -81,7 +87,9 @@ pub fn exchange_code(
           endpoint: "token",
         ),
       )
-      parse_token_response(body)
+      use oauth_credentials <- result.try(parse_token_response(body))
+      use profile <- result.try(parse_profile_from_token_response(body))
+      Ok(#(oauth_credentials, profile))
     }
     Error(_) ->
       Error(error.network(
@@ -100,6 +108,7 @@ pub fn refresh(
   client_id: String,
   refresh_token: String,
 ) -> Result(Credentials, AuthError(e)) {
+  use _ <- result.try(provider_support.require_public_https(token_endpoint))
   let body =
     uri.query_to_string([
       #("grant_type", "refresh_token"),
@@ -198,7 +207,7 @@ fn parse_token_success(body: String) -> Result(Credentials, AuthError(e)) {
     ))
   }
   case json.parse(body, decoder) {
-    Ok(creds) -> Ok(creds)
+    Ok(oauth_credentials) -> Ok(oauth_credentials)
     Error(err) ->
       Error(error.code_exchange(
         reason: "Failed to parse IndieAuth token response: "
@@ -269,9 +278,10 @@ pub fn parse_profile_from_token_response(
 /// Fetch user info from the IndieAuth userinfo endpoint.
 pub fn fetch_userinfo(
   userinfo_url: String,
-  creds: Credentials,
+  oauth_credentials: Credentials,
 ) -> Result(#(String, UserInfo), AuthError(e)) {
-  use auth_header <- result.try(strategy.authorization_header(creds))
+  use _ <- result.try(provider_support.require_public_https(userinfo_url))
+  use auth_header <- result.try(strategy.authorization_header(oauth_credentials))
 
   use req <- result.try(
     request.to(userinfo_url)

@@ -142,6 +142,13 @@ VM at startup. Use `state_store.try_init` if you want to handle
 duplicate-table errors explicitly. The same store can be shared between
 `vestibule_wisp` and `vestibule_mist`.
 
+Starting a flow is unauthenticated, so the store is bounded: it holds at most
+100 000 live sessions by default (`state_store.try_init_with_capacity` to
+change it) and refuses new flows with `StoreFull` once full. Expired sessions
+are rejected on read, reclaimed on demand when the store is at capacity, and
+swept periodically; inserts are O(1). Rate-limit the request endpoint upstream
+if you need a stronger guarantee than the cap.
+
 ### Logging
 
 Vestibule emits structured OAuth lifecycle logs through Erlang/OTP Logger. It
@@ -176,7 +183,7 @@ import vestibule/state_store
 import vestibule_mist
 
 let assert Ok(store) = state_store.try_init()
-let options = vestibule_mist.new_options(secret_key_base)
+let assert Ok(options) = vestibule_mist.new_options(secret_key_base)
 
 fn handle_request(req: Request(Connection)) -> Response(ResponseData) {
   case request.path_segments(req), req.method {

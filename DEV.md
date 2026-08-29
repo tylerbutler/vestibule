@@ -216,9 +216,13 @@ test: add edge case tests for unicode handling
 ## Release Process
 
 This is a multi-package repository. Trellis independently versions, tags, and
-publishes the releasable packages. `vestibule_apple`, `vestibule_google`,
-`vestibule_microsoft`, and `vestibule_oidc` remain workspace members but are
-excluded from the release set.
+releases the releasable packages. The `example` app and the `vestibule_apple`,
+`vestibule_google`, `vestibule_microsoft`, and `vestibule_oidc` providers stay
+full workspace members — normal tasks still build and test them — but their
+paths are listed under `exclude."@release"` in the root `gleam.toml`, so they
+are never versioned or tagged. That leaves a release set of `vestibule`,
+`vestibule_github`, `vestibule_indieauth`, `vestibule_mist`, and
+`vestibule_wisp`; `trellis doctor` prints the split.
 
 ### Adding Changelog Entries
 
@@ -260,35 +264,43 @@ Edit fragments, not changelogs.
    per-package `CHANGELOG.md` files, and patches the locked workspace versions in
    every `manifest.toml`. Packages that path-depend on a bumped package are
    bumped too, with a generated `Dependencies` entry
-6. Merge the release PR → the **Release** workflow reports what would ship
-   (`trellis publish --all-untagged --dry-run`) and records the release with
-   `trellis tag create --github-release`
+6. Merge the release PR → the **Release** workflow records the release with
+   `trellis tag create --github-release`. Nothing is uploaded to Hex; see
+   [Publishing](#publishing)
 
 ### Tags
 
-Each release writes two tags per releasable package, configured by
-`tag_mode = "both"` under `[tools.trellis.publish]`:
+A release writes three kinds of tag, all configured under
+`[tools.trellis.publish]`:
 
-| Tag | Lifecycle |
-| --- | --- |
-| `vestibule-v0.0.1` | Immutable. Created once, never rewritten, carries the GitHub Release bodied from the matching CHANGELOG section. |
-| `vestibule-v0.0` | Moving. Force-moved to the newest release in its series on every release, so consumers pin a series instead of chasing patches. Carries no GitHub Release — it would silently retarget on the next move. |
+| Tag | Scope | Lifecycle |
+| --- | --- | --- |
+| `vestibule-v0.0.1` | One per releasable package (`package_tags = ["exact"]`) | Immutable. Created once, never rewritten, carries the GitHub Release bodied from the matching CHANGELOG section. |
+| `v0.0` | One minor tag for the whole repository (`repository_tags = ["major", "minor"]`, keyed to `vestibule`'s version) | Moving. Force-moved to the newest release in that minor series. Carries no GitHub Release. |
+| `v0` | One major tag for the whole repository | Moving. Force-moved to the newest release in that major series. Carries no GitHub Release. |
 
-The series is derived from the version and is never configured. While the major
-is 0, every minor bump is breaking, so the series is `major.minor`
-(`0.0.1`, `0.0.2` → `v0.0`); from 1.0 on it is the major alone (`1.2.1`,
-`1.9.0` → `v1`). A prerelease belongs to no series and moves no tag.
+There are no per-package *series* tags: `package_tags = ["exact"]` writes only
+exact-version package tags. The repo-wide `v{series}` tags provide both major
+and minor moving refs for all packages.
+
+The tag values are derived from the version: `0.0.1` moves both `v0` and
+`v0.0`, while `0.1.0` moves `v0` and `v0.1`. A prerelease moves no repository
+tag.
 
 `trellis tag plan` lists the tags the current versions call for and don't have
-yet, both lifecycles included.
+yet, both kinds included.
 
 ### Publishing
 
-**Publishing to Hex is currently off.** The Release workflow runs
-`trellis publish --all-untagged --dry-run`, which resolves what would ship and
-how each path dependency would be rewritten, but contacts Hex not at all and
-uploads nothing. Turning it on means dropping `--dry-run`, adding
-`HEXPM_API_KEY`, and restoring a lockfile refresh — the note at the top of
+**Releases are git-only.** `[tools.trellis.publish.lifecycle]` in the root
+`gleam.toml` sets `default = "git_only"`, putting every package on the git
+lifecycle: a release is tags plus GitHub Releases, and nothing is uploaded to
+Hex. The Release workflow has no publish step at all, because `trellis publish`
+only ever selects `hex`-lifecycle packages and there are none.
+
+Turning Hex publishing on means moving the packages to the `hex` lifecycle,
+adding a `trellis publish --all-untagged` step with `HEXPM_API_KEY`, and
+restoring a lockfile refresh — the note at the top of
 `.github/workflows/publish.yml` spells it out.
 
 Once it is on: sub-packages depend on `vestibule` via path references during
@@ -305,8 +317,8 @@ workflow is the way to recover from a partial failure.
 There is no workspace file. Trellis discovers members by finding every
 `gleam.toml` git knows about outside `build/`, and the `[tools.trellis]` table in
 the root `gleam.toml` marks the workspace root. Adding a package under `packages/` is enough for it to be discovered, built,
-and tested. Unless its path is listed under `exclude.@release`, it is also
-versioned, tagged, and published. `just doctor` validates the result.
+and tested. Unless its path is listed under `exclude."@release"`, it is also
+versioned and tagged. `just doctor` validates the result.
 
 ## Troubleshooting
 

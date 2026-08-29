@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Breaking"
+body = "State store sessions are now bound to the provider that started the flow: `state_store.try_store`/`try_store_with_ttl` take a `provider` argument and `consume`/`peek` require the same provider or fail. `transport_flow` threads the strategy's provider through both phases, so a session minted for one provider can no longer satisfy another provider's callback (OAuth mix-up attack leading to login CSRF or account-linking takeover)"

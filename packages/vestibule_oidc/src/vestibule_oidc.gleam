@@ -308,7 +308,7 @@ pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
       provider_support.OptionalScope(separator: " "),
     )
   case result {
-    Ok(creds) -> {
+    Ok(oauth_credentials) -> {
       logger.new(
         level: logger.Debug,
         event: "vestibule.provider.token_parse.success",
@@ -319,16 +319,16 @@ pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
           logger.field("endpoint", "token"),
           logger.bool_field(
             "has_refresh_token",
-            option.is_some(credentials.refresh_token(creds)),
+            option.is_some(credentials.refresh_token(oauth_credentials)),
           ),
           logger.int_field(
             "scope_count",
-            list.length(credentials.scopes(creds)),
+            list.length(credentials.scopes(oauth_credentials)),
           ),
         ],
       )
       |> logger.emit()
-      Ok(creds)
+      Ok(oauth_credentials)
     }
     Error(err) -> {
       logger.new(
@@ -457,19 +457,19 @@ fn build_authorize_url_fn(
 ) -> fn(config.ClientConfig, config.AuthorizeOptions, List(String), String) ->
   Result(String, AuthError(e)) {
   fn(
-    cfg: config.ClientConfig,
+    client_config: config.ClientConfig,
     options: config.AuthorizeOptions,
     scopes: List(String),
     state: String,
   ) -> Result(String, AuthError(e)) {
     use redirect <- result.try(
-      provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
+      provider_support.parse_redirect_uri(config.redirect_uri(client_config)),
     )
     case uri.parse(authorization_endpoint) {
       Ok(base_uri) -> {
         let params = [
           #("response_type", "code"),
-          #("client_id", config.client_id(cfg)),
+          #("client_id", config.client_id(client_config)),
           #("redirect_uri", uri.to_string(redirect)),
           #("scope", string.join(scopes, " ")),
           #("state", state),
@@ -495,16 +495,16 @@ fn build_exchange_code_fn(
 ) -> fn(config.ClientConfig, String, option.Option(String)) ->
   Result(strategy.ExchangeResult, AuthError(e)) {
   fn(
-    cfg: config.ClientConfig,
+    client_config: config.ClientConfig,
     code: String,
     code_verifier: option.Option(String),
   ) -> Result(strategy.ExchangeResult, AuthError(e)) {
     use redirect <- result.try(
-      provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
+      provider_support.parse_redirect_uri(config.redirect_uri(client_config)),
     )
     let params =
       token_request_params.authorization_code(
-        cfg,
+        client_config,
         code: code,
         redirect_uri: uri.to_string(redirect),
         code_verifier: code_verifier,
@@ -534,9 +534,9 @@ fn build_exchange_code_fn(
           ),
         )
         parse_token_response(body)
-        |> result.map(fn(creds) {
+        |> result.map(fn(oauth_credentials) {
           strategy.exchange_result_with_artifacts(
-            creds,
+            oauth_credentials,
             id_token_artifacts(body),
           )
         })
@@ -553,7 +553,7 @@ fn build_fetch_user_fn(
   userinfo_endpoint: String,
 ) -> fn(config.ClientConfig, strategy.ExchangeResult) ->
   Result(UserResult, AuthError(e)) {
-  fn(_cfg: config.ClientConfig, exchange: strategy.ExchangeResult) -> Result(
+  fn(_client_config: config.ClientConfig, exchange: strategy.ExchangeResult) -> Result(
     UserResult,
     AuthError(e),
   ) {
@@ -573,12 +573,12 @@ fn build_fetch_user_fn(
 fn build_refresh_token_fn(
   token_endpoint: String,
 ) -> fn(config.ClientConfig, String) -> Result(Credentials, AuthError(e)) {
-  fn(cfg: config.ClientConfig, refresh_tok: String) -> Result(
+  fn(client_config: config.ClientConfig, refresh_token: String) -> Result(
     Credentials,
     AuthError(e),
   ) {
     let body =
-      token_request_params.refresh(cfg, refresh_token: refresh_tok)
+      token_request_params.refresh(client_config, refresh_token: refresh_token)
       |> uri.query_to_string
 
     use req <- result.try(

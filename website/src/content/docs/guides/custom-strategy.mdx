@@ -38,9 +38,9 @@ import {
   <div>
     <h2>What the core handles</h2>
     <p>
-      Vestibule generates and validates CSRF state, manages PKCE, resolves
-      configured scopes, appends PKCE parameters, and dispatches token
-      refresh through the strategy.
+      Vestibule generates and validates CSRF state. It manages PKCE and resolves
+      configured scopes. It also adds PKCE parameters and sends token-refresh
+      operations to the strategy.
     </p>
   </div>
   <ul className="check-list">
@@ -53,8 +53,8 @@ import {
 <section id="strategy-type">
   <h2>The Strategy type</h2>
   <p>
-    The provider name, default scopes, and builder functions define the full
-    contract. The custom error payload type flows through{" "}
+    The provider name, default scopes, and builder functions define the
+    contract. Vestibule carries the custom error payload type through{" "}
     <code>AuthError(e)</code>.
   </p>
   <CodeBlock code={strategyType} lang="gleam" />
@@ -66,9 +66,9 @@ import {
     <div>
       <h2>Create the provider package</h2>
       <p>
-        A provider can live in its own package. This example starts a Twitch
-        strategy package that depends on Vestibule and the same OAuth helpers
-        used by the built-in strategies.
+        Put a provider in a separate package. This example creates a Twitch
+        strategy package. It uses Vestibule and the OAuth helpers that the
+        built-in strategies use.
       </p>
       <CodeBlock code={packageToml} lang="toml" />
     </div>
@@ -79,8 +79,8 @@ import {
     <div>
       <h2>Build the authorization URL</h2>
       <p>
-        The function receives the already-resolved scopes and state value.
-        Return the provider URL; Vestibule appends the PKCE challenge.
+        The function receives the resolved scopes and the state value. Return
+        the provider URL. Vestibule adds the PKCE challenge.
       </p>
       <CodeBlock code={authorizeUrl} lang="gleam" />
     </div>
@@ -91,10 +91,10 @@ import {
     <div>
       <h2>Exchange the code and fetch the user</h2>
       <p>
-        Exchange the authorization code with the provider token endpoint,
-        parse the response into <code>ExchangeResult</code>, then use the
-        credentials and artifacts to fetch a stable provider UID and
-        normalized <code>UserInfo</code>.
+        Send the authorization code to the provider's token endpoint. Parse the
+        response into <code>ExchangeResult</code>. Then use the credentials and
+        artifacts to get a stable provider UID and normalized{" "}
+        <code>UserInfo</code>.
       </p>
       <CodeBlock code={exchangeAndFetch} lang="gleam" />
     </div>
@@ -105,10 +105,10 @@ import {
     <div>
       <h2>Expose the final strategy value</h2>
       <p>
-        Export a <code>strategy()</code> function that returns{" "}
-        <code>strategy.Strategy(e)</code> when the provider only needs built-in
-        error kinds, or <code>strategy.Strategy(YourError)</code> when it wraps
-        a custom domain-specific error payload with <code>error.custom</code>.
+        Export a <code>strategy()</code> function. Return{" "}
+        <code>strategy.Strategy(e)</code> if the provider uses only built-in
+        error kinds. Return <code>strategy.Strategy(YourError)</code> if the
+        provider wraps a domain error payload with <code>error.custom</code>.
       </p>
       <CodeBlock code={strategyValue} lang="gleam" />
     </div>
@@ -118,10 +118,10 @@ import {
 <section id="authoring-checklist">
   <h2>Authoring checklist</h2>
   <ul className="check-list">
-    <li>Use provider_support helpers before copying built-in internals.</li>
+    <li>Use provider_support helpers. Do not copy built-in internals unless necessary.</li>
     <li>Keep scopes minimal and provider-owned.</li>
-    <li>Normalize user info without pretending optional provider fields always exist.</li>
-    <li>Make refresh-token behavior explicit; providers differ on rotation and returned scopes.</li>
+    <li>Keep optional provider fields optional when you normalize user info.</li>
+    <li>Document refresh-token behavior. Providers use different rotation rules and returned scopes.</li>
     <li>Add tests for URL building, token parsing, profile normalization, and failure responses.</li>
   </ul>
 </section>

@@ -1,10 +1,11 @@
 import gleam/option.{None, Some}
 
-import vestibule_indieauth/discovery
+import vestibule/error
+import vestibule_indieauth/discovery.{DiscoveredEndpoints}
 
 // === parse_metadata ===
 
-pub fn parse_metadata_full_test() {
+pub fn parse_metadata_full_test() -> Nil {
   let json =
     "{
     \"issuer\": \"https://indieauth.example.com/\",
@@ -17,18 +18,28 @@ pub fn parse_metadata_full_test() {
   let result = discovery.parse_metadata(json)
   let assert Ok(endpoints) = result
 
-  assert endpoints.authorization_endpoint
-    == "https://indieauth.example.com/auth"
+  endpoints.authorization_endpoint
+  |> fn(actual) {
+    assert actual == "https://indieauth.example.com/auth"
+  }
 
-  assert endpoints.token_endpoint == "https://indieauth.example.com/token"
+  endpoints.token_endpoint
+  |> fn(actual) {
+    assert actual == "https://indieauth.example.com/token"
+  }
 
-  assert endpoints.issuer == Some("https://indieauth.example.com/")
+  endpoints.issuer
+  |> fn(actual) {
+    assert actual == Some("https://indieauth.example.com/")
+  }
 
-  assert endpoints.userinfo_endpoint
-    == Some("https://indieauth.example.com/userinfo")
+  endpoints.userinfo_endpoint
+  |> fn(actual) {
+    assert actual == Some("https://indieauth.example.com/userinfo")
+  }
 }
 
-pub fn parse_metadata_minimal_test() {
+pub fn parse_metadata_minimal_test() -> Nil {
   let json =
     "{
     \"authorization_endpoint\": \"https://example.com/auth\",
@@ -38,37 +49,64 @@ pub fn parse_metadata_minimal_test() {
   let result = discovery.parse_metadata(json)
   let assert Ok(endpoints) = result
 
-  assert endpoints.authorization_endpoint == "https://example.com/auth"
+  endpoints.authorization_endpoint
+  |> fn(actual) {
+    assert actual == "https://example.com/auth"
+  }
 
-  assert endpoints.token_endpoint == "https://example.com/token"
+  endpoints.token_endpoint
+  |> fn(actual) {
+    assert actual == "https://example.com/token"
+  }
 
-  assert endpoints.issuer == None
+  endpoints.issuer
+  |> fn(actual) {
+    assert actual == None
+  }
 
-  assert endpoints.userinfo_endpoint == None
+  endpoints.userinfo_endpoint
+  |> fn(actual) {
+    assert actual == None
+  }
 }
 
-pub fn parse_metadata_missing_auth_endpoint_test() {
+pub fn parse_metadata_missing_auth_endpoint_test() -> Nil {
   let json = "{ \"token_endpoint\": \"https://example.com/token\" }"
 
-  let assert Error(_) = discovery.parse_metadata(json)
+  let _ =
+    discovery.parse_metadata(json)
+    |> fn(result) {
+      let assert Error(value) = result
+      value
+    }
   Nil
 }
 
-pub fn parse_metadata_missing_token_endpoint_test() {
+pub fn parse_metadata_missing_token_endpoint_test() -> Nil {
   let json = "{ \"authorization_endpoint\": \"https://example.com/auth\" }"
 
-  let assert Error(_) = discovery.parse_metadata(json)
+  let _ =
+    discovery.parse_metadata(json)
+    |> fn(result) {
+      let assert Error(value) = result
+      value
+    }
   Nil
 }
 
-pub fn parse_metadata_invalid_json_test() {
-  let assert Error(_) = discovery.parse_metadata("not json")
+pub fn parse_metadata_invalid_json_test() -> Nil {
+  let _ =
+    discovery.parse_metadata("not json")
+    |> fn(result) {
+      let assert Error(value) = result
+      value
+    }
   Nil
 }
 
 // === find_link_header_rel ===
 
-pub fn find_link_header_basic_test() {
+pub fn find_link_header_basic_test() -> Nil {
   let headers = [
     #(
       "Link",
@@ -76,31 +114,38 @@ pub fn find_link_header_basic_test() {
     ),
   ]
 
-  assert discovery.find_link_header_rel(headers, "indieauth-metadata")
-    == Some(
-      "https://indieauth.example.com/.well-known/oauth-authorization-server",
-    )
+  discovery.find_link_header_rel(headers, "indieauth-metadata")
+  |> fn(actual) {
+    assert actual
+      == Some(
+        "https://indieauth.example.com/.well-known/oauth-authorization-server",
+      )
+  }
 }
 
-pub fn find_link_header_unquoted_rel_test() {
+pub fn find_link_header_unquoted_rel_test() -> Nil {
   let headers = [
     #("Link", "<https://example.com/auth>; rel=authorization_endpoint"),
   ]
 
-  assert discovery.find_link_header_rel(headers, "authorization_endpoint")
-    == Some("https://example.com/auth")
+  discovery.find_link_header_rel(headers, "authorization_endpoint")
+  |> fn(actual) {
+    assert actual == Some("https://example.com/auth")
+  }
 }
 
-pub fn find_link_header_case_insensitive_test() {
+pub fn find_link_header_case_insensitive_test() -> Nil {
   let headers = [
     #("link", "<https://example.com/auth>; rel=\"Authorization_Endpoint\""),
   ]
 
-  assert discovery.find_link_header_rel(headers, "authorization_endpoint")
-    == Some("https://example.com/auth")
+  discovery.find_link_header_rel(headers, "authorization_endpoint")
+  |> fn(actual) {
+    assert actual == Some("https://example.com/auth")
+  }
 }
 
-pub fn find_link_header_multiple_entries_test() {
+pub fn find_link_header_multiple_entries_test() -> Nil {
   let headers = [
     #(
       "Link",
@@ -108,71 +153,174 @@ pub fn find_link_header_multiple_entries_test() {
     ),
   ]
 
-  assert discovery.find_link_header_rel(headers, "authorization_endpoint")
-    == Some("https://example.com/auth")
+  discovery.find_link_header_rel(headers, "authorization_endpoint")
+  |> fn(actual) {
+    assert actual == Some("https://example.com/auth")
+  }
 }
 
-pub fn find_link_header_not_found_test() {
+pub fn find_link_header_not_found_test() -> Nil {
   let headers = [
     #("Link", "<https://example.com/micropub>; rel=\"micropub\""),
   ]
 
-  assert discovery.find_link_header_rel(headers, "authorization_endpoint")
-    == None
+  discovery.find_link_header_rel(headers, "authorization_endpoint")
+  |> fn(actual) {
+    assert actual == None
+  }
 }
 
-pub fn find_link_header_no_link_headers_test() {
+pub fn find_link_header_no_link_headers_test() -> Nil {
   let headers = [#("Content-Type", "text/html")]
 
-  assert discovery.find_link_header_rel(headers, "authorization_endpoint")
-    == None
+  discovery.find_link_header_rel(headers, "authorization_endpoint")
+  |> fn(actual) {
+    assert actual == None
+  }
 }
 
 // === find_html_link_rel ===
 
-pub fn find_html_link_rel_basic_test() {
+pub fn find_html_link_rel_basic_test() -> Nil {
   let html =
     "<html><head><link rel=\"authorization_endpoint\" href=\"https://example.com/auth\"></head></html>"
 
-  assert discovery.find_html_link_rel(html, "authorization_endpoint")
-    == Some("https://example.com/auth")
+  discovery.find_html_link_rel(html, "authorization_endpoint")
+  |> fn(actual) {
+    assert actual == Some("https://example.com/auth")
+  }
 }
 
-pub fn find_html_link_rel_metadata_test() {
+pub fn find_html_link_rel_metadata_test() -> Nil {
   let html =
     "<html><head>
     <link rel=\"indieauth-metadata\" href=\"https://example.com/.well-known/oauth-authorization-server\">
     </head></html>"
 
-  assert discovery.find_html_link_rel(html, "indieauth-metadata")
-    == Some("https://example.com/.well-known/oauth-authorization-server")
+  discovery.find_html_link_rel(html, "indieauth-metadata")
+  |> fn(actual) {
+    assert actual
+      == Some("https://example.com/.well-known/oauth-authorization-server")
+  }
 }
 
-pub fn find_html_link_rel_relative_href_test() {
+pub fn find_html_link_rel_relative_href_test() -> Nil {
   let html =
     "<html><head><link rel=\"token_endpoint\" href=\"/token\"></head></html>"
 
-  assert discovery.find_html_link_rel(html, "token_endpoint") == Some("/token")
+  discovery.find_html_link_rel(html, "token_endpoint")
+  |> fn(actual) {
+    assert actual == Some("/token")
+  }
 }
 
-pub fn find_html_link_rel_not_found_test() {
+pub fn find_html_link_rel_not_found_test() -> Nil {
   let html =
     "<html><head><link rel=\"stylesheet\" href=\"/style.css\"></head></html>"
 
-  assert discovery.find_html_link_rel(html, "authorization_endpoint") == None
+  discovery.find_html_link_rel(html, "authorization_endpoint")
+  |> fn(actual) {
+    assert actual == None
+  }
 }
 
-pub fn find_html_link_rel_empty_html_test() {
-  assert discovery.find_html_link_rel("", "authorization_endpoint") == None
+pub fn find_html_link_rel_empty_html_test() -> Nil {
+  discovery.find_html_link_rel("", "authorization_endpoint")
+  |> fn(actual) {
+    assert actual == None
+  }
 }
 
-pub fn find_html_link_rel_multiple_links_first_wins_test() {
+pub fn find_html_link_rel_multiple_links_first_wins_test() -> Nil {
   let html =
     "<html><head>
     <link rel=\"authorization_endpoint\" href=\"https://first.example.com/auth\">
     <link rel=\"authorization_endpoint\" href=\"https://second.example.com/auth\">
     </head></html>"
 
-  assert discovery.find_html_link_rel(html, "authorization_endpoint")
-    == Some("https://first.example.com/auth")
+  discovery.find_html_link_rel(html, "authorization_endpoint")
+  |> fn(actual) {
+    assert actual == Some("https://first.example.com/auth")
+  }
+}
+
+// === discovered endpoints must be public HTTPS ===
+
+pub fn parse_metadata_rejects_http_token_endpoint_test() -> Nil {
+  let json =
+    "{
+    \"authorization_endpoint\": \"https://auth.example.com/authorize\",
+    \"token_endpoint\": \"http://auth.example.com/token\"
+  }"
+  let assert Error(err) = discovery.parse_metadata(json)
+  error.kind(err)
+  |> fn(actual) {
+    assert actual == error.ConfigKind
+  }
+}
+
+pub fn parse_metadata_rejects_private_userinfo_endpoint_test() -> Nil {
+  let json =
+    "{
+    \"authorization_endpoint\": \"https://auth.example.com/authorize\",
+    \"token_endpoint\": \"https://auth.example.com/token\",
+    \"userinfo_endpoint\": \"https://169.254.169.254/latest/meta-data/\"
+  }"
+  let _ =
+    discovery.parse_metadata(json)
+    |> fn(result) {
+      let assert Error(value) = result
+      value
+    }
+  Nil
+}
+
+pub fn parse_metadata_rejects_loopback_authorization_endpoint_test() -> Nil {
+  let json =
+    "{
+    \"authorization_endpoint\": \"https://127.0.0.1/authorize\",
+    \"token_endpoint\": \"https://auth.example.com/token\"
+  }"
+  let _ =
+    discovery.parse_metadata(json)
+    |> fn(result) {
+      let assert Error(value) = result
+      value
+    }
+  Nil
+}
+
+pub fn validate_endpoints_accepts_public_https_test() -> Nil {
+  let endpoints =
+    DiscoveredEndpoints(
+      authorization_endpoint: "https://auth.example.com/authorize",
+      token_endpoint: "https://auth.example.com/token",
+      issuer: Some("https://auth.example.com/"),
+      userinfo_endpoint: Some("https://auth.example.com/userinfo"),
+    )
+  discovery.validate_endpoints(endpoints)
+  |> fn(result) {
+    let assert Ok(value) = result
+    value
+  }
+  |> fn(actual) {
+    assert actual == endpoints
+  }
+}
+
+pub fn validate_endpoints_rejects_private_issuer_test() -> Nil {
+  let endpoints =
+    DiscoveredEndpoints(
+      authorization_endpoint: "https://auth.example.com/authorize",
+      token_endpoint: "https://auth.example.com/token",
+      issuer: Some("https://10.0.0.5/"),
+      userinfo_endpoint: None,
+    )
+  let _ =
+    discovery.validate_endpoints(endpoints)
+    |> fn(result) {
+      let assert Error(value) = result
+      value
+    }
+  Nil
 }

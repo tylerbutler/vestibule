@@ -1,11 +1,15 @@
 name: Release
 
-# PUBLISHING TO HEX IS OFF while the packages are pre-release. The publish step
-# below runs `--dry-run`: it resolves what would ship and how each path
-# dependency would be rewritten, but makes no Hex API call and uploads nothing.
-# To turn publishing on: drop `--dry-run`, give that step
-# `HEXPM_API_KEY: ${{ secrets.HEXPM_API_KEY }}`, and restore the lockfile
-# refresh described further down.
+# RELEASES ARE GIT-ONLY. `[tools.trellis.publish.lifecycle] default = "git_only"`
+# in the root gleam.toml puts every package on the git lifecycle, so a release is
+# tags plus GitHub Releases and nothing is uploaded to Hex. There is deliberately
+# no publish step here: `trellis publish` only ever selects `hex`-lifecycle
+# packages, so with none configured it would match nothing.
+#
+# To ship to Hex later: move the packages to the `hex` lifecycle in gleam.toml,
+# add a `trellis publish --all-untagged` step with
+# `HEXPM_API_KEY: ${{ secrets.HEXPM_API_KEY }}`, and restore the lockfile refresh
+# described further down.
 #
 # Tags as record: the release PR merging is what cuts a release. `trellis`
 # walks the dependency graph itself, so no workflow here needs to know which
@@ -46,33 +50,28 @@ jobs:
       - name: Setup environment
         uses: ./.github/actions/setup
 
-      # Publishing disabled — see the note at the top of this file. This reports
-      # the packages that would ship, in dependency order, and the Hex
-      # requirement each vestibule path dependency would be rewritten to.
-      - name: Preview publish (publishing is off)
-        run: trellis publish --all-untagged --dry-run
-
-      # Record each release as two tags: the immutable {name}-v{version}, which
-      # carries a GitHub Release bodied from the matching CHANGELOG section, and
-      # the moving {name}-v{series}, which is force-moved to this release and
-      # carries none.
+      # Record the release as tags: one immutable {name}-v{version} per
+      # releasable package, each carrying a GitHub Release bodied from the
+      # matching CHANGELOG section, plus the repo-wide moving major and minor
+      # v{series} tags (derived from vestibule's version), force-moved to this
+      # release and carrying no Releases of their own.
       - name: Tag and release
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: trellis tag create --github-release
 
-      # No lockfile refresh step while publishing is off: `version apply` already
+      # No lockfile refresh step while releases are git-only: `version apply` already
       # patched the locked workspace versions, and with nothing reaching Hex a
       # refresh could only pull in unrelated external-dependency updates. Restore
       # one (`trellis lockfile refresh --package <pkg>`, scoped per package —
       # refreshing the whole workspace at once is what gets a runner
-      # rate-limited) when publishing is turned back on.
+      # rate-limited) if Hex publishing is ever turned on.
 
       - name: Summary
         run: |
           echo "### Released" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Publishing to Hex is off; nothing was uploaded." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Releases are git-only; nothing was published to Hex." >> "$GITHUB_STEP_SUMMARY"
           trellis tag plan --json | jq -r '.tags | length as $n
             | if $n == 0 then "- Every releasable package version is tagged."
               else "- \($n) tag(s) still pending; re-run this workflow." end' \

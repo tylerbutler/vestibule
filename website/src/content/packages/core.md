@@ -2,21 +2,21 @@
 name: vestibule
 navLabel: Core
 kind: Core package
-summary: Core types, two-phase OAuth2 flow, PKCE, CSRF state, token refresh, OIDC discovery, and shared state store.
+summary: Core types, a two-phase OAuth2 flow, PKCE, CSRF state, token refresh, and a shared state store.
 install:
   - "[dependencies]"
-  - 'vestibule = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0" }'
-  - 'vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_github" }'
-useWhen: Use the core package when you want direct control over request and callback phases, or when you are building your own transport integration.
+  - 'vestibule = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0" }'
+  - 'vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0", path = "packages/vestibule_github" }'
+useWhen: Use the core package if your app must control the request and callback phases or provide a custom transport integration.
 setup:
   - Register a provider application and copy its client ID and secret.
   - Create a config with the provider redirect URI.
   - Store state and code_verifier server-side before redirecting.
-  - Delete state and code_verifier after a successful callback.
+  - Delete state and code_verifier after a successful callback. Expire them after a failure.
 highlights:
   - PKCE is appended to every authorization URL.
   - State validation happens before provider error details are surfaced.
-  - Strategies are values, not behaviours or macros.
+  - Strategies are values. They are not behaviours or macros.
   - Provider strategies live in focused companion packages.
 code: |
   import gleam/dict
@@ -71,8 +71,8 @@ code: |
   }
 notes:
   - Production redirect URIs and OIDC issuers must use HTTPS.
-  - Redact Auth and Credentials values in logs; bearer tokens are secrets.
-  - "Pass `expected_nonce: option.None` for plain OAuth2 callbacks; OIDC flows should pass the stored nonce from the request phase."
+  - Remove Auth and Credentials values from logs. Bearer tokens are secrets.
+  - "Pass `expected_nonce: option.None` for plain OAuth2 callbacks. For OIDC flows, pass the stored nonce from the request phase."
 navOrder: 10
 searchTerms:
   - github

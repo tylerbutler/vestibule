@@ -66,18 +66,20 @@ stringly_typed_error = "off"
 [tools.trellis.exclude]
 "@release" = [
   "example",
+  "packages/vestibule_apple",
+  "packages/vestibule_google",
+  "packages/vestibule_microsoft",
+  "packages/vestibule_oidc",
 ]
 docs = ["example"]
 
-# Publish a series tag for the whole repo
-[tools.trellis.publish.repository_series]
-package = "vestibule"
-format = "v{series}"
-
-# Tag individual package versions in addition to repository series tags,
-# but not package level series tags.
 [tools.trellis.publish]
-tag_mode = "exact"
+# Tag individual package versions, plus major and minor moving tags for the
+# whole repository anchored to vestibule's version.
+package_tags = ["exact"]
+repository_tag_package = "vestibule"
+repository_tag_format = "v{series}"
+repository_tags = ["major", "minor"]
 
 [tools.trellis.publish.lifecycle]
 default = "git_only"

@@ -1,5 +1,4 @@
 ---
-import { siApple, siGithub, siGoogle } from "simple-icons";
 import CodeBlock from "../components/CodeBlock.astro";
 import DocsLayout from "../layouts/DocsLayout.astro";
 import { getPackageEntries, packageHref, packageSlug } from "../data/content";
@@ -17,108 +16,73 @@ const supportedProviders = [
     name: "GitHub",
     packageName: nameForPackage("github", "vestibule_github"),
     href: hrefForPackage("github"),
-    note: "OAuth App sign-in with verified-primary-email lookup.",
-    icon: siGithub
+    path: "packages/vestibule_github"
   },
   {
     name: "Google",
     packageName: nameForPackage("google", "vestibule_google"),
     href: hrefForPackage("google"),
-    note: "OpenID Connect, email, profile, and hosted-domain helpers.",
-    icon: siGoogle,
-    color: `#${siGoogle.hex}`
+    path: "packages/vestibule_google"
   },
   {
     name: "Microsoft",
     packageName: nameForPackage("microsoft", "vestibule_microsoft"),
     href: hrefForPackage("microsoft"),
-    note: "Microsoft Graph /me plus tenant-specific sign-in helpers.",
-    icon: "microsoft"
+    path: "packages/vestibule_microsoft"
   },
   {
     name: "Apple",
     packageName: nameForPackage("apple", "vestibule_apple"),
     href: hrefForPackage("apple"),
-    note: "Sign in with Apple, JWKS-backed ID token verification, and form_post.",
-    icon: siApple
+    path: "packages/vestibule_apple"
   }
 ];
-const directFlow = `import vestibule/authorization_request
-import vestibule/error
-
-// Request phase: failure here means
-// misconfiguration, so assert is fine.
-let options = config.authorize_options()
-let assert Ok(auth_request) =
-  vestibule.create_authorization_request(
-    strategy,
-    config: client_config,
-    options: options,
-  )
-// Store authorization_request.state(auth_request)
-// and code_verifier(auth_request), then redirect
-// to authorization_request.url(auth_request).
-
-// Callback phase: state can mismatch and
-// providers can reject the user, so handle
-// both branches instead of asserting.
-case
-  vestibule.handle_callback(
-    strategy,
-    client_config,
-    params,
-    expected_state,
-    code_verifier,
-    expected_nonce: option.None,
-  )
-{
-  Ok(auth) -> sign_in(auth)
-  Error(err) ->
-    case error.kind(err) {
-      error.StateMismatchKind -> restart_sign_in()
-      _ -> show_auth_error(err)
-    }
-}`;
-const recommendedRoute = {
-  label: "Using Wisp or Mist?",
-  title: "Start with middleware routes",
-  body:
-    "Install core, one provider strategy, and the matching middleware package. Vestibule handles request and callback routing while your app stores callback data and creates the session.",
-  href: "/docs/quick-start#middleware-path",
-  action: "Use the middleware path",
-  checks: [
-    "Choose vestibule_wisp or vestibule_mist for your server.",
-    "Store the returned state and PKCE verifier before redirecting.",
-    "Handle the normalized auth result in your session code."
-  ]
-};
-const alternateRoutes = [
+const routeOptions = [
   {
-    label: "Using another router?",
-    title: "Call the core API directly",
-    body:
-      "Use core when your application owns redirects, callback storage, and framework integration.",
-    href: "/docs/quick-start#core-path",
-    action: "Use the core path"
-  }
-];
-const recoveryOutcomes = [
-  {
-    title: "State mismatch",
-    body: "Restart sign-in and discard stored callback data.",
-    href: "/docs/quick-start#callback-failure"
+    value: "wisp",
+    label: "Wisp",
+    note: "Use middleware routes",
+    packageName: "vestibule_wisp",
+    path: "packages/vestibule_wisp",
+    href: "/docs/quick-start#middleware-path"
   },
   {
-    title: "Provider rejection",
-    body: "Show an auth error instead of asserting success.",
-    href: "/docs/quick-start#callback-failure"
+    value: "mist",
+    label: "Mist",
+    note: "Use middleware handlers",
+    packageName: "vestibule_mist",
+    path: "packages/vestibule_mist",
+    href: "/docs/quick-start#middleware-path"
   },
   {
-    title: "Profile or token failure",
-    body: "Retry the provider flow or route users to support.",
-    href: "/docs/quick-start#callback-failure"
+    value: "core",
+    label: "Another router",
+    note: "Own the OAuth routes",
+    packageName: "",
+    path: "",
+    href: "/docs/quick-start#core-path"
   }
 ];
+const gitSource = `git = "https://github.com/tylerbutler/vestibule.git", ref = "v0"`;
+const dependencyLine = (name: string, path = "") =>
+  `${name} = { ${gitSource}${path ? `, path = "${path}"` : ""} }`;
+const defaultInstallBlock = [
+  "[dependencies]",
+  dependencyLine("vestibule"),
+  dependencyLine("vestibule_github", "packages/vestibule_github"),
+  dependencyLine("vestibule_wisp", "packages/vestibule_wisp")
+].join("\n");
+const installBlocks = routeOptions.flatMap((route) =>
+  supportedProviders.map((provider) => ({
+    key: `${route.value}:${provider.packageName}`,
+    code: [
+      "[dependencies]",
+      dependencyLine("vestibule"),
+      dependencyLine(provider.packageName, provider.path),
+      ...(route.packageName ? [dependencyLine(route.packageName, route.path)] : [])
+    ].join("\n")
+  }))
+);
 ---
 
 <DocsLayout
@@ -131,18 +95,15 @@ const recoveryOutcomes = [
       <p class="intro-label">Strategy-based OAuth2 authentication for Gleam</p>
       <h1>OAuth <span class="nowrap">sign-in</span> for Gleam apps, without the guesswork.</h1>
       <p class="lead">
-        Vestibule gives Gleam applications a consistent request/callback flow,
-        normalized auth results, PKCE, CSRF state, provider strategies, and Wisp
-        or Mist middleware without hiding the security responsibilities your app
-        still owns.
+        Vestibule gives Gleam applications a consistent request and callback
+        flow. It includes normalized auth results, PKCE, CSRF state, provider
+        strategies, and Wisp or Mist middleware. Your app remains responsible
+        for its user accounts and sessions.
       </p>
       <div class="hero-actions">
-        <a class="button primary" href="/docs/quick-start">Add sign-in</a>
-        <a class="button secondary" href="/docs/packages">Compare packages</a>
+        <a class="button primary" href="#get-started">Build your install block</a>
+        <a class="button secondary" href="/docs/quick-start">Read the quick start</a>
       </div>
-      <a class="hero-search" href="/docs/search" data-search-trigger data-search-hint>
-        Search state, PKCE, provider packages
-      </a>
     </div>
     <div class="hero-threshold" aria-label="The sign-in path through Vestibule">
       <p class="threshold-cap">Identity provider</p>
@@ -173,107 +134,239 @@ const recoveryOutcomes = [
     </div>
   </section>
 
-  <section class="route-decision" aria-labelledby="stack-heading">
+  <section id="get-started" class="setup-guide" aria-labelledby="setup-heading">
     <div class="section-heading">
-      <h2 id="stack-heading">Build the stack in two steps.</h2>
+      <p class="intro-label">Start here</p>
+      <h2 id="setup-heading">Build the dependency block for your app.</h2>
       <p>
-        Start with the route layer: Wisp and Mist middleware own request and
-        callback routes, or your own router calls the core API directly. Then
-        add a provider strategy for profile and token behavior; it never
-        replaces request and callback handling.
+        Choose your server and identity provider. Vestibule prepares the Git
+        dependencies and links to the applicable implementation path.
       </p>
     </div>
-    <div class="stack-map">
-      <div class="stack-column">
-        <h3><span class="stack-step" aria-hidden="true">1</span>Route layer</h3>
-        <a class="route-primary" href={recommendedRoute.href}>
-          <span class="path-label">{recommendedRoute.label}</span>
-          <strong>{recommendedRoute.title}</strong>
-          <span>{recommendedRoute.body}</span>
-          <ul>
-            {recommendedRoute.checks.map((check) => <li>{check}</li>)}
-          </ul>
-          <em>{recommendedRoute.action}</em>
-        </a>
-        {alternateRoutes.map((choice) => (
-          <a class="route-choice compact" href={choice.href}>
-            <span class="path-label">{choice.label}</span>
-            <strong>{choice.title}</strong>
-            <span>{choice.body}</span>
-            <em>{choice.action}</em>
-          </a>
-        ))}
-      </div>
-      <div class="stack-column provider-stack">
-        <h3><span class="stack-step" aria-hidden="true">2</span>Provider strategy</h3>
-        <div class="stack-rows" aria-label="Supported OAuth providers">
-          {supportedProviders.map((provider) => (
-            <a
-              class="stack-provider"
-              href={provider.href}
-              style={provider.color ? `--provider-color: ${provider.color}` : undefined}
-            >
-              <span class:list={["provider-mark", { "provider-mark-microsoft": provider.icon === "microsoft" }]} aria-hidden="true">
-                {provider.icon === "microsoft" ? (
-                  <span class="microsoft-window">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                  </span>
-                ) : (
-                  <svg viewBox="0 0 24 24" role="img" focusable="false">
-                    <path d={provider.icon.path}></path>
-                  </svg>
-                )}
+
+    <form class="setup-builder" data-setup-builder hidden>
+      <ol class="setup-progress" aria-label="Setup progress">
+        <li aria-current="step" data-setup-progress="server">1. Server</li>
+        <li data-setup-progress="provider">2. Provider</li>
+        <li data-setup-progress="result">3. Install</li>
+      </ol>
+
+      <fieldset class="setup-panel" data-setup-panel="server">
+        <legend>
+          <span class="setup-legend-step">Step 1 of 3</span>
+          <span class="setup-legend-copy" data-setup-focus tabindex="-1">Which server does your app use?</span>
+        </legend>
+        <div class="setup-options">
+          {routeOptions.map((route, index) => (
+            <label class="setup-option">
+              <input
+                type="radio"
+                name="server"
+                value={route.value}
+                checked={index === 0}
+                data-label={route.label}
+                data-href={route.href}
+              />
+              <span>
+                <strong>{route.label}</strong>
+                <small>{route.note}</small>
               </span>
-              <span class="provider-copy">
+            </label>
+          ))}
+        </div>
+        <div class="setup-actions">
+          <button class="button primary" type="button" data-setup-next="provider">
+            Choose a provider
+          </button>
+          <a class="text-link" href="/docs/quick-start#core-path">Compare route paths</a>
+        </div>
+      </fieldset>
+
+      <fieldset class="setup-panel" data-setup-panel="provider">
+        <legend>
+          <span class="setup-legend-step">Step 2 of 3</span>
+          <span class="setup-legend-copy" data-setup-focus tabindex="-1">Which provider should users sign in with?</span>
+        </legend>
+        <div class="setup-options">
+          {supportedProviders.map((provider, index) => (
+            <label class="setup-option">
+              <input
+                type="radio"
+                name="provider"
+                value={provider.packageName}
+                checked={index === 0}
+                data-label={provider.name}
+                data-href={provider.href}
+              />
+              <span>
                 <strong>{provider.name}</strong>
                 <small>{provider.packageName}</small>
               </span>
-              <span>{provider.note}</span>
-            </a>
+            </label>
           ))}
         </div>
+        <div class="setup-actions">
+          <button class="button secondary" type="button" data-setup-back="server">Back</button>
+          <button class="button primary" type="button" data-setup-next="result">
+            Build dependency block
+          </button>
+        </div>
+      </fieldset>
+
+      <section class="setup-panel setup-result" data-setup-panel="result" aria-live="polite">
+        <p class="setup-legend-step">Step 3 of 3</p>
+        <h3 data-setup-focus tabindex="-1">
+          The <span data-setup-result-title>Wisp + GitHub</span> dependency block is ready.
+        </h3>
+        <p>
+          Add this block to <code>gleam.toml</code>. The quick start explains
+          how to handle requests, callbacks, and sessions.
+        </p>
+        <div class="setup-code-options">
+          {installBlocks.map((block) => (
+            <div
+              data-setup-code={block.key}
+              hidden={block.code !== defaultInstallBlock}
+            >
+              <CodeBlock code={block.code} lang="toml" />
+            </div>
+          ))}
+        </div>
+        <div class="setup-actions">
+          <button class="button secondary" type="button" data-setup-back="provider">Back</button>
+          <a class="button primary" href="/docs/quick-start#middleware-path" data-setup-continue>
+            Continue with Wisp
+          </a>
+        </div>
+        <a class="text-link" href={supportedProviders[0].href} data-setup-provider-link>
+          Review GitHub provider details
+        </a>
+      </section>
+    </form>
+    <noscript>
+      <div class="setup-fallback">
+        <p>Choose the route path in the quick start, then add a provider package.</p>
+        <a class="button primary" href="/docs/quick-start">Open the quick start</a>
       </div>
-    </div>
+    </noscript>
   </section>
 
-  <section class="content-grid split boundary-section">
-    <div>
+  <section class="boundary-section" aria-labelledby="callback-boundary">
+    <div class="section-heading">
       <h2 id="callback-boundary">Keep the callback boundary explicit.</h2>
-      <p>
-        Vestibule creates the authorization request and validates the callback.
-        Your app still stores state and PKCE data before redirecting, then maps
-        successful auth results to accounts.
-      </p>
-      <div class="recovery-strip" aria-label="Callback recovery paths">
-        {recoveryOutcomes.map((outcome) => (
-          <p>
-            <a href={outcome.href}><strong>{outcome.title}</strong></a>
-            <span>{outcome.body}</span>
-          </p>
-        ))}
-      </div>
-      <a class="text-link recovery-action" href="/docs/quick-start#callback-failure">
-        Troubleshoot callback errors
-      </a>
+      <p>Vestibule validates provider callbacks. Your app stores callback data and manages user sessions.</p>
     </div>
-    <CodeBlock code={directFlow} lang="gleam" class="code-card" />
+    <div class="responsibility-grid">
+      <div>
+        <h3>Vestibule handles</h3>
+        <ul class="check-list">
+          <li>Strong state values and PKCE</li>
+          <li>Callback state validation</li>
+          <li>Normalized provider identities</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Your app handles</h3>
+        <ul class="check-list">
+          <li>Short-lived callback storage</li>
+          <li>Account and session mapping</li>
+          <li>Safe failure and retry UX</li>
+        </ul>
+      </div>
+    </div>
+    <a class="text-link" href="/docs/quick-start#security-responsibilities">
+      Review security responsibilities
+    </a>
   </section>
 
   <section class="security-callout">
     <div>
-      <h2 id="secure-defaults">Secure defaults, explicit boundaries.</h2>
+      <h2 id="secure-defaults">Ready to wire sign-in?</h2>
       <p>
-        Vestibule creates strong state tokens, applies PKCE, validates callback
-        state before surfacing provider details, and verifies the provider-specific
-        data it owns. Your application still stores transient callback data,
-        protects bearer credentials, and decides how users map to accounts.
+        Follow the request and callback path. Then connect the normalized auth
+        result to your application's session.
       </p>
     </div>
-    <a class="text-link" href="/docs/quick-start#security-responsibilities">
-      Review caller responsibilities
+    <a class="button primary" href="/docs/quick-start">
+      Open the quick start
     </a>
   </section>
+
+  <script is:inline>
+    (() => {
+      const builder = document.querySelector("[data-setup-builder]");
+      if (!(builder instanceof HTMLFormElement)) return;
+
+      const panels = Array.from(builder.querySelectorAll("[data-setup-panel]"));
+      const progressItems = Array.from(builder.querySelectorAll("[data-setup-progress]"));
+      const codeBlocks = Array.from(builder.querySelectorAll("[data-setup-code]"));
+      const title = builder.querySelector("[data-setup-result-title]");
+      const continueLink = builder.querySelector("[data-setup-continue]");
+      const providerLink = builder.querySelector("[data-setup-provider-link]");
+
+      const selected = (name) =>
+        builder.querySelector(`input[name="${name}"]:checked`);
+
+      const showPanel = (name, moveFocus = true) => {
+        for (const panel of panels) {
+          panel.hidden = panel.dataset.setupPanel !== name;
+        }
+        for (const item of progressItems) {
+          if (item.dataset.setupProgress === name) {
+            item.setAttribute("aria-current", "step");
+          } else {
+            item.removeAttribute("aria-current");
+          }
+        }
+        if (moveFocus) {
+          panels
+            .find((panel) => panel.dataset.setupPanel === name)
+            ?.querySelector("[data-setup-focus]")
+            ?.focus();
+        }
+      };
+
+      const updateResult = () => {
+        const server = selected("server");
+        const provider = selected("provider");
+        if (!(server instanceof HTMLInputElement) || !(provider instanceof HTMLInputElement)) return;
+
+        const selectedCode = `${server.value}:${provider.value}`;
+        for (const block of codeBlocks) {
+          block.hidden = block.dataset.setupCode !== selectedCode;
+        }
+
+        if (title) title.textContent = `${server.dataset.label} + ${provider.dataset.label}`;
+        if (continueLink instanceof HTMLAnchorElement) {
+          continueLink.href = server.dataset.href;
+          continueLink.textContent = `Continue with ${server.dataset.label}`;
+        }
+        if (providerLink instanceof HTMLAnchorElement) {
+          providerLink.href = provider.dataset.href;
+          providerLink.textContent = `Review ${provider.dataset.label} provider details`;
+        }
+      };
+
+      builder.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+
+        const next = target.closest("[data-setup-next]");
+        if (next instanceof HTMLElement) {
+          if (next.dataset.setupNext === "result") updateResult();
+          showPanel(next.dataset.setupNext);
+          return;
+        }
+
+        const back = target.closest("[data-setup-back]");
+        if (back instanceof HTMLElement) {
+          showPanel(back.dataset.setupBack);
+          return;
+        }
+      });
+
+      builder.hidden = false;
+      showPanel("server", false);
+    })();
+  </script>
 </DocsLayout>

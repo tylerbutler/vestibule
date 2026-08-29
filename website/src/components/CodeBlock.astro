@@ -1,18 +1,12 @@
 ---
-import { Code } from "astro:components";
+import { Code } from "astro-expressive-code/components";
 
 type Props = {
   code: string;
   lang: string;
-  class?: string;
 };
 
-const { code, lang, class: className } = Astro.props;
+const { code, lang } = Astro.props;
 ---
 
-<Code
-  code={code}
-  lang={lang}
-  class={className}
-  themes={{ light: "catppuccin-latte", dark: "catppuccin-mocha" }}
-/>
+<Code code={code} lang={lang} />

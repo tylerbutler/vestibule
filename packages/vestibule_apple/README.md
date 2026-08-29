@@ -13,25 +13,19 @@ gleam add vestibule_apple
 ```gleam
 import vestibule_apple
 
-let apple = vestibule_apple.init()
-let strategy = vestibule_apple.strategy(apple)
-```
-
-`init()` initializes the JWKS cache used to verify Apple ID tokens. It no
-longer initializes an ID-token handoff cache; the `id_token` returned by Apple
-during code exchange is available through `strategy.exchange_artifacts(exchange)`
-and consumed directly while resolving the user.
-
-If you need to handle duplicate initialization explicitly, use the checked
-initializer:
-
-```gleam
 let assert Ok(apple) = vestibule_apple.try_init()
 let strategy = vestibule_apple.strategy(apple)
 ```
 
+`try_init()` initializes the JWKS cache used to verify Apple ID tokens. It no
+longer initializes an ID-token handoff cache; the `id_token` returned by Apple
+during code exchange is available through `strategy.exchange_artifacts(exchange)`
+and consumed directly while resolving the user.
+
 `try_init()` returns `Error(JwksCacheInitFailed(_))` when the JWKS cache cannot
-be initialized, including duplicate cache initialization.
+be initialized, including duplicate cache initialization. Handle the error, or
+assert on it at the top level of your application where failing to start is
+the right outcome.
 
 ## Default scopes
 

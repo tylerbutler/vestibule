@@ -52,7 +52,7 @@ fn do_parse_token_response(
       provider_support.RequiredScope(separator: ","),
     )
   case result {
-    Ok(creds) -> {
+    Ok(oauth_credentials) -> {
       logger.new(
         level: logger.Debug,
         event: "vestibule.provider.token_parse.success",
@@ -63,16 +63,16 @@ fn do_parse_token_response(
           logger.field("endpoint", endpoint),
           logger.bool_field(
             "has_refresh_token",
-            option.is_some(credentials.refresh_token(creds)),
+            option.is_some(credentials.refresh_token(oauth_credentials)),
           ),
           logger.int_field(
             "scope_count",
-            list.length(credentials.scopes(creds)),
+            list.length(credentials.scopes(oauth_credentials)),
           ),
         ],
       )
       |> logger.emit()
-      Ok(creds)
+      Ok(oauth_credentials)
     }
     Error(err) -> {
       logger.new(
@@ -145,7 +145,12 @@ pub fn parse_user_response(
 
 /// Parse the primary verified email from GitHub /user/emails response.
 /// Supported parsing helper for GitHub strategy integrations.
-pub fn parse_primary_email(body: String) -> Option(String) {
+///
+/// Returns `Ok(None)` when no primary verified email exists, and an error
+/// when the response body cannot be parsed.
+pub fn parse_primary_email(
+  body: String,
+) -> Result(Option(String), AuthError(e)) {
   let email_decoder = {
     use email <- decode.field("email", decode.string)
     use primary <- decode.field("primary", decode.bool)
@@ -156,21 +161,26 @@ pub fn parse_primary_email(body: String) -> Option(String) {
   case json.parse(body, list_decoder) {
     Ok(emails) ->
       emails
-      |> list.find(fn(e) {
-        let #(_, primary, verified) = e
+      |> list.find(fn(entry) {
+        let #(_, primary, verified) = entry
         primary && verified
       })
       |> option.from_result()
-      |> option.map(fn(e) {
-        let #(email, _, _) = e
+      |> option.map(fn(entry) {
+        let #(email, _, _) = entry
         email
       })
-    _ -> None
+      |> Ok
+    Error(err) ->
+      Error(error.user_info(
+        reason: "Failed to parse GitHub emails response: "
+        <> string.inspect(err),
+      ))
   }
 }
 
 fn do_authorize_url(
-  cfg: ClientConfig,
+  client_config: ClientConfig,
   options: AuthorizeOptions,
   scopes: List(String),
   state: String,
@@ -182,10 +192,14 @@ fn do_authorize_url(
     }),
   )
   use redirect <- result.try(
-    provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
+    provider_support.parse_redirect_uri(config.redirect_uri(client_config)),
   )
   let client =
-    glow_auth.Client(id: config.client_id(cfg), secret: "", site: site)
+    glow_auth.Client(
+      id: config.client_id(client_config),
+      secret: "",
+      site: site,
+    )
   let url =
     authorize_uri.build(
       client,
@@ -203,7 +217,7 @@ fn do_authorize_url(
 }
 
 fn do_exchange_code(
-  cfg: ClientConfig,
+  client_config: ClientConfig,
   code: String,
   code_verifier: Option(String),
 ) -> Result(strategy.ExchangeResult, AuthError(e)) {
@@ -214,12 +228,12 @@ fn do_exchange_code(
     }),
   )
   use redirect <- result.try(
-    provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
+    provider_support.parse_redirect_uri(config.redirect_uri(client_config)),
   )
-  use client_secret <- result.try(config.client_secret(cfg))
+  use client_secret <- result.try(config.client_secret(client_config))
   let client =
     glow_auth.Client(
-      id: config.client_id(cfg),
+      id: config.client_id(client_config),
       secret: client_secret,
       site: site,
     )
@@ -273,8 +287,8 @@ fn do_exchange_code(
 }
 
 fn do_refresh_token(
-  cfg: ClientConfig,
-  refresh_tok: String,
+  client_config: ClientConfig,
+  refresh_token: String,
 ) -> Result(Credentials, AuthError(e)) {
   use site <- result.try(
     uri.parse("https://github.com")
@@ -282,10 +296,10 @@ fn do_refresh_token(
       error.config(reason: "Failed to parse GitHub OAuth base URL")
     }),
   )
-  use client_secret <- result.try(config.client_secret(cfg))
+  use client_secret <- result.try(config.client_secret(client_config))
   let client =
     glow_auth.Client(
-      id: config.client_id(cfg),
+      id: config.client_id(client_config),
       secret: client_secret,
       site: site,
     )
@@ -293,7 +307,7 @@ fn do_refresh_token(
     token_request.refresh(
       client,
       uri_builder.RelativePath("/login/oauth/access_token"),
-      refresh_tok,
+      refresh_token,
     )
     |> request.set_header("accept", "application/json")
 
@@ -336,12 +350,12 @@ fn do_refresh_token(
 }
 
 fn do_fetch_user(
-  _cfg: ClientConfig,
+  _client_config: ClientConfig,
   exchange: strategy.ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
-  let creds = strategy.exchange_credentials(exchange)
+  let oauth_credentials = strategy.exchange_credentials(exchange)
   // Validate token type
-  use auth_header <- result.try(strategy.authorization_header(creds))
+  use auth_header <- result.try(strategy.authorization_header(oauth_credentials))
 
   // Fetch user profile
   use user_req <- result.try(
@@ -416,7 +430,7 @@ fn do_fetch_user(
             provider_name: "github",
             endpoint: "user_email",
           )
-          |> result.map(parse_primary_email)
+          |> result.try(parse_primary_email)
           |> result.unwrap(None)
         Error(_) -> {
           logger.new(

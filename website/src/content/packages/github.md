@@ -5,12 +5,12 @@ kind: Provider strategy
 summary: GitHub OAuth strategy with normalized profile data and verified-primary-email lookup.
 install:
   - "[dependencies]"
-  - 'vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref = "vestibule-v0.0", path = "packages/vestibule_github" }'
-useWhen: Use GitHub when users sign in with GitHub accounts and your app needs profile data plus the user's verified primary email when available.
+  - 'vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0", path = "packages/vestibule_github" }'
+useWhen: Use GitHub if users sign in with GitHub accounts. The strategy returns profile data and the verified primary email address when available.
 defaultScopes: "user:email"
 setup:
   - Create a GitHub OAuth App.
-  - Set the Authorization callback URL exactly for development and production.
+  - Set the exact authorization callback URL for development and production.
   - Copy the Client ID and generate a client secret.
   - Request user:email when you need private verified primary email lookup.
 highlights:
@@ -30,8 +30,8 @@ code: |
       auth: config.ClientSecret("github-client-secret"),
     )
 notes:
-  - GitHub may omit public email from /user; the strategy performs a best-effort /user/emails lookup.
-  - If the email lookup fails, authentication can still succeed with user_info.email returning None.
+  - GitHub can omit the public email address from /user. The strategy then tries the /user/emails endpoint.
+  - Authentication can succeed if the email lookup fails. In this case, user_info.email returns None.
 navOrder: 35
 searchTerms:
   - github oauth app
