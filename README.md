@@ -183,7 +183,7 @@ import vestibule/state_store
 import vestibule_mist
 
 let assert Ok(store) = state_store.try_init()
-let options = vestibule_mist.new_options(secret_key_base)
+let assert Ok(options) = vestibule_mist.new_options(secret_key_base)
 
 fn handle_request(req: Request(Connection)) -> Response(ResponseData) {
   case request.path_segments(req), req.method {

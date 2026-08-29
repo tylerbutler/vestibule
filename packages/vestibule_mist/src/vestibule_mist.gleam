@@ -14,6 +14,7 @@
 //// system enforces a conscious secret choice.
 
 import gleam/bit_array
+import gleam/bool
 import gleam/bytes_tree
 import gleam/dict
 import gleam/http
@@ -52,11 +53,37 @@ pub type CookieSecurity {
   AllowInsecure
 }
 
+/// Minimum length of the HMAC `secret_key_base`, in bytes. 32 bytes is the
+/// output size of the HMAC-SHA256 used to sign the session cookie; anything
+/// shorter weakens the signature below the hash's own strength.
+pub const min_secret_key_base_bytes: Int = 32
+
+/// Errors returned by `new_options`.
+pub type OptionsError {
+  /// `secret_key_base` is shorter than `min_secret_key_base_bytes`.
+  SecretKeyBaseTooShort(minimum_bytes: Int, actual_bytes: Int)
+}
+
+/// How the session cookie's `SameSite` attribute is set.
+pub type CookieSameSite {
+  /// `SameSite=Lax` (default). Sent on top-level GET navigations, which is
+  /// how every provider that redirects back with query parameters delivers
+  /// its callback.
+  Lax
+  /// `SameSite=None; Secure`. Required for providers that deliver the
+  /// callback with a cross-site POST (`response_mode=form_post`, e.g. Apple):
+  /// browsers do not send `Lax` cookies on cross-site POSTs, so the callback
+  /// would fail with `MissingOrInvalidSessionCookie(CookieAbsent)`. Browsers
+  /// only honour `SameSite=None` together with `Secure`, so `Secure` is set
+  /// even under `AllowInsecure`.
+  CrossSite
+}
+
 /// Middleware configuration options.
 ///
 /// Construct with `new_options` — the HMAC `secret_key_base` is mandatory and
 /// has no safe default — then customize with `with_cookie_name`,
-/// `with_session_ttl_seconds`, and `with_cookie_security`. The type is opaque
+/// `with_session_ttl_seconds`, `with_cookie_security`, and `with_same_site`. The type is opaque
 /// so the effective cookie name always matches the cookie security: host-bound
 /// (`__Host-` prefixed) under `SecureOnly`, unprefixed under `AllowInsecure`
 /// (browsers reject `__Host-` cookies that are not `Secure`). A host-bound
@@ -71,6 +98,7 @@ pub opaque type Options {
     cookie_name: String,
     session_ttl_seconds: Int,
     cookie_security: CookieSecurity,
+    same_site: CookieSameSite,
   )
 }
 
@@ -122,18 +150,29 @@ const host_cookie_prefix: String = "__Host-"
 /// The default session cookie name, before the `__Host-` prefix is applied.
 const default_cookie_base_name: String = "vestibule_session"
 
-/// Build middleware options with the given HMAC `secret_key_base`.
+/// Build middleware options with the given HMAC `secret_key_base`, which must
+/// be at least `min_secret_key_base_bytes` (32) bytes of unpredictable data.
 ///
 /// Defaults: host-bound cookie name `__Host-vestibule_session`, session TTL
-/// 600 seconds, `SecureOnly` cookies. Customize with `with_cookie_name`,
-/// `with_session_ttl_seconds`, and `with_cookie_security`.
-pub fn new_options(secret_key_base: BitArray) -> Options {
-  Options(
+/// 600 seconds, `SecureOnly` cookies, `SameSite=Lax`. Customize with
+/// `with_cookie_name`, `with_session_ttl_seconds`, `with_cookie_security`, and
+/// `with_same_site`.
+pub fn new_options(secret_key_base: BitArray) -> Result(Options, OptionsError) {
+  let actual_bytes = bit_array.byte_size(secret_key_base)
+  use <- bool.guard(
+    when: actual_bytes < min_secret_key_base_bytes,
+    return: Error(SecretKeyBaseTooShort(
+      minimum_bytes: min_secret_key_base_bytes,
+      actual_bytes: actual_bytes,
+    )),
+  )
+  Ok(Options(
     secret_key_base: secret_key_base,
     cookie_name: default_cookie_base_name,
     session_ttl_seconds: 600,
     cookie_security: SecureOnly,
-  )
+    same_site: Lax,
+  ))
 }
 
 /// Set a custom session cookie name.
@@ -161,6 +200,16 @@ pub fn with_cookie_security(
   security: CookieSecurity,
 ) -> Options {
   Options(..options, cookie_security: security)
+}
+
+/// Set the session cookie's `SameSite` attribute. See `CookieSameSite`.
+pub fn with_same_site(options: Options, same_site: CookieSameSite) -> Options {
+  Options(..options, same_site: same_site)
+}
+
+/// The session cookie's `SameSite` setting for these options.
+pub fn same_site(options: Options) -> CookieSameSite {
+  options.same_site
 }
 
 /// The effective session cookie name: host-bound (`__Host-` prefixed) under
@@ -299,9 +348,10 @@ pub fn request_phase(
           max_age: option.Some(options.session_ttl_seconds),
           domain: option.None,
           path: option.Some("/"),
-          secure: secure_attribute(options.cookie_security),
+          secure: secure_attribute(options.cookie_security)
+            || options.same_site == CrossSite,
           http_only: True,
-          same_site: option.Some(cookie.Lax),
+          same_site: option.Some(same_site_policy(options.same_site)),
         )
       redirect(url)
       |> response.set_cookie(cookie_name(options), token, attributes)
@@ -532,6 +582,13 @@ fn get_callback_params(
       Ok(dict.merge(dict.from_list(query_params), dict.from_list(body_params)))
     }
     _ -> Ok(dict.from_list(query_params))
+  }
+}
+
+fn same_site_policy(same_site: CookieSameSite) -> cookie.SameSitePolicy {
+  case same_site {
+    Lax -> cookie.Lax
+    CrossSite -> cookie.None
   }
 }
 

@@ -86,6 +86,12 @@ and no `Domain` attribute, so a sibling subdomain cannot overwrite it with a
 and no `Domain` always, and `Secure` for every request except plain HTTP on
 localhost, so the default cookie meets the `__Host-` requirements in production.
 
+The cookie is `SameSite=Lax`, which browsers send on the top-level GET
+navigation most providers use for the callback but **not** on a cross-site
+POST. Providers that use `response_mode=form_post` (e.g. Apple) therefore need
+`with_same_site(CrossSite)`, which emits `SameSite=None; Secure` (always
+`Secure`, because browsers ignore `SameSite=None` without it).
+
 For local development over `http://localhost` that last point matters: Wisp
 omits `Secure`, browsers then reject the `__Host-` cookie, and every callback
 fails with `MissingOrInvalidSessionCookie(CookieAbsent)`. Use

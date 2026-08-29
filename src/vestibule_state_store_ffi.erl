@@ -10,41 +10,47 @@
 %% entry occupies memory and a capacity slot.
 -define(SWEEP_INTERVAL_MS, 30000).
 
+%% A store handle is {Name, MaxEntries}. Carrying the capacity in the handle
+%% lets the owner recreate a table with the right configuration if it has
+%% been lost — e.g. after the owner process died and was respawned — so a
+%% crash costs the in-flight sessions but not every login until restart.
+
 create_table(Name, MaxEntries) ->
     call({create, Name, MaxEntries}).
 
-insert(Table, Key, Value) ->
-    call({insert, Table, Key, Value}).
+insert(Handle, Key, Value) ->
+    call({insert, Handle, Key, Value}).
 
-take(Table, Key) ->
-    call({take, Table, Key}).
+take(Handle, Key) ->
+    call({take, Handle, Key}).
 
-lookup(Table, Key) ->
-    call({lookup, Table, Key}).
+lookup(Handle, Key) ->
+    call({lookup, Handle, Key}).
 
-delete_key(Table, Key) ->
-    call({delete_key, Table, Key}).
+delete_key(Handle, Key) ->
+    call({delete_key, Handle, Key}).
 
-cleanup_expired(Table) ->
-    call({cleanup_expired, Table}).
+cleanup_expired(Handle) ->
+    call({cleanup_expired, Handle}).
 
-count(Table) ->
-    call({count, Table}).
+count(Handle) ->
+    call({count, Handle}).
 
 call(Request) ->
     case ensure_owner() of
-        ok ->
+        {ok, Pid} ->
             Ref = make_ref(),
-            try
-                ?SERVER ! {self(), Ref, Request},
-                receive
-                    {Ref, Reply} -> Reply
-                after 5000 ->
-                    {error, <<"timeout">>}
-                end
-            catch
-                _:_ ->
+            Monitor = erlang:monitor(process, Pid),
+            Pid ! {self(), Ref, Request},
+            receive
+                {Ref, Reply} ->
+                    erlang:demonitor(Monitor, [flush]),
+                    Reply;
+                {'DOWN', Monitor, process, Pid, _Reason} ->
                     {error, <<"owner_unavailable">>}
+            after 5000 ->
+                erlang:demonitor(Monitor, [flush]),
+                {error, <<"timeout">>}
             end;
         error ->
             {error, <<"owner_init_failed">>}
@@ -56,20 +62,21 @@ ensure_owner() ->
             Pid = spawn(fun() -> loop(#{}) end),
             try
                 register(?SERVER, Pid),
-                ok
+                {ok, Pid}
             catch
                 error:badarg ->
+                    %% Lost the race to another caller; use its owner.
                     exit(Pid, kill),
                     case whereis(?SERVER) of
                         undefined -> error;
-                        _ -> ok
+                        Winner -> {ok, Winner}
                     end;
                 _:_ ->
                     exit(Pid, kill),
                     error
             end;
-        _ ->
-            ok
+        Pid ->
+            {ok, Pid}
     end.
 
 %% Tables maps a table name to {EtsTable, MaxEntries}.
@@ -81,55 +88,58 @@ loop(Tables) ->
                     From ! {Ref, {error, <<"table_already_exists">>}},
                     loop(Tables);
                 false ->
-                    try
-                        Table = ets:new(vestibule_state_store,
-                                        [set, protected]),
-                        schedule_sweep(Name),
-                        From ! {Ref, {ok, Name}},
-                        loop(maps:put(Name, {Table, MaxEntries}, Tables))
-                    catch
-                        _:_ ->
+                    case new_table(Name, MaxEntries, Tables) of
+                        {ok, Tables2} ->
+                            From ! {Ref, {ok, {Name, MaxEntries}}},
+                            loop(Tables2);
+                        error ->
                             From ! {Ref, {error, <<"table_create_failed">>}},
                             loop(Tables)
                     end
             end;
-        {From, Ref, {insert, Name, Key, Value}} ->
-            From ! {Ref, with_table(Name, Tables, fun({Table, MaxEntries}) ->
+        {From, Ref, {insert, Handle, Key, Value}} ->
+            {Reply, Tables2} = with_table(Handle, Tables, fun(Table, MaxEntries) ->
                 insert_bounded(Table, MaxEntries, Key, Value)
-            end)},
-            loop(Tables);
-        {From, Ref, {take, Name, Key}} ->
-            From ! {Ref, with_table(Name, Tables, fun({Table, _}) ->
+            end),
+            From ! {Ref, Reply},
+            loop(Tables2);
+        {From, Ref, {take, Handle, Key}} ->
+            {Reply, Tables2} = with_table(Handle, Tables, fun(Table, _) ->
                 case ets:take(Table, Key) of
                     [{Key, Value}] -> {ok, Value};
                     [] -> {error, nil}
                 end
-            end)},
-            loop(Tables);
-        {From, Ref, {lookup, Name, Key}} ->
-            From ! {Ref, with_table(Name, Tables, fun({Table, _}) ->
+            end),
+            From ! {Ref, Reply},
+            loop(Tables2);
+        {From, Ref, {lookup, Handle, Key}} ->
+            {Reply, Tables2} = with_table(Handle, Tables, fun(Table, _) ->
                 case ets:lookup(Table, Key) of
                     [{Key, Value}] -> {ok, Value};
                     [] -> {error, nil}
                 end
-            end)},
-            loop(Tables);
-        {From, Ref, {delete_key, Name, Key}} ->
-            From ! {Ref, with_table(Name, Tables, fun({Table, _}) ->
+            end),
+            From ! {Ref, Reply},
+            loop(Tables2);
+        {From, Ref, {delete_key, Handle, Key}} ->
+            {Reply, Tables2} = with_table(Handle, Tables, fun(Table, _) ->
                 ets:delete(Table, Key),
                 {ok, nil}
-            end)},
-            loop(Tables);
-        {From, Ref, {cleanup_expired, Name}} ->
-            From ! {Ref, with_table(Name, Tables, fun({Table, _}) ->
+            end),
+            From ! {Ref, Reply},
+            loop(Tables2);
+        {From, Ref, {cleanup_expired, Handle}} ->
+            {Reply, Tables2} = with_table(Handle, Tables, fun(Table, _) ->
                 {ok, sweep_expired(Table)}
-            end)},
-            loop(Tables);
-        {From, Ref, {count, Name}} ->
-            From ! {Ref, with_table(Name, Tables, fun({Table, _}) ->
+            end),
+            From ! {Ref, Reply},
+            loop(Tables2);
+        {From, Ref, {count, Handle}} ->
+            {Reply, Tables2} = with_table(Handle, Tables, fun(Table, _) ->
                 {ok, ets:info(Table, size)}
-            end)},
-            loop(Tables);
+            end),
+            From ! {Ref, Reply},
+            loop(Tables2);
         {sweep, Name} ->
             case maps:find(Name, Tables) of
                 {ok, {Table, _}} ->
@@ -143,14 +153,36 @@ loop(Tables) ->
             loop(Tables)
     end.
 
-with_table(Name, Tables, Fun) ->
+%% Run Fun against the table a handle names, recreating the table (empty)
+%% if this owner does not know it. Returns {Reply, Tables}.
+with_table({Name, MaxEntries} = _Handle, Tables, Fun) ->
     case maps:find(Name, Tables) of
-        {ok, Entry} ->
-            try Fun(Entry)
-            catch _:_ -> {error, <<"ets_operation_failed">>}
-            end;
+        {ok, {Table, Max}} ->
+            {run(Fun, Table, Max), Tables};
         error ->
-            {error, <<"table_not_found">>}
+            case new_table(Name, MaxEntries, Tables) of
+                {ok, Tables2} ->
+                    {ok, {Table, Max}} = maps:find(Name, Tables2),
+                    {run(Fun, Table, Max), Tables2};
+                error ->
+                    {{error, <<"table_create_failed">>}, Tables}
+            end
+    end;
+with_table(_Handle, Tables, _Fun) ->
+    {{error, <<"table_not_found">>}, Tables}.
+
+run(Fun, Table, MaxEntries) ->
+    try Fun(Table, MaxEntries)
+    catch _:_ -> {error, <<"ets_operation_failed">>}
+    end.
+
+new_table(Name, MaxEntries, Tables) ->
+    try
+        Table = ets:new(vestibule_state_store, [set, protected]),
+        schedule_sweep(Name),
+        {ok, maps:put(Name, {Table, MaxEntries}, Tables)}
+    catch
+        _:_ -> error
     end.
 
 %% Insert unless the table is at capacity. At capacity, expired entries are
