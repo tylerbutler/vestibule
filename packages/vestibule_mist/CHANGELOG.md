@@ -1,1 +1,28 @@
 # Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## v0.1.0 - 2026-08-31
+
+### Breaking
+
+- `MissingOrInvalidSessionCookie` now carries a `SessionCookieError` reason distinguishing `CookieAbsent` from `CookieSignatureInvalid`; the `error_category` log field reports `session_cookie_absent` or `session_cookie_signature_invalid` in place of `missing_or_invalid_session_cookie`
+- `new_options` now returns `Result(Options, OptionsError)` and rejects a `secret_key_base` shorter than 32 bytes with `SecretKeyBaseTooShort`
+
+### Added
+
+- `with_same_site(CrossSite)` emits a `SameSite=None; Secure` session cookie so providers that deliver the callback with a cross-site POST (`response_mode=form_post`, e.g. Apple) can find the session
+
+### Changed
+
+- `callback_phase` now declares argument labels, matching its sibling callback functions
+- Repositioned as demo-ready auth: not security audited, not for production use
+- Use exhaustive callback matching and clearer public adapter implementation names
+
+### Dependencies
+
+- Switch test framework from startest to gleeunit
+- Updated vestibule to 0.1.0

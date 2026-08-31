@@ -1,3 +1,0 @@
-package = "vestibule_wisp"
-kind = "Changed"
-body = "The generic authentication failure page no longer takes an `AuthError` argument it discarded; callers get error detail from the structured `CallbackError` variants instead"

@@ -1,5 +1,5 @@
 name = "vestibule"
-version = "0.0.0"
+version = "0.1.0"
 description = "Demo-ready OAuth sign-in for Gleam. Real auth flows for demos and prototypes — not audited, not for production."
 licences = ["MIT"]
 repository = { type = "github", user = "tylerbutler", repo = "vestibule" }

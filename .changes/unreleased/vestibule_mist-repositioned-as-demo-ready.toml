@@ -1,3 +1,0 @@
-package = "vestibule_mist"
-kind = "Changed"
-body = "Repositioned as demo-ready auth: not security audited, not for production use"

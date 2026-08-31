@@ -1,3 +1,0 @@
-package = "vestibule"
-kind = "Breaking"
-body = "Rename modules and state-store APIs, add secure bounded HTTP transport, and expose sans-I/O provider helpers"

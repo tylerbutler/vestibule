@@ -1,5 +1,5 @@
 name = "vestibule_google"
-version = "0.0.0"
+version = "0.0.1"
 description = "Google OAuth strategy for vestibule (demo-ready — not audited, not for production)"
 licences = ["MIT"]
 repository = { type = "github", user = "tylerbutler", repo = "vestibule", path = "packages/vestibule_google" }
