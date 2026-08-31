@@ -41,25 +41,25 @@ pub fn new(
 }
 
 /// The authorization URL to redirect the user to.
-pub fn url(req: AuthorizationRequest) -> String {
-  req.url
+pub fn url(authorization_request: AuthorizationRequest) -> String {
+  authorization_request.url
 }
 
 /// The CSRF state parameter (must be stored for validation).
 ///
 /// Store a timestamp alongside it if you need time-based expiration.
-pub fn state(req: AuthorizationRequest) -> String {
-  req.state
+pub fn state(authorization_request: AuthorizationRequest) -> String {
+  authorization_request.state
 }
 
 /// The PKCE code verifier (must be stored for token exchange).
-pub fn code_verifier(req: AuthorizationRequest) -> String {
-  req.code_verifier
+pub fn code_verifier(authorization_request: AuthorizationRequest) -> String {
+  authorization_request.code_verifier
 }
 
 /// The OIDC `nonce` (must be stored for id_token validation).
 ///
 /// `Some` for OIDC strategies, `None` for plain OAuth2 strategies.
-pub fn nonce(req: AuthorizationRequest) -> Option(String) {
-  req.nonce
+pub fn nonce(authorization_request: AuthorizationRequest) -> Option(String) {
+  authorization_request.nonce
 }

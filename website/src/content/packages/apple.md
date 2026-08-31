@@ -15,13 +15,13 @@ setup:
   - Create a Sign in with Apple key and generate an ES256 client-secret JWT.
 highlights:
   - init initializes the JWKS cache used to verify Apple ID tokens.
-  - Use try_init to handle duplicate initialization explicitly.
+  - Use initialize to handle duplicate initialization explicitly.
   - Apple sends name and email only on first consent.
   - User info comes from the verified id_token, not a userinfo endpoint.
 code: |
   import vestibule_apple
 
-  let assert Ok(apple) = vestibule_apple.try_init()
+  let assert Ok(apple) = vestibule_apple.initialize()
   let strategy = vestibule_apple.strategy(apple)
 notes:
   - Generate the client_secret JWT from the Team ID, Key ID, Services ID, and .p8 private key.

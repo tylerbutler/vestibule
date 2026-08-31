@@ -54,7 +54,7 @@ Initialize the state store once per BEAM VM at application startup:
 import vestibule/config
 import vestibule/state_store
 
-let assert Ok(store) = state_store.try_init()
+let assert Ok(store) = state_store.create()
 let assert Ok(options) = vestibule_mist.new_options(secret_key_base)
 ```
 
@@ -185,7 +185,7 @@ to query parameters.
 `vestibule_mist` simultaneously; a single ETS owner process is shared
 across all transports.
 
-See the `vestibule/state_store` API docs for `try_init`, `try_init_named`,
-`try_init_with_capacity`, TTL, and capacity semantics. A store holds at most
+See the `vestibule/state_store` API docs for `create`, `create_named`,
+`create_with_capacity`, TTL, and capacity semantics. A store holds at most
 100 000 live sessions by default; once full, `request_phase` fails with a
 generic error until sessions are consumed or expire.

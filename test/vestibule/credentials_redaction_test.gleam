@@ -6,15 +6,15 @@ import gleam/dict
 import gleam/option.{None, Some}
 import gleam/string
 import vestibule/auth
-import vestibule/credentials
+import vestibule/credential
 import vestibule/user_info
 
 const access_token = "ACCESS-TOKEN-SECRET-7f3a"
 
 const refresh_secret = "REFRESH-TOKEN-SECRET-9b21"
 
-fn sample_credentials() -> credentials.Credentials {
-  credentials.new(
+fn sample_credentials() -> credential.Credentials {
+  credential.new(
     token: access_token,
     refresh_token: Some(refresh_secret),
     token_type: "Bearer",
@@ -49,13 +49,13 @@ pub fn inspect_auth_does_not_leak_tokens_test() -> Nil {
 pub fn accessors_still_expose_raw_tokens_test() -> Nil {
   let oauth_credentials = sample_credentials()
 
-  assert credentials.token(oauth_credentials) == access_token
-  assert credentials.refresh_token(oauth_credentials) == Some(refresh_secret)
+  assert credential.token(oauth_credentials) == access_token
+  assert credential.refresh_token(oauth_credentials) == Some(refresh_secret)
 }
 
 pub fn credentials_without_refresh_token_inspects_cleanly_test() -> Nil {
   let oauth_credentials =
-    credentials.new(
+    credential.new(
       token: access_token,
       refresh_token: None,
       token_type: "Bearer",
@@ -65,5 +65,5 @@ pub fn credentials_without_refresh_token_inspects_cleanly_test() -> Nil {
 
   assert !string.contains(string.inspect(oauth_credentials), access_token)
 
-  assert credentials.refresh_token(oauth_credentials) == None
+  assert credential.refresh_token(oauth_credentials) == None
 }

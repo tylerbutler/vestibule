@@ -35,6 +35,9 @@ Canonicalize a URL per IndieAuth spec Section 3.4.
 - If no path, append `/`
 - Lowercase the host
 
+An explicitly supplied non-HTTPS scheme is preserved so validation can
+reject it rather than silently changing the claimed identity.
+
 ```gleam
 pub fn canonicalize(String) -> String
 ```
@@ -44,7 +47,7 @@ pub fn canonicalize(String) -> String
 Validate a user profile URL per IndieAuth spec Section 3.2.
 
 Profile URLs MUST:
-- Have `https` or `http` scheme
+- Have an `https` scheme
 - Contain a path component (`/` is valid)
 - Not contain single-dot or double-dot path segments
 - Not contain a fragment

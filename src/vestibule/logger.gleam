@@ -69,8 +69,8 @@ pub fn emit(event: Event) -> Nil {
   do_log(level_name(event.level), event.fields)
 }
 
-pub fn auth_error_category(err: AuthError(e)) -> String {
-  case error.kind(err) {
+pub fn auth_error_category(auth_error: AuthError(e)) -> String {
+  case error.kind(auth_error) {
     error.StateMismatchKind -> "state_mismatch"
     error.InvalidNonceKind -> "invalid_nonce"
     error.MissingCallbackParamKind -> "missing_callback_param"

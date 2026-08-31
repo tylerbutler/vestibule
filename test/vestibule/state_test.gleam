@@ -3,19 +3,20 @@ import vestibule/error
 import vestibule/state
 
 pub fn generate_produces_nonempty_string_test() -> Nil {
-  let s = state.generate()
-  assert string.length(s) >= 43
+  let state_value = state.generate()
+  assert string.length(state_value) >= 43
 }
 
 pub fn generate_produces_unique_values_test() -> Nil {
-  let a = state.generate()
-  let b = state.generate()
-  assert a != b
+  let first_state = state.generate()
+  let second_state = state.generate()
+  assert first_state != second_state
 }
 
 pub fn validate_accepts_matching_state_test() -> Nil {
-  let s = state.generate()
-  let assert Ok(_) = state.validate(received: s, expected: s)
+  let state_value = state.generate()
+  let assert Ok(_) =
+    state.validate(received: state_value, expected: state_value)
   Nil
 }
 

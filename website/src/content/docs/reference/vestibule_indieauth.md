@@ -32,7 +32,7 @@ let assert Ok(strategy) = vestibule_indieauth.discover("https://user.example.com
 
 // Use with vestibule's standard two-phase flow
 let options = config.authorize_options()
-let assert Ok(auth_request) =
+let assert Ok(authorization_request) =
   vestibule.create_authorization_request(strategy, config: client_config, options: options)
 ```
 
@@ -69,7 +69,7 @@ let client_config =
     auth: config.PublicClient,
   )
 let options = config.authorize_options()
-let assert Ok(auth_request) =
+let assert Ok(authorization_request) =
   vestibule.create_authorization_request(strategy, config: client_config, options: options)
 ```
 

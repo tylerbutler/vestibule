@@ -100,5 +100,5 @@ pub fn refresh_token(
   strategy.Strategy(a),
   config: config.ClientConfig,
   refresh_token: String
-) -> Result(credentials.Credentials, error.AuthError(a))
+) -> Result(credential.Credentials, error.AuthError(a))
 ```

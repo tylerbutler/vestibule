@@ -59,7 +59,7 @@ pub fn start_authorization(
       registry.get(provider_registry, provider: provider)
       |> result.map_error(fn(_) { UnknownProvider(provider) }),
     )
-    use auth_request <- result.try(
+    use authorization_request_value <- result.try(
       vestibule.create_authorization_request(
         strategy,
         config: config,
@@ -68,18 +68,20 @@ pub fn start_authorization(
       |> result.map_error(AuthFailed),
     )
     use session_id <- result.try(
-      state_store.try_store_with_ttl(
+      state_store.store_with_ttl(
         store,
         provider: strategy.provider(strategy),
-        state: authorization_request.state(auth_request),
-        code_verifier: authorization_request.code_verifier(auth_request),
-        nonce: authorization_request.nonce(auth_request),
+        state: authorization_request.state(authorization_request_value),
+        code_verifier: authorization_request.code_verifier(
+          authorization_request_value,
+        ),
+        nonce: authorization_request.nonce(authorization_request_value),
         ttl_seconds: ttl_seconds,
       )
       |> result.map_error(StoreFailed),
     )
 
-    Ok(#(authorization_request.url(auth_request), session_id))
+    Ok(#(authorization_request.url(authorization_request_value), session_id))
   }
 
   case started {
@@ -105,7 +107,7 @@ pub fn start_authorization(
           fields: [logger.field("error_category", "unknown_provider")],
         ),
       )
-    Error(AuthFailed(err)) ->
+    Error(AuthFailed(auth_error)) ->
       logger.emit(
         logger.new(
           level: logger.Warning,
@@ -114,7 +116,10 @@ pub fn start_authorization(
           outcome: "failure",
           provider: option.Some(provider),
           fields: [
-            logger.field("error_category", logger.auth_error_category(err)),
+            logger.field(
+              "error_category",
+              logger.auth_error_category(auth_error),
+            ),
           ],
         ),
       )
@@ -184,7 +189,7 @@ pub fn ensure_callback_provider(
 pub fn finish_callback(
   strategy_config: #(Strategy(e), ClientConfig),
   store store: StateStore,
-  params params: Dict(String, String),
+  parameters parameters: Dict(String, String),
   session_id session_id: String,
 ) -> Result(Auth, CallbackFlowError(e)) {
   let #(strategy, config) = strategy_config
@@ -202,7 +207,7 @@ pub fn finish_callback(
   )
 
   let state_result =
-    dict.get(params, "state")
+    dict.get(parameters, "state")
     |> result.replace_error(
       CallbackAuthFailed(error.missing_callback_param("state")),
     )
@@ -326,7 +331,7 @@ pub fn finish_callback(
     vestibule.handle_callback(
       strategy,
       config: config,
-      callback_params: params,
+      callback_params: parameters,
       expected_state: expected_state,
       code_verifier: code_verifier,
       expected_nonce: expected_nonce,
@@ -345,7 +350,7 @@ pub fn finish_callback(
           fields: [],
         ),
       )
-    Error(CallbackAuthFailed(err)) ->
+    Error(CallbackAuthFailed(auth_error)) ->
       logger.emit(
         logger.new(
           level: logger.Warning,
@@ -354,7 +359,10 @@ pub fn finish_callback(
           outcome: "failure",
           provider: option.Some(provider),
           fields: [
-            logger.field("error_category", logger.auth_error_category(err)),
+            logger.field(
+              "error_category",
+              logger.auth_error_category(auth_error),
+            ),
           ],
         ),
       )

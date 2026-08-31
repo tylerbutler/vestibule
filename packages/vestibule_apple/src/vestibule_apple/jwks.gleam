@@ -6,7 +6,9 @@
 
 import bravo
 import bravo/uset.{type USet}
+import gleam/dynamic/decode
 import gleam/http/request
+import gleam/http/response
 import gleam/httpc
 import gleam/json
 import gleam/option
@@ -35,20 +37,21 @@ pub type JwksCacheError {
   /// The ETS table backing the cache could not be created (for example
   /// because it already exists). `reason` describes the underlying storage
   /// error to aid debugging.
-  JwksTableCreateFailed(reason: String)
+  JwksTableCreationFailed(reason: String)
 }
 
-/// Try to initialize the JWKS cache. Call once per VM at application startup.
-pub fn try_init() -> Result(JwksCache, JwksCacheError) {
-  try_init_named("vestibule_apple_jwks")
+/// Initialize the JWKS cache. Call once per VM at application startup.
+pub fn initialize() -> Result(JwksCache, JwksCacheError) {
+  initialize_named("vestibule_apple_jwks")
 }
 
-/// Try to initialize a named JWKS cache. Returns an error if the table already
+/// Initialize a named JWKS cache. Returns an error if the table already
 /// exists or cannot be created.
-pub fn try_init_named(name: String) -> Result(JwksCache, JwksCacheError) {
+pub fn initialize_named(name: String) -> Result(JwksCache, JwksCacheError) {
   case uset.new(name: name, access: bravo.Protected) {
     Ok(table) -> Ok(JwksCache(table: table))
-    Error(err) -> Error(JwksTableCreateFailed(reason: string.inspect(err)))
+    Error(storage_error) ->
+      Error(JwksTableCreationFailed(reason: string.inspect(storage_error)))
   }
 }
 
@@ -73,15 +76,48 @@ pub fn refresh_keys(cache: JwksCache) -> Result(List(VerifyKey), AuthError(e)) {
   Ok(keys)
 }
 
-/// Fetch Apple's public keys from the JWKS endpoint.
-fn fetch_keys() -> Result(List(VerifyKey), AuthError(e)) {
-  use req <- result.try(
+/// Build the request for Apple's JWKS endpoint without sending it.
+pub fn build_jwks_request() -> Result(request.Request(String), AuthError(e)) {
+  use apple_request <- result.try(
     request.to(apple_jwks_url)
     |> result.map_error(fn(_) {
       error.config(reason: "Invalid Apple JWKS URL: " <> apple_jwks_url)
     }),
   )
-  let req = req |> request.set_header("accept", "application/json")
+  Ok(request.set_header(apple_request, "accept", "application/json"))
+}
+
+/// Parse an Apple JWKS HTTP response without performing I/O.
+pub fn parse_jwks_response(
+  apple_response: response.Response(String),
+) -> Result(List(VerifyKey), AuthError(e)) {
+  use body <- result.try(
+    provider_support.check_response_status(apple_response)
+    |> result.map_error(fn(authentication_error) {
+      case error.kind(authentication_error) {
+        error.HttpKind ->
+          error.network(reason: error.message(authentication_error))
+        error.StateMismatchKind
+        | error.InvalidNonceKind
+        | error.MissingCallbackParamKind
+        | error.CodeExchangeKind
+        | error.UserInfoKind
+        | error.ProviderKind
+        | error.DecodeKind
+        | error.NetworkKind
+        | error.ConfigKind
+        | error.RefreshUnsupportedKind
+        | error.CustomKind
+        | error.OtherKind -> authentication_error
+      }
+    }),
+  )
+  parse_jwks(body)
+}
+
+/// Fetch Apple's public keys from the JWKS endpoint.
+fn fetch_keys() -> Result(List(VerifyKey), AuthError(e)) {
+  use apple_request <- result.try(build_jwks_request())
   logger.new(
     level: logger.Debug,
     event: "vestibule.provider.request.start",
@@ -91,23 +127,8 @@ fn fetch_keys() -> Result(List(VerifyKey), AuthError(e)) {
     fields: [logger.field("endpoint", "jwks")],
   )
   |> logger.emit()
-  case httpc.send(req) {
-    Ok(resp) -> {
-      use body <- result.try(
-        provider_support.check_response_status_for_endpoint(
-          resp,
-          provider_name: "apple",
-          endpoint: "jwks",
-        )
-        |> result.map_error(fn(err) {
-          case error.kind(err) {
-            error.HttpKind -> error.network(reason: error.message(err))
-            _ -> err
-          }
-        }),
-      )
-      parse_jwks(body)
-    }
+  case httpc.send(apple_request) {
+    Ok(apple_response) -> parse_jwks_response(apple_response)
     Error(_) -> {
       logger.new(
         level: logger.Error,
@@ -130,11 +151,38 @@ fn fetch_keys() -> Result(List(VerifyKey), AuthError(e)) {
 
 /// Parse a JWKS JSON response into a list of verification keys.
 pub fn parse_jwks(body: String) -> Result(List(VerifyKey), AuthError(e)) {
-  case json.parse(body, verify_key.set_decoder()) {
-    Ok(keys) -> Ok(keys)
-    Error(err) ->
+  case json.parse(body, apple_jwks_decoder()) {
+    Ok(Nil) ->
+      json.parse(body, verify_key.set_decoder())
+      |> result.map_error(fn(decode_error) {
+        error.config(
+          reason: "Failed to parse Apple JWKS response: "
+          <> string.inspect(decode_error),
+        )
+      })
+    Error(decode_error) ->
       Error(error.config(
-        reason: "Failed to parse Apple JWKS response: " <> string.inspect(err),
+        reason: "Failed to parse Apple JWKS response: "
+        <> string.inspect(decode_error),
       ))
+  }
+}
+
+fn apple_jwks_decoder() -> decode.Decoder(Nil) {
+  use _keys <- decode.field("keys", decode.list(apple_jwk_decoder()))
+  decode.success(Nil)
+}
+
+fn apple_jwk_decoder() -> decode.Decoder(Nil) {
+  use key_type <- decode.field("kty", decode.string)
+  use algorithm <- decode.field("alg", decode.string)
+  use usage <- decode.optional_field("use", "sig", decode.string)
+  case key_type, algorithm, usage {
+    "RSA", "RS256", "sig" -> decode.success(Nil)
+    _, _, _ ->
+      decode.failure(
+        Nil,
+        "Apple JWKS keys must be RSA signing keys using RS256",
+      )
   }
 }

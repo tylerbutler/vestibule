@@ -1,11 +1,11 @@
 ---
-title: "vestibule/credentials"
+title: "vestibule/credential"
 description: "Bearer credentials returned by a provider after a successful token exchange or refresh."
 nav:
   group: Reference
   groupOrder: 20
   order: 14
-  label: "vestibule/credentials"
+  label: "vestibule/credential"
 toc:
   - href: "#types"
     label: "Types"
@@ -15,10 +15,10 @@ searchTerms:
   - api
   - reference
   - module
-  - vestibule/credentials
+  - vestibule/credential
 ---
 
-# `vestibule/credentials`
+# `vestibule/credential`
 
 Bearer credentials returned by a provider after a successful token
 exchange or refresh.

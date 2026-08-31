@@ -1,9 +1,13 @@
 import gleam/dict
 import gleam/dynamic/decode
+import gleam/http
+import gleam/http/request
+import gleam/http/response
 import gleam/option.{None, Some}
+import gleam/string
 import gleeunit
 import vestibule/config
-import vestibule/credentials
+import vestibule/credential
 import vestibule/strategy
 import vestibule_apple
 import vestibule_apple/jwks
@@ -15,14 +19,14 @@ pub fn main() -> Nil {
 // --- Strategy construction ---
 
 fn test_apple_cache(name: String) -> vestibule_apple.AppleCache {
-  let assert Ok(cache) = vestibule_apple.try_init_named("apple_test_" <> name)
+  let assert Ok(cache) = vestibule_apple.initialize_named("apple_test_" <> name)
   cache
 }
 
-pub fn jwks_try_init_named_returns_error_for_duplicate_table_test() -> Nil {
+pub fn jwks_initialize_named_returns_error_for_duplicate_table_test() -> Nil {
   let name = "apple_test_jwks_duplicate"
-  let assert Ok(_) = jwks.try_init_named(name)
-  let result = jwks.try_init_named(name)
+  let assert Ok(_) = jwks.initialize_named(name)
+  let result = jwks.initialize_named(name)
   let _ =
     result
     |> fn(result) {
@@ -32,10 +36,10 @@ pub fn jwks_try_init_named_returns_error_for_duplicate_table_test() -> Nil {
   Nil
 }
 
-pub fn apple_try_init_named_returns_error_for_duplicate_cache_test() -> Nil {
+pub fn apple_initialize_named_returns_error_for_duplicate_cache_test() -> Nil {
   let name = "apple_test_duplicate"
-  let assert Ok(_) = vestibule_apple.try_init_named(name)
-  let result = vestibule_apple.try_init_named(name)
+  let assert Ok(_) = vestibule_apple.initialize_named(name)
+  let result = vestibule_apple.initialize_named(name)
   let _ =
     result
     |> fn(result) {
@@ -75,7 +79,7 @@ pub fn parse_token_response_success_test() -> Nil {
     strategy.exchange_credentials(exchange)
     |> fn(actual) {
       assert actual
-        == credentials.new(
+        == credential.new(
           token: "a1b2c3.test_access_token",
           refresh_token: Some("r4e5f6.test_refresh"),
           token_type: "Bearer",
@@ -99,13 +103,13 @@ pub fn parse_token_response_without_refresh_token_test() -> Nil {
   let assert Ok(exchange) = vestibule_apple.parse_token_response(body)
   let _ =
     strategy.exchange_credentials(exchange)
-    |> credentials.token()
+    |> credential.token()
     |> fn(actual) {
       assert actual == "test_token"
     }
   let _ =
     strategy.exchange_credentials(exchange)
-    |> credentials.refresh_token()
+    |> credential.refresh_token()
     |> fn(actual) {
       assert actual == None
     }
@@ -125,7 +129,7 @@ pub fn parse_token_response_without_id_token_test() -> Nil {
   let assert Ok(exchange) = vestibule_apple.parse_token_response(body)
   let _ =
     strategy.exchange_credentials(exchange)
-    |> credentials.token()
+    |> credential.token()
     |> fn(actual) {
       assert actual == "test_token"
     }
@@ -144,7 +148,7 @@ pub fn parse_token_response_empty_scope_test() -> Nil {
   let assert Ok(exchange) = vestibule_apple.parse_token_response(body)
   let _ =
     strategy.exchange_credentials(exchange)
-    |> credentials.scopes()
+    |> credential.scopes()
     |> fn(actual) {
       assert actual == []
     }
@@ -196,4 +200,61 @@ pub fn authorize_url_invalid_redirect_uri_returns_error_test() -> Nil {
       value
     }
   Nil
+}
+
+pub fn sans_io_token_request_and_response_test() -> Nil {
+  let client_config =
+    config.new(
+      client_id: "client-id",
+      redirect_uri: "https://app.example.com/callback",
+      auth: config.ClientSecret("client-secret-jwt"),
+    )
+  let assert Ok(http_request) =
+    vestibule_apple.build_authorization_code_request(
+      client_config,
+      "code-123",
+      Some("verifier-123"),
+    )
+  assert http_request.method == http.Post
+  assert http_request.host == "appleid.apple.com"
+  assert string.ends_with(http_request.path, "/auth/token")
+  assert string.contains(http_request.body, "code=code-123")
+  assert string.contains(http_request.body, "code_verifier=verifier-123")
+  assert request.get_header(http_request, "accept") == Ok("application/json")
+
+  let http_response =
+    response.Response(
+      status: 200,
+      headers: [],
+      body: "{\"access_token\":\"access-123\",\"token_type\":\"Bearer\",\"id_token\":\"header.payload.signature\"}",
+    )
+  let assert Ok(exchange) =
+    vestibule_apple.parse_authorization_code_response(http_response)
+  assert exchange
+    |> strategy.exchange_credentials
+    |> credential.token
+    == "access-123"
+}
+
+pub fn sans_io_refresh_request_and_response_test() -> Nil {
+  let client_config =
+    config.new(
+      client_id: "client-id",
+      redirect_uri: "https://app.example.com/callback",
+      auth: config.ClientSecret("client-secret-jwt"),
+    )
+  let assert Ok(http_request) =
+    vestibule_apple.build_refresh_token_request(client_config, "refresh-123")
+  assert string.contains(http_request.body, "grant_type=refresh_token")
+  assert string.contains(http_request.body, "refresh_token=refresh-123")
+
+  let http_response =
+    response.Response(
+      status: 200,
+      headers: [],
+      body: "{\"access_token\":\"new-access\",\"token_type\":\"Bearer\"}",
+    )
+  let assert Ok(oauth_credentials) =
+    vestibule_apple.parse_refresh_token_response(http_response)
+  assert credential.token(oauth_credentials) == "new-access"
 }

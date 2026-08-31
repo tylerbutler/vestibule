@@ -9,6 +9,7 @@ import gleam/string
 import gleam/uri
 
 import gleam/http/request
+import gleam/http/response
 import gleam/httpc
 
 import glow_auth
@@ -17,7 +18,7 @@ import glow_auth/token_request
 import glow_auth/uri/uri_builder
 
 import vestibule/config.{type AuthorizeOptions, type ClientConfig}
-import vestibule/credentials.{type Credentials}
+import vestibule/credential.{type Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/logger
 import vestibule/provider_support
@@ -39,66 +40,97 @@ pub fn strategy() -> Strategy(e) {
 /// Parse a GitHub token exchange response into Credentials.
 /// Supported parsing helper for GitHub strategy integrations.
 pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
-  do_parse_token_response(body, "token")
+  provider_support.parse_oauth_token_response(
+    body,
+    provider_support.RequiredScope(separator: ","),
+  )
 }
 
-fn do_parse_token_response(
-  body: String,
-  endpoint: String,
-) -> Result(Credentials, AuthError(e)) {
-  let result =
-    provider_support.parse_oauth_token_response(
-      body,
-      provider_support.RequiredScope(separator: ","),
+/// Build GitHub's authorization-code token request without sending it.
+pub fn build_authorization_code_request(
+  client_configuration: ClientConfig,
+  code: String,
+  code_verifier: Option(String),
+) -> Result(request.Request(String), AuthError(e)) {
+  use site <- result.try(
+    uri.parse("https://github.com")
+    |> result.map_error(fn(_) {
+      error.config(reason: "Failed to parse GitHub OAuth base URL")
+    }),
+  )
+  use redirect <- result.try(
+    provider_support.parse_redirect_uri(config.redirect_uri(
+      client_configuration,
+    )),
+  )
+  use client_secret <- result.try(config.client_secret(client_configuration))
+  let client =
+    glow_auth.Client(
+      id: config.client_id(client_configuration),
+      secret: client_secret,
+      site: site,
     )
-  case result {
-    Ok(oauth_credentials) -> {
-      logger.new(
-        level: logger.Debug,
-        event: "vestibule.provider.token_parse.success",
-        phase: "provider_request",
-        outcome: "success",
-        provider: option.Some("github"),
-        fields: [
-          logger.field("endpoint", endpoint),
-          logger.bool_field(
-            "has_refresh_token",
-            option.is_some(credentials.refresh_token(oauth_credentials)),
-          ),
-          logger.int_field(
-            "scope_count",
-            list.length(credentials.scopes(oauth_credentials)),
-          ),
-        ],
-      )
-      |> logger.emit()
-      Ok(oauth_credentials)
-    }
-    Error(err) -> {
-      logger.new(
-        level: logger.Warning,
-        event: "vestibule.provider.token_parse.failure",
-        phase: "provider_request",
-        outcome: "failure",
-        provider: option.Some("github"),
-        fields: [
-          logger.field("endpoint", endpoint),
-          logger.field("error_category", logger.auth_error_category(err)),
-        ],
-      )
-      |> logger.emit()
-      Error(err)
-    }
-  }
+  let token_http_request =
+    token_request.authorization_code(
+      client,
+      uri_builder.RelativePath("/login/oauth/access_token"),
+      code,
+      redirect,
+    )
+    |> request.set_header("accept", "application/json")
+  Ok(strategy.append_code_verifier(token_http_request, code_verifier))
 }
 
-/// Parse a GitHub /user API response into a uid and UserInfo.
+/// Parse GitHub's authorization-code HTTP response without performing I/O.
+pub fn parse_authorization_code_response(
+  http_response: response.Response(String),
+) -> Result(strategy.ExchangeResult, AuthError(e)) {
+  provider_support.parse_json_response(http_response, parse_token_response)
+  |> result.map(strategy.exchange_result)
+}
+
+/// Build GitHub's refresh-token request without sending it.
+pub fn build_refresh_token_request(
+  client_configuration: ClientConfig,
+  refresh_token: String,
+) -> Result(request.Request(String), AuthError(e)) {
+  use site <- result.try(
+    uri.parse("https://github.com")
+    |> result.map_error(fn(_) {
+      error.config(reason: "Failed to parse GitHub OAuth base URL")
+    }),
+  )
+  use client_secret <- result.try(config.client_secret(client_configuration))
+  let client =
+    glow_auth.Client(
+      id: config.client_id(client_configuration),
+      secret: client_secret,
+      site: site,
+    )
+  Ok(
+    token_request.refresh(
+      client,
+      uri_builder.RelativePath("/login/oauth/access_token"),
+      refresh_token,
+    )
+    |> request.set_header("accept", "application/json"),
+  )
+}
+
+/// Parse GitHub's refresh-token HTTP response without performing I/O.
+pub fn parse_refresh_token_response(
+  http_response: response.Response(String),
+) -> Result(Credentials, AuthError(e)) {
+  provider_support.parse_json_response(http_response, parse_token_response)
+}
+
+/// Parse a GitHub /user API response into a user ID and UserInfo.
 /// Supported parsing helper for GitHub strategy integrations.
 pub fn parse_user_response(
   body: String,
 ) -> Result(#(String, UserInfo), AuthError(e)) {
   let decoder = {
-    use id <- decode.field("id", decode.int)
+    use user_id <- decode.field("id", decode.int)
     use login <- decode.field("login", decode.string)
     use name <- decode.optional_field(
       "name",
@@ -110,35 +142,36 @@ pub fn parse_user_response(
       None,
       decode.optional(decode.string),
     )
-    use bio <- decode.optional_field(
+    use biography <- decode.optional_field(
       "bio",
       None,
       decode.optional(decode.string),
     )
-    use html_url <- decode.optional_field(
+    use profile_url <- decode.optional_field(
       "html_url",
       None,
       decode.optional(decode.string),
     )
-    let urls = case html_url {
-      option.Some(url) -> dict.from_list([#("html_url", url)])
+    let profile_urls = case profile_url {
+      option.Some(profile_url) -> dict.from_list([#("html_url", profile_url)])
       None -> dict.new()
     }
     decode.success(#(
-      int.to_string(id),
+      int.to_string(user_id),
       user_info.new()
         |> user_info.with_name(name)
         |> user_info.with_nickname(option.Some(login))
         |> user_info.with_image(avatar_url)
-        |> user_info.with_description(bio)
-        |> user_info.with_urls(urls),
+        |> user_info.with_description(biography)
+        |> user_info.with_urls(profile_urls),
     ))
   }
   case json.parse(body, decoder) {
     Ok(result) -> Ok(result)
-    Error(err) ->
+    Error(parse_error) ->
       Error(error.user_info(
-        reason: "Failed to parse GitHub user response: " <> string.inspect(err),
+        reason: "Failed to parse GitHub user response: "
+        <> string.inspect(parse_error),
       ))
   }
 }
@@ -171,16 +204,59 @@ pub fn parse_primary_email(
         email
       })
       |> Ok
-    Error(err) ->
+    Error(parse_error) ->
       Error(error.user_info(
         reason: "Failed to parse GitHub emails response: "
-        <> string.inspect(err),
+        <> string.inspect(parse_error),
       ))
   }
 }
 
+/// Build GitHub's `/user` request without sending it.
+pub fn build_user_info_request(
+  oauth_credentials: Credentials,
+) -> Result(request.Request(String), AuthError(e)) {
+  build_api_request("https://api.github.com/user", oauth_credentials)
+}
+
+/// Parse GitHub's `/user` HTTP response without performing I/O.
+pub fn parse_user_info_response(
+  http_response: response.Response(String),
+) -> Result(#(String, UserInfo), AuthError(e)) {
+  provider_support.parse_json_response(http_response, parse_user_response)
+}
+
+/// Build GitHub's `/user/emails` request without sending it.
+pub fn build_user_email_request(
+  oauth_credentials: Credentials,
+) -> Result(request.Request(String), AuthError(e)) {
+  build_api_request("https://api.github.com/user/emails", oauth_credentials)
+}
+
+/// Parse GitHub's `/user/emails` HTTP response without performing I/O.
+pub fn parse_user_email_response(
+  http_response: response.Response(String),
+) -> Result(Option(String), AuthError(e)) {
+  provider_support.parse_json_response(http_response, parse_primary_email)
+}
+
+fn build_api_request(
+  url: String,
+  oauth_credentials: Credentials,
+) -> Result(request.Request(String), AuthError(e)) {
+  use authorization_header <- result.try(strategy.authorization_header(
+    oauth_credentials,
+  ))
+  use http_request <- result.try(provider_support.build_json_request_with_auth(
+    url,
+    authorization_header,
+    "GitHub",
+  ))
+  Ok(request.set_header(http_request, "user-agent", "vestibule-gleam"))
+}
+
 fn do_authorize_url(
-  client_config: ClientConfig,
+  client_configuration: ClientConfig,
   options: AuthorizeOptions,
   scopes: List(String),
   state: String,
@@ -192,15 +268,17 @@ fn do_authorize_url(
     }),
   )
   use redirect <- result.try(
-    provider_support.parse_redirect_uri(config.redirect_uri(client_config)),
+    provider_support.parse_redirect_uri(config.redirect_uri(
+      client_configuration,
+    )),
   )
   let client =
     glow_auth.Client(
-      id: config.client_id(client_config),
+      id: config.client_id(client_configuration),
       secret: "",
       site: site,
     )
-  let url =
+  let authorization_url =
     authorize_uri.build(
       client,
       uri_builder.RelativePath("/login/oauth/authorize"),
@@ -213,39 +291,19 @@ fn do_authorize_url(
     |> provider_support.append_query_params(
       dict.to_list(config.extra_params(options)),
     )
-  Ok(url)
+  Ok(authorization_url)
 }
 
 fn do_exchange_code(
-  client_config: ClientConfig,
+  client_configuration: ClientConfig,
   code: String,
   code_verifier: Option(String),
 ) -> Result(strategy.ExchangeResult, AuthError(e)) {
-  use site <- result.try(
-    uri.parse("https://github.com")
-    |> result.map_error(fn(_) {
-      error.config(reason: "Failed to parse GitHub OAuth base URL")
-    }),
-  )
-  use redirect <- result.try(
-    provider_support.parse_redirect_uri(config.redirect_uri(client_config)),
-  )
-  use client_secret <- result.try(config.client_secret(client_config))
-  let client =
-    glow_auth.Client(
-      id: config.client_id(client_config),
-      secret: client_secret,
-      site: site,
-    )
-  let req =
-    token_request.authorization_code(
-      client,
-      uri_builder.RelativePath("/login/oauth/access_token"),
-      code,
-      redirect,
-    )
-    |> request.set_header("accept", "application/json")
-  let req = strategy.append_code_verifier(req, code_verifier)
+  use token_http_request <- result.try(build_authorization_code_request(
+    client_configuration,
+    code,
+    code_verifier,
+  ))
 
   logger.new(
     level: logger.Debug,
@@ -256,18 +314,8 @@ fn do_exchange_code(
     fields: [logger.field("endpoint", "token")],
   )
   |> logger.emit()
-  case httpc.send(req) {
-    Ok(response) -> {
-      use body <- result.try(
-        provider_support.check_response_status_for_endpoint(
-          response,
-          provider_name: "github",
-          endpoint: "token",
-        ),
-      )
-      parse_token_response(body)
-      |> result.map(strategy.exchange_result)
-    }
+  case httpc.send(token_http_request) {
+    Ok(response) -> parse_authorization_code_response(response)
     Error(_) -> {
       logger.new(
         level: logger.Error,
@@ -287,29 +335,13 @@ fn do_exchange_code(
 }
 
 fn do_refresh_token(
-  client_config: ClientConfig,
+  client_configuration: ClientConfig,
   refresh_token: String,
 ) -> Result(Credentials, AuthError(e)) {
-  use site <- result.try(
-    uri.parse("https://github.com")
-    |> result.map_error(fn(_) {
-      error.config(reason: "Failed to parse GitHub OAuth base URL")
-    }),
-  )
-  use client_secret <- result.try(config.client_secret(client_config))
-  let client =
-    glow_auth.Client(
-      id: config.client_id(client_config),
-      secret: client_secret,
-      site: site,
-    )
-  let req =
-    token_request.refresh(
-      client,
-      uri_builder.RelativePath("/login/oauth/access_token"),
-      refresh_token,
-    )
-    |> request.set_header("accept", "application/json")
+  use refresh_http_request <- result.try(build_refresh_token_request(
+    client_configuration,
+    refresh_token,
+  ))
 
   logger.new(
     level: logger.Debug,
@@ -320,17 +352,8 @@ fn do_refresh_token(
     fields: [logger.field("endpoint", "refresh")],
   )
   |> logger.emit()
-  case httpc.send(req) {
-    Ok(response) -> {
-      use body <- result.try(
-        provider_support.check_response_status_for_endpoint(
-          response,
-          provider_name: "github",
-          endpoint: "refresh",
-        ),
-      )
-      do_parse_token_response(body, "refresh")
-    }
+  case httpc.send(refresh_http_request) {
+    Ok(response) -> parse_refresh_token_response(response)
     Error(_) -> {
       logger.new(
         level: logger.Error,
@@ -350,25 +373,11 @@ fn do_refresh_token(
 }
 
 fn do_fetch_user(
-  _client_config: ClientConfig,
+  _client_configuration: ClientConfig,
   exchange: strategy.ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
   let oauth_credentials = strategy.exchange_credentials(exchange)
-  // Validate token type
-  use auth_header <- result.try(strategy.authorization_header(oauth_credentials))
-
-  // Fetch user profile
-  use user_req <- result.try(
-    request.to("https://api.github.com/user")
-    |> result.map_error(fn(_) {
-      error.config(reason: "Failed to parse GitHub user URL")
-    }),
-  )
-  let user_req =
-    user_req
-    |> request.set_header("authorization", auth_header)
-    |> request.set_header("accept", "application/json")
-    |> request.set_header("user-agent", "vestibule-gleam")
+  use user_request <- result.try(build_user_info_request(oauth_credentials))
 
   logger.new(
     level: logger.Debug,
@@ -379,8 +388,8 @@ fn do_fetch_user(
     fields: [logger.field("endpoint", "user_info")],
   )
   |> logger.emit()
-  use resp <- result.try(case httpc.send(user_req) {
-    Ok(r) -> Ok(r)
+  use response <- result.try(case httpc.send(user_request) {
+    Ok(response) -> Ok(response)
     Error(_) -> {
       logger.new(
         level: logger.Error,
@@ -397,23 +406,13 @@ fn do_fetch_user(
       Error(error.network(reason: "Failed to fetch GitHub user info"))
     }
   })
-  use user_body <- result.try(
-    provider_support.check_response_status_for_endpoint(
-      resp,
-      provider_name: "github",
-      endpoint: "user_info",
-    ),
-  )
-  use #(uid, info) <- result.try(parse_user_response(user_body))
+  use #(user_id, user_information) <- result.try(parse_user_info_response(
+    response,
+  ))
 
   // Fetch verified primary email (best-effort — don't fail if this errors)
-  let email = case request.to("https://api.github.com/user/emails") {
-    Ok(email_req) -> {
-      let email_req =
-        email_req
-        |> request.set_header("authorization", auth_header)
-        |> request.set_header("accept", "application/json")
-        |> request.set_header("user-agent", "vestibule-gleam")
+  let email = case build_user_email_request(oauth_credentials) {
+    Ok(email_request) -> {
       logger.new(
         level: logger.Debug,
         event: "vestibule.provider.request.start",
@@ -423,15 +422,9 @@ fn do_fetch_user(
         fields: [logger.field("endpoint", "user_email")],
       )
       |> logger.emit()
-      case httpc.send(email_req) {
+      case httpc.send(email_request) {
         Ok(response) ->
-          provider_support.check_response_status_for_endpoint(
-            response,
-            provider_name: "github",
-            endpoint: "user_email",
-          )
-          |> result.try(parse_primary_email)
-          |> result.unwrap(None)
+          parse_user_email_response(response) |> result.unwrap(None)
         Error(_) -> {
           logger.new(
             level: logger.Error,
@@ -452,10 +445,14 @@ fn do_fetch_user(
     Error(_) -> None
   }
 
-  let final_info = case email {
-    option.Some(_) -> user_info.with_email(info, email)
-    None -> info
+  let final_user_information = case email {
+    option.Some(_) -> user_info.with_email(user_information, email)
+    None -> user_information
   }
 
-  Ok(strategy.user_result(uid: uid, info: final_info, extra: dict.new()))
+  Ok(strategy.user_result(
+    uid: user_id,
+    info: final_user_information,
+    extra: dict.new(),
+  ))
 }

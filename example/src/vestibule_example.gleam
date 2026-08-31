@@ -46,7 +46,8 @@ pub fn main() -> Nil {
         )
       provider_registry
     }
-    _, _ -> provider_registry
+    Error(Nil), Ok(_) | Ok(_), Error(Nil) | Error(Nil), Error(Nil) ->
+      provider_registry
   }
 
   let provider_registry = case
@@ -67,7 +68,8 @@ pub fn main() -> Nil {
         )
       provider_registry
     }
-    _, _ -> provider_registry
+    Error(Nil), Ok(_) | Ok(_), Error(Nil) | Error(Nil), Error(Nil) ->
+      provider_registry
   }
 
   let provider_registry = case
@@ -88,7 +90,8 @@ pub fn main() -> Nil {
         )
       provider_registry
     }
-    _, _ -> provider_registry
+    Error(Nil), Ok(_) | Ok(_), Error(Nil) | Error(Nil), Error(Nil) ->
+      provider_registry
   }
 
   // Require at least one provider
@@ -104,7 +107,7 @@ pub fn main() -> Nil {
   }
 
   // Initialize state store
-  let assert Ok(store) = state_store.try_init()
+  let assert Ok(store) = state_store.create()
 
   let context = Context(registry: provider_registry, state_store: store)
 
@@ -112,7 +115,7 @@ pub fn main() -> Nil {
   wisp.configure_logger()
 
   // Start the server
-  let handler = fn(req) { router.handle_request(req, context) }
+  let handler = fn(request) { router.handle_request(request, context) }
   let assert Ok(_) =
     handler
     |> wisp_mist.handler(secret_key_base)

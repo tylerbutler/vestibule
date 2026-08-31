@@ -21,7 +21,7 @@ import gleam/uri
 import vestibule/auth.{type Auth}
 import vestibule/authorization_request.{type AuthorizationRequest}
 import vestibule/config.{type AuthorizeOptions, type ClientConfig}
-import vestibule/credentials.{type Credentials}
+import vestibule/credential.{type Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/logger
 import vestibule/nonce
@@ -87,8 +87,10 @@ pub fn create_authorization_request(
       scopes: scopes,
       state: csrf_state,
     )
-    |> result.map(fn(base_url) { append_pkce_params(base_url, code_challenge) })
-    |> result.map(fn(url) { append_nonce_param(url, maybe_nonce) })
+    |> result.map(fn(base_url) {
+      append_pkce_parameters(base_url, code_challenge)
+    })
+    |> result.map(fn(url) { append_nonce_parameter(url, maybe_nonce) })
     |> result.map(fn(url) {
       authorization_request.new(
         url: url,
@@ -109,16 +111,19 @@ pub fn create_authorization_request(
           fields: [],
         ),
       )
-    Error(err) ->
+    Error(auth_error) ->
       logger.emit(
         logger.new(
-          level: failure_level(err),
+          level: failure_level(auth_error),
           event: "vestibule.authorization_request.failure",
           phase: "request",
           outcome: "failure",
           provider: provider,
           fields: [
-            logger.field("error_category", logger.auth_error_category(err)),
+            logger.field(
+              "error_category",
+              logger.auth_error_category(auth_error),
+            ),
           ],
         ),
       )
@@ -150,7 +155,7 @@ pub fn create_authorization_request(
 pub fn handle_callback(
   strategy: Strategy(e),
   config config: ClientConfig,
-  callback_params callback_params: Dict(String, String),
+  callback_params parameters: Dict(String, String),
   expected_state expected_state: String,
   code_verifier code_verifier: String,
   expected_nonce expected_nonce: option.Option(String),
@@ -169,7 +174,7 @@ pub fn handle_callback(
 
   // Extract state (needed for CSRF validation)
   let state_result =
-    dict.get(callback_params, "state")
+    dict.get(parameters, "state")
     |> result.replace_error(error.missing_callback_param("state"))
   case state_result {
     Ok(_) ->
@@ -183,7 +188,7 @@ pub fn handle_callback(
           fields: [],
         ),
       )
-    Error(err) ->
+    Error(auth_error) ->
       logger.emit(
         logger.new(
           level: logger.Warning,
@@ -192,7 +197,10 @@ pub fn handle_callback(
           outcome: "failure",
           provider: provider,
           fields: [
-            logger.field("error_category", logger.auth_error_category(err)),
+            logger.field(
+              "error_category",
+              logger.auth_error_category(auth_error),
+            ),
             logger.field("missing_param", "state"),
           ],
         ),
@@ -215,7 +223,7 @@ pub fn handle_callback(
           fields: [],
         ),
       )
-    Error(err) ->
+    Error(auth_error) ->
       logger.emit(
         logger.new(
           level: logger.Warning,
@@ -224,7 +232,10 @@ pub fn handle_callback(
           outcome: "failure",
           provider: provider,
           fields: [
-            logger.field("error_category", logger.auth_error_category(err)),
+            logger.field(
+              "error_category",
+              logger.auth_error_category(auth_error),
+            ),
           ],
         ),
       )
@@ -232,7 +243,7 @@ pub fn handle_callback(
   use _ <- result.try(validate_result)
 
   // Check for provider errors before requiring code
-  let provider_check = check_provider_error(callback_params)
+  let provider_check = check_provider_error(parameters)
   case provider_check {
     Ok(_) ->
       logger.emit(
@@ -245,7 +256,7 @@ pub fn handle_callback(
           fields: [],
         ),
       )
-    Error(err) ->
+    Error(auth_error) ->
       logger.emit(
         logger.new(
           level: logger.Warning,
@@ -254,7 +265,10 @@ pub fn handle_callback(
           outcome: "failure",
           provider: provider,
           fields: [
-            logger.field("error_category", logger.auth_error_category(err)),
+            logger.field(
+              "error_category",
+              logger.auth_error_category(auth_error),
+            ),
           ],
         ),
       )
@@ -263,7 +277,7 @@ pub fn handle_callback(
 
   // Extract authorization code
   let code_result =
-    dict.get(callback_params, "code")
+    dict.get(parameters, "code")
     |> result.replace_error(error.missing_callback_param("code"))
   case code_result {
     Ok(_) ->
@@ -277,7 +291,7 @@ pub fn handle_callback(
           fields: [],
         ),
       )
-    Error(err) ->
+    Error(auth_error) ->
       logger.emit(
         logger.new(
           level: logger.Warning,
@@ -286,7 +300,10 @@ pub fn handle_callback(
           outcome: "failure",
           provider: provider,
           fields: [
-            logger.field("error_category", logger.auth_error_category(err)),
+            logger.field(
+              "error_category",
+              logger.auth_error_category(auth_error),
+            ),
             logger.field("missing_param", "code"),
           ],
         ),
@@ -314,16 +331,19 @@ pub fn handle_callback(
           fields: [],
         ),
       )
-    Error(err) ->
+    Error(auth_error) ->
       logger.emit(
         logger.new(
-          level: failure_level(err),
+          level: failure_level(auth_error),
           event: "vestibule.callback.failure",
           phase: "callback",
           outcome: "failure",
           provider: provider,
           fields: [
-            logger.field("error_category", logger.auth_error_category(err)),
+            logger.field(
+              "error_category",
+              logger.auth_error_category(auth_error),
+            ),
           ],
         ),
       )
@@ -344,7 +364,7 @@ pub fn handle_callback(
           fields: [],
         ),
       )
-    Error(err) ->
+    Error(auth_error) ->
       logger.emit(
         logger.new(
           level: logger.Warning,
@@ -353,7 +373,10 @@ pub fn handle_callback(
           outcome: "failure",
           provider: provider,
           fields: [
-            logger.field("error_category", logger.auth_error_category(err)),
+            logger.field(
+              "error_category",
+              logger.auth_error_category(auth_error),
+            ),
           ],
         ),
       )
@@ -375,16 +398,19 @@ pub fn handle_callback(
           fields: [],
         ),
       )
-    Error(err) ->
+    Error(auth_error) ->
       logger.emit(
         logger.new(
-          level: failure_level(err),
+          level: failure_level(auth_error),
           event: "vestibule.callback.failure",
           phase: "callback",
           outcome: "failure",
           provider: provider,
           fields: [
-            logger.field("error_category", logger.auth_error_category(err)),
+            logger.field(
+              "error_category",
+              logger.auth_error_category(auth_error),
+            ),
           ],
         ),
       )
@@ -450,25 +476,28 @@ pub fn refresh_token(
           fields: [
             logger.bool_field(
               "has_refresh_token",
-              option.is_some(credentials.refresh_token(credentials)),
+              option.is_some(credential.refresh_token(credentials)),
             ),
             logger.int_field(
               "scope_count",
-              list.length(credentials.scopes(credentials)),
+              list.length(credential.scopes(credentials)),
             ),
           ],
         ),
       )
-    Error(err) ->
+    Error(auth_error) ->
       logger.emit(
         logger.new(
-          level: failure_level(err),
+          level: failure_level(auth_error),
           event: "vestibule.refresh.failure",
           phase: "refresh",
           outcome: "failure",
           provider: provider,
           fields: [
-            logger.field("error_category", logger.auth_error_category(err)),
+            logger.field(
+              "error_category",
+              logger.auth_error_category(auth_error),
+            ),
           ],
         ),
       )
@@ -476,8 +505,8 @@ pub fn refresh_token(
   outcome
 }
 
-fn failure_level(err: AuthError(e)) -> logger.Level {
-  case error.kind(err) {
+fn failure_level(auth_error: AuthError(e)) -> logger.Level {
+  case error.kind(auth_error) {
     error.NetworkKind | error.HttpKind | error.DecodeKind | error.ConfigKind ->
       logger.Error
     error.StateMismatchKind
@@ -492,16 +521,16 @@ fn failure_level(err: AuthError(e)) -> logger.Level {
   }
 }
 
-/// Check callback params for a provider error response.
+/// Check callback parameters for a provider error response.
 fn check_provider_error(
-  params: Dict(String, String),
+  parameters: Dict(String, String),
 ) -> Result(Nil, AuthError(e)) {
-  case dict.get(params, "error") {
+  case dict.get(parameters, "error") {
     Ok(error_code) -> {
       let description =
-        dict.get(params, "error_description")
+        dict.get(parameters, "error_description")
         |> result.unwrap("")
-      let uri = dict.get(params, "error_uri") |> option.from_result()
+      let uri = dict.get(parameters, "error_uri") |> option.from_result()
       Error(error.provider(code: error_code, description: description, uri: uri))
     }
     Error(Nil) -> Ok(Nil)
@@ -509,7 +538,7 @@ fn check_provider_error(
 }
 
 /// Append PKCE code_challenge and code_challenge_method to an authorization URL.
-fn append_pkce_params(url: String, code_challenge: String) -> String {
+fn append_pkce_parameters(url: String, code_challenge: String) -> String {
   merge_query(
     url,
     uri.query_to_string([
@@ -520,7 +549,7 @@ fn append_pkce_params(url: String, code_challenge: String) -> String {
 }
 
 /// Append the OIDC `nonce` parameter to an authorization URL when present.
-fn append_nonce_param(url: String, nonce: option.Option(String)) -> String {
+fn append_nonce_parameter(url: String, nonce: option.Option(String)) -> String {
   case nonce {
     option.Some(value) ->
       merge_query(url, uri.query_to_string([#("nonce", value)]))
@@ -570,7 +599,7 @@ fn validate_callback_nonce(
       nonce.validate(received: claimed, expected: expected)
     }
     True, option.None -> Error(error.invalid_nonce())
-    False, _ -> Ok(Nil)
+    False, option.Some(_) | False, option.None -> Ok(Nil)
   }
 }
 
@@ -579,8 +608,8 @@ fn extract_id_token(
   exchange: strategy.ExchangeResult,
 ) -> Result(String, AuthError(e)) {
   case dict.get(strategy.exchange_artifacts(exchange), "id_token") {
-    Ok(dyn) ->
-      decode.run(dyn, decode.string)
+    Ok(dynamic_value) ->
+      decode.run(dynamic_value, decode.string)
       |> result.replace_error(error.invalid_nonce())
     Error(Nil) -> Error(error.invalid_nonce())
   }

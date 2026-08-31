@@ -44,7 +44,7 @@ pub type Auth
 Return the OAuth credentials (tokens, expiry).
 
 ```gleam
-pub fn credentials(Auth) -> credentials.Credentials
+pub fn credentials(Auth) -> credential.Credentials
 ```
 
 ### `extra`
@@ -72,7 +72,7 @@ pub fn new(
   uid: String,
   provider: String,
   info: user_info.UserInfo,
-  credentials: credentials.Credentials,
+  credentials: credential.Credentials,
   extra: dict.Dict(String, dynamic.Dynamic)
 ) -> Auth
 ```

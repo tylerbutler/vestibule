@@ -1,5 +1,5 @@
 import gleam/option.{None, Some}
-import vestibule/credentials
+import vestibule/credential
 import vestibule/error
 import vestibule/provider_support
 
@@ -12,7 +12,7 @@ pub fn parse_refresh_response_success_with_all_fields_test() -> Nil {
       provider_support.OptionalScope(" "),
     )
   assert parsed
-    == credentials.new(
+    == credential.new(
       token: "new_access_token",
       refresh_token: Some("new_refresh_token"),
       token_type: "Bearer",
@@ -29,7 +29,7 @@ pub fn parse_refresh_response_success_minimal_test() -> Nil {
       provider_support.OptionalScope(" "),
     )
   assert parsed
-    == credentials.new(
+    == credential.new(
       token: "token_abc",
       refresh_token: None,
       token_type: "bearer",
@@ -47,7 +47,7 @@ pub fn parse_refresh_response_with_refresh_token_rotation_test() -> Nil {
       provider_support.OptionalScope(" "),
     )
   assert parsed
-    == credentials.new(
+    == credential.new(
       token: "rotated_access",
       refresh_token: Some("rotated_refresh"),
       token_type: "Bearer",
@@ -65,7 +65,7 @@ pub fn parse_refresh_response_rotation_without_refresh_token_test() -> Nil {
       provider_support.OptionalScope(" "),
     )
   assert parsed
-    == credentials.new(
+    == credential.new(
       token: "rotated_access",
       refresh_token: None,
       token_type: "Bearer",
@@ -122,7 +122,7 @@ pub fn parse_refresh_response_without_scope_has_empty_scopes_test() -> Nil {
       body,
       provider_support.OptionalScope(" "),
     )
-  assert credentials.scopes(oauth_credentials) == []
+  assert credential.scopes(oauth_credentials) == []
 }
 
 pub fn parse_refresh_response_empty_scope_has_empty_scopes_test() -> Nil {
@@ -133,5 +133,5 @@ pub fn parse_refresh_response_empty_scope_has_empty_scopes_test() -> Nil {
       body,
       provider_support.OptionalScope(" "),
     )
-  assert credentials.scopes(oauth_credentials) == []
+  assert credential.scopes(oauth_credentials) == []
 }

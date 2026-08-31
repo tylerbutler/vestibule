@@ -23,8 +23,8 @@ searchTerms:
 JWT verification using ywt_core with a custom Erlang FFI backend.
 
 This replaces ywt_erlang to avoid an OTP 27 compatibility issue in
-its EC key generation. We only need verification (not key generation)
-for production use; the HMAC signing counterpart used by tests lives
+its EC key generation. We only need RS256 verification in production;
+the RSA signing counterpart used by tests lives
 in `test/vestibule_apple/jwt_signing.gleam`.
 
 ## Types
@@ -41,6 +41,7 @@ pub type ParseError {
   InvalidSignatureEncoding
   InvalidHeaderJson(json.DecodeError)
   InvalidPayloadJson(json.DecodeError)
+  UnsupportedAlgorithm(actual: String)
   NoMatchingKey
   InvalidSignature
   TokenExpired(expired_at: timestamp.Timestamp)

@@ -45,7 +45,44 @@ pub type DiscoveredEndpoints {
 }
 ```
 
+### `ProfileDiscovery`
+
+Result of parsing a profile-page discovery response.
+
+A profile can either contain the authorization and token endpoint links
+directly, or point to a metadata document that requires one more request.
+
+```gleam
+pub type ProfileDiscovery {
+  EndpointsDiscovered(DiscoveredEndpoints)
+  MetadataRequired(url: String)
+}
+```
+
 ## Functions
+
+### `build_metadata_request`
+
+Build an IndieAuth metadata request without sending it.
+
+The returned request is opaque and must be sent with
+`provider_support.send_public`.
+
+```gleam
+pub fn build_metadata_request(String) -> Result(provider_support.SecureRequest, error.AuthError(a))
+```
+
+### `build_profile_request`
+
+Build the request used to discover endpoints from a profile page.
+
+The profile URL must be public HTTPS. The returned request is opaque and
+can only be sent with `provider_support.send_public`, so DNS validation and
+address pinning cannot be accidentally bypassed.
+
+```gleam
+pub fn build_profile_request(String) -> Result(provider_support.SecureRequest, error.AuthError(a))
+```
 
 ### `discover_endpoints`
 
@@ -60,7 +97,7 @@ Fetches the URL and discovers endpoints using the three-tier fallback:
 pub fn discover_endpoints(String) -> Result(DiscoveredEndpoints, error.AuthError(a))
 ```
 
-### `find_html_link_rel`
+### `find_html_link_relation`
 
 Find an HTML `<link>` element with the given rel attribute.
 
@@ -68,13 +105,13 @@ Uses presentable_soup for robust HTML parsing.
 Exported for testing.
 
 ```gleam
-pub fn find_html_link_rel(
+pub fn find_html_link_relation(
   String,
   String
 ) -> option.Option(String)
 ```
 
-### `find_link_header_rel`
+### `find_link_header_relation`
 
 Parse HTTP Link headers to find a URL with the given rel value.
 
@@ -82,7 +119,7 @@ Handles the format: `<URL>; rel="value"` or `<URL>; rel=value`
 Exported for testing.
 
 ```gleam
-pub fn find_link_header_rel(
+pub fn find_link_header_relation(
   List(#(String, String)),
   String
 ) -> option.Option(String)
@@ -97,15 +134,39 @@ Exported for testing.
 pub fn parse_metadata(String) -> Result(DiscoveredEndpoints, error.AuthError(a))
 ```
 
+### `parse_metadata_response`
+
+Parse an IndieAuth metadata HTTP response without performing I/O.
+
+```gleam
+pub fn parse_metadata_response(
+  String,
+  response.Response(String)
+) -> Result(DiscoveredEndpoints, error.AuthError(a))
+```
+
+### `parse_profile_response`
+
+Parse a profile-page discovery HTTP response without performing I/O.
+
+```gleam
+pub fn parse_profile_response(
+  String,
+  response.Response(String)
+) -> Result(ProfileDiscovery, error.AuthError(a))
+```
+
 ### `validate_endpoints`
 
-Require every discovered endpoint to be a public HTTPS URL.
+Require every discovered endpoint to be a structurally safe HTTPS URL.
 
 Discovered endpoints are chosen by whoever controls the profile URL, so
 without this check a login attempt could point the server's token or
 userinfo requests at loopback, private, or cloud-metadata addresses
-(SSRF). Applied to metadata, link-relation discovery, and endpoints
-restored from `vestibule_indieauth.parse_endpoints`.
+(SSRF). Literal non-public addresses are rejected here. Immediately before
+each server-side request, `provider_support.send_public` additionally
+resolves every DNS answer, rejects mixed/non-public results, and pins the
+validated address to the connection.
 
 ```gleam
 pub fn validate_endpoints(DiscoveredEndpoints) -> Result(DiscoveredEndpoints, error.AuthError(a))

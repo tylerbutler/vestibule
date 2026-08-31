@@ -2,20 +2,47 @@
 
 import gleam/bool
 import gleam/dynamic/decode
+import gleam/http
 import gleam/http/request
 import gleam/http/response.{type Response}
-import gleam/httpc
-import gleam/int
 import gleam/json
-import gleam/list
 import gleam/option
 import gleam/result
 import gleam/string
 import gleam/uri
 import vestibule/error.{type AuthError}
+import vestibule/internal/public_http
 import vestibule/logger
 
-import vestibule/credentials
+import vestibule/credential
+
+/// An opaque HTTP request for an untrusted, dynamically selected destination.
+///
+/// The wrapped `gleam_http` request cannot be extracted or sent with an
+/// arbitrary HTTP client. It can only be passed to `send_public`, which
+/// validates every DNS answer, pins the selected address, preserves the
+/// original HTTPS hostname for SNI and `Host`, and disables redirects.
+pub opaque type SecureRequest {
+  SecureRequest(
+    http_request: request.Request(String),
+    response_limit: SecureResponseLimit,
+  )
+}
+
+/// A bounded response class for a request sent through the secure transport.
+///
+/// Each class maps to a fixed conservative cap. Callers cannot provide an
+/// arbitrary byte count:
+/// - `ProfileHtmlResponse`: 1 MiB
+/// - `DiscoveryResponse`: 256 KiB (including JWKS documents)
+/// - `TokenResponse`: 64 KiB
+/// - `UserInfoResponse`: 256 KiB
+pub type SecureResponseLimit {
+  ProfileHtmlResponse
+  DiscoveryResponse
+  TokenResponse
+  UserInfoResponse
+}
 
 /// Check that an HTTP response has a 2xx status code.
 /// Returns the response body on success, or an AuthError of kind `HttpKind` on
@@ -24,11 +51,14 @@ import vestibule/credentials
 pub fn check_response_status(
   response: Response(String),
 ) -> Result(String, AuthError(e)) {
-  check_response_status_for_endpoint(
-    response,
-    provider_name: "unknown",
-    endpoint: "unknown",
+  use <- bool.guard(
+    when: response.status < 200 || response.status >= 300,
+    return: Error(error.http(
+      status: response.status,
+      summary: safe_error_body(response.body),
+    )),
   )
+  Ok(response.body)
 }
 
 /// Check that an HTTP response has a 2xx status code, emitting structured log
@@ -40,8 +70,9 @@ pub fn check_response_status_for_endpoint(
   provider_name provider_name: String,
   endpoint endpoint: String,
 ) -> Result(String, AuthError(e)) {
-  case response.status < 200 || response.status >= 300 {
-    True -> {
+  let checked = check_response_status(response)
+  case checked {
+    Error(authentication_error) -> {
       logger.new(
         level: logger.Error,
         event: "vestibule.provider.response.failure",
@@ -55,12 +86,9 @@ pub fn check_response_status_for_endpoint(
         ],
       )
       |> logger.emit()
-      Error(error.http(
-        status: response.status,
-        summary: safe_error_body(response.body),
-      ))
+      Error(authentication_error)
     }
-    False -> {
+    Ok(body) -> {
       logger.new(
         level: logger.Debug,
         event: "vestibule.provider.response.success",
@@ -73,7 +101,7 @@ pub fn check_response_status_for_endpoint(
         ],
       )
       |> logger.emit()
-      Ok(response.body)
+      Ok(body)
     }
   }
 }
@@ -100,12 +128,12 @@ pub fn require_https(url: String) -> Result(Nil, AuthError(e)) {
         option.Some("http") ->
           case parsed.host {
             option.Some("localhost") | option.Some("127.0.0.1") -> Ok(Nil)
-            _ ->
+            option.Some(_) | option.None ->
               Error(error.config(
                 reason: "HTTPS required for endpoint URL: " <> url,
               ))
           }
-        _ ->
+        option.Some(_) | option.None ->
           Error(error.config(reason: "HTTPS required for endpoint URL: " <> url))
       }
     Error(_) -> Error(error.config(reason: "Invalid URL: " <> url))
@@ -129,8 +157,48 @@ pub fn require_public_https(url: String) -> Result(Nil, AuthError(e)) {
     Ok(parsed) ->
       case parsed.scheme {
         option.Some("https") -> require_public_host(url)
-        _ ->
+        option.Some(_) | option.None ->
           Error(error.config(reason: "HTTPS required for endpoint URL: " <> url))
+      }
+    Error(_) -> Error(error.config(reason: "Invalid URL: " <> url))
+  }
+}
+
+/// Validate the scheme and literal host of a server-side HTTPS URL without
+/// performing DNS resolution.
+///
+/// This exists for sans-I/O request builders and parsers. Any request accepted
+/// here must be sent with `send_public`, which performs the authoritative DNS
+/// validation and address pinning immediately before connecting.
+pub fn require_public_https_format(url: String) -> Result(Nil, AuthError(e)) {
+  case uri.parse(url) {
+    Ok(parsed) ->
+      case parsed.scheme {
+        option.Some("https") -> require_public_host_format(url)
+        option.Some(_) | option.None ->
+          Error(error.config(reason: "HTTPS required for endpoint URL: " <> url))
+      }
+    Error(_) -> Error(error.config(reason: "Invalid URL: " <> url))
+  }
+}
+
+/// Validate a server-side URL's literal host without performing DNS
+/// resolution. See `require_public_https_format`.
+pub fn require_public_host_format(url: String) -> Result(Nil, AuthError(e)) {
+  case uri.parse(url) {
+    Ok(parsed) ->
+      case parsed.host {
+        option.Some("") | option.None ->
+          Error(error.config(reason: "URL must include a host: " <> url))
+        option.Some(host) -> {
+          use _ <- result.try(
+            public_http.validate_host_format(host)
+            |> result.map_error(fn(reason) {
+              error.config(reason: reason <> " (URL: " <> url <> ")")
+            }),
+          )
+          Ok(Nil)
+        }
       }
     Error(_) -> Error(error.config(reason: "Invalid URL: " <> url))
   }
@@ -143,13 +211,10 @@ pub fn require_public_https(url: String) -> Result(Nil, AuthError(e)) {
 /// an IndieAuth profile URL supplied by the person logging in. Loopback,
 /// private, link-local, shared (CGNAT), multicast, and reserved IPv4/IPv6
 /// literals are rejected, as are `localhost`, `*.localhost`, and `*.local`
-/// names. Numeric hosts that are not a canonical dotted quad (`127.1`,
-/// `2130706433`, `0177.0.0.1`) are rejected outright, because the system
-/// resolver accepts them as aliases that this check cannot classify.
-///
-/// Hostnames that resolve via DNS cannot be classified here and are treated
-/// as public; callers that accept fully untrusted URLs should additionally
-/// restrict resolution at the network layer.
+/// names. DNS names are resolved and rejected if any returned IPv4 or IPv6
+/// address is not globally routable. Alternate numeric spellings accepted by
+/// Erlang's resolver (`127.1`, `2130706433`, `0177.0.0.1`) and IPv4 embedded
+/// in IPv6 are classified after parsing, rather than by textual prefix.
 ///
 /// Returns Ok(Nil) if valid, or an AuthError of kind `ConfigKind` describing
 /// the issue.
@@ -159,169 +224,135 @@ pub fn require_public_host(url: String) -> Result(Nil, AuthError(e)) {
       case parsed.host {
         option.Some("") | option.None ->
           Error(error.config(reason: "URL must include a host: " <> url))
-        option.Some(host) ->
-          case is_non_public_host(host) {
-            True ->
-              Error(error.config(
-                reason: "Host is not publicly routable (loopback, private, or link-local addresses are not allowed here): "
-                <> url,
-              ))
-            False -> Ok(Nil)
-          }
+        option.Some(host) -> {
+          use _ <- result.try(
+            public_http.validate_host(host)
+            |> result.map_error(fn(reason) {
+              error.config(reason: reason <> " (URL: " <> url <> ")")
+            }),
+          )
+          Ok(Nil)
+        }
       }
     Error(_) -> Error(error.config(reason: "Invalid URL: " <> url))
   }
 }
 
-/// Determine whether a URL host refers to a non-publicly-routable target.
+/// Wrap an HTTPS request to an untrusted dynamic destination.
 ///
-/// Catches the `localhost`/`.local` hostnames plus IPv4 and IPv6 literals in
-/// loopback, private, link-local, shared (CGNAT), and unspecified ranges.
-/// Purely numeric hosts that are not a canonical four-octet dotted quad are
-/// treated as non-public too: the resolver accepts shorthand (`127.1`),
-/// decimal (`2130706433`), and leading-zero octal (`0177.0.0.1`) forms as
-/// loopback, and none of them can be classified safely here.
-fn is_non_public_host(host: String) -> Bool {
-  let normalized =
-    host
-    |> string.lowercase
-    |> strip_ipv6_brackets
-    |> strip_trailing_dot
-
-  case is_blocked_hostname(normalized) {
-    True -> True
-    False ->
-      case is_numeric_host(normalized) {
-        True ->
-          case parse_ipv4(normalized) {
-            Ok(octets) -> is_non_public_ipv4(octets)
-            Error(_) -> True
-          }
-        False -> is_non_public_ipv6(normalized)
-      }
-  }
+/// This performs the format-only checks that are safe in a sans-I/O builder.
+/// DNS validation is deliberately deferred until `send_public`, immediately
+/// before the connection is made. The default 256 KiB discovery cap is
+/// conservative; endpoint builders should use `secure_request_with_limit`.
+pub fn secure_request(
+  http_request: request.Request(String),
+) -> Result(SecureRequest, AuthError(e)) {
+  secure_request_with_limit(http_request, DiscoveryResponse)
 }
 
-fn strip_trailing_dot(host: String) -> String {
-  use <- bool.guard(when: !string.ends_with(host, "."), return: host)
-  string.drop_end(host, 1)
-}
-
-/// True when the host consists solely of ASCII digits and dots — i.e. it can
-/// only be an IPv4 literal in some form, never a DNS name.
-fn is_numeric_host(host: String) -> Bool {
-  host != ""
-  && string.to_graphemes(host)
-  |> list.all(fn(grapheme) {
-    grapheme == "." || result.is_ok(int.parse(grapheme))
-  })
-}
-
-fn strip_ipv6_brackets(host: String) -> String {
-  use <- bool.guard(
-    when: !{ string.starts_with(host, "[") && string.ends_with(host, "]") },
-    return: host,
-  )
-  string.slice(host, 1, string.length(host) - 2)
-}
-
-fn is_blocked_hostname(host: String) -> Bool {
-  host == "localhost"
-  || string.ends_with(host, ".localhost")
-  || string.ends_with(host, ".local")
-}
-
-fn parse_ipv4(host: String) -> Result(#(Int, Int, Int, Int), Nil) {
-  case string.split(host, ".") {
-    [a, b, c, d] -> {
-      use a <- result.try(parse_octet(a))
-      use b <- result.try(parse_octet(b))
-      use c <- result.try(parse_octet(c))
-      use d <- result.try(parse_octet(d))
-      Ok(#(a, b, c, d))
-    }
-    _ -> Error(Nil)
-  }
-}
-
-fn parse_octet(segment: String) -> Result(Int, Nil) {
-  // A leading zero on a multi-digit octet is octal to the resolver
-  // (`0177` is 127), so only canonical decimal octets are accepted.
-  let has_leading_zero =
-    string.length(segment) > 1 && string.starts_with(segment, "0")
-  case int.parse(segment) {
-    Ok(value) if value >= 0 && value <= 255 && !has_leading_zero -> Ok(value)
-    _ -> Error(Nil)
-  }
-}
-
-fn is_non_public_ipv4(octets: #(Int, Int, Int, Int)) -> Bool {
-  let #(a, b, _c, _d) = octets
-  // 0.0.0.0/8 "this network" / unspecified
-  a == 0
-  // 10.0.0.0/8 private
-  || a == 10
-  // 127.0.0.0/8 loopback
-  || a == 127
-  // 169.254.0.0/16 link-local (incl. cloud metadata 169.254.169.254)
-  || { a == 169 && b == 254 }
-  // 172.16.0.0/12 private
-  || { a == 172 && b >= 16 && b <= 31 }
-  // 192.168.0.0/16 private
-  || { a == 192 && b == 168 }
-  // 100.64.0.0/10 shared address space (CGNAT)
-  || { a == 100 && b >= 64 && b <= 127 }
-  // 224.0.0.0/4 multicast and 240.0.0.0/4 reserved
-  || a >= 224
-}
-
-fn is_non_public_ipv6(host: String) -> Bool {
-  // Not an IPv6 literal; an ordinary DNS hostname we cannot classify here.
-  use <- bool.guard(when: !string.contains(host, ":"), return: False)
-  // Loopback and unspecified
-  host == "::1"
-  || host == "::"
-  // Unique local addresses fc00::/7 (fc.. / fd..)
-  || string.starts_with(host, "fc")
-  || string.starts_with(host, "fd")
-  // Link-local fe80::/10 (fe8.. / fe9.. / fea.. / feb..)
-  || string.starts_with(host, "fe8")
-  || string.starts_with(host, "fe9")
-  || string.starts_with(host, "fea")
-  || string.starts_with(host, "feb")
-  // IPv4-mapped / IPv4-compatible addresses embedding a non-public IPv4
-  || embeds_non_public_ipv4(host)
-}
-
-fn embeds_non_public_ipv4(host: String) -> Bool {
-  case list.last(string.split(host, ":")) {
-    Ok(last) ->
-      case string.contains(last, ".") {
-        True ->
-          case parse_ipv4(last) {
-            Ok(octets) -> is_non_public_ipv4(octets)
-            Error(_) -> False
-          }
-        False -> False
-      }
-    Error(_) -> False
-  }
-}
-
-/// Fetch JSON from a URL with Bearer token authentication.
+/// Wrap an HTTPS request with an endpoint-appropriate response body cap.
 ///
-/// Builds a GET request with Authorization and Accept headers,
-/// checks the response status, and passes the body to the provided
-/// parser function. Used by provider strategies that need to call
-/// a userinfo or similar API endpoint.
-pub fn fetch_json_with_auth(
+/// The cap is enforced while bytes are read, for both fixed-length and chunked
+/// responses. Oversized responses are aborted before their bodies can be
+/// buffered in full.
+pub fn secure_request_with_limit(
+  http_request: request.Request(String),
+  response_limit: SecureResponseLimit,
+) -> Result(SecureRequest, AuthError(e)) {
+  let url =
+    http_request
+    |> request.to_uri
+    |> uri.to_string
+  use _ <- result.try(require_public_https_format(url))
+  Ok(SecureRequest(http_request, response_limit))
+}
+
+/// Return the method of an opaque secure request for deterministic testing.
+pub fn secure_request_method(secure_request: SecureRequest) -> http.Method {
+  let SecureRequest(http_request, _) = secure_request
+  http_request.method
+}
+
+/// Return the URI of an opaque secure request for deterministic testing.
+///
+/// This does not expose the underlying sendable `gleam_http` request.
+pub fn secure_request_uri(secure_request: SecureRequest) -> uri.Uri {
+  let SecureRequest(http_request, _) = secure_request
+  request.to_uri(http_request)
+}
+
+/// Return the body of an opaque secure request for deterministic testing.
+pub fn secure_request_body(secure_request: SecureRequest) -> String {
+  let SecureRequest(http_request, _) = secure_request
+  http_request.body
+}
+
+/// Return the response limit class of an opaque request for testing.
+pub fn secure_request_response_limit(
+  secure_request: SecureRequest,
+) -> SecureResponseLimit {
+  let SecureRequest(_, response_limit) = secure_request
+  response_limit
+}
+
+/// Read a header from an opaque secure request for deterministic testing.
+pub fn secure_request_header(
+  secure_request: SecureRequest,
+  name: String,
+) -> Result(String, Nil) {
+  let SecureRequest(http_request, _) = secure_request
+  request.get_header(http_request, name)
+}
+
+/// Send an opaque request only to a globally-routable destination.
+///
+/// The hostname is resolved once, every returned address is checked, and the
+/// selected validated address is placed directly in the connection URL. HTTPS
+/// requests retain the original hostname in both SNI/certificate verification
+/// and the Host header. Redirects are disabled so every subsequent URL must be
+/// independently validated and pinned. The response body is counted while it
+/// is read and the connection is closed immediately if the request's fixed
+/// endpoint cap is exceeded.
+pub fn send_public(
+  secure_request: SecureRequest,
+) -> Result(Response(String), AuthError(e)) {
+  let SecureRequest(http_request, response_limit) = secure_request
+  let url =
+    http_request
+    |> request.to_uri
+    |> uri.to_string
+  case public_http.send(http_request, response_limit_bytes(response_limit)) {
+    Ok(http_response) -> Ok(http_response)
+    Error(public_http.UnsafeTarget(reason)) ->
+      Error(error.config(reason: reason))
+    Error(public_http.NetworkFailure(reason)) ->
+      Error(error.network(
+        reason: "Failed to connect to " <> url <> ": " <> reason,
+      ))
+  }
+}
+
+fn response_limit_bytes(response_limit: SecureResponseLimit) -> Int {
+  case response_limit {
+    ProfileHtmlResponse -> 1_048_576
+    DiscoveryResponse -> 262_144
+    TokenResponse -> 65_536
+    UserInfoResponse -> 262_144
+  }
+}
+
+/// Build a JSON GET request with an Authorization header.
+///
+/// The URL is validated before the request is returned. This function performs
+/// no network I/O; send the request with any HTTP client and pass its response
+/// to `parse_json_response`.
+pub fn build_json_request_with_auth(
   url: String,
   auth_header: String,
-  parse: fn(String) -> Result(a, AuthError(e)),
   provider_name: String,
-) -> Result(a, AuthError(e)) {
+) -> Result(request.Request(String), AuthError(e)) {
   use _ <- result.try(require_https(url))
-  use req <- result.try(
+  use http_request <- result.try(
     request.to(url)
     |> result.map_error(fn(_) {
       error.config(
@@ -329,10 +360,42 @@ pub fn fetch_json_with_auth(
       )
     }),
   )
-  let req =
-    req
+  let http_request =
+    http_request
     |> request.set_header("authorization", auth_header)
     |> request.set_header("accept", "application/json")
+  Ok(http_request)
+}
+
+/// Parse a JSON HTTP response after it has been sent by the caller.
+///
+/// Checks the HTTP status and passes the successful response body to `parse`.
+/// This function performs no network I/O.
+pub fn parse_json_response(
+  response: Response(String),
+  parse: fn(String) -> Result(a, AuthError(e)),
+) -> Result(a, AuthError(e)) {
+  use body <- result.try(check_response_status(response))
+  parse(body)
+}
+
+/// Fetch JSON from a URL with Authorization authentication.
+///
+/// This convenience wrapper uses Vestibule’s public-destination transport. To
+/// supply a different HTTP client, build the request with
+/// `build_json_request_with_auth`, send it, and parse the response with
+/// `parse_json_response`.
+pub fn fetch_json_with_auth(
+  url: String,
+  auth_header: String,
+  parse: fn(String) -> Result(a, AuthError(e)),
+  provider_name: String,
+) -> Result(a, AuthError(e)) {
+  use http_request <- result.try(build_json_request_with_auth(
+    url,
+    auth_header,
+    provider_name,
+  ))
   logger.new(
     level: logger.Debug,
     event: "vestibule.provider.request.start",
@@ -342,7 +405,11 @@ pub fn fetch_json_with_auth(
     fields: [logger.field("endpoint", "user_info")],
   )
   |> logger.emit()
-  case httpc.send(req) {
+  use public_request <- result.try(secure_request_with_limit(
+    http_request,
+    UserInfoResponse,
+  ))
+  case send_public(public_request) {
     Ok(response) -> {
       use body <- result.try(check_response_status_for_endpoint(
         response,
@@ -351,7 +418,7 @@ pub fn fetch_json_with_auth(
       ))
       parse(body)
     }
-    Error(_) -> {
+    Error(send_error) -> {
       logger.new(
         level: logger.Error,
         event: "vestibule.provider.request.failure",
@@ -364,9 +431,7 @@ pub fn fetch_json_with_auth(
         ],
       )
       |> logger.emit()
-      Error(error.network(
-        reason: "Failed to connect to " <> provider_name <> " API: " <> url,
-      ))
+      Error(send_error)
     }
   }
 }
@@ -397,7 +462,7 @@ pub fn check_token_error(body: String) -> Result(String, AuthError(e)) {
   case json.parse(body, error_decoder) {
     Ok(#(code, description, uri)) ->
       Error(error.provider(code: code, description: description, uri: uri))
-    _ -> Ok(body)
+    Error(_) -> Ok(body)
   }
 }
 
@@ -430,25 +495,25 @@ pub fn parse_redirect_uri(
     option.Some("http") ->
       case parsed.host {
         option.Some("localhost") | option.Some("127.0.0.1") -> Ok(parsed)
-        _ -> https_error
+        option.Some(_) | option.None -> https_error
       }
-    _ -> https_error
+    option.Some(_) | option.None -> https_error
   }
 }
 
-/// Append additional query params to a URL.
+/// Append additional query parameters to a URL.
 pub fn append_query_params(
   url: String,
-  params: List(#(String, String)),
+  parameters: List(#(String, String)),
 ) -> String {
-  case params {
+  case parameters {
     [] -> url
     _ -> {
       let separator = case string.contains(url, "?") {
         True -> "&"
         False -> "?"
       }
-      url <> separator <> uri.query_to_string(params)
+      url <> separator <> uri.query_to_string(parameters)
     }
   }
 }
@@ -466,7 +531,7 @@ pub type ScopeParsing {
 pub fn parse_oauth_token_response(
   body: String,
   scope_parsing: ScopeParsing,
-) -> Result(credentials.Credentials, AuthError(e)) {
+) -> Result(credential.Credentials, AuthError(e)) {
   use body <- result.try(check_token_error(body))
   parse_oauth_token_success(body, scope_parsing)
 }
@@ -474,7 +539,7 @@ pub fn parse_oauth_token_response(
 fn parse_oauth_token_success(
   body: String,
   scope_parsing: ScopeParsing,
-) -> Result(credentials.Credentials, AuthError(e)) {
+) -> Result(credential.Credentials, AuthError(e)) {
   let decoder = {
     use access_token <- decode.field("access_token", decode.string)
     use token_type <- decode.field("token_type", decode.string)
@@ -499,8 +564,11 @@ fn parse_oauth_token_success(
 
   case json.parse(body, decoder) {
     Ok(credentials) -> Ok(credentials)
-    Error(err) ->
-      Error(error.decode(context: "token response", reason: string.inspect(err)))
+    Error(decode_error) ->
+      Error(error.decode(
+        context: "token response",
+        reason: string.inspect(decode_error),
+      ))
   }
 }
 
@@ -510,7 +578,7 @@ fn decode_token_credentials(
   token_type: String,
   expires_in: option.Option(Int),
   scope_parsing: ScopeParsing,
-) -> decode.Decoder(credentials.Credentials) {
+) -> decode.Decoder(credential.Credentials) {
   case scope_parsing {
     RequiredScope(separator) -> {
       use scope <- decode.field("scope", decode.string)
@@ -551,8 +619,8 @@ fn token_credentials(
   token_type: String,
   expires_in: option.Option(Int),
   scopes: List(String),
-) -> credentials.Credentials {
-  credentials.new(
+) -> credential.Credentials {
+  credential.new(
     token: access_token,
     refresh_token: refresh_token,
     token_type: token_type,

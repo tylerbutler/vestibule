@@ -8,9 +8,9 @@ pub fn generate_verifier_produces_43_char_string_test() -> Nil {
 }
 
 pub fn generate_verifier_produces_unique_values_test() -> Nil {
-  let a = pkce.generate_verifier()
-  let b = pkce.generate_verifier()
-  assert a != b
+  let first_verifier = pkce.generate_verifier()
+  let second_verifier = pkce.generate_verifier()
+  assert first_verifier != second_verifier
 }
 
 pub fn compute_challenge_produces_consistent_output_test() -> Nil {

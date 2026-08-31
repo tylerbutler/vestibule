@@ -9,7 +9,7 @@
 import gleam/bool
 import gleam/dynamic/decode
 import gleam/http/request
-import gleam/httpc
+import gleam/http/response
 import gleam/int
 import gleam/json
 import gleam/list
@@ -22,6 +22,7 @@ import presentable_soup as soup
 
 import vestibule/error.{type AuthError}
 import vestibule/provider_support
+import vestibule_indieauth/url
 
 /// Endpoints discovered from a user's IndieAuth server.
 pub type DiscoveredEndpoints {
@@ -37,6 +38,15 @@ pub type DiscoveredEndpoints {
   )
 }
 
+/// Result of parsing a profile-page discovery response.
+///
+/// A profile can either contain the authorization and token endpoint links
+/// directly, or point to a metadata document that requires one more request.
+pub type ProfileDiscovery {
+  EndpointsDiscovered(DiscoveredEndpoints)
+  MetadataRequired(url: String)
+}
+
 /// Discover IndieAuth endpoints from a user's profile URL.
 ///
 /// Fetches the URL and discovers endpoints using the three-tier fallback:
@@ -46,34 +56,67 @@ pub type DiscoveredEndpoints {
 pub fn discover_endpoints(
   profile_url: String,
 ) -> Result(DiscoveredEndpoints, AuthError(e)) {
-  use req <- result.try(
+  use http_request <- result.try(build_profile_request(profile_url))
+
+  use response <- result.try(provider_support.send_public(http_request))
+
+  use discovery <- result.try(parse_profile_response(profile_url, response))
+  case discovery {
+    EndpointsDiscovered(endpoints) -> Ok(endpoints)
+    MetadataRequired(metadata_url) -> fetch_metadata(metadata_url)
+  }
+}
+
+/// Build the request used to discover endpoints from a profile page.
+///
+/// The profile URL must be public HTTPS. The returned request is opaque and
+/// can only be sent with `provider_support.send_public`, so DNS validation and
+/// address pinning cannot be accidentally bypassed.
+pub fn build_profile_request(
+  profile_url: String,
+) -> Result(provider_support.SecureRequest, AuthError(e)) {
+  use profile_url <- result.try(url.validate_profile_url(profile_url))
+  use http_request <- result.try(
     request.to(profile_url)
     |> result.replace_error(error.config(
       reason: "Invalid profile URL: " <> profile_url,
     )),
   )
-
-  let req =
-    request.set_header(req, "accept", "text/html, application/xhtml+xml")
-
-  use response <- result.try(
-    httpc.send(req)
-    |> result.replace_error(error.network(
-      reason: "Failed to fetch profile URL: " <> profile_url,
-    )),
+  http_request
+  |> request.set_header("accept", "text/html, application/xhtml+xml")
+  |> provider_support.secure_request_with_limit(
+    provider_support.ProfileHtmlResponse,
   )
+}
 
-  case response.status {
-    status if status >= 200 && status < 300 -> {
-      let headers = response.headers
-      let body = response.body
-
-      // Try metadata discovery first
-      case find_metadata_url(headers, body, profile_url) {
-        Some(metadata_url) -> fetch_metadata(metadata_url)
-        None -> discover_from_link_rels(headers, body, profile_url)
+/// Parse a profile-page discovery HTTP response without performing I/O.
+pub fn parse_profile_response(
+  profile_url: String,
+  http_response: response.Response(String),
+) -> Result(ProfileDiscovery, AuthError(e)) {
+  case http_response.status {
+    status if status >= 200 && status < 300 ->
+      case
+        find_metadata_url(
+          http_response.headers,
+          http_response.body,
+          profile_url,
+        )
+      {
+        Some(metadata_url) -> {
+          use _ <- result.try(provider_support.require_public_https_format(
+            metadata_url,
+          ))
+          Ok(MetadataRequired(metadata_url))
+        }
+        None ->
+          discover_from_link_relations(
+            http_response.headers,
+            http_response.body,
+            profile_url,
+          )
+          |> result.map(EndpointsDiscovered)
       }
-    }
     status ->
       Error(error.network(
         reason: "Profile URL returned HTTP "
@@ -90,8 +133,8 @@ fn find_metadata_url(
   body: String,
   base_url: String,
 ) -> Option(String) {
-  find_link_header_rel(headers, "indieauth-metadata")
-  |> option.lazy_or(fn() { find_html_link_rel(body, "indieauth-metadata") })
+  find_link_header_relation(headers, "indieauth-metadata")
+  |> option.lazy_or(fn() { find_html_link_relation(body, "indieauth-metadata") })
   |> option.map(resolve_url(_, base_url))
 }
 
@@ -99,27 +142,41 @@ fn find_metadata_url(
 fn fetch_metadata(
   metadata_url: String,
 ) -> Result(DiscoveredEndpoints, AuthError(e)) {
-  // The metadata URL comes from the user's own page, so it is as untrusted
-  // as the endpoints it will yield.
-  use _ <- result.try(provider_support.require_public_https(metadata_url))
-  use req <- result.try(
+  use http_request <- result.try(build_metadata_request(metadata_url))
+
+  use response <- result.try(provider_support.send_public(http_request))
+
+  parse_metadata_response(metadata_url, response)
+}
+
+/// Build an IndieAuth metadata request without sending it.
+///
+/// The returned request is opaque and must be sent with
+/// `provider_support.send_public`.
+pub fn build_metadata_request(
+  metadata_url: String,
+) -> Result(provider_support.SecureRequest, AuthError(e)) {
+  use _ <- result.try(provider_support.require_public_https_format(metadata_url))
+  use http_request <- result.try(
     request.to(metadata_url)
     |> result.replace_error(error.config(
       reason: "Invalid metadata URL: " <> metadata_url,
     )),
   )
-
-  let req = request.set_header(req, "accept", "application/json")
-
-  use response <- result.try(
-    httpc.send(req)
-    |> result.replace_error(error.network(
-      reason: "Failed to fetch IndieAuth metadata: " <> metadata_url,
-    )),
+  http_request
+  |> request.set_header("accept", "application/json")
+  |> provider_support.secure_request_with_limit(
+    provider_support.DiscoveryResponse,
   )
+}
 
-  case response.status {
-    status if status >= 200 && status < 300 -> parse_metadata(response.body)
+/// Parse an IndieAuth metadata HTTP response without performing I/O.
+pub fn parse_metadata_response(
+  metadata_url: String,
+  http_response: response.Response(String),
+) -> Result(DiscoveredEndpoints, AuthError(e)) {
+  case http_response.status {
+    status if status >= 200 && status < 300 -> parse_metadata(http_response.body)
     status ->
       Error(error.network(
         reason: "Metadata endpoint returned HTTP "
@@ -161,27 +218,30 @@ pub fn parse_metadata(
 
   case json.parse(body, decoder) {
     Ok(endpoints) -> validate_endpoints(endpoints)
-    Error(err) ->
+    Error(parse_error) ->
       Error(error.config(
-        reason: "Failed to parse IndieAuth metadata: " <> string.inspect(err),
+        reason: "Failed to parse IndieAuth metadata: "
+        <> string.inspect(parse_error),
       ))
   }
 }
 
-/// Require every discovered endpoint to be a public HTTPS URL.
+/// Require every discovered endpoint to be a structurally safe HTTPS URL.
 ///
 /// Discovered endpoints are chosen by whoever controls the profile URL, so
 /// without this check a login attempt could point the server's token or
 /// userinfo requests at loopback, private, or cloud-metadata addresses
-/// (SSRF). Applied to metadata, link-relation discovery, and endpoints
-/// restored from `vestibule_indieauth.parse_endpoints`.
+/// (SSRF). Literal non-public addresses are rejected here. Immediately before
+/// each server-side request, `provider_support.send_public` additionally
+/// resolves every DNS answer, rejects mixed/non-public results, and pins the
+/// validated address to the connection.
 pub fn validate_endpoints(
   endpoints: DiscoveredEndpoints,
 ) -> Result(DiscoveredEndpoints, AuthError(e)) {
-  use _ <- result.try(provider_support.require_public_https(
+  use _ <- result.try(provider_support.require_public_https_format(
     endpoints.authorization_endpoint,
   ))
-  use _ <- result.try(provider_support.require_public_https(
+  use _ <- result.try(provider_support.require_public_https_format(
     endpoints.token_endpoint,
   ))
   use _ <- result.try(require_public_https_option(endpoints.issuer))
@@ -193,35 +253,35 @@ fn require_public_https_option(
   url: Option(String),
 ) -> Result(Nil, AuthError(e)) {
   case url {
-    Some(value) -> provider_support.require_public_https(value)
+    Some(value) -> provider_support.require_public_https_format(value)
     None -> Ok(Nil)
   }
 }
 
 /// Discover endpoints from direct link relations (legacy fallback).
-fn discover_from_link_rels(
+fn discover_from_link_relations(
   headers: List(#(String, String)),
   body: String,
   base_url: String,
 ) -> Result(DiscoveredEndpoints, AuthError(e)) {
   // Try HTTP Link headers first, fall back to HTML for each endpoint
-  let auth_endpoint =
-    find_link_header_rel(headers, "authorization_endpoint")
+  let authorization_endpoint =
+    find_link_header_relation(headers, "authorization_endpoint")
     |> option.lazy_or(fn() {
-      find_html_link_rel(body, "authorization_endpoint")
+      find_html_link_relation(body, "authorization_endpoint")
     })
     |> option.map(resolve_url(_, base_url))
 
   let token_endpoint =
-    find_link_header_rel(headers, "token_endpoint")
-    |> option.lazy_or(fn() { find_html_link_rel(body, "token_endpoint") })
+    find_link_header_relation(headers, "token_endpoint")
+    |> option.lazy_or(fn() { find_html_link_relation(body, "token_endpoint") })
     |> option.map(resolve_url(_, base_url))
 
-  case auth_endpoint, token_endpoint {
-    Some(auth), Some(token) ->
+  case authorization_endpoint, token_endpoint {
+    Some(authorization_endpoint), Some(token_endpoint) ->
       validate_endpoints(DiscoveredEndpoints(
-        authorization_endpoint: auth,
-        token_endpoint: token,
+        authorization_endpoint: authorization_endpoint,
+        token_endpoint: token_endpoint,
         issuer: None,
         userinfo_endpoint: None,
       ))
@@ -230,7 +290,13 @@ fn discover_from_link_rels(
         reason: "Found authorization_endpoint but no token_endpoint at "
         <> base_url,
       ))
-    None, _ ->
+    None, Some(_) ->
+      Error(error.config(
+        reason: "Could not discover IndieAuth endpoints at "
+        <> base_url
+        <> ". No indieauth-metadata or authorization_endpoint found.",
+      ))
+    None, None ->
       Error(error.config(
         reason: "Could not discover IndieAuth endpoints at "
         <> base_url
@@ -243,15 +309,15 @@ fn discover_from_link_rels(
 ///
 /// Handles the format: `<URL>; rel="value"` or `<URL>; rel=value`
 /// Exported for testing.
-pub fn find_link_header_rel(
+pub fn find_link_header_relation(
   headers: List(#(String, String)),
-  rel: String,
+  relation: String,
 ) -> Option(String) {
   headers
   |> list.filter_map(fn(header) {
     let #(name, value) = header
     case string.lowercase(name) == "link" {
-      True -> parse_link_header_value(value, rel)
+      True -> parse_link_header_value(value, relation)
       False -> Error(Nil)
     }
   })
@@ -262,7 +328,7 @@ pub fn find_link_header_rel(
 /// Parse a single Link header value to extract URL for a given rel.
 fn parse_link_header_value(
   value: String,
-  target_rel: String,
+  target_relation: String,
 ) -> Result(String, Nil) {
   // Link headers can contain multiple comma-separated entries
   let entries = string.split(value, ",")
@@ -271,9 +337,9 @@ fn parse_link_header_value(
     let entry = string.trim(entry)
     // Extract URL between < and >
     use #(_, rest) <- result.try(string.split_once(entry, "<"))
-    use #(url, params) <- result.try(string.split_once(rest, ">"))
+    use #(url, parameters) <- result.try(string.split_once(rest, ">"))
     use <- bool.guard(
-      when: !has_rel_param(params, target_rel),
+      when: !has_relation_parameter(parameters, target_relation),
       return: Error(Nil),
     )
     Ok(string.trim(url))
@@ -281,35 +347,42 @@ fn parse_link_header_value(
   |> list.first()
 }
 
-/// Check if a Link header params string contains the target rel value.
-fn has_rel_param(params: String, target_rel: String) -> Bool {
-  let params_lower = string.lowercase(params)
-  let target_lower = string.lowercase(target_rel)
+/// Check if Link header parameters contain the target relation value.
+fn has_relation_parameter(parameters: String, target_relation: String) -> Bool {
+  let lowercase_parameters = string.lowercase(parameters)
+  let lowercase_target = string.lowercase(target_relation)
 
   // Look for rel="value" or rel=value
-  string.contains(params_lower, "rel=\"" <> target_lower <> "\"")
-  || string.contains(params_lower, "rel=" <> target_lower)
+  string.contains(lowercase_parameters, "rel=\"" <> lowercase_target <> "\"")
+  || string.contains(lowercase_parameters, "rel=" <> lowercase_target)
 }
 
 /// Find an HTML `<link>` element with the given rel attribute.
 ///
 /// Uses presentable_soup for robust HTML parsing.
 /// Exported for testing.
-pub fn find_html_link_rel(html: String, rel: String) -> Option(String) {
+pub fn find_html_link_relation(
+  html: String,
+  relation: String,
+) -> Option(String) {
   let query =
-    soup.elements([soup.with_tag("link"), soup.with_attribute("rel", rel)])
+    soup.elements([
+      soup.with_tag("link"),
+      soup.with_attribute("rel", relation),
+    ])
     |> soup.return(soup.attributes())
     |> soup.scrape(html)
 
   case query {
-    Ok([attrs, ..]) -> find_href(attrs)
-    _ -> None
+    Ok([attributes, ..]) -> find_href(attributes)
+    Ok([]) -> None
+    Error(_) -> None
   }
 }
 
 /// Extract the href from a list of element attributes.
-fn find_href(attrs: List(#(String, String))) -> Option(String) {
-  list.key_find(attrs, "href")
+fn find_href(attributes: List(#(String, String))) -> Option(String) {
+  list.key_find(attributes, "href")
   |> option.from_result()
 }
 
@@ -346,12 +419,12 @@ fn resolve_path(base_path: String, relative_path: String) -> String {
     return: relative_path,
   )
   // Remove the last segment from base path and append relative
-  let base_dir = case string.split(base_path, "/") {
+  let base_directory = case string.split(base_path, "/") {
     [] -> "/"
     segments -> {
-      let dir_segments = list.take(segments, list.length(segments) - 1)
-      string.join(dir_segments, "/")
+      let directory_segments = list.take(segments, list.length(segments) - 1)
+      string.join(directory_segments, "/")
     }
   }
-  base_dir <> "/" <> relative_path
+  base_directory <> "/" <> relative_path
 }

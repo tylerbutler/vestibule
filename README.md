@@ -84,7 +84,7 @@ let assert Ok(auth) =
     expected_nonce: option.None,
   )
 // Delete the stored state and code verifier after a successful callback.
-// auth.uid(auth), user_info.email(auth.info(auth)), credentials.token(auth.credentials(auth))
+// auth.uid(auth), user_info.email(auth.info(auth)), credential.token(auth.credentials(auth))
 ```
 
 `ClientConfig` is durable app/provider configuration: client ID, redirect URI,
@@ -119,7 +119,7 @@ let assert Ok(registry) =
       auth: config.ClientSecret("client_secret"),
     ),
   )
-let assert Ok(store) = state_store.try_init()
+let assert Ok(store) = state_store.create()
 
 // In your router
 case wisp.path_segments(request), request.method {
@@ -144,12 +144,12 @@ case wisp.path_segments(request), request.method {
 ```
 
 The state store creates a named ETS table, so initialize it once per BEAM
-VM at startup. Use `state_store.try_init` if you want to handle
+VM at startup. Use `state_store.create` if you want to handle
 duplicate-table errors explicitly. The same store can be shared between
 `vestibule_wisp` and `vestibule_mist`.
 
 Starting a flow is unauthenticated, so the store is bounded: it holds at most
-100 000 live sessions by default (`state_store.try_init_with_capacity` to
+100 000 live sessions by default (`state_store.create_with_capacity` to
 change it) and refuses new flows with `StoreFull` once full. Expired sessions
 are rejected on read, reclaimed on demand when the store is at capacity, and
 swept periodically; inserts are O(1). Rate-limit the request endpoint upstream
@@ -188,7 +188,7 @@ import vestibule/config
 import vestibule/state_store
 import vestibule_mist
 
-let assert Ok(store) = state_store.try_init()
+let assert Ok(store) = state_store.create()
 let assert Ok(options) = vestibule_mist.new_options(secret_key_base)
 
 fn handle_request(http_request: Request(Connection)) -> Response(ResponseData) {
@@ -399,6 +399,48 @@ found issues. Do not rely on vestibule to secure a production system.
 The root package has two intended public surfaces for the planned 1.0 API.
 Before 1.0, this API is still subject to change.
 
+### Sans-IO provider requests
+
+Every provider exposes request construction separately from HTTP response
+parsing. Providers with fixed, trusted endpoints return ordinary `gleam_http`
+requests, so applications can use `httpc`, another compatible HTTP client, or a
+test double:
+
+```gleam
+let assert Ok(request) =
+  vestibule_github.build_authorization_code_request(
+    client_config,
+    code,
+    code_verifier,
+  )
+let assert Ok(response) = my_http_client(request)
+let assert Ok(exchange) =
+  vestibule_github.parse_authorization_code_response(response)
+```
+
+Equivalent `build_refresh_token_request`, `build_user_info_request`, and
+`parse_*_response` functions are available for each provider. Apple exposes
+JWKS request/response functions in `vestibule_apple/jwks`.
+
+OIDC discovery and IndieAuth use destinations selected by remote or user
+controlled data. Their builders return an opaque
+`provider_support.SecureRequest`, not an ordinary sendable request. Send it only
+with `provider_support.send_public`, which validates all DNS answers, pins the
+connection to a validated address, preserves HTTPS hostname verification and
+the `Host` header, disables redirects, and reads each response incrementally
+under a fixed endpoint-specific body cap. Profile HTML is limited to 1 MiB,
+discovery metadata and JWKS to 256 KiB, token responses to 64 KiB, and userinfo
+responses to 256 KiB. Oversized declared or chunked responses are aborted and
+their isolated socket is closed immediately. Custom dynamic-endpoint builders
+can select the same safe classes with
+`provider_support.secure_request_with_limit`; arbitrary byte limits are not
+accepted. Their `parse_*_response` functions remain pure sans-IO parsers.
+
+The existing `strategy()` and discovery convenience functions remain available.
+Static providers continue to use `gleam_httpc`; dynamic providers use the
+pinning secure transport. The sans-IO parsers support deterministic response
+tests without weakening dynamic-destination security.
+
 **Application API** modules are for apps that run OAuth flows directly or through
 the middleware packages:
 
@@ -406,7 +448,7 @@ the middleware packages:
 - `vestibule/auth`
 - `vestibule/authorization_request`
 - `vestibule/config`
-- `vestibule/credentials`
+- `vestibule/credential`
 - `vestibule/error`
 - `vestibule/registry`
 - `vestibule/state_store`

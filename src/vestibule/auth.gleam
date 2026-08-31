@@ -3,7 +3,7 @@
 
 import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
-import vestibule/credentials.{type Credentials}
+import vestibule/credential.{type Credentials}
 import vestibule/user_info.{type UserInfo}
 
 /// The normalized result of a successful authentication.

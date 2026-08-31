@@ -1,0 +1,3 @@
+package = "vestibule_github"
+kind = "Added"
+body = "Expose separate OAuth request builders and response parsers for sans-I/O integrations"

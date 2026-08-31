@@ -1,41 +1,96 @@
 -module(vestibule_apple_jwt_ffi).
 
--export([verify/3, sign_hmac/3]).
+-export([verify/3, sign/2]).
 
 -include_lib("public_key/include/public_key.hrl").
--include_lib("ywt_core/include/ywt@verify_key_VerifyEcdsa.hrl").
--include_lib("ywt_core/include/ywt@verify_key_VerifyHmac.hrl").
+-include_lib("ywt_core/include/ywt@verify_key_VerifyRsa.hrl").
+-include_lib("ywt_core/include/ywt@sign_key_SignRsaSimple.hrl").
+-include_lib("ywt_core/include/ywt@sign_key_SignRsaFull.hrl").
 
-%% Verify an ECDSA signature (ES256/ES384/ES512).
-%% Used for verifying Apple's JWT ID tokens against their JWKS public keys.
+%% Apple ID tokens are exclusively RS256. Keep the accepted key shape and
+%% algorithm narrow so callers cannot substitute an HMAC or ECDSA key.
 verify(Message,
        Signature,
-       #verify_ecdsa{curve = Curve,
-                     digest_type = DigestType,
-                     public_key = PublicKey}) ->
-    {RBin, SBin} = split_binary(Signature, byte_size(Signature) div 2),
-    R = crypto:bytes_to_integer(RBin),
-    S = crypto:bytes_to_integer(SBin),
-    DerSignature = public_key:der_encode('ECDSA-Sig-Value',
-                                          #'ECDSA-Sig-Value'{r = R, s = S}),
-    Params = {#'ECPoint'{point = PublicKey}, {namedCurve, Curve}},
-    case catch public_key:verify(Message, DigestType, DerSignature, Params) of
-        true -> true;
-        _ -> false
+       #verify_rsa{digest_type = sha256,
+                   exponent = Exponent,
+                   modulus = Modulus,
+                   padding = rsa_pkcs1_padding})
+  when is_binary(Message),
+       is_binary(Signature),
+       is_integer(Exponent),
+       Exponent > 1,
+       is_integer(Modulus),
+       Modulus > 0 ->
+    PublicKey = #'RSAPublicKey'{modulus = Modulus,
+                                publicExponent = Exponent},
+    try
+        public_key:verify(Message,
+                          sha256,
+                          Signature,
+                          PublicKey,
+                          [{rsa_padding, rsa_pkcs1_padding}])
+    catch
+        _:_ -> false
     end;
+verify(_Message, _Signature, _Key) ->
+    false.
 
-%% Verify an HMAC signature (HS256/HS384/HS512).
-%% Used in tests.
-verify(Message,
-       Signature,
-       #verify_hmac{digest_type = DigestType, secret = Secret}) ->
-    case catch crypto:hash_equals(
-                   crypto:mac(hmac, DigestType, Secret, Message), Signature)
-    of
-        true -> true;
-        _ -> false
-    end.
+%% Test support for producing realistic RSA JWT fixtures. Production code only
+%% calls verify/3.
+sign(Message,
+     #sign_rsa_simple{digest_type = DigestType,
+                      public_exponent = Exponent,
+                      modulus = Modulus,
+                      private_exponent = PrivateExponent,
+                      padding = Padding}) ->
+    sign_rsa(Message,
+             DigestType,
+             Padding,
+             #'RSAPrivateKey'{version = 'two-prime',
+                              modulus = Modulus,
+                              publicExponent = Exponent,
+                              privateExponent = PrivateExponent,
+                              otherPrimeInfos = asn1_NOVALUE});
+sign(Message,
+     #sign_rsa_full{digest_type = DigestType,
+                    public_exponent = PublicExponent,
+                    modulus = Modulus,
+                    private_exponent = PrivateExponent,
+                    first_prime_factor = FirstPrime,
+                    second_prime_factor = SecondPrime,
+                    first_factor_crt_exponent = FirstExponent,
+                    second_factor_crt_exponent = SecondExponent,
+                    first_crt_coefficient = Coefficient,
+                    other_primes_info = OtherPrimes,
+                    padding = Padding}) ->
+    OtherPrimeInfos =
+        case OtherPrimes of
+            [] -> asn1_NOVALUE;
+            _ ->
+                lists:map(
+                  fun({Prime, OtherExponent, PrimeCoefficient}) ->
+                          #'OtherPrimeInfo'{prime = Prime,
+                                            exponent = OtherExponent,
+                                            coefficient = PrimeCoefficient}
+                  end,
+                  OtherPrimes)
+        end,
+    sign_rsa(Message,
+             DigestType,
+             Padding,
+             #'RSAPrivateKey'{version = 'two-prime',
+                              modulus = Modulus,
+                              publicExponent = PublicExponent,
+                              privateExponent = PrivateExponent,
+                              prime1 = FirstPrime,
+                              prime2 = SecondPrime,
+                              exponent1 = FirstExponent,
+                              exponent2 = SecondExponent,
+                              coefficient = Coefficient,
+                              otherPrimeInfos = OtherPrimeInfos}).
 
-%% Sign with HMAC (for tests only — no EC key generation needed).
-sign_hmac(Message, DigestType, Secret) ->
-    crypto:mac(hmac, DigestType, Secret, Message).
+sign_rsa(Message, DigestType, Padding, PrivateKey) ->
+    public_key:sign(Message,
+                    DigestType,
+                    PrivateKey,
+                    [{rsa_padding, Padding}]).

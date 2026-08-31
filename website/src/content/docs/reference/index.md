@@ -47,7 +47,7 @@ Vestibule packages are not published on Hex. Follow the [installation guide](/do
 | `vestibule` | [`vestibule/auth`](/docs/reference/vestibule-auth) | Authentication result types returned to the calling application after a successful OAuth/OIDC flow. |
 | `vestibule` | [`vestibule/authorization_request`](/docs/reference/vestibule-authorization_request) | An opaque value carrying everything the middleware needs to start an authorization flow: the URL to redirect the browser to, the CSRF `state`, the PKCE `code_verifier`, and an optional OIDC `nonce`, all of which must be stored for the callback. |
 | `vestibule` | [`vestibule/config`](/docs/reference/vestibule-config) | OAuth client configuration and per-authorization request options. |
-| `vestibule` | [`vestibule/credentials`](/docs/reference/vestibule-credentials) | Bearer credentials returned by a provider after a successful token exchange or refresh. |
+| `vestibule` | [`vestibule/credential`](/docs/reference/vestibule-credential) | Bearer credentials returned by a provider after a successful token exchange or refresh. |
 | `vestibule` | [`vestibule/error`](/docs/reference/vestibule-error) | Authentication error types. |
 | `vestibule` | [`vestibule/logger`](/docs/reference/vestibule-logger) | Reference for vestibule/logger. |
 | `vestibule` | [`vestibule/nonce`](/docs/reference/vestibule-nonce) | OIDC `nonce` generation and constant-time validation. A fresh 256-bit base64url nonce is minted for every OIDC authorization request, sent as the `nonce` authorize-request parameter, and echoed back by the provider in the signed `id_token`. On callback the value read from the id_token is compared against the stored value to bind the token to this browser session, preventing id_token replay/injection. |

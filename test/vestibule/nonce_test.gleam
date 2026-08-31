@@ -7,9 +7,9 @@ pub fn generate_produces_nonempty_string_test() -> Nil {
 }
 
 pub fn generate_produces_unique_values_test() -> Nil {
-  let a = nonce.generate()
-  let b = nonce.generate()
-  assert a != b
+  let first_nonce = nonce.generate()
+  let second_nonce = nonce.generate()
+  assert first_nonce != second_nonce
 }
 
 pub fn validate_accepts_matching_values_test() -> Nil {

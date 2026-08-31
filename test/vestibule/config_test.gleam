@@ -4,62 +4,62 @@ import vestibule/config
 import vestibule/error
 
 pub fn new_creates_client_config_test() -> Nil {
-  let c =
+  let client_config =
     config.new(
       client_id: "id",
       redirect_uri: "http://localhost/callback",
       auth: config.ClientSecret("secret"),
     )
 
-  assert config.client_id(c) == "id"
-  assert config.redirect_uri(c) == "http://localhost/callback"
-  assert config.client_auth(c) == config.ClientSecret("secret")
+  assert config.client_id(client_config) == "id"
+  assert config.redirect_uri(client_config) == "http://localhost/callback"
+  assert config.client_auth(client_config) == config.ClientSecret("secret")
 }
 
 pub fn client_secret_returns_secret_for_secret_auth_test() -> Nil {
-  let c =
+  let client_config =
     config.new(
       client_id: "id",
       redirect_uri: "http://localhost/callback",
       auth: config.ClientSecret("secret"),
     )
 
-  assert config.client_secret(c) == Ok("secret")
+  assert config.client_secret(client_config) == Ok("secret")
 }
 
 pub fn client_secret_rejects_assertion_auth_test() -> Nil {
-  let c =
+  let client_config =
     config.new(
       client_id: "id",
       redirect_uri: "http://localhost/callback",
       auth: config.ClientAssertion("assertion"),
     )
 
-  case config.client_secret(c) {
-    Error(err) -> {
-      assert error.kind(err) == error.ConfigKind
-      assert error.message(err)
+  case config.client_secret(client_config) {
+    Error(auth_error) -> {
+      assert error.kind(auth_error) == error.ConfigKind
+      assert error.message(auth_error)
         == "Invalid configuration: Client authentication does not provide a client_secret"
     }
-    _ -> panic as "expected ConfigError for client assertion"
+    Ok(_) -> panic as "expected ConfigError for client assertion"
   }
 }
 
 pub fn client_secret_rejects_public_client_test() -> Nil {
-  let c =
+  let client_config =
     config.new(
       client_id: "id",
       redirect_uri: "http://localhost/callback",
       auth: config.PublicClient,
     )
 
-  case config.client_secret(c) {
-    Error(err) -> {
-      assert error.kind(err) == error.ConfigKind
-      assert error.message(err)
+  case config.client_secret(client_config) {
+    Error(auth_error) -> {
+      assert error.kind(auth_error) == error.ConfigKind
+      assert error.message(auth_error)
         == "Invalid configuration: Client authentication does not provide a client_secret"
     }
-    _ -> panic as "expected ConfigError for public client"
+    Ok(_) -> panic as "expected ConfigError for public client"
   }
 }
 
@@ -79,7 +79,7 @@ pub fn with_scopes_replaces_authorize_option_scopes_test() -> Nil {
   assert config.scopes(options) == ["profile"]
 }
 
-pub fn with_extra_params_adds_authorize_option_params_test() -> Nil {
+pub fn with_extra_parameters_adds_authorize_option_parameters_test() -> Nil {
   let assert Ok(options) =
     config.authorize_options()
     |> config.with_extra_params([#("allow_signup", "false")])
@@ -88,10 +88,13 @@ pub fn with_extra_params_adds_authorize_option_params_test() -> Nil {
     == dict.from_list([#("allow_signup", "false")])
 }
 
-pub fn with_extra_params_merges_across_calls_test() -> Nil {
+pub fn with_extra_parameters_merges_across_calls_test() -> Nil {
   let assert Ok(options) =
     config.authorize_options()
-    |> config.with_extra_params([#("allow_signup", "false"), #("login", "a")])
+    |> config.with_extra_params([
+      #("allow_signup", "false"),
+      #("login", "a"),
+    ])
   let assert Ok(options) =
     options
     |> config.with_extra_params([#("login", "b"), #("prompt", "consent")])
@@ -104,31 +107,31 @@ pub fn with_extra_params_merges_across_calls_test() -> Nil {
     ])
 }
 
-pub fn with_extra_params_rejects_reserved_authorization_params_test() -> Nil {
-  assert_reserved_param_rejected("response_type")
-  assert_reserved_param_rejected("client_id")
-  assert_reserved_param_rejected("redirect_uri")
-  assert_reserved_param_rejected("scope")
-  assert_reserved_param_rejected("state")
-  assert_reserved_param_rejected("code_challenge")
-  assert_reserved_param_rejected("code_challenge_method")
-  assert_reserved_param_rejected("nonce")
-  assert_reserved_param_rejected("response_mode")
+pub fn with_extra_parameters_rejects_reserved_authorization_parameters_test() -> Nil {
+  assert_reserved_parameter_rejected("response_type")
+  assert_reserved_parameter_rejected("client_id")
+  assert_reserved_parameter_rejected("redirect_uri")
+  assert_reserved_parameter_rejected("scope")
+  assert_reserved_parameter_rejected("state")
+  assert_reserved_parameter_rejected("code_challenge")
+  assert_reserved_parameter_rejected("code_challenge_method")
+  assert_reserved_parameter_rejected("nonce")
+  assert_reserved_parameter_rejected("response_mode")
 }
 
-fn assert_reserved_param_rejected(param: String) -> Nil {
+fn assert_reserved_parameter_rejected(parameter: String) -> Nil {
   let result =
     config.authorize_options()
-    |> config.with_extra_params([#(param, "attacker-value")])
+    |> config.with_extra_params([#(parameter, "attacker-value")])
 
   case result {
-    Error(err) -> {
-      assert error.kind(err) == error.ConfigKind
+    Error(auth_error) -> {
+      assert error.kind(auth_error) == error.ConfigKind
       assert string.contains(
-        error.message(err),
-        "Reserved authorization parameter not allowed: " <> param,
+        error.message(auth_error),
+        "Reserved authorization parameter not allowed: " <> parameter,
       )
     }
-    _ -> panic as "expected ConfigError for reserved authorization parameter"
+    Ok(_) -> panic as "expected ConfigError for reserved authorization parameter"
   }
 }

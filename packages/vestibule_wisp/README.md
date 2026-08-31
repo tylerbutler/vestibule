@@ -48,7 +48,7 @@ Initialize the state store once per BEAM VM at application startup:
 ```gleam
 import vestibule/config
 
-let assert Ok(store) = state_store.try_init()
+let assert Ok(store) = state_store.create()
 ```
 
 Then pass that store to the request and callback phases:
@@ -208,14 +208,14 @@ decoded as UTF-8, or parsed as form data, callback handling returns
 public `StateStore` type is opaque; applications should create and use
 stores through the module functions.
 
-- Use `try_init` or `try_init_named` when you want to handle duplicate table
+- Use `create` or `create_named` when you want to handle duplicate table
   errors explicitly.
 - `init`, `init_named`, and `store` are panic-on-error convenience wrappers for
   application startup and simple examples.
 - `retrieve` consumes state exactly once.
 - Expired sessions are treated as missing and removed from the store.
 - A store holds at most 100 000 live sessions by default
-  (`try_init_with_capacity` to change it); once full, `request_phase` fails
+  (`create_with_capacity` to change it); once full, `request_phase` fails
   with a generic error until sessions are consumed or expire. Rate-limit
   `/auth/*` upstream if that bound is not enough for you.
 - The same store can be shared with `vestibule_mist`; a single ETS owner

@@ -12,7 +12,7 @@
 ////
 //// // Use with vestibule's standard two-phase flow
 //// let options = config.authorize_options()
-//// let assert Ok(auth_request) =
+//// let assert Ok(authorization_request) =
 ////   vestibule.create_authorization_request(strategy, config: client_config, options: options)
 //// ```
 ////
@@ -35,7 +35,7 @@ import gleam/string
 import gleam/uri
 
 import vestibule/config.{type AuthorizeOptions, type ClientConfig}
-import vestibule/credentials.{type Credentials}
+import vestibule/credential.{type Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/strategy.{type Strategy, type UserResult}
 import vestibule/user_info
@@ -67,7 +67,7 @@ import vestibule_indieauth/url
 ///     auth: config.PublicClient,
 ///   )
 /// let options = config.authorize_options()
-/// let assert Ok(auth_request) =
+/// let assert Ok(authorization_request) =
 ///   vestibule.create_authorization_request(strategy, config: client_config, options: options)
 /// ```
 pub fn discover(user_url: String) -> Result(Strategy(e), AuthError(e)) {
@@ -178,6 +178,7 @@ pub fn parse_endpoints(
     )),
   )
   use endpoints <- result.try(discovery.validate_endpoints(endpoints))
+  use me <- result.try(url.validate_profile_url(me))
   Ok(#(endpoints, me))
 }
 
@@ -213,8 +214,8 @@ fn do_authorize_url(
   state: String,
 ) -> Result(String, AuthError(e)) {
   let scope = string.join(scopes, " ")
-  let extra_params = config.extra_params(options)
-  case dict.get(extra_params, "me") {
+  let extra_parameters = config.extra_params(options)
+  case dict.get(extra_parameters, "me") {
     Ok(_) ->
       Error(error.config(
         reason: "Reserved authorization parameter not allowed: me",
@@ -226,7 +227,7 @@ fn do_authorize_url(
         client_config,
         scope,
         state,
-        extra_params,
+        extra_parameters,
       )
   }
 }
@@ -237,19 +238,19 @@ fn build_authorize_url(
   client_config: ClientConfig,
   scope: String,
   state: String,
-  extra_params: dict.Dict(String, String),
+  extra_parameters: dict.Dict(String, String),
 ) -> Result(String, AuthError(e)) {
-  let params = [
+  let parameters = [
     #("response_type", "code"),
     #("client_id", config.client_id(client_config)),
     #("redirect_uri", config.redirect_uri(client_config)),
     #("state", state),
     #("scope", scope),
     #("me", me),
-    ..dict.to_list(extra_params)
+    ..dict.to_list(extra_parameters)
   ]
   let query =
-    params
+    parameters
     |> uri.query_to_string()
   let separator = case string.contains(endpoints.authorization_endpoint, "?") {
     True -> "&"
@@ -314,7 +315,7 @@ fn do_fetch_user(
   case endpoints.userinfo_endpoint {
     Some(userinfo_url) -> {
       let oauth_credentials = strategy.exchange_credentials(exchange)
-      use #(userinfo_me, info) <- result.try(token.fetch_userinfo(
+      use #(userinfo_me, profile_info) <- result.try(token.fetch_userinfo(
         userinfo_url,
         oauth_credentials,
       ))
@@ -324,7 +325,11 @@ fn do_fetch_user(
         expected_me: verified_me,
         actual_me: userinfo_me,
       ))
-      Ok(strategy.user_result(uid: verified_me, info: info, extra: dict.new()))
+      Ok(strategy.user_result(
+        uid: verified_me,
+        info: profile_info,
+        extra: dict.new(),
+      ))
     }
     None ->
       Ok(strategy.user_result(

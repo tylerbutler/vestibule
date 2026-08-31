@@ -18,7 +18,7 @@ import vestibule/provider_support
 /// Validate a user profile URL per IndieAuth spec Section 3.2.
 ///
 /// Profile URLs MUST:
-/// - Have `https` or `http` scheme
+/// - Have an `https` scheme
 /// - Contain a path component (`/` is valid)
 /// - Not contain single-dot or double-dot path segments
 /// - Not contain a fragment
@@ -45,15 +45,16 @@ fn validate_profile_uri(
   url: String,
 ) -> Result(String, AuthError(e)) {
   use _ <- result.try(case parsed.scheme {
-    Some("https") | Some("http") -> Ok(Nil)
+    Some("https") -> Ok(Nil)
     Some(scheme) ->
       Error(error.config(
-        reason: "Profile URL must use https or http scheme, got: " <> scheme,
+        reason: "Profile URL must use https scheme, got: " <> scheme,
       ))
     None -> Error(error.config(reason: "Profile URL is missing a scheme"))
   })
   use _ <- result.try(case parsed.host {
-    Some(host) if host != "" ->
+    Some("") -> Error(error.config(reason: "Profile URL is missing a host"))
+    Some(host) ->
       case is_ip_address(host) {
         True ->
           Error(error.config(
@@ -62,9 +63,9 @@ fn validate_profile_uri(
           ))
         False -> Ok(Nil)
       }
-    _ -> Error(error.config(reason: "Profile URL is missing a host"))
+    None -> Error(error.config(reason: "Profile URL is missing a host"))
   })
-  use _ <- result.try(provider_support.require_public_host(url))
+  use _ <- result.try(provider_support.require_public_host_format(url))
   use _ <- result.try(case parsed.port {
     Some(_) ->
       Error(error.config(reason: "Profile URL must not contain a port"))
@@ -96,6 +97,9 @@ fn validate_profile_uri(
 /// - If no scheme, prepend `https://`
 /// - If no path, append `/`
 /// - Lowercase the host
+///
+/// An explicitly supplied non-HTTPS scheme is preserved so validation can
+/// reject it rather than silently changing the claimed identity.
 pub fn canonicalize(raw_url: String) -> String {
   let url = case
     string.starts_with(raw_url, "http://")
@@ -108,12 +112,12 @@ pub fn canonicalize(raw_url: String) -> String {
   case uri.parse(url) {
     Ok(parsed) -> {
       let host = case parsed.host {
-        Some(h) -> Some(string.lowercase(h))
+        Some(host) -> Some(string.lowercase(host))
         None -> None
       }
       let path = case parsed.path {
         "" -> "/"
-        p -> p
+        path -> path
       }
       uri.to_string(uri.Uri(
         scheme: parsed.scheme,
@@ -133,23 +137,23 @@ pub fn canonicalize(raw_url: String) -> String {
 fn is_ip_address(host: String) -> Bool {
   use <- bool.guard(when: string.starts_with(host, "["), return: True)
   string.to_graphemes(host)
-  |> list.all(fn(c) {
-    c == "."
-    || c == "0"
-    || c == "1"
-    || c == "2"
-    || c == "3"
-    || c == "4"
-    || c == "5"
-    || c == "6"
-    || c == "7"
-    || c == "8"
-    || c == "9"
+  |> list.all(fn(character) {
+    character == "."
+    || character == "0"
+    || character == "1"
+    || character == "2"
+    || character == "3"
+    || character == "4"
+    || character == "5"
+    || character == "6"
+    || character == "7"
+    || character == "8"
+    || character == "9"
   })
 }
 
 /// Check if a path contains . or .. segments.
 fn has_dot_segments(path: String) -> Bool {
   string.split(path, "/")
-  |> list.any(fn(seg) { seg == "." || seg == ".." })
+  |> list.any(fn(segment) { segment == "." || segment == ".." })
 }

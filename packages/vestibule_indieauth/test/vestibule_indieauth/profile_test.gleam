@@ -67,8 +67,8 @@ pub fn different_me_on_same_server_is_accepted_test() -> Nil {
     expected_me: me,
     returned_me: returned,
     endpoints: endpoints(),
-    rediscover: fn(url) {
-      url
+    rediscover: fn(profile_url) {
+      profile_url
       |> fn(actual) {
         assert actual == returned
       }
@@ -99,12 +99,12 @@ pub fn different_me_with_different_authorization_endpoint_is_rejected_test() -> 
         )
       },
     )
-  let assert Error(err) = result
-  error.kind(err)
+  let assert Error(auth_error) = result
+  error.kind(auth_error)
   |> fn(actual) {
     assert actual == error.UserInfoKind
   }
-  error.message(err)
+  error.message(auth_error)
   |> string.contains("authorization server")
   |> fn(actual) {
     assert actual
@@ -172,6 +172,17 @@ pub fn invalid_returned_me_is_rejected_test() -> Nil {
   Nil
 }
 
+pub fn http_returned_me_is_rejected_test() -> Nil {
+  let assert Error(auth_error) =
+    profile.confirm_profile_url(
+      expected_me: me,
+      returned_me: "http://me.example.com/",
+      endpoints: endpoints(),
+      rediscover: fn(_) { Ok(endpoints()) },
+    )
+  assert error.kind(auth_error) == error.UserInfoKind
+}
+
 // === require_same_profile_url ===
 
 pub fn require_same_profile_url_accepts_canonical_match_test() -> Nil {
@@ -194,8 +205,8 @@ pub fn require_same_profile_url_rejects_mismatch_test() -> Nil {
       expected_me: me,
       actual_me: "https://victim.example.com/",
     )
-  let assert Error(err) = result
-  error.kind(err)
+  let assert Error(auth_error) = result
+  error.kind(auth_error)
   |> fn(actual) {
     assert actual == error.UserInfoKind
   }

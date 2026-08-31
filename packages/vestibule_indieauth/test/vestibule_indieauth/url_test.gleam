@@ -13,15 +13,9 @@ pub fn valid_https_url_test() -> Nil {
   }
 }
 
-pub fn valid_http_url_test() -> Nil {
-  url.validate_profile_url("http://example.com/")
-  |> fn(result) {
-    let assert Ok(value) = result
-    value
-  }
-  |> fn(actual) {
-    assert actual == "http://example.com/"
-  }
+pub fn rejects_http_url_test() -> Nil {
+  let assert Error(_) = url.validate_profile_url("http://example.com/")
+  Nil
 }
 
 pub fn valid_url_with_path_test() -> Nil {
@@ -158,7 +152,7 @@ pub fn canonicalize_preserves_path_test() -> Nil {
   }
 }
 
-pub fn canonicalize_preserves_http_test() -> Nil {
+pub fn canonicalize_does_not_silently_upgrade_http_test() -> Nil {
   url.canonicalize("http://example.com/")
   |> fn(actual) {
     assert actual == "http://example.com/"

@@ -86,7 +86,7 @@ let assert Ok(registry) =
     ),
   )
 
-let assert Ok(store) = state_store.try_init()
+let assert Ok(store) = state_store.create()
 
 case wisp.path_segments(req), req.method {
   ["auth", provider], http.Get ->

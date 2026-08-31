@@ -18,24 +18,33 @@ gleam add vestibule_apple
 ```gleam
 import vestibule_apple
 
-let assert Ok(apple) = vestibule_apple.try_init()
+let assert Ok(apple) = vestibule_apple.initialize()
 let strategy = vestibule_apple.strategy(apple)
 ```
 
-`try_init()` initializes the JWKS cache used to verify Apple ID tokens. It no
+`initialize()` initializes the JWKS cache used to verify Apple ID tokens. It no
 longer initializes an ID-token handoff cache; the `id_token` returned by Apple
 during code exchange is available through `strategy.exchange_artifacts(exchange)`
 and consumed directly while resolving the user.
 
-`try_init()` returns `Error(JwksCacheInitFailed(_))` when the JWKS cache cannot
-be initialized, including duplicate cache initialization. Handle the error, or
-assert on it at the top level of your application where failing to start is
-the right outcome.
+`initialize()` returns `Error(JwksCacheInitializationFailed(_))` when the JWKS
+cache cannot be initialized, including duplicate cache initialization. Handle
+the error, or assert on it at the top level of your application where failing
+to start is the right outcome.
 
 ## Default scopes
 
 `name email`. Override per request with `config.with_scopes` on `AuthorizeOptions`. Apple delivers `name`
 and `email` only on the **first** consent, in the form-post callback.
+
+## Custom HTTP clients
+
+The strategy remains a convenient `gleam_httpc` integration. For sans-IO use,
+call `build_authorization_code_request` or `build_refresh_token_request`, send
+the returned `gleam_http` request with your client, then call the matching
+`parse_*_response` function. Apple JWKS uses the same pattern through
+`vestibule_apple/jwks.build_jwks_request` and `parse_jwks_response`; token
+verification remains separate in `verify_id_token`.
 
 ## Apple Developer portal setup
 

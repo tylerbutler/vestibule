@@ -46,6 +46,53 @@ pub type IndieAuthProfile {
 
 ## Functions
 
+### `build_authorization_code_request`
+
+Build an IndieAuth authorization-code request without sending it.
+
+The returned request is opaque and can only be sent with
+`provider_support.send_public`, which performs DNS validation and address
+pinning immediately before connecting.
+
+```gleam
+pub fn build_authorization_code_request(
+  String,
+  String,
+  String,
+  String,
+  option.Option(String)
+) -> Result(provider_support.SecureRequest, error.AuthError(a))
+```
+
+### `build_refresh_token_request`
+
+Build an IndieAuth refresh-token request without sending it.
+
+The returned request is opaque and must be sent with
+`provider_support.send_public`.
+
+```gleam
+pub fn build_refresh_token_request(
+  String,
+  String,
+  String
+) -> Result(provider_support.SecureRequest, error.AuthError(a))
+```
+
+### `build_user_info_request`
+
+Build an IndieAuth userinfo request without sending it.
+
+The returned request is opaque and must be sent with
+`provider_support.send_public`.
+
+```gleam
+pub fn build_user_info_request(
+  String,
+  credential.Credentials
+) -> Result(provider_support.SecureRequest, error.AuthError(a))
+```
+
 ### `exchange_code`
 
 Exchange an authorization code for credentials at the token endpoint.
@@ -64,7 +111,7 @@ pub fn exchange_code(
   String,
   String,
   option.Option(String)
-) -> Result(#(credentials.Credentials, IndieAuthProfile), error.AuthError(a))
+) -> Result(#(credential.Credentials, IndieAuthProfile), error.AuthError(a))
 ```
 
 ### `fetch_userinfo`
@@ -74,8 +121,16 @@ Fetch user info from the IndieAuth userinfo endpoint.
 ```gleam
 pub fn fetch_userinfo(
   String,
-  credentials.Credentials
+  credential.Credentials
 ) -> Result(#(String, user_info.UserInfo), error.AuthError(a))
+```
+
+### `parse_authorization_code_response`
+
+Parse an IndieAuth authorization-code HTTP response without performing I/O.
+
+```gleam
+pub fn parse_authorization_code_response(response.Response(String)) -> Result(#(credential.Credentials, IndieAuthProfile), error.AuthError(a))
 ```
 
 ### `parse_profile_from_token_response`
@@ -86,6 +141,14 @@ Exported for testing.
 
 ```gleam
 pub fn parse_profile_from_token_response(String) -> Result(IndieAuthProfile, error.AuthError(a))
+```
+
+### `parse_refresh_token_response`
+
+Parse an IndieAuth refresh-token HTTP response without performing I/O.
+
+```gleam
+pub fn parse_refresh_token_response(response.Response(String)) -> Result(credential.Credentials, error.AuthError(a))
 ```
 
 ### `parse_token_response`
@@ -104,7 +167,15 @@ IndieAuth token responses include:
 Exported for testing.
 
 ```gleam
-pub fn parse_token_response(String) -> Result(credentials.Credentials, error.AuthError(a))
+pub fn parse_token_response(String) -> Result(credential.Credentials, error.AuthError(a))
+```
+
+### `parse_user_info_response`
+
+Parse an IndieAuth userinfo HTTP response without performing I/O.
+
+```gleam
+pub fn parse_user_info_response(response.Response(String)) -> Result(#(String, user_info.UserInfo), error.AuthError(a))
 ```
 
 ### `parse_userinfo_response`
@@ -128,5 +199,5 @@ pub fn refresh(
   String,
   String,
   String
-) -> Result(credentials.Credentials, error.AuthError(a))
+) -> Result(credential.Credentials, error.AuthError(a))
 ```

@@ -45,7 +45,7 @@ crash never leaves authentication broken until the VM restarts.
 
 Starting a flow is an unauthenticated operation, so the store bounds
 what a client can pin in memory: every store has a maximum number of
-live entries (`try_init_with_capacity`, default 100 000), and a store
+live entries (`create_with_capacity`, default 100 000), and a store
 that is full refuses new flows with `StoreFull` rather than growing.
 Expired entries are rejected on read, reclaimed on demand when the store
 is at capacity, and swept periodically by the owner process; inserts
@@ -97,7 +97,7 @@ expire.
 
 ##### `InvalidCapacity`
 
-`try_init_with_capacity` was given a `max_entries` of zero or less.
+`create_with_capacity` was given a `max_entries` of zero or less.
 
 ## Functions
 
@@ -115,6 +115,39 @@ pub fn consume(
   String,
   provider: String
 ) -> Result(#(String, String, option.Option(String)), Nil)
+```
+
+### `create`
+
+Create the state store. Call once per VM at application startup; the
+returned table handle is needed by `store` and `consume`.
+
+```gleam
+pub fn create() -> Result(StateStore, StateStoreError)
+```
+
+### `create_named`
+
+Create a named state store with the default capacity. Returns
+`Error(TableAlreadyExists)` if the table already exists, or another
+`StateStoreError` if the owner process or ETS operation fails.
+
+```gleam
+pub fn create_named(String) -> Result(StateStore, StateStoreError)
+```
+
+### `create_with_capacity`
+
+Create a named state store that holds at most `max_entries` live
+sessions. Once full, `store` fails with `StoreFull` until
+sessions are consumed or expire. Returns `Error(InvalidCapacity)` when
+`max_entries` is not positive.
+
+```gleam
+pub fn create_with_capacity(
+  name: String,
+  max_entries: Int
+) -> Result(StateStore, StateStoreError)
 ```
 
 ### `peek`
@@ -135,59 +168,16 @@ pub fn peek(
 ) -> Result(#(String, String, option.Option(String)), Nil)
 ```
 
-### `sweep_expired`
+### `store`
 
-Remove every expired session from the store now, returning how many were
-removed. The owner process does this on a timer and on demand when the
-store is at capacity, so calling it is optional.
-
-```gleam
-pub fn sweep_expired(StateStore) -> Result(Int, StateStoreError)
-```
-
-### `try_init`
-
-Try to initialize the state store. Call once per VM at application
-startup; the returned table handle is needed by `try_store`/`consume`.
-
-```gleam
-pub fn try_init() -> Result(StateStore, StateStoreError)
-```
-
-### `try_init_named`
-
-Try to initialize a named state store with the default capacity. Returns
-`Error(TableAlreadyExists)` if the table already exists, or another
-`StateStoreError` if the owner process or ETS operation fails.
-
-```gleam
-pub fn try_init_named(String) -> Result(StateStore, StateStoreError)
-```
-
-### `try_init_with_capacity`
-
-Try to initialize a named state store that holds at most `max_entries`
-live sessions. Once full, `try_store` fails with `StoreFull` until
-sessions are consumed or expire. Returns `Error(InvalidCapacity)` when
-`max_entries` is not positive.
-
-```gleam
-pub fn try_init_with_capacity(
-  name: String,
-  max_entries: Int
-) -> Result(StateStore, StateStoreError)
-```
-
-### `try_store`
-
-Try to store a CSRF state value, PKCE code verifier, and optional OIDC
-nonce for a flow started with `provider`, returning a session ID.
+Store a CSRF state value, PKCE code verifier, and optional OIDC nonce for
+a flow started with `provider`, returning a session ID.
 
 `provider` is the strategy's provider name; `consume` and `peek` must be
 called with the same value.
 
 ```gleam
-pub fn try_store(
+pub fn store(
   StateStore,
   provider: String,
   state: String,
@@ -196,13 +186,13 @@ pub fn try_store(
 ) -> Result(String, StateStoreError)
 ```
 
-### `try_store_with_ttl`
+### `store_with_ttl`
 
-Try to store a CSRF state value, PKCE verifier, and optional OIDC nonce
-for a flow started with `provider`, with a TTL, returning a session ID.
+Store a CSRF state value, PKCE verifier, and optional OIDC nonce for a
+flow started with `provider`, with a TTL, returning a session ID.
 
 ```gleam
-pub fn try_store_with_ttl(
+pub fn store_with_ttl(
   StateStore,
   provider: String,
   state: String,
@@ -210,4 +200,14 @@ pub fn try_store_with_ttl(
   nonce: option.Option(String),
   ttl_seconds: Int
 ) -> Result(String, StateStoreError)
+```
+
+### `sweep_expired`
+
+Remove every expired session from the store now, returning how many were
+removed. The owner process does this on a timer and on demand when the
+store is at capacity, so calling it is optional.
+
+```gleam
+pub fn sweep_expired(StateStore) -> Result(Int, StateStoreError)
 ```

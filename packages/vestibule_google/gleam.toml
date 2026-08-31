@@ -29,6 +29,8 @@ warnings_as_errors = true
 # Argument labels are encouraged but not enforced: many functions intentionally
 # leave their subject/pipe-receiver first arg unlabelled.
 label_possible = "off"
+# Public sans-IO request builders and response parsers are package API.
+unused_exports = "off"
 error_context_lost = "off"
 # OIDC id_token parsing intentionally treats a malformed/absent token as "no
 # id_token" (returns None); the json.parse error is deliberately discarded.

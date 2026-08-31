@@ -29,6 +29,7 @@ import gleam/string
 import gleam/uri
 
 import gleam/http/request
+import gleam/http/response
 import gleam/httpc
 
 import glow_auth
@@ -37,7 +38,7 @@ import glow_auth/token_request
 import glow_auth/uri/uri_builder
 
 import vestibule/config.{type AuthorizeOptions, type ClientConfig}
-import vestibule/credentials.{type Credentials}
+import vestibule/credential.{type Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/logger
 import vestibule/provider_support
@@ -81,19 +82,19 @@ fn build_strategy(
   strategy.new(
     provider: "microsoft",
     default_scopes: ["openid", "User.Read"],
-    authorize_url: fn(client_config, options, scopes, state) {
-      do_authorize_url(authority, client_config, options, scopes, state)
+    authorize_url: fn(client_configuration, options, scopes, state) {
+      do_authorize_url(authority, client_configuration, options, scopes, state)
     },
-    exchange_code: fn(client_config, code, code_verifier) {
-      do_exchange_code(authority, client_config, code, code_verifier)
+    exchange_code: fn(client_configuration, code, code_verifier) {
+      do_exchange_code(authority, client_configuration, code, code_verifier)
     },
-    fetch_user: fn(client_config, exchange) {
-      do_fetch_user(expected_tenant, client_config, exchange)
+    fetch_user: fn(client_configuration, exchange) {
+      do_fetch_user(expected_tenant, client_configuration, exchange)
     },
   )
   |> strategy.with_nonce()
-  |> strategy.with_refresh(fn(client_config, refresh_token) {
-    do_refresh_token(authority, client_config, refresh_token)
+  |> strategy.with_refresh(fn(client_configuration, refresh_token) {
+    do_refresh_token(authority, client_configuration, refresh_token)
   })
 }
 
@@ -103,57 +104,96 @@ fn authority_base(authority: String) -> String {
 
 /// Parse Microsoft token response JSON.
 pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
-  do_parse_token_response(body, "token")
+  provider_support.parse_oauth_token_response(
+    body,
+    provider_support.RequiredScope(separator: " "),
+  )
 }
 
-fn do_parse_token_response(
-  body: String,
-  endpoint: String,
-) -> Result(Credentials, AuthError(e)) {
-  let result =
-    provider_support.parse_oauth_token_response(
-      body,
-      provider_support.RequiredScope(separator: " "),
+/// Build a Microsoft authorization-code token request without sending it.
+///
+/// Use `"common"` for the multi-tenant endpoint or pass a tenant GUID to
+/// match `strategy_for_tenant`.
+pub fn build_authorization_code_request(
+  authority: String,
+  client_configuration: ClientConfig,
+  code: String,
+  code_verifier: Option(String),
+) -> Result(request.Request(String), AuthError(e)) {
+  use site <- result.try(
+    uri.parse(authority_base(authority))
+    |> result.map_error(fn(_) {
+      error.config(reason: "Failed to parse Microsoft OAuth base URL")
+    }),
+  )
+  use redirect <- result.try(
+    provider_support.parse_redirect_uri(config.redirect_uri(
+      client_configuration,
+    )),
+  )
+  use client_secret <- result.try(config.client_secret(client_configuration))
+  let client =
+    glow_auth.Client(
+      id: config.client_id(client_configuration),
+      secret: client_secret,
+      site: site,
     )
-  case result {
-    Ok(oauth_credentials) -> {
-      logger.new(
-        level: logger.Debug,
-        event: "vestibule.provider.token_parse.success",
-        phase: "provider_request",
-        outcome: "success",
-        provider: Some("microsoft"),
-        fields: [
-          logger.field("endpoint", endpoint),
-          logger.bool_field(
-            "has_refresh_token",
-            option.is_some(credentials.refresh_token(oauth_credentials)),
-          ),
-          logger.int_field(
-            "scope_count",
-            list.length(credentials.scopes(oauth_credentials)),
-          ),
-        ],
-      )
-      |> logger.emit()
-      Ok(oauth_credentials)
-    }
-    Error(err) -> {
-      logger.new(
-        level: logger.Warning,
-        event: "vestibule.provider.token_parse.failure",
-        phase: "provider_request",
-        outcome: "failure",
-        provider: Some("microsoft"),
-        fields: [
-          logger.field("endpoint", endpoint),
-          logger.field("error_category", logger.auth_error_category(err)),
-        ],
-      )
-      |> logger.emit()
-      Error(err)
-    }
-  }
+  let token_http_request =
+    token_request.authorization_code(
+      client,
+      uri_builder.RelativePath("/token"),
+      code,
+      redirect,
+    )
+    |> request.set_header("accept", "application/json")
+  Ok(strategy.append_code_verifier(token_http_request, code_verifier))
+}
+
+/// Parse Microsoft's authorization-code HTTP response without performing I/O.
+pub fn parse_authorization_code_response(
+  http_response: response.Response(String),
+) -> Result(strategy.ExchangeResult, AuthError(e)) {
+  use body <- result.try(provider_support.check_response_status(http_response))
+  parse_exchange_result(body)
+}
+
+/// Build a Microsoft refresh-token request without sending it.
+///
+/// Use the same `authority` value as the authorization-code request.
+pub fn build_refresh_token_request(
+  authority: String,
+  client_configuration: ClientConfig,
+  refresh_token: String,
+) -> Result(request.Request(String), AuthError(e)) {
+  use site <- result.try(
+    uri.parse(authority_base(authority))
+    |> result.map_error(fn(_) {
+      error.config(reason: "Failed to parse Microsoft OAuth base URL")
+    }),
+  )
+  use client_secret <- result.try(config.client_secret(client_configuration))
+  let client =
+    glow_auth.Client(
+      id: config.client_id(client_configuration),
+      secret: client_secret,
+      site: site,
+    )
+  Ok(
+    token_request.refresh(
+      client,
+      uri_builder.RelativePath("/token"),
+      refresh_token,
+    )
+    |> request.set_header("accept", "application/json"),
+  )
+}
+
+/// Parse Microsoft's refresh-token HTTP response without performing I/O.
+pub fn parse_refresh_token_response(
+  http_response: response.Response(String),
+) -> Result(Credentials, AuthError(e)) {
+  use body <- result.try(provider_support.check_response_status(http_response))
+  parse_token_response(body)
 }
 
 /// Parse Microsoft Graph /me response JSON.
@@ -161,7 +201,7 @@ pub fn parse_user_response(
   body: String,
 ) -> Result(#(String, UserInfo), AuthError(e)) {
   let decoder = {
-    use id <- decode.field("id", decode.string)
+    use user_id <- decode.field("id", decode.string)
     use display_name <- decode.optional_field(
       "displayName",
       None,
@@ -172,7 +212,7 @@ pub fn parse_user_response(
       None,
       decode.optional(decode.string),
     )
-    use upn <- decode.field("userPrincipalName", decode.string)
+    use user_principal_name <- decode.field("userPrincipalName", decode.string)
     use job_title <- decode.optional_field(
       "jobTitle",
       None,
@@ -180,27 +220,48 @@ pub fn parse_user_response(
     )
     let email = mail
     decode.success(#(
-      id,
+      user_id,
       user_info.new()
         |> user_info.with_name(display_name)
         |> user_info.with_email(email)
-        |> user_info.with_nickname(Some(upn))
+        |> user_info.with_nickname(Some(user_principal_name))
         |> user_info.with_description(job_title),
     ))
   }
   case json.parse(body, decoder) {
     Ok(result) -> Ok(result)
-    Error(err) ->
+    Error(parse_error) ->
       Error(error.user_info(
         reason: "Failed to parse Microsoft user response: "
-        <> string.inspect(err),
+        <> string.inspect(parse_error),
       ))
   }
 }
 
+/// Build the Microsoft Graph `/me` request without sending it.
+pub fn build_user_info_request(
+  oauth_credentials: Credentials,
+) -> Result(request.Request(String), AuthError(e)) {
+  use authorization_header <- result.try(strategy.authorization_header(
+    oauth_credentials,
+  ))
+  provider_support.build_json_request_with_auth(
+    "https://graph.microsoft.com/v1.0/me",
+    authorization_header,
+    "Microsoft Graph",
+  )
+}
+
+/// Parse a Microsoft Graph `/me` HTTP response without performing I/O.
+pub fn parse_user_info_response(
+  http_response: response.Response(String),
+) -> Result(#(String, UserInfo), AuthError(e)) {
+  provider_support.parse_json_response(http_response, parse_user_response)
+}
+
 fn do_authorize_url(
   authority: String,
-  client_config: ClientConfig,
+  client_configuration: ClientConfig,
   options: AuthorizeOptions,
   scopes: List(String),
   state: String,
@@ -212,16 +273,18 @@ fn do_authorize_url(
     }),
   )
   use redirect <- result.try(
-    provider_support.parse_redirect_uri(config.redirect_uri(client_config)),
+    provider_support.parse_redirect_uri(config.redirect_uri(
+      client_configuration,
+    )),
   )
   let client =
     glow_auth.Client(
-      id: config.client_id(client_config),
+      id: config.client_id(client_configuration),
       secret: "",
       site: site,
     )
   let scopes = scopes_with_openid(scopes)
-  let url =
+  let authorize_url =
     authorize_uri.build(
       client,
       uri_builder.RelativePath("/authorize"),
@@ -234,7 +297,7 @@ fn do_authorize_url(
     |> provider_support.append_query_params(
       dict.to_list(config.extra_params(options)),
     )
-  Ok(url)
+  Ok(authorize_url)
 }
 
 fn scopes_with_openid(scopes: List(String)) -> List(String) {
@@ -244,35 +307,16 @@ fn scopes_with_openid(scopes: List(String)) -> List(String) {
 
 fn do_exchange_code(
   authority: String,
-  client_config: ClientConfig,
+  client_configuration: ClientConfig,
   code: String,
   code_verifier: Option(String),
 ) -> Result(strategy.ExchangeResult, AuthError(e)) {
-  use site <- result.try(
-    uri.parse(authority_base(authority))
-    |> result.map_error(fn(_) {
-      error.config(reason: "Failed to parse Microsoft OAuth base URL")
-    }),
-  )
-  use redirect <- result.try(
-    provider_support.parse_redirect_uri(config.redirect_uri(client_config)),
-  )
-  use client_secret <- result.try(config.client_secret(client_config))
-  let client =
-    glow_auth.Client(
-      id: config.client_id(client_config),
-      secret: client_secret,
-      site: site,
-    )
-  let req =
-    token_request.authorization_code(
-      client,
-      uri_builder.RelativePath("/token"),
-      code,
-      redirect,
-    )
-    |> request.set_header("accept", "application/json")
-  let req = strategy.append_code_verifier(req, code_verifier)
+  use token_http_request <- result.try(build_authorization_code_request(
+    authority,
+    client_configuration,
+    code,
+    code_verifier,
+  ))
   logger.new(
     level: logger.Debug,
     event: "vestibule.provider.request.start",
@@ -282,17 +326,8 @@ fn do_exchange_code(
     fields: [logger.field("endpoint", "token")],
   )
   |> logger.emit()
-  case httpc.send(req) {
-    Ok(response) -> {
-      use body <- result.try(
-        provider_support.check_response_status_for_endpoint(
-          response,
-          provider_name: "microsoft",
-          endpoint: "token",
-        ),
-      )
-      parse_exchange_result(body)
-    }
+  case httpc.send(token_http_request) {
+    Ok(response) -> parse_authorization_code_response(response)
     Error(_) -> {
       logger.new(
         level: logger.Error,
@@ -352,29 +387,14 @@ fn id_token_artifacts(
 
 fn do_refresh_token(
   authority: String,
-  client_config: ClientConfig,
+  client_configuration: ClientConfig,
   refresh_token: String,
 ) -> Result(Credentials, AuthError(e)) {
-  use site <- result.try(
-    uri.parse(authority_base(authority))
-    |> result.map_error(fn(_) {
-      error.config(reason: "Failed to parse Microsoft OAuth base URL")
-    }),
-  )
-  use client_secret <- result.try(config.client_secret(client_config))
-  let client =
-    glow_auth.Client(
-      id: config.client_id(client_config),
-      secret: client_secret,
-      site: site,
-    )
-  let req =
-    token_request.refresh(
-      client,
-      uri_builder.RelativePath("/token"),
-      refresh_token,
-    )
-    |> request.set_header("accept", "application/json")
+  use refresh_http_request <- result.try(build_refresh_token_request(
+    authority,
+    client_configuration,
+    refresh_token,
+  ))
 
   logger.new(
     level: logger.Debug,
@@ -385,17 +405,8 @@ fn do_refresh_token(
     fields: [logger.field("endpoint", "refresh")],
   )
   |> logger.emit()
-  case httpc.send(req) {
-    Ok(response) -> {
-      use body <- result.try(
-        provider_support.check_response_status_for_endpoint(
-          response,
-          provider_name: "microsoft",
-          endpoint: "refresh",
-        ),
-      )
-      do_parse_token_response(body, "refresh")
-    }
+  case httpc.send(refresh_http_request) {
+    Ok(response) -> parse_refresh_token_response(response)
     Error(_) -> {
       logger.new(
         level: logger.Error,
@@ -418,20 +429,27 @@ fn do_refresh_token(
 
 fn do_fetch_user(
   expected_tenant: Option(String),
-  _client_config: ClientConfig,
+  _client_configuration: ClientConfig,
   exchange: strategy.ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
   use _ <- result.try(enforce_tenant(expected_tenant, exchange))
-  use auth_header <- result.try(
-    strategy.authorization_header(strategy.exchange_credentials(exchange)),
+  use user_info_request <- result.try(
+    build_user_info_request(strategy.exchange_credentials(exchange)),
   )
-  use #(uid, info) <- result.try(provider_support.fetch_json_with_auth(
-    "https://graph.microsoft.com/v1.0/me",
-    auth_header,
-    parse_user_response,
-    "Microsoft Graph",
+  use user_info_response <- result.try(
+    httpc.send(user_info_request)
+    |> result.replace_error(error.network(
+      reason: "Failed to connect to Microsoft Graph",
+    )),
+  )
+  use #(user_id, user_information) <- result.try(parse_user_info_response(
+    user_info_response,
   ))
-  Ok(strategy.user_result(uid: uid, info: info, extra: dict.new()))
+  Ok(strategy.user_result(
+    uid: user_id,
+    info: user_information,
+    extra: dict.new(),
+  ))
 }
 
 /// Enforce that the exchange's ID token was issued by the configured tenant.
@@ -446,10 +464,10 @@ fn enforce_tenant(
 ) -> Result(Nil, AuthError(e)) {
   case expected_tenant {
     None -> Ok(Nil)
-    Some(tenant) -> {
+    Some(tenant_id) -> {
       use id_token <- result.try(exchange_id_token(exchange))
       use _ <- result.try(verify_tenant(
-        expected_tenant: tenant,
+        expected_tenant: tenant_id,
         id_token: id_token,
       ))
       Ok(Nil)
@@ -492,13 +510,13 @@ pub fn verify_tenant(
   expected_tenant expected_tenant: String,
   id_token id_token: String,
 ) -> Result(String, AuthError(e)) {
-  use tid <- result.try(id_token_tenant(id_token))
-  case string.lowercase(tid) == string.lowercase(expected_tenant) {
-    True -> Ok(tid)
+  use tenant_id <- result.try(id_token_tenant(id_token))
+  case string.lowercase(tenant_id) == string.lowercase(expected_tenant) {
+    True -> Ok(tenant_id)
     False ->
       Error(error.user_info(
         reason: "Microsoft tenant mismatch: ID token was issued by tenant "
-        <> tid
+        <> tenant_id
         <> " but this strategy is locked to tenant "
         <> expected_tenant,
       ))
@@ -512,15 +530,15 @@ pub fn verify_tenant(
 pub fn id_token_tenant(id_token: String) -> Result(String, AuthError(e)) {
   use payload <- result.try(decode_jwt_payload(id_token))
   let decoder = {
-    use tid <- decode.optional_field(
+    use tenant_id <- decode.optional_field(
       "tid",
       None,
       decode.optional(decode.string),
     )
-    decode.success(tid)
+    decode.success(tenant_id)
   }
   case json.parse(payload, decoder) {
-    Ok(Some(tid)) -> Ok(tid)
+    Ok(Some(tenant_id)) -> Ok(tenant_id)
     Ok(None) ->
       Error(error.user_info(
         reason: "Microsoft ID token is missing the `tid` (tenant id) claim",
@@ -534,7 +552,7 @@ pub fn id_token_tenant(id_token: String) -> Result(String, AuthError(e)) {
 
 fn decode_jwt_payload(id_token: String) -> Result(String, AuthError(e)) {
   case string.split(id_token, ".") {
-    [_header, payload, ..] ->
+    [_jwt_header, payload, ..] ->
       case bit_array.base64_url_decode(payload) {
         Ok(bits) ->
           case bit_array.to_string(bits) {
