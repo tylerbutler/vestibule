@@ -63,10 +63,21 @@ code: |
     )
   {
     Ok(auth) -> sign_in(auth)
-    Error(err) ->
-      case error.kind(err) {
+    Error(auth_error) ->
+      case error.kind(auth_error) {
         error.StateMismatchKind -> restart_sign_in()
-        _ -> show_auth_error(err)
+        error.InvalidNonceKind
+        | error.MissingCallbackParamKind
+        | error.CodeExchangeKind
+        | error.UserInfoKind
+        | error.ProviderKind
+        | error.HttpKind
+        | error.DecodeKind
+        | error.NetworkKind
+        | error.ConfigKind
+        | error.RefreshUnsupportedKind
+        | error.CustomKind
+        | error.OtherKind -> show_auth_error(auth_error)
       }
   }
 notes:

@@ -54,11 +54,11 @@ let assert Ok(store) = state_store.create()
 Then pass that store to the request and callback phases:
 
 ```gleam
-case wisp.path_segments(req), req.method {
+case wisp.path_segments(request), request.method {
   ["auth", provider], http.Get ->
     vestibule_wisp.request_phase(
-      req,
-      reg,
+      request,
+      registry,
       provider,
       store,
       authorize_options: config.authorize_options(),
@@ -66,7 +66,13 @@ case wisp.path_segments(req), req.method {
 
   ["auth", provider, "callback"], http.Get
   | ["auth", provider, "callback"], http.Post ->
-    vestibule_wisp.callback_phase(req, reg, provider, store, on_success)
+    vestibule_wisp.callback_phase(
+      request,
+      registry,
+      provider,
+      store,
+      on_success,
+    )
 
   _ ->
     wisp.not_found()
@@ -115,21 +121,21 @@ let options =
   |> vestibule_wisp.with_session_ttl_seconds(300)
 
 // Local development without TLS:
-let dev_options =
+let development_options =
   vestibule_wisp.default_options()
   |> vestibule_wisp.with_cookie_security(vestibule_wisp.AllowInsecure)
 
 vestibule_wisp.request_phase_with_options(
-  req,
-  reg,
+  request,
+  registry,
   provider,
   store,
   authorize_options: config.authorize_options(),
   middleware_options: options,
 )
 vestibule_wisp.callback_phase_with_options(
-  req,
-  reg,
+  request,
+  registry,
   provider,
   store,
   on_success,
@@ -159,7 +165,12 @@ the stored state is missing, expired, or already used, it returns
   this for structured/custom error handling.
 
 ```gleam
-case vestibule_wisp.callback_phase_auth_result(req, reg, provider, store) {
+case vestibule_wisp.callback_phase_auth_result(
+  request,
+  registry,
+  provider,
+  store,
+) {
   Ok(auth) -> on_success(auth)
   Error(vestibule_wisp.UnknownProvider(provider)) -> handle_unknown(provider)
   Error(vestibule_wisp.MissingOrInvalidSessionCookie(reason)) ->
@@ -167,7 +178,8 @@ case vestibule_wisp.callback_phase_auth_result(req, reg, provider, store) {
   Error(vestibule_wisp.SessionUnavailable) -> handle_expired_session()
   Error(vestibule_wisp.InvalidCallbackParams(reason)) ->
     handle_bad_callback(reason)
-  Error(vestibule_wisp.AuthFailed(err)) -> handle_auth_failure(err)
+  Error(vestibule_wisp.AuthFailed(auth_error)) ->
+    handle_auth_failure(auth_error)
 }
 ```
 

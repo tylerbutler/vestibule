@@ -23,7 +23,7 @@ code: |
   import vestibule_github
 
   let strategy = vestibule_github.strategy()
-  let cfg =
+  let client_config =
     config.new(
       client_id: "github-client-id",
       redirect_uri: "http://localhost:8000/auth/github/callback",

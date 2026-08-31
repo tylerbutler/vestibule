@@ -23,7 +23,7 @@ code: |
   import vestibule_google
 
   let strategy = vestibule_google.strategy()
-  let cfg =
+  let client_config =
     config.new(
       client_id: "google-client-id",
       redirect_uri: "http://localhost:8000/auth/google/callback",

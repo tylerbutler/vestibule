@@ -41,10 +41,10 @@ code: |
 
   let assert Ok(store) = state_store.create()
 
-  case wisp.path_segments(req), req.method {
+  case wisp.path_segments(request), request.method {
     ["auth", provider], http.Get ->
       vestibule_wisp.request_phase(
-        req,
+        request,
         registry,
         provider,
         store,
@@ -53,7 +53,13 @@ code: |
 
     ["auth", provider, "callback"], http.Get
     | ["auth", provider, "callback"], http.Post ->
-      vestibule_wisp.callback_phase(req, registry, provider, store, on_success)
+      vestibule_wisp.callback_phase(
+        request,
+        registry,
+        provider,
+        store,
+        on_success,
+      )
 
     _, _ ->
       wisp.not_found()

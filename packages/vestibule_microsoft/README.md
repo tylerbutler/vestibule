@@ -20,7 +20,7 @@ import vestibule/config
 import vestibule_microsoft
 
 let strategy = vestibule_microsoft.strategy()
-let cfg =
+let client_config =
   config.new(
     client_id: "microsoft-client-id",
     redirect_uri: "http://localhost:8000/auth/microsoft/callback",

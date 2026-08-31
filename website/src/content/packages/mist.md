@@ -24,17 +24,18 @@ code: |
   import gleam/http/request.{type Request}
   import gleam/http/response.{type Response}
   import mist.{type Connection, type ResponseData}
+  import vestibule/config
   import vestibule/state_store
   import vestibule_mist
 
   let assert Ok(store) = state_store.create()
-  let options = vestibule_mist.new_options(secret_key_base)
+  let assert Ok(options) = vestibule_mist.new_options(secret_key_base)
 
-  fn handle_request(req: Request(Connection)) -> Response(ResponseData) {
-    case request.path_segments(req), req.method {
+  fn handle_request(http_request: Request(Connection)) -> Response(ResponseData) {
+    case request.path_segments(http_request), http_request.method {
       ["auth", provider], http.Get ->
         vestibule_mist.request_phase(
-          req,
+          http_request,
           registry,
           provider,
           store,
@@ -44,7 +45,14 @@ code: |
 
       ["auth", provider, "callback"], http.Get
       | ["auth", provider, "callback"], http.Post ->
-        vestibule_mist.callback_phase(req, registry, provider, store, options, on_success)
+        vestibule_mist.callback_phase(
+          http_request,
+          registry,
+          provider,
+          store,
+          options,
+          on_success,
+        )
 
       _, _ ->
         not_found()
