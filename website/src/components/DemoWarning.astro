@@ -1,0 +1,31 @@
+---
+// Site-wide "not audited, not for production" disclaimer. Per DESIGN.md's
+// Security Copy Rule this stays a first-class element — never fine print.
+---
+
+<aside class="demo-warning" role="note" aria-label="Not for production">
+  <strong>Demos only.</strong>
+  <span>
+    Vestibule has not been security audited and must not be considered secure.
+    Use it for demos and prototypes that need real OAuth flows — not in
+    production.
+  </span>
+</aside>
+
+<style>
+  .demo-warning {
+    display: block;
+    padding: var(--space-3) var(--space-6);
+    background: var(--yellow-soft);
+    border-bottom: 2px solid var(--yellow);
+    color: var(--ink);
+    font-size: var(--text-label);
+    line-height: var(--line-compact);
+    text-align: center;
+  }
+
+  .demo-warning strong {
+    font-weight: var(--weight-bold);
+    margin-right: var(--space-2);
+  }
+</style>

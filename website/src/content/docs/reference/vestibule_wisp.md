@@ -4,7 +4,7 @@ description: "Wisp middleware that wires a `Registry` of `Strategy` values into 
 nav:
   group: Reference
   groupOrder: 20
-  order: 36
+  order: 37
   label: "vestibule_wisp"
 toc:
   - href: "#types"
@@ -94,6 +94,34 @@ The request body was not valid UTF-8.
 
 The request body was not valid form/query encoding.
 
+### `CookieSameSite`
+
+How the session cookie's `SameSite` attribute is set.
+
+```gleam
+pub type CookieSameSite {
+  Lax
+  CrossSite
+}
+```
+
+#### Constructors
+
+##### `Lax`
+
+`SameSite=Lax` (default), set via `wisp.set_cookie`. Sent on top-level
+GET navigations, which is how every provider that redirects back with
+query parameters delivers its callback.
+
+##### `CrossSite`
+
+`SameSite=None; Secure`. Required for providers that deliver the
+callback with a cross-site POST (`response_mode=form_post`, e.g. Apple):
+browsers do not send `Lax` cookies on cross-site POSTs, so the callback
+would fail with `MissingOrInvalidSessionCookie(CookieAbsent)`. Browsers
+only honour `SameSite=None` together with `Secure`, so `Secure` is always
+set for this mode, even for plain-HTTP localhost requests.
+
 ### `CookieSecurity`
 
 Whether the session cookie requires HTTPS.
@@ -130,7 +158,7 @@ would fail with `MissingOrInvalidSessionCookie(CookieAbsent)`.
 Middleware configuration options.
 
 Construct with `default_options` and customize with `with_cookie_name`,
-`with_session_ttl_seconds`, and `with_cookie_security`. The type is opaque
+`with_session_ttl_seconds`, `with_cookie_security`, and `with_same_site`. The type is opaque
 so the effective cookie name always matches the cookie security: host-bound
 (`__Host-` prefixed) under `SecureOnly`, unprefixed under `AllowInsecure`
 (browsers reject `__Host-` cookies that are not `Secure`). A host-bound
@@ -373,6 +401,14 @@ pub fn request_phase_with_options(
 ) -> response.Response(wisp.Body)
 ```
 
+### `same_site`
+
+The session cookie's `SameSite` setting for these options.
+
+```gleam
+pub fn same_site(Options) -> CookieSameSite
+```
+
 ### `session_ttl_seconds`
 
 The session TTL in seconds for these options.
@@ -404,6 +440,17 @@ Set whether the session cookie requires HTTPS. See `CookieSecurity`.
 pub fn with_cookie_security(
   Options,
   CookieSecurity
+) -> Options
+```
+
+### `with_same_site`
+
+Set the session cookie's `SameSite` attribute. See `CookieSameSite`.
+
+```gleam
+pub fn with_same_site(
+  Options,
+  CookieSameSite
 ) -> Options
 ```
 

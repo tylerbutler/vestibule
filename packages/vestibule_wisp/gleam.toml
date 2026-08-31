@@ -1,6 +1,6 @@
 name = "vestibule_wisp"
 version = "0.0.0"
-description = "Wisp middleware for vestibule OAuth authentication"
+description = "Wisp middleware for vestibule OAuth authentication (demo-ready — not audited, not for production)"
 licences = ["MIT"]
 repository = { type = "github", user = "tylerbutler", repo = "vestibule", path = "packages/vestibule_wisp" }
 gleam = ">= 1.11.0"

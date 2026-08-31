@@ -1,6 +1,6 @@
 ---
 title: "vestibule"
-description: "Vestibule — a strategy-based authentication library for Gleam."
+description: "Vestibule — demo-ready OAuth sign-in for Gleam."
 nav:
   group: Reference
   groupOrder: 20
@@ -18,11 +18,15 @@ searchTerms:
 
 # `vestibule`
 
-Vestibule — a strategy-based authentication library for Gleam.
+Vestibule — demo-ready OAuth sign-in for Gleam.
 
 Provides a consistent interface across OAuth2 identity providers
 using a two-phase flow: redirect to provider, then handle callback.
-All flows use PKCE (Proof Key for Code Exchange) for enhanced security.
+All flows use PKCE (Proof Key for Code Exchange).
+
+**Warning:** vestibule has not been security audited and must not be
+considered secure. It is intended for demos and prototypes that need
+real OAuth flows — do not use it in production.
 
 ## Functions
 
@@ -60,9 +64,11 @@ for credentials (including the PKCE code verifier), validates the OIDC
 fetches normalized user information.
 
 `expected_nonce` is the OIDC nonce stored during the request phase, or
-`None` for plain OAuth2 strategies. When the strategy uses a nonce and an
-expected value is present, the `nonce` claim in the `id_token` artifact must
-match or the callback fails with an AuthError of kind `InvalidNonceKind`.
+`None` for plain OAuth2 strategies. When the strategy uses a nonce,
+`expected_nonce` must be `Some` and the `nonce` claim in the `id_token`
+artifact must match it; a missing expected nonce, missing `id_token`,
+missing claim, or mismatch all fail with an AuthError of kind
+`InvalidNonceKind`. The check never falls open.
 
 **Caller responsibilities:** This function checks that the callback
 state matches `expected_state`, but does not enforce single-use or

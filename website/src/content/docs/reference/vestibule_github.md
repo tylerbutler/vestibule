@@ -27,8 +27,11 @@ Reference for vestibule_github.
 Parse the primary verified email from GitHub /user/emails response.
 Supported parsing helper for GitHub strategy integrations.
 
+Returns `Ok(None)` when no primary verified email exists, and an error
+when the response body cannot be parsed.
+
 ```gleam
-pub fn parse_primary_email(String) -> option.Option(String)
+pub fn parse_primary_email(String) -> Result(option.Option(String), error.AuthError(a))
 ```
 
 ### `parse_token_response`

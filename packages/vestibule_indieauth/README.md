@@ -5,6 +5,11 @@ IndieAuth strategy for [vestibule](https://hex.pm/packages/vestibule) — decent
 [![Package Version](https://img.shields.io/hexpm/v/vestibule_indieauth)](https://hex.pm/packages/vestibule_indieauth)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/vestibule_indieauth/)
 
+> [!WARNING]
+> Vestibule has not been security audited and must not be considered secure.
+> It is intended for demos and prototypes that need real OAuth flows — do not
+> use it in production.
+
 [IndieAuth](https://indieauth.spec.indieweb.org/) is an identity layer on top of OAuth 2.0
 where users are identified by a URL they control (e.g., `https://example.com/`).
 Unlike centralized providers, IndieAuth endpoints are discovered dynamically from

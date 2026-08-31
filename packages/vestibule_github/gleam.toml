@@ -1,6 +1,6 @@
 name = "vestibule_github"
 version = "0.0.0"
-description = "GitHub OAuth strategy for vestibule"
+description = "GitHub OAuth strategy for vestibule (demo-ready — not audited, not for production)"
 licences = ["MIT"]
 repository = { type = "github", user = "tylerbutler", repo = "vestibule", path = "packages/vestibule_github" }
 gleam = ">= 1.11.0"

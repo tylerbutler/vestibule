@@ -1,6 +1,6 @@
 ---
 name: Vestibule
-description: Strategy-based OAuth2 authentication for Gleam
+description: Demo-ready OAuth sign-in for Gleam — not audited, not for production
 colors:
   brand-purple: "oklch(0.420 0.180 302)"
   brand-purple-hover: "oklch(0.360 0.170 302)"
@@ -91,15 +91,15 @@ components:
 
 ## 1. Overview
 
-**Creative North Star: "The Secure Threshold"**
+**Creative North Star: "The Honest Threshold"**
 
-Vestibule's visual system should feel like a calm, well-lit entry checkpoint: the outside world is complex, provider-specific, and risky; the inside is structured, readable, and safe. Purple carries the authentication infrastructure and product identity. Yellow acts as the checkpoint light: rare, high-signal, and used to call attention to the next action or an important security responsibility.
+Vestibule's visual system should feel like a calm, well-lit entry checkpoint that is upfront about its limits: the outside world is complex and provider-specific; the inside is structured and readable — and a clearly posted sign says this checkpoint is a demo, not a fortress. Purple carries the product identity. Yellow acts as the checkpoint light: rare, high-signal, and used to call attention to the next action, an application responsibility, or the not-for-production disclaimer itself.
 
-This is product UI and developer documentation, not a campaign surface. It should look precise enough for security-sensitive work and approachable enough for copy-paste integration. It explicitly rejects the PRODUCT.md anti-reference: "loud SaaS growth marketing." It also rejects flashy gradients, gimmicky identity-provider spectacle, mascots, over-animation, exaggerated metrics, and generic auth-dashboard theatrics.
+This is product UI and developer documentation, not a campaign surface. It should look precise, be approachable enough for copy-paste integration, and never imply audited or production-grade security. It explicitly rejects the PRODUCT.md anti-reference: "loud SaaS growth marketing." It also rejects flashy gradients, gimmicky identity-provider spectacle, mascots, over-animation, exaggerated metrics, and generic auth-dashboard theatrics.
 
 **Key Characteristics:**
 - Restrained purple/yellow identity, never rainbow OAuth decoration.
-- High-contrast text and controls for trust-critical reading.
+- High-contrast text and controls, with caveats and disclaimers as legible as the pitch.
 - Self-hosted typography that feels precise, approachable, and native to developer tools.
 - Flat-by-default surfaces with depth conveyed through tone, borders, and state.
 - Short, direct copy around security responsibilities and recovery paths.
@@ -156,11 +156,11 @@ The palette is restrained product purple with yellow used as a deliberate signal
 
 **The Fixed Scale Rule.** Use fixed `rem` sizes for product documentation. Breakpoint steps are allowed for the overview hero, but fluid type should not drive docs-page hierarchy.
 
-**The Security Copy Rule.** Authentication guidance must stay legible at normal reading size. Never shrink security caveats into fine print.
+**The Security Copy Rule.** Authentication guidance must stay legible at normal reading size. Never shrink security caveats into fine print — above all the "not audited, not for production" disclaimer, which is always a first-class element.
 
 ## 4. Elevation
 
-Vestibule should be flat by default. Depth comes from tonal layering, soft borders, and state changes rather than broad shadows. A security library should not feel floaty or glassy; panels should feel placed, not hovering.
+Vestibule should be flat by default. Depth comes from tonal layering, soft borders, and state changes rather than broad shadows. An authentication tool should not feel floaty or glassy; panels should feel placed, not hovering.
 
 ### Shadow Vocabulary
 - **Interactive Lift** (`0 6px 12px oklch(0.200 0.035 300 / 0.10)`): Optional hover lift for a primary CTA or provider button on a marketing-adjacent demo surface. Do not combine it with a decorative 1px border unless the border is structural and the blur stays small.
@@ -214,7 +214,7 @@ Use a restrained row/list treatment for supported OAuth providers. Brand marks m
 - **Do** use purple for primary actions, selected states, and brand identity.
 - **Do** use yellow sparingly as the checkpoint light for focus, next-step emphasis, and important setup guidance.
 - **Do** keep body backgrounds pure white and text high-contrast.
-- **Do** make security responsibilities visible near the action they affect.
+- **Do** make security responsibilities — and the not-for-production disclaimer — visible near the action they affect.
 - **Do** use reduced-motion-safe, 150-200ms transitions for hover, focus, and state changes only.
 
 ### Don't:

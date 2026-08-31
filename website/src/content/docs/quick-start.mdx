@@ -12,7 +12,7 @@ toc:
   - href: "#callback-failure"
     label: When the callback fails
   - href: "#security-responsibilities"
-    label: Before shipping
+    label: Before you demo
 searchTerms:
   - middleware
   - wisp
@@ -196,15 +196,17 @@ import {
 
 <section id="security-responsibilities" className="security-callout">
   <div>
-    <h2>Before shipping</h2>
+    <h2>Before you demo</h2>
     <p>
-      Complete these checks before you enable sign-in for users. Keep OAuth
-      callback data on the server. Give the data a short expiration time and
-      bind it to the user's session. Reject missing or mismatched callbacks.
+      Vestibule has not been security audited — use it for demos and
+      prototypes, not production. Even in a demo, complete these checks
+      before you enable sign-in for users. Keep OAuth callback data on the
+      server. Give the data a short expiration time and bind it to the
+      user's session. Reject missing or mismatched callbacks.
     </p>
   </div>
   <ul className="check-list">
-    <li>Production redirect URIs must use HTTPS.</li>
+    <li>Non-local redirect URIs must use HTTPS.</li>
     <li>Store state and PKCE verifier values on the server for a short time.</li>
     <li>Remove client secrets, authorization codes, and PKCE verifiers from logs and error reports.</li>
     <li>Bearer tokens must be redacted from logs and error reports.</li>

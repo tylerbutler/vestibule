@@ -10,7 +10,7 @@ useWhen: Use GitHub if users sign in with GitHub accounts. The strategy returns 
 defaultScopes: "user:email"
 setup:
   - Create a GitHub OAuth App.
-  - Set the exact authorization callback URL for development and production.
+  - Set the exact authorization callback URL for each environment you demo from.
   - Copy the Client ID and generate a client secret.
   - Request user:email when you need private verified primary email lookup.
 highlights:

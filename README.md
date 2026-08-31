@@ -1,11 +1,17 @@
 # vestibule
 
-Strategy-based OAuth2 authentication for Gleam.
+Demo-ready OAuth sign-in for Gleam. Real auth flows for demos and prototypes —
+not audited, not for production.
 
 The name "vestibule" refers to an entrance hall — the transitional space between outside (unauthenticated) and inside (authenticated).
 
 [![Package Version](https://img.shields.io/hexpm/v/vestibule)](https://hex.pm/packages/vestibule)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/vestibule/)
+
+> [!WARNING]
+> Vestibule has not been security audited and must not be considered secure.
+> It is intended for demos and prototypes that need real OAuth flows — do not
+> use it in production.
 
 > [!NOTE]
 > vestibule is pre-1.0 (currently `0.x`). The public API is still subject to
@@ -14,7 +20,7 @@ The name "vestibule" refers to an entrance hall — the transitional space betwe
 > across patch and minor releases, with breaking changes reserved for major
 > versions.
 >
-> OAuth security depends on application configuration too: production redirect
+> OAuth security depends on application configuration too: non-local redirect
 > URIs must use HTTPS. `http://localhost` and `http://127.0.0.1` redirect URIs
 > are allowed for local development only.
 
@@ -325,7 +331,7 @@ The discovered strategy plugs into the same two-phase flow, registry, and
 Register a client in your provider first:
 
 - **Redirect URI** — must exactly match the one passed to `config.new`
-  (for example `https://app.example.com/auth/oidc/callback`). Production
+  (for example `https://app.example.com/auth/oidc/callback`). Non-local
   redirect URIs and OIDC issuers must use HTTPS; `http://localhost` and
   `http://127.0.0.1` are permitted for local development only.
 - **Scopes** — request `openid email profile` so vestibule can populate the
@@ -334,10 +340,14 @@ Register a client in your provider first:
 - **Client credentials** — copy the issued client ID and secret into
   `config.new`.
 
-## Security
+## Security properties (unaudited)
 
-Vestibule implements the OAuth 2.0 / OIDC pieces that protect against
-common attacks, but a few responsibilities remain with the consuming app.
+Vestibule implements the OAuth 2.0 / OIDC mechanisms listed below, and a few
+responsibilities remain with the consuming app. None of this has been
+independently audited or professionally vetted — treat these as implemented
+mechanisms, not as assurance. The only review to date is an internal,
+[historical audit of v0.1.0](docs/security-audit-2026-02-25.md), which itself
+found issues. Do not rely on vestibule to secure a production system.
 
 **Built in**
 
@@ -347,7 +357,7 @@ common attacks, but a few responsibilities remain with the consuming app.
 - **CSRF state** — every request gets a 256-bit base64url state token.
   `state.validate` does a constant-time comparison and rejects empty
   values. Validation runs before any provider response detail is surfaced.
-- **HTTPS enforcement** — production redirect URIs and OIDC issuers
+- **HTTPS enforcement** — non-local redirect URIs and OIDC issuers
   must use HTTPS. `http://localhost` and `http://127.0.0.1` are
   permitted for development only.
 - **JWT signature verification (Apple)** — Apple ID tokens are

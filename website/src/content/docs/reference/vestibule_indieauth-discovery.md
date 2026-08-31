@@ -1,6 +1,6 @@
 ---
 title: "vestibule_indieauth/discovery"
-description: "Reference for vestibule_indieauth/discovery."
+description: "IndieAuth endpoint discovery."
 nav:
   group: Reference
   groupOrder: 20
@@ -20,7 +20,13 @@ searchTerms:
 
 # `vestibule_indieauth/discovery`
 
-Reference for vestibule_indieauth/discovery.
+IndieAuth endpoint discovery.
+
+Implements the discovery algorithm from IndieAuth spec Section 4.1:
+1. Fetch the user's profile URL
+2. Look for `rel="indieauth-metadata"` — if found, fetch metadata JSON
+3. Fall back to `rel="authorization_endpoint"` and `rel="token_endpoint"`
+4. Check HTTP `Link` headers first, then HTML `<link>` tags
 
 ## Types
 
@@ -89,4 +95,18 @@ Exported for testing.
 
 ```gleam
 pub fn parse_metadata(String) -> Result(DiscoveredEndpoints, error.AuthError(a))
+```
+
+### `validate_endpoints`
+
+Require every discovered endpoint to be a public HTTPS URL.
+
+Discovered endpoints are chosen by whoever controls the profile URL, so
+without this check a login attempt could point the server's token or
+userinfo requests at loopback, private, or cloud-metadata addresses
+(SSRF). Applied to metadata, link-relation discovery, and endpoints
+restored from `vestibule_indieauth.parse_endpoints`.
+
+```gleam
+pub fn validate_endpoints(DiscoveredEndpoints) -> Result(DiscoveredEndpoints, error.AuthError(a))
 ```

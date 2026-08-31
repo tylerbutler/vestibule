@@ -12,7 +12,7 @@ setup:
   - Create a Google Cloud project.
   - Configure OAuth consent screen with openid, email, and profile scopes.
   - Create a Web application OAuth client ID.
-  - Add the exact redirect URIs for development and HTTPS production.
+  - Add the exact redirect URIs for each environment you demo from (HTTPS when not local).
 highlights:
   - user_info.email only returns a value when email_verified is true.
   - Use config.with_extra_params to request offline access.

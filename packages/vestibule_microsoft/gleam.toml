@@ -1,6 +1,6 @@
 name = "vestibule_microsoft"
 version = "0.0.0"
-description = "Microsoft OAuth strategy for vestibule"
+description = "Microsoft OAuth strategy for vestibule (demo-ready — not audited, not for production)"
 licences = ["MIT"]
 repository = { type = "github", user = "tylerbutler", repo = "vestibule", path = "packages/vestibule_microsoft" }
 gleam = ">= 1.11.0"
