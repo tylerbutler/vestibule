@@ -43,8 +43,8 @@ Apple's OAuth implementation has several key differences from standard providers
 
 Call `vestibule_apple.try_init()` once per VM at application startup to
 initialize caches, then use `vestibule_apple.strategy()` to create the
-strategy. Handle the error, or assert at the top level of your application
-where failing to start is the right outcome:
+strategy. Handle the error, or assert at the top level of your
+application where failing to start is the right outcome:
 
 ```gleam
 let assert Ok(apple) = vestibule_apple.try_init()

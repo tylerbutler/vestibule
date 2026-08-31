@@ -1,10 +1,10 @@
 ---
 title: "vestibule_indieauth/token"
-description: "Reference for vestibule_indieauth/token."
+description: "IndieAuth token exchange and response parsing."
 nav:
   group: Reference
   groupOrder: 20
-  order: 30
+  order: 31
   label: "vestibule_indieauth/token"
 toc:
   - href: "#types"
@@ -20,7 +20,11 @@ searchTerms:
 
 # `vestibule_indieauth/token`
 
-Reference for vestibule_indieauth/token.
+IndieAuth token exchange and response parsing.
+
+Handles the token exchange step of the IndieAuth flow where
+the authorization code is exchanged for an access token and
+the user's canonical profile URL.
 
 ## Types
 
@@ -49,6 +53,10 @@ Exchange an authorization code for credentials at the token endpoint.
 IndieAuth uses public client semantics — no `client_secret` is sent.
 The `client_id` is the application's URL.
 
+Returns the credentials together with the profile the server asserted
+(whose `me` is required). The caller must confirm that `me` before
+treating it as the user's identity — see `vestibule_indieauth/profile`.
+
 ```gleam
 pub fn exchange_code(
   String,
@@ -56,7 +64,7 @@ pub fn exchange_code(
   String,
   String,
   option.Option(String)
-) -> Result(credentials.Credentials, error.AuthError(a))
+) -> Result(#(credentials.Credentials, IndieAuthProfile), error.AuthError(a))
 ```
 
 ### `fetch_userinfo`

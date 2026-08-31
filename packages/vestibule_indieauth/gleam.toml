@@ -1,6 +1,6 @@
 name = "vestibule_indieauth"
 version = "0.0.0"
-description = "IndieAuth strategy for vestibule — decentralized identity via OAuth 2.0"
+description = "IndieAuth strategy for vestibule — decentralized identity via OAuth 2.0 (demo-ready — not audited, not for production)"
 licences = ["MIT"]
 repository = { type = "github", user = "tylerbutler", repo = "vestibule", path = "packages/vestibule_indieauth" }
 gleam = ">= 1.11.0"

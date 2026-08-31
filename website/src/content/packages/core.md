@@ -70,7 +70,7 @@ code: |
       }
   }
 notes:
-  - Production redirect URIs and OIDC issuers must use HTTPS.
+  - Non-local redirect URIs and OIDC issuers must use HTTPS.
   - Remove Auth and Credentials values from logs. Bearer tokens are secrets.
   - "Pass `expected_nonce: option.None` for plain OAuth2 callbacks. For OIDC flows, pass the stored nonce from the request phase."
 navOrder: 10

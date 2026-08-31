@@ -143,6 +143,30 @@ the issue.
 pub fn require_https(String) -> Result(Nil, error.AuthError(a))
 ```
 
+### `require_public_host`
+
+Validate that a URL targets a publicly-routable host, whatever its scheme.
+
+This is the host half of `require_public_https`, for URLs that are fetched
+server-side but where plain `http` is legitimately allowed — for example
+an IndieAuth profile URL supplied by the person logging in. Loopback,
+private, link-local, shared (CGNAT), multicast, and reserved IPv4/IPv6
+literals are rejected, as are `localhost`, `*.localhost`, and `*.local`
+names. Numeric hosts that are not a canonical dotted quad (`127.1`,
+`2130706433`, `0177.0.0.1`) are rejected outright, because the system
+resolver accepts them as aliases that this check cannot classify.
+
+Hostnames that resolve via DNS cannot be classified here and are treated
+as public; callers that accept fully untrusted URLs should additionally
+restrict resolution at the network layer.
+
+Returns Ok(Nil) if valid, or an AuthError of kind `ConfigKind` describing
+the issue.
+
+```gleam
+pub fn require_public_host(String) -> Result(Nil, error.AuthError(a))
+```
+
 ### `require_public_https`
 
 Validate that a URL uses HTTPS *and* targets a publicly-routable host.

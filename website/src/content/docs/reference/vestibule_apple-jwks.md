@@ -45,9 +45,17 @@ Errors returned by checked JWKS cache operations.
 
 ```gleam
 pub type JwksCacheError {
-  JwksTableCreateFailed
+  JwksTableCreateFailed(reason: String)
 }
 ```
+
+#### Constructors
+
+##### `JwksTableCreateFailed(reason: String)`
+
+The ETS table backing the cache could not be created (for example
+because it already exists). `reason` describes the underlying storage
+error to aid debugging.
 
 ## Functions
 
@@ -58,22 +66,6 @@ Falls back to fetching from Apple's JWKS endpoint.
 
 ```gleam
 pub fn get_keys(JwksCache) -> Result(List(verify_key.VerifyKey), error.AuthError(a))
-```
-
-### `init`
-
-Initialize the JWKS cache. Call once per VM at application startup.
-
-```gleam
-pub fn init() -> JwksCache
-```
-
-### `init_named`
-
-Initialize a named JWKS cache. Useful for testing.
-
-```gleam
-pub fn init_named(String) -> JwksCache
 ```
 
 ### `parse_jwks`
@@ -94,7 +86,7 @@ pub fn refresh_keys(JwksCache) -> Result(List(verify_key.VerifyKey), error.AuthE
 
 ### `try_init`
 
-Try to initialize the JWKS cache.
+Try to initialize the JWKS cache. Call once per VM at application startup.
 
 ```gleam
 pub fn try_init() -> Result(JwksCache, JwksCacheError)

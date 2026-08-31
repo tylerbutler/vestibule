@@ -4,7 +4,7 @@ description: "HMAC-SHA256 signed cookie payload helpers."
 nav:
   group: Reference
   groupOrder: 20
-  order: 34
+  order: 35
   label: "vestibule_mist/signed_cookie"
 toc:
   - href: "#functions"

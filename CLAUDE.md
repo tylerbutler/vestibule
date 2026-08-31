@@ -4,6 +4,11 @@
 
 A Gleam library/application targeting the Erlang (BEAM) runtime.
 
+Vestibule is positioned as **demo-ready OAuth sign-in** — real auth flows for
+demos and prototypes. It has **not been security audited** and must not be
+presented as secure or production-ready; keep all user-facing copy (READMEs,
+website, package descriptions, docstrings) consistent with that framing.
+
 ## Build Commands
 
 ```bash
