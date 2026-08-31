@@ -122,10 +122,10 @@ let assert Ok(registry) =
 let assert Ok(store) = state_store.try_init()
 
 // In your router
-case wisp.path_segments(req), req.method {
+case wisp.path_segments(request), request.method {
   ["auth", provider], http.Get ->
     vestibule_wisp.request_phase(
-      req,
+      request,
       registry,
       provider,
       store,
@@ -135,7 +135,7 @@ case wisp.path_segments(req), req.method {
   ["auth", provider, "callback"], http.Get
   | ["auth", provider, "callback"], http.Post
   ->
-    vestibule_wisp.callback_phase(req, registry, provider, store, fn(auth) {
+    vestibule_wisp.callback_phase(request, registry, provider, store, fn(auth) {
       // auth.uid(auth), user_info.name(auth.info(auth)), user_info.email(auth.info(auth))
       wisp.redirect("/dashboard")
     })
@@ -191,11 +191,11 @@ import vestibule_mist
 let assert Ok(store) = state_store.try_init()
 let assert Ok(options) = vestibule_mist.new_options(secret_key_base)
 
-fn handle_request(req: Request(Connection)) -> Response(ResponseData) {
-  case request.path_segments(req), req.method {
+fn handle_request(http_request: Request(Connection)) -> Response(ResponseData) {
+  case request.path_segments(http_request), http_request.method {
     ["auth", provider], http.Get ->
       vestibule_mist.request_phase(
-        req,
+        http_request,
         registry,
         provider,
         store,
@@ -204,7 +204,14 @@ fn handle_request(req: Request(Connection)) -> Response(ResponseData) {
       )
     ["auth", provider, "callback"], http.Get
     | ["auth", provider, "callback"], http.Post ->
-      vestibule_mist.callback_phase(req, registry, provider, store, options, on_success)
+      vestibule_mist.callback_phase(
+        http_request,
+        registry,
+        provider,
+        store,
+        options,
+        on_success,
+      )
     _, _ -> not_found()
   }
 }
@@ -249,10 +256,10 @@ Use a registry to support multiple providers in one app:
 ```gleam
 let assert Ok(registry) =
   registry.new()
-  |> registry.register(vestibule_github.strategy(), github_cfg)
+  |> registry.register(vestibule_github.strategy(), github_config)
 let assert Ok(registry) =
   registry
-  |> registry.register(vestibule_google.strategy(), google_cfg)
+  |> registry.register(vestibule_google.strategy(), google_config)
 ```
 
 `register` rejects a second registration under an already-registered provider

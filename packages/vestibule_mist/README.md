@@ -61,12 +61,12 @@ let assert Ok(options) = vestibule_mist.new_options(secret_key_base)
 Then dispatch from your mist handler:
 
 ```gleam
-fn handle_request(req: Request(Connection)) -> Response(ResponseData) {
-  case request.path_segments(req), req.method {
+fn handle_request(http_request: Request(Connection)) -> Response(ResponseData) {
+  case request.path_segments(http_request), http_request.method {
     ["auth", provider], http.Get ->
       vestibule_mist.request_phase(
-        req,
-        reg,
+        http_request,
+        registry,
         provider,
         store,
         authorize_options: config.authorize_options(),
@@ -76,8 +76,8 @@ fn handle_request(req: Request(Connection)) -> Response(ResponseData) {
     ["auth", provider, "callback"], http.Get
     | ["auth", provider, "callback"], http.Post ->
       vestibule_mist.callback_phase(
-        req,
-        reg,
+        http_request,
+        registry,
         provider,
         store,
         options,
@@ -140,7 +140,13 @@ stored state is missing, expired, or already used, it returns
   use this for structured/custom error handling.
 
 ```gleam
-case vestibule_mist.callback_phase_auth_result(req, reg, provider, store, options) {
+case vestibule_mist.callback_phase_auth_result(
+  request,
+  registry,
+  provider,
+  store,
+  options,
+) {
   Ok(auth) -> on_success(auth)
   Error(vestibule_mist.UnknownProvider(provider)) -> handle_unknown(provider)
   Error(vestibule_mist.MissingOrInvalidSessionCookie(reason)) ->
@@ -148,7 +154,8 @@ case vestibule_mist.callback_phase_auth_result(req, reg, provider, store, option
   Error(vestibule_mist.SessionUnavailable) -> handle_expired_session()
   Error(vestibule_mist.InvalidCallbackParams(reason)) ->
     handle_bad_callback(reason)
-  Error(vestibule_mist.AuthFailed(err)) -> handle_auth_failure(err)
+  Error(vestibule_mist.AuthFailed(auth_error)) ->
+    handle_auth_failure(auth_error)
 }
 ```
 

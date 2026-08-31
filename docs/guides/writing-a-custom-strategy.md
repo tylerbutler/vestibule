@@ -139,7 +139,7 @@ error.config(reason: reason)
 error.refresh_unsupported()
 error.custom(payload)
 
-// ErrorKind values from error.kind(err):
+// ErrorKind values from error.kind(auth_error):
 StateMismatchKind
 InvalidNonceKind
 MissingCallbackParamKind
@@ -180,17 +180,27 @@ pub fn strategy() -> Strategy(TwitchError) {
 If you need to combine strategies that use different custom error types, map the
 inner error yourself when calling `error.custom` (for example, with
 `result.map_error`) -- vestibule does not ship a built-in error-conversion
-helper. Applications can recover the payload with `error.custom_payload(err)`.
+helper. Applications can recover the payload with
+`error.custom_payload(auth_error)`.
 
-When you need to branch on built-in failures, match on `error.kind(err)` and
-always include `OtherKind` or `_` so future kinds remain safe:
+When you need to branch on built-in failures, match every current variant from
+`error.kind(auth_error)`. Handle `OtherKind` so future kinds remain safe:
 
 ```gleam
-case error.kind(err) {
-  ProviderKind -> handle_provider_error(err)
-  HttpKind -> handle_http_error(err)
-  OtherKind -> handle_unknown_error(err)
-  _ -> handle_unknown_error(err)
+case error.kind(auth_error) {
+  ProviderKind -> handle_provider_error(auth_error)
+  HttpKind -> handle_http_error(auth_error)
+  StateMismatchKind
+  | InvalidNonceKind
+  | MissingCallbackParamKind
+  | CodeExchangeKind
+  | UserInfoKind
+  | DecodeKind
+  | NetworkKind
+  | ConfigKind
+  | RefreshUnsupportedKind
+  | CustomKind
+  | OtherKind -> handle_unknown_error(auth_error)
 }
 ```
 
@@ -258,19 +268,24 @@ import vestibule/strategy.{type Strategy, type UserResult}
 import vestibule/user_info.{type UserInfo}
 
 fn do_authorize_url(
-  cfg: ClientConfig,
+  client_config: ClientConfig,
   options: AuthorizeOptions,
   scopes: List(String),
   state: String,
 ) -> Result(String, AuthError(e)) {
-  let assert Ok(site) = uri.parse("https://id.twitch.tv")
-  use redirect <- result.try(
-    provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
+  use site <- result.try(
+    uri.parse("https://id.twitch.tv")
+    |> result.map_error(fn(_) {
+      error.config(reason: "Invalid Twitch OAuth site URL")
+    }),
   )
-  use secret <- result.try(config.client_secret(cfg))
+  use redirect <- result.try(
+    provider_support.parse_redirect_uri(config.redirect_uri(client_config)),
+  )
+  use secret <- result.try(config.client_secret(client_config))
   let client =
     glow_auth.Client(
-      id: config.client_id(cfg),
+      id: config.client_id(client_config),
       secret: secret,
       site: site,
     )
@@ -307,22 +322,27 @@ import gleam/dynamic/decode
 import gleam/json
 
 fn do_exchange_code(
-  cfg: ClientConfig,
+  client_config: ClientConfig,
   code: String,
   code_verifier: Option(String),
 ) -> Result(strategy.ExchangeResult, AuthError(e)) {
-  let assert Ok(site) = uri.parse("https://id.twitch.tv")
-  use redirect <- result.try(
-    provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
+  use site <- result.try(
+    uri.parse("https://id.twitch.tv")
+    |> result.map_error(fn(_) {
+      error.config(reason: "Invalid Twitch OAuth site URL")
+    }),
   )
-  use secret <- result.try(config.client_secret(cfg))
+  use redirect <- result.try(
+    provider_support.parse_redirect_uri(config.redirect_uri(client_config)),
+  )
+  use secret <- result.try(config.client_secret(client_config))
   let client =
     glow_auth.Client(
-      id: config.client_id(cfg),
+      id: config.client_id(client_config),
       secret: secret,
       site: site,
     )
-  let req =
+  let http_request =
     token_request.authorization_code(
       client,
       uri_builder.RelativePath("/oauth2/token"),
@@ -330,8 +350,9 @@ fn do_exchange_code(
       redirect,
     )
     |> request.set_header("accept", "application/json")
-  let req = strategy.append_code_verifier(req, code_verifier)
-  case httpc.send(req) {
+  let http_request =
+    strategy.append_code_verifier(http_request, code_verifier)
+  case httpc.send(http_request) {
     Ok(response) -> {
       use body <- result.try(provider_support.check_response_status(response))
       parse_token_response(body)
@@ -367,7 +388,7 @@ pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
         description: description,
         uri: None,
       ))
-    _ -> parse_success_token(body)
+    Error(_) -> parse_success_token(body)
   }
 }
 
@@ -395,8 +416,8 @@ fn parse_success_token(body: String) -> Result(Credentials, AuthError(e)) {
     ))
   }
   case json.parse(body, decoder) {
-    Ok(creds) -> Ok(creds)
-    _ ->
+    Ok(oauth_credentials) -> Ok(oauth_credentials)
+    Error(_) ->
       Error(error.code_exchange(
         reason: "Failed to parse Twitch token response",
       ))
@@ -416,25 +437,30 @@ same token endpoint:
 
 ```gleam
 fn do_refresh_token(
-  cfg: ClientConfig,
+  client_config: ClientConfig,
   refresh_token: String,
 ) -> Result(Credentials, AuthError(e)) {
-  let assert Ok(site) = uri.parse("https://id.twitch.tv")
-  use secret <- result.try(config.client_secret(cfg))
+  use site <- result.try(
+    uri.parse("https://id.twitch.tv")
+    |> result.map_error(fn(_) {
+      error.config(reason: "Invalid Twitch OAuth site URL")
+    }),
+  )
+  use secret <- result.try(config.client_secret(client_config))
   let client =
     glow_auth.Client(
-      id: config.client_id(cfg),
+      id: config.client_id(client_config),
       secret: secret,
       site: site,
     )
-  let req =
+  let http_request =
     token_request.refresh(
       client,
       uri_builder.RelativePath("/oauth2/token"),
       refresh_token,
     )
     |> request.set_header("accept", "application/json")
-  case httpc.send(req) {
+  case httpc.send(http_request) {
     Ok(response) -> {
       use body <- result.try(provider_support.check_response_status(response))
       parse_token_response(body)
@@ -459,23 +485,25 @@ import gleam/int
 import gleam/list
 
 fn do_fetch_user(
-  cfg: ClientConfig,
+  client_config: ClientConfig,
   exchange: strategy.ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
-  let creds = strategy.exchange_credentials(exchange)
-  use auth_header <- result.try(strategy.authorization_header(creds))
-  use user_req <- result.try(
+  let oauth_credentials = strategy.exchange_credentials(exchange)
+  use auth_header <- result.try(
+    strategy.authorization_header(oauth_credentials),
+  )
+  use user_request <- result.try(
     request.to("https://api.twitch.tv/helix/users")
     |> result.map_error(fn(_) {
       error.config(reason: "Invalid Twitch user endpoint URL")
     }),
   )
-  let user_req =
-    user_req
+  let user_request =
+    user_request
     |> request.set_header("authorization", auth_header)
-    |> request.set_header("client-id", config.client_id(cfg))
+    |> request.set_header("client-id", config.client_id(client_config))
     |> request.set_header("accept", "application/json")
-  case httpc.send(user_req) {
+  case httpc.send(user_request) {
     Ok(response) -> {
       use body <- result.try(provider_support.check_response_status(response))
       use #(uid, info) <- result.try(parse_user_response(body))
@@ -529,20 +557,14 @@ pub fn parse_user_response(
       ])),
     ))
   }
-  let decoder = {
-    use users <- decode.field("data", decode.list(user_decoder))
-    case users {
-      [first, ..] -> decode.success(first)
-      [] ->
-        decode.success(#(
-          "",
-          user_info.new(),
-        ))
-    }
-  }
+  let decoder = decode.field("data", decode.list(user_decoder))
   case json.parse(body, decoder) {
-    Ok(result) -> Ok(result)
-    _ ->
+    Ok([first, ..]) -> Ok(first)
+    Ok([]) ->
+      Error(error.user_info(
+        reason: "Twitch user response contained no users",
+      ))
+    Error(_) ->
       Error(error.user_info(
         reason: "Failed to parse Twitch user response",
       ))
@@ -578,7 +600,7 @@ import vestibule/authorization_request
 import vestibule/config
 import vestibule_twitch
 
-pub fn start_auth() {
+pub fn start_auth() -> Nil {
   let twitch_config =
     config.new(
       client_id: "your_client_id",
@@ -619,7 +641,7 @@ let decoder = {
 }
 case json.parse(body, decoder) {
   Ok(value) -> Ok(value)
-  _ -> Error(error.decode(
+  Error(_) -> Error(error.decode(
     context: "token response",
     reason: "Failed to parse response",
   ))
@@ -660,18 +682,22 @@ Some providers require multiple API calls to get complete user information. GitH
 
 ```gleam
 fn do_fetch_user(
-  cfg: ClientConfig,
+  client_config: ClientConfig,
   exchange: strategy.ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
-  let creds = strategy.exchange_credentials(exchange)
+  let oauth_credentials = strategy.exchange_credentials(exchange)
 
   // Primary request
-  use resp <- result.try(fetch_profile(cfg, creds))
-  use profile_body <- result.try(provider_support.check_response_status(resp))
+  use response <- result.try(
+    fetch_profile(client_config, oauth_credentials),
+  )
+  use profile_body <- result.try(
+    provider_support.check_response_status(response),
+  )
   use #(uid, info) <- result.try(parse_user_response(profile_body))
 
   // Secondary request (best-effort -- don't fail if this errors)
-  let email = case fetch_emails(creds) {
+  let email = case fetch_emails(oauth_credentials) {
     Ok(response) ->
       case provider_support.check_response_status(response) {
         Ok(body) -> parse_primary_email(body)
@@ -726,7 +752,8 @@ The `Credentials` type has five fields. Map your provider's token response to th
 | `expires_in` | `expires_in` | Seconds until expiry, or `None` |
 | `scopes` | `scope` | Parse according to the provider's format |
 
-`credentials.expires_in(creds)` returns the provider `expires_in` value (seconds from now), not an absolute timestamp.
+`credentials.expires_in(oauth_credentials)` returns the provider `expires_in`
+value (seconds from now), not an absolute timestamp.
 
 ## Publishing as a Hex Package
 
@@ -845,14 +872,14 @@ import gleam/dict
 import gleam/option.{None, Some}
 import gleeunit
 import vestibule/credentials
-import vestibule/user_info as ui
+import vestibule/user_info
 import vestibule_twitch
 
 pub fn main() -> Nil {
   gleeunit.main()
 }
 
-pub fn parse_token_response_success_test() {
+pub fn parse_token_response_success_test() -> Nil {
   let body =
     "{\"access_token\":\"cfabdegwdoklmawdzdo98xt2fo512y\",\"expires_in\":14346,\"refresh_token\":\"eyJfMzUtNDU0OC04MWYwLTQ5MDY5ODY4NGNlMSJ9\",\"scope\":[\"user:read:email\"],\"token_type\":\"bearer\"}"
   assert vestibule_twitch.parse_token_response(body)
@@ -865,36 +892,36 @@ pub fn parse_token_response_success_test() {
     ))
 }
 
-pub fn parse_token_response_error_test() {
+pub fn parse_token_response_error_test() -> Nil {
   let body =
     "{\"error\":\"Unauthorized\",\"message\":\"Invalid authorization code\"}"
   let assert Error(_) = vestibule_twitch.parse_token_response(body)
   Nil
 }
 
-pub fn parse_user_response_full_test() {
+pub fn parse_user_response_full_test() -> Nil {
   let body =
     "{\"data\":[{\"id\":\"44322889\",\"login\":\"dallas\",\"display_name\":\"dallas\",\"profile_image_url\":\"https://static-cdn.jtvnw.net/jtv_user_pictures/dallas-profile.png\",\"description\":\"Just a chill streamer\",\"email\":\"dallas@example.com\"}]}"
   let assert Ok(#(uid, info)) = vestibule_twitch.parse_user_response(body)
   assert uid == "44322889"
-  assert ui.name(info) == Some("dallas")
-  assert ui.nickname(info) == Some("dallas")
-  assert ui.email(info) == Some("dallas@example.com")
-  assert ui.image(info)
+  assert user_info.name(info) == Some("dallas")
+  assert user_info.nickname(info) == Some("dallas")
+  assert user_info.email(info) == Some("dallas@example.com")
+  assert user_info.image(info)
     == Some("https://static-cdn.jtvnw.net/jtv_user_pictures/dallas-profile.png")
-  assert ui.description(info) == Some("Just a chill streamer")
-  assert ui.urls(info)
+  assert user_info.description(info) == Some("Just a chill streamer")
+  assert user_info.urls(info)
     == dict.from_list([#("twitch_url", "https://twitch.tv/dallas")])
 }
 
-pub fn parse_user_response_minimal_test() {
+pub fn parse_user_response_minimal_test() -> Nil {
   let body =
     "{\"data\":[{\"id\":\"12345\",\"login\":\"testuser\"}]}"
   let assert Ok(#(uid, info)) = vestibule_twitch.parse_user_response(body)
   assert uid == "12345"
-  assert ui.name(info) == None
-  assert ui.email(info) == None
-  assert ui.nickname(info) == Some("testuser")
+  assert user_info.name(info) == None
+  assert user_info.email(info) == None
+  assert user_info.nickname(info) == Some("testuser")
 }
 ```
 

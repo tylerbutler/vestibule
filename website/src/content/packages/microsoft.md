@@ -29,7 +29,7 @@ code: |
       "72f988bf-86f1-41af-91ab-2d7cd011db47",
     )
 
-  let cfg =
+  let client_config =
     config.new(
       client_id: "microsoft-client-id",
       redirect_uri: "http://localhost:8000/auth/microsoft/callback",
