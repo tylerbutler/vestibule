@@ -216,13 +216,10 @@ test: add edge case tests for unicode handling
 ## Release Process
 
 This is a multi-package repository. Trellis independently versions, tags, and
-releases the releasable packages. The `example` app and the `vestibule_apple`,
-`vestibule_google`, `vestibule_microsoft`, and `vestibule_oidc` providers stay
-full workspace members — normal tasks still build and test them — but their
-paths are listed under `exclude."@release"` in the root `gleam.toml`, so they
-are never versioned or tagged. That leaves a release set of `vestibule`,
-`vestibule_github`, `vestibule_indieauth`, `vestibule_mist`, and
-`vestibule_wisp`; `trellis doctor` prints the split.
+releases every package. The `example` app stays a full workspace member —
+normal tasks still build and test it — but its path is listed under
+`exclude."@release"` in the root `gleam.toml`, so it is never versioned or
+tagged. `trellis doctor` prints the split.
 
 ### Adding Changelog Entries
 
