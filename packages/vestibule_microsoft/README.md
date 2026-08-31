@@ -111,6 +111,15 @@ Useful parameters include `prompt=select_account` to force account selection,
 `prompt=consent` to force a consent prompt, `login_hint` to pre-fill the account
 identifier, and `domain_hint` to streamline home-realm discovery for a tenant.
 
+## Custom HTTP clients
+
+For sans-IO use, call `build_authorization_code_request` or
+`build_refresh_token_request` with `"common"` or the tenant GUID used by
+`strategy_for_tenant`. Userinfo uses `build_user_info_request`. Send each
+returned request with your HTTP client and pass its response to the matching
+`parse_*_response` function. The existing strategies continue to use
+`gleam_httpc` internally.
+
 ## Profile images
 
 Microsoft Graph `/me` does not include profile photos. The built-in strategy

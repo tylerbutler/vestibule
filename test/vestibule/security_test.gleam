@@ -11,7 +11,7 @@ import gleam/string
 import vestibule
 import vestibule/authorization_request
 import vestibule/config
-import vestibule/credentials
+import vestibule/credential
 import vestibule/error
 import vestibule/pkce
 import vestibule/provider_support
@@ -40,7 +40,7 @@ fn test_strategy() -> Strategy(e) {
         "valid_code" ->
           Ok(
             strategy.exchange_result(
-              credentials.new(
+              credential.new(
                 token: "tok",
                 refresh_token: None,
                 token_type: "bearer",
@@ -84,9 +84,9 @@ pub fn state_validate_rejects_whitespace_only_test() -> Nil {
 /// Security: generated states must have sufficient entropy.
 /// 32 bytes of CSPRNG = 256 bits. Base64url encoding produces 43 chars.
 pub fn state_generation_entropy_is_sufficient_test() -> Nil {
-  let s = state.generate()
+  let state_value = state.generate()
   // Must be at least 43 chars (256 bits base64url-encoded)
-  assert string.length(s) >= 43
+  assert string.length(state_value) >= 43
 }
 
 /// Security: state tokens must be unique across generations.
@@ -111,19 +111,19 @@ pub fn state_generation_produces_unique_values_test() -> Nil {
 /// Security: near-miss states must be rejected.
 /// Verifies the comparison isn't doing prefix-only or length-only checks.
 pub fn state_validate_rejects_near_miss_test() -> Nil {
-  let s = state.generate()
+  let state_value = state.generate()
   // Flip the last character
-  let prefix = string.drop_end(s, 1)
+  let prefix = string.drop_end(state_value, 1)
   let tampered = prefix <> "X"
-  assert state.validate(received: tampered, expected: s)
+  assert state.validate(received: tampered, expected: state_value)
     == Error(error.state_mismatch())
 }
 
 /// Security: swapped state values must be rejected.
 pub fn state_validate_rejects_swapped_values_test() -> Nil {
-  let a = state.generate()
-  let b = state.generate()
-  assert state.validate(received: a, expected: b)
+  let first_state = state.generate()
+  let second_state = state.generate()
+  assert state.validate(received: first_state, expected: second_state)
     == Error(error.state_mismatch())
 }
 
@@ -173,8 +173,8 @@ pub fn pkce_different_verifiers_produce_different_challenges_test() -> Nil {
 // Authorization URL Security Tests
 // ===========================================================================
 
-/// Security: authorization URL must always include PKCE params.
-/// No code path should produce a URL without code_challenge.
+/// Security: authorization URL must always include PKCE parameters.
+/// No code path should produce first_state URL without code_challenge.
 pub fn create_authorization_request_always_includes_pkce_test() -> Nil {
   let strategy = test_strategy()
   let client_config =
@@ -183,13 +183,13 @@ pub fn create_authorization_request_always_includes_pkce_test() -> Nil {
       auth: config.ClientSecret("secret"),
       redirect_uri: "https://localhost/cb",
     )
-  let assert Ok(auth_req) =
+  let assert Ok(authorization_request_value) =
     vestibule.create_authorization_request(
       strategy,
       config: client_config,
       options: config.authorize_options(),
     )
-  let url = authorization_request.url(auth_req)
+  let url = authorization_request.url(authorization_request_value)
   assert string.contains(url, "code_challenge=")
   assert string.contains(url, "code_challenge_method=S256")
 }
@@ -234,13 +234,13 @@ pub fn callback_rejects_state_mismatch_test() -> Nil {
       auth: config.ClientSecret("secret"),
       redirect_uri: "https://localhost/cb",
     )
-  let params =
+  let parameters =
     dict.from_list([#("code", "valid_code"), #("state", "attacker_state")])
   let result =
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: params,
+      callback_params: parameters,
       expected_state: "real_state",
       code_verifier: "verifier",
       expected_nonce: None,
@@ -257,12 +257,12 @@ pub fn callback_rejects_missing_state_test() -> Nil {
       auth: config.ClientSecret("secret"),
       redirect_uri: "https://localhost/cb",
     )
-  let params = dict.from_list([#("code", "valid_code")])
+  let parameters = dict.from_list([#("code", "valid_code")])
   let result =
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: params,
+      callback_params: parameters,
       expected_state: "expected",
       code_verifier: "verifier",
       expected_nonce: None,
@@ -270,8 +270,8 @@ pub fn callback_rejects_missing_state_test() -> Nil {
   assert result == Error(error.missing_callback_param("state"))
 }
 
-/// Security: empty callback params must be rejected.
-pub fn callback_rejects_empty_params_test() -> Nil {
+/// Security: empty callback parameters must be rejected.
+pub fn callback_rejects_empty_parameters_test() -> Nil {
   let strategy = test_strategy()
   let client_config =
     config.new(
@@ -292,8 +292,8 @@ pub fn callback_rejects_empty_params_test() -> Nil {
 }
 
 /// Security: provider error responses must be detected.
-/// When a provider returns error=access_denied (user denied consent),
-/// the library should propagate the ProviderError, not a generic message.
+/// When first_state provider returns error=access_denied (user denied consent),
+/// the library should propagate the ProviderError, not first_state generic message.
 pub fn callback_detects_provider_error_test() -> Nil {
   let strategy = test_strategy()
   let client_config =
@@ -302,10 +302,10 @@ pub fn callback_detects_provider_error_test() -> Nil {
       auth: config.ClientSecret("secret"),
       redirect_uri: "https://localhost/cb",
     )
-  let state_val = "matching_state"
-  let params =
+  let state_value = "matching_state"
+  let parameters =
     dict.from_list([
-      #("state", state_val),
+      #("state", state_value),
       #("error", "access_denied"),
       #("error_description", "User denied access"),
     ])
@@ -313,8 +313,8 @@ pub fn callback_detects_provider_error_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: params,
-      expected_state: state_val,
+      callback_params: parameters,
+      expected_state: state_value,
       code_verifier: "verifier",
       expected_nonce: None,
     )
@@ -334,10 +334,10 @@ pub fn callback_preserves_provider_error_uri_test() -> Nil {
       auth: config.ClientSecret("secret"),
       redirect_uri: "https://localhost/cb",
     )
-  let state_val = "matching_state"
-  let params =
+  let state_value = "matching_state"
+  let parameters =
     dict.from_list([
-      #("state", state_val),
+      #("state", state_value),
       #("error", "access_denied"),
       #("error_description", "User denied access"),
       #("error_uri", "https://example.com/access-denied"),
@@ -346,8 +346,8 @@ pub fn callback_preserves_provider_error_uri_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: params,
-      expected_state: state_val,
+      callback_params: parameters,
+      expected_state: state_value,
       code_verifier: "verifier",
       expected_nonce: None,
     )
@@ -368,7 +368,7 @@ pub fn callback_rejects_provider_error_when_state_mismatch_test() -> Nil {
       auth: config.ClientSecret("secret"),
       redirect_uri: "https://localhost/cb",
     )
-  let params =
+  let parameters =
     dict.from_list([
       #("state", "attacker_state"),
       #("error", "access_denied"),
@@ -378,7 +378,7 @@ pub fn callback_rejects_provider_error_when_state_mismatch_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: params,
+      callback_params: parameters,
       expected_state: "expected_state",
       code_verifier: "verifier",
       expected_nonce: None,
@@ -387,7 +387,7 @@ pub fn callback_rejects_provider_error_when_state_mismatch_test() -> Nil {
 }
 
 /// Security: extra unexpected parameters should not cause crashes.
-pub fn callback_ignores_extra_params_test() -> Nil {
+pub fn callback_ignores_extra_parameters_test() -> Nil {
   let strategy = test_strategy()
   let client_config =
     config.new(
@@ -395,11 +395,11 @@ pub fn callback_ignores_extra_params_test() -> Nil {
       auth: config.ClientSecret("secret"),
       redirect_uri: "https://localhost/cb",
     )
-  let state_val = "test_state"
-  let params =
+  let state_value = "test_state"
+  let parameters =
     dict.from_list([
       #("code", "valid_code"),
-      #("state", state_val),
+      #("state", state_value),
       #("unexpected_param", "some_value"),
       #("another", "<script>alert(1)</script>"),
     ])
@@ -407,8 +407,8 @@ pub fn callback_ignores_extra_params_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: params,
-      expected_state: state_val,
+      callback_params: parameters,
+      expected_state: state_value,
       code_verifier: "verifier",
       expected_nonce: None,
     )
@@ -463,7 +463,7 @@ pub fn refresh_response_handles_long_token_test() -> Nil {
       provider_support.OptionalScope(" "),
     )
   let assert Ok(oauth_credentials) = result
-  assert string.length(credentials.token(oauth_credentials)) == 10_000
+  assert string.length(credential.token(oauth_credentials)) == 10_000
 }
 
 // ===========================================================================

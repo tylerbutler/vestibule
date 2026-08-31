@@ -30,46 +30,47 @@ fn test_config() -> config.ClientConfig {
 }
 
 pub fn new_registry_has_no_providers_test() -> Nil {
-  let reg = registry.new()
-  assert registry.providers(reg) == []
+  let provider_registry = registry.new()
+  assert registry.providers(provider_registry) == []
 }
 
 pub fn register_and_get_provider_test() -> Nil {
   let strategy = test_strategy("github")
   let client_config = test_config()
-  let assert Ok(reg) =
+  let assert Ok(provider_registry) =
     registry.new()
     |> registry.register(strategy: strategy, config: client_config)
-  let assert Ok(#(s, _c)) = registry.get(reg, provider: "github")
-  assert strategy.provider(s) == "github"
+  let assert Ok(#(provider_strategy, _client_config)) =
+    registry.get(provider_registry, provider: "github")
+  assert strategy.provider(provider_strategy) == "github"
 }
 
 pub fn get_unknown_provider_returns_error_test() -> Nil {
-  let reg = registry.new()
-  assert registry.get(reg, provider: "unknown") == Error(Nil)
+  let provider_registry = registry.new()
+  assert registry.get(provider_registry, provider: "unknown") == Error(Nil)
 }
 
 pub fn providers_returns_registered_names_test() -> Nil {
-  let assert Ok(reg) =
+  let assert Ok(provider_registry) =
     registry.new()
     |> registry.register(
       strategy: test_strategy("github"),
       config: test_config(),
     )
-  let assert Ok(reg) =
-    reg
+  let assert Ok(provider_registry) =
+    provider_registry
     |> registry.register(
       strategy: test_strategy("microsoft"),
       config: test_config(),
     )
-  let names = registry.providers(reg)
+  let names = registry.providers(provider_registry)
   assert list.contains(names, "github")
   assert list.contains(names, "microsoft")
   assert list.length(names) == 2
 }
 
 pub fn register_duplicate_provider_is_rejected_test() -> Nil {
-  let assert Ok(reg) =
+  let assert Ok(provider_registry) =
     registry.new()
     |> registry.register(
       strategy: test_strategy("github"),
@@ -77,7 +78,7 @@ pub fn register_duplicate_provider_is_rejected_test() -> Nil {
     )
 
   assert registry.register(
-      reg,
+      provider_registry,
       strategy: test_strategy("github"),
       config: test_config(),
     )
@@ -85,61 +86,69 @@ pub fn register_duplicate_provider_is_rejected_test() -> Nil {
 }
 
 pub fn register_duplicate_does_not_replace_trusted_entry_test() -> Nil {
-  let trusted_cfg =
+  let trusted_config =
     config.new(
       client_id: "trusted_id",
       auth: config.ClientSecret("trusted_secret"),
       redirect_uri: "https://example.com/callback",
     )
-  let attacker_cfg =
+  let attacker_config =
     config.new(
       client_id: "attacker_id",
       auth: config.ClientSecret("attacker_secret"),
       redirect_uri: "https://evil.example/callback",
     )
 
-  let assert Ok(reg) =
+  let assert Ok(provider_registry) =
     registry.new()
-    |> registry.register(strategy: test_strategy("github"), config: trusted_cfg)
+    |> registry.register(
+      strategy: test_strategy("github"),
+      config: trusted_config,
+    )
 
   // A second registration under the same name must not overwrite the trusted
   // entry.
   let _ =
-    reg
+    provider_registry
     |> registry.register(
       strategy: test_strategy("github"),
-      config: attacker_cfg,
+      config: attacker_config,
     )
 
-  let assert Ok(#(_s, c)) = registry.get(reg, provider: "github")
-  assert config.client_id(c) == "trusted_id"
+  let assert Ok(#(_provider_strategy, client_config)) =
+    registry.get(provider_registry, provider: "github")
+  assert config.client_id(client_config) == "trusted_id"
 }
 
 pub fn register_or_replace_overwrites_existing_test() -> Nil {
-  let first_cfg =
+  let first_config =
     config.new(
       client_id: "first_id",
       auth: config.ClientSecret("first_secret"),
       redirect_uri: "https://example.com/callback",
     )
-  let second_cfg =
+  let second_config =
     config.new(
       client_id: "second_id",
       auth: config.ClientSecret("second_secret"),
       redirect_uri: "https://example.com/callback",
     )
 
-  let assert Ok(reg) =
+  let assert Ok(provider_registry) =
     registry.new()
-    |> registry.register(strategy: test_strategy("github"), config: first_cfg)
-  let reg =
-    reg
+    |> registry.register(
+      strategy: test_strategy("github"),
+      config: first_config,
+    )
+  let provider_registry =
+    provider_registry
     |> registry.register_or_replace(
       strategy: test_strategy("github"),
-      config: second_cfg,
+      config: second_config,
     )
 
-  let assert Ok(#(_s, c)) = registry.get(reg, provider: "github")
-  assert config.client_id(c) == "second_id"
-  assert list.length(registry.providers(reg)) == 1
+  let assert Ok(#(_provider_strategy, client_config)) =
+    registry.get(provider_registry, provider: "github")
+  assert config.client_id(client_config) == "second_id"
+  assert list.length(registry.providers(provider_registry)) == 1
 }

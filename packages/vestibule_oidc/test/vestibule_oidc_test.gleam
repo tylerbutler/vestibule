@@ -122,7 +122,7 @@ pub fn oidc_userinfo_requires_sub_test() -> Nil {
 pub fn oidc_userinfo_handles_xss_in_name_test() -> Nil {
   let json = "{\"sub\":\"uid\",\"name\":\"<script>alert(1)</script>\"}"
   let result = vestibule_oidc.parse_userinfo_response(json)
-  let assert Ok(#(_, info)) = result
+  let assert Ok(#(_user_id, info)) = result
   // The XSS payload is stored as a plain string; escaping is the
   // responsibility of the presentation layer.
   user_info.name(info)
@@ -136,7 +136,7 @@ pub fn oidc_rejects_unverified_email_test() -> Nil {
   let json =
     "{\"sub\":\"user-1\",\"email\":\"unverified@example.com\",\"email_verified\":false}"
   let result = vestibule_oidc.parse_userinfo_response(json)
-  let assert Ok(#(_, info)) = result
+  let assert Ok(#(_user_id, info)) = result
   user_info.email(info)
   |> fn(actual) {
     assert actual == None

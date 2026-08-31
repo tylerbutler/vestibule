@@ -9,7 +9,6 @@
 //// validates URL schemes.
 
 import gleam/bool
-import gleam/option.{type Option, None, Some}
 import gleam/string
 import houdini
 
@@ -18,12 +17,12 @@ import houdini
 /// `http://`, `javascript:`, `data:`, and protocol-relative URLs) is
 /// rejected to avoid mixed-content and script-injection vectors.
 ///
-/// Returns the attribute-escaped URL when safe, or `None` when the scheme is
-/// not allowlisted.
-pub fn safe_image_url(url: String) -> Option(String) {
+/// Returns the attribute-escaped URL when safe, or `Error(Nil)` when the
+/// scheme is not allowlisted.
+pub fn safe_image_url(url: String) -> Result(String, Nil) {
   use <- bool.guard(
     when: !string.starts_with(string.lowercase(url), "https://"),
-    return: None,
+    return: Error(Nil),
   )
-  Some(houdini.escape(url))
+  Ok(houdini.escape(url))
 }

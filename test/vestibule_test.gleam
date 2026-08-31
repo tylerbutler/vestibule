@@ -9,7 +9,7 @@ import vestibule
 import vestibule/auth
 import vestibule/authorization_request
 import vestibule/config
-import vestibule/credentials
+import vestibule/credential
 import vestibule/error
 import vestibule/strategy.{type Strategy}
 import vestibule/user_info
@@ -36,7 +36,7 @@ fn test_strategy() -> Strategy(e) {
         "valid_code" ->
           Ok(
             strategy.exchange_result(
-              credentials.new(
+              credential.new(
                 token: "test_token",
                 refresh_token: None,
                 token_type: "bearer",
@@ -49,7 +49,7 @@ fn test_strategy() -> Strategy(e) {
       }
     },
     fetch_user: fn(_client_config, exchange) {
-      assert credentials.token(strategy.exchange_credentials(exchange))
+      assert credential.token(strategy.exchange_credentials(exchange))
         == "test_token"
       Ok(strategy.user_result(
         uid: "user123",
@@ -64,7 +64,7 @@ fn test_strategy() -> Strategy(e) {
   )
   |> strategy.with_refresh(fn(client_config, refresh_token) {
     Ok(
-      credentials.new(
+      credential.new(
         token: "delegated:"
           <> refresh_token
           <> ":"
@@ -87,7 +87,7 @@ fn artifact_strategy() -> Strategy(e) {
     },
     exchange_code: fn(_config, _code, _code_verifier) {
       Ok(strategy.exchange_result_with_artifacts(
-        credentials.new(
+        credential.new(
           token: "artifact_token",
           refresh_token: None,
           token_type: "bearer",
@@ -150,27 +150,28 @@ pub fn create_authorization_request_returns_authorization_request_test() -> Nil 
       auth: config.ClientSecret("secret"),
       redirect_uri: "http://localhost/cb",
     )
-  let assert Ok(req) =
+  let assert Ok(authorization_request_value) =
     vestibule.create_authorization_request(
       strategy,
       config: client_config,
       options: config.authorize_options(),
     )
-  let url = authorization_request.url(req)
-  let state = authorization_request.state(req)
-  let verifier = authorization_request.code_verifier(req)
+  let url = authorization_request.url(authorization_request_value)
+  let state = authorization_request.state(authorization_request_value)
+  let verifier =
+    authorization_request.code_verifier(authorization_request_value)
   // URL should contain the state
   assert string.contains(url, state)
   // State should be non-empty
   assert string.length(state) >= 43
   // Code verifier should be non-empty
   assert string.length(verifier) >= 43
-  // URL should contain PKCE params
+  // URL should contain PKCE parameters
   assert string.contains(url, "code_challenge=")
   assert string.contains(url, "code_challenge_method=S256")
   // A plain OAuth2 strategy (uses_nonce: False) must not emit a nonce.
   assert !string.contains(url, "nonce=")
-  assert option.is_none(authorization_request.nonce(req))
+  assert option.is_none(authorization_request.nonce(authorization_request_value))
 }
 
 pub fn create_authorization_request_emits_nonce_for_oidc_strategy_test() -> Nil {
@@ -181,16 +182,17 @@ pub fn create_authorization_request_emits_nonce_for_oidc_strategy_test() -> Nil 
       auth: config.ClientSecret("secret"),
       redirect_uri: "http://localhost/cb",
     )
-  let assert Ok(req) =
+  let assert Ok(authorization_request_value) =
     vestibule.create_authorization_request(
       strategy,
       config: client_config,
       options: config.authorize_options(),
     )
-  let url = authorization_request.url(req)
+  let url = authorization_request.url(authorization_request_value)
   // OIDC strategy emits a nonce in the URL and stores it for validation.
   assert string.contains(url, "nonce=")
-  let assert Some(value) = authorization_request.nonce(req)
+  let assert Some(value) =
+    authorization_request.nonce(authorization_request_value)
   assert string.contains(url, value)
   assert string.length(value) >= 43
 }
@@ -202,13 +204,13 @@ pub fn create_authorization_request_appends_pkce_before_url_fragment_test() -> N
       auth: config.ClientSecret("secret"),
       redirect_uri: "http://localhost/cb",
     )
-  let assert Ok(req) =
+  let assert Ok(authorization_request_value) =
     vestibule.create_authorization_request(
       fragment_strategy(),
       config: client_config,
       options: config.authorize_options(),
     )
-  let url = authorization_request.url(req)
+  let url = authorization_request.url(authorization_request_value)
 
   assert string.contains(url, "&existing=1&code_challenge=")
   assert string.contains(url, "code_challenge_method=S256#provider-fragment")
@@ -225,13 +227,13 @@ pub fn create_authorization_request_uses_config_scopes_when_present_test() -> Ni
   let options =
     config.authorize_options()
     |> config.with_scopes(["custom_scope"])
-  let assert Ok(req) =
+  let assert Ok(authorization_request_value) =
     vestibule.create_authorization_request(
       strategy,
       config: client_config,
       options: options,
     )
-  let url = authorization_request.url(req)
+  let url = authorization_request.url(authorization_request_value)
   assert string.contains(url, "custom_scope")
   assert !string.contains(url, "default_scope")
 }
@@ -244,17 +246,17 @@ pub fn create_authorization_request_uses_default_scopes_when_config_empty_test()
       auth: config.ClientSecret("secret"),
       redirect_uri: "http://localhost/cb",
     )
-  let assert Ok(req) =
+  let assert Ok(authorization_request_value) =
     vestibule.create_authorization_request(
       strategy,
       config: client_config,
       options: config.authorize_options(),
     )
-  let url = authorization_request.url(req)
+  let url = authorization_request.url(authorization_request_value)
   assert string.contains(url, "default_scope")
 }
 
-pub fn handle_callback_succeeds_with_valid_params_test() -> Nil {
+pub fn handle_callback_succeeds_with_valid_parameters_test() -> Nil {
   let strategy = test_strategy()
   let client_config =
     config.new(
@@ -263,12 +265,12 @@ pub fn handle_callback_succeeds_with_valid_params_test() -> Nil {
       redirect_uri: "http://localhost/cb",
     )
   let state = "test_state_value"
-  let params = dict.from_list([#("code", "valid_code"), #("state", state)])
+  let parameters = dict.from_list([#("code", "valid_code"), #("state", state)])
   let result =
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: params,
+      callback_params: parameters,
       expected_state: state,
       code_verifier: "test_verifier",
       expected_nonce: None,
@@ -277,7 +279,7 @@ pub fn handle_callback_succeeds_with_valid_params_test() -> Nil {
   assert auth.uid(authed) == "user123"
   assert auth.provider(authed) == "test"
   assert user_info.name(auth.info(authed)) == Some("Test User")
-  assert credentials.token(auth.credentials(authed)) == "test_token"
+  assert credential.token(auth.credentials(authed)) == "test_token"
 }
 
 pub fn handle_callback_populates_auth_extra_from_strategy_user_result_test() -> Nil {
@@ -289,13 +291,13 @@ pub fn handle_callback_populates_auth_extra_from_strategy_user_result_test() -> 
       redirect_uri: "http://localhost/cb",
     )
   let state = "test_state_value"
-  let params = dict.from_list([#("code", "valid_code"), #("state", state)])
+  let parameters = dict.from_list([#("code", "valid_code"), #("state", state)])
 
   let assert Ok(authed) =
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: params,
+      callback_params: parameters,
       expected_state: state,
       code_verifier: "test_verifier",
       expected_nonce: None,
@@ -312,20 +314,20 @@ pub fn handle_callback_passes_exchange_artifacts_to_fetch_user_test() -> Nil {
       redirect_uri: "http://localhost/cb",
     )
   let state = "test_state_value"
-  let params = dict.from_list([#("code", "valid_code"), #("state", state)])
+  let parameters = dict.from_list([#("code", "valid_code"), #("state", state)])
 
   let assert Ok(authed) =
     vestibule.handle_callback(
       artifact_strategy(),
       config: client_config,
-      callback_params: params,
+      callback_params: parameters,
       expected_state: state,
       code_verifier: "test_verifier",
       expected_nonce: None,
     )
 
   assert auth.uid(authed) == "from-exchange"
-  assert credentials.token(auth.credentials(authed)) == "artifact_token"
+  assert credential.token(auth.credentials(authed)) == "artifact_token"
 }
 
 pub fn refresh_token_delegates_to_strategy_refresh_token_test() -> Nil {
@@ -345,7 +347,7 @@ pub fn refresh_token_delegates_to_strategy_refresh_token_test() -> Nil {
     )
   assert refreshed
     == Ok(
-      credentials.new(
+      credential.new(
         token: "delegated:refresh-123:client-id",
         refresh_token: Some("rotated_by_strategy"),
         token_type: "bearer",
@@ -363,12 +365,13 @@ pub fn handle_callback_fails_on_state_mismatch_test() -> Nil {
       auth: config.ClientSecret("secret"),
       redirect_uri: "http://localhost/cb",
     )
-  let params = dict.from_list([#("code", "valid_code"), #("state", "wrong")])
+  let parameters =
+    dict.from_list([#("code", "valid_code"), #("state", "wrong")])
   let result =
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: params,
+      callback_params: parameters,
       expected_state: "expected",
       code_verifier: "test_verifier",
       expected_nonce: None,
@@ -385,13 +388,13 @@ pub fn missing_callback_state_is_structured_test() -> Nil {
       auth: config.ClientSecret("secret"),
       redirect_uri: "http://localhost/cb",
     )
-  let params = dict.from_list([#("code", "valid_code")])
+  let parameters = dict.from_list([#("code", "valid_code")])
 
   let result =
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: params,
+      callback_params: parameters,
       expected_state: "expected",
       code_verifier: "test_verifier",
       expected_nonce: None,
@@ -408,12 +411,12 @@ pub fn handle_callback_fails_on_missing_code_test() -> Nil {
       redirect_uri: "http://localhost/cb",
     )
   let state = "test_state"
-  let params = dict.from_list([#("state", state)])
+  let parameters = dict.from_list([#("state", state)])
   let result =
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: params,
+      callback_params: parameters,
       expected_state: state,
       code_verifier: "test_verifier",
       expected_nonce: None,
@@ -431,13 +434,13 @@ pub fn missing_callback_code_is_structured_test() -> Nil {
       redirect_uri: "http://localhost/cb",
     )
   let state = "test_state"
-  let params = dict.from_list([#("state", state)])
+  let parameters = dict.from_list([#("state", state)])
 
   let result =
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: params,
+      callback_params: parameters,
       expected_state: state,
       code_verifier: "test_verifier",
       expected_nonce: None,
@@ -453,25 +456,27 @@ pub fn logging_does_not_change_core_result_shapes_test() -> Nil {
       auth: config.ClientSecret("secret"),
       redirect_uri: "http://localhost/cb",
     )
-  let assert Ok(req) =
+  let assert Ok(authorization_request_value) =
     vestibule.create_authorization_request(
       strategy,
       config: client_config,
       options: config.authorize_options(),
     )
-  let params =
+  let parameters =
     dict.from_list([
       #("code", "valid_code"),
-      #("state", authorization_request.state(req)),
+      #("state", authorization_request.state(authorization_request_value)),
     ])
 
   let assert Ok(_) =
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: params,
-      expected_state: authorization_request.state(req),
-      code_verifier: authorization_request.code_verifier(req),
+      callback_params: parameters,
+      expected_state: authorization_request.state(authorization_request_value),
+      code_verifier: authorization_request.code_verifier(
+        authorization_request_value,
+      ),
       expected_nonce: None,
     )
 
@@ -498,7 +503,7 @@ fn nonce_strategy(id_token: String) -> Strategy(e) {
       case code {
         "valid_code" ->
           Ok(strategy.exchange_result_with_artifacts(
-            credentials.new(
+            credential.new(
               token: "test_token",
               refresh_token: None,
               token_type: "bearer",
@@ -532,7 +537,7 @@ fn nonce_strategy_without_id_token() -> Strategy(e) {
     exchange_code: fn(_config, _code, _code_verifier) {
       Ok(
         strategy.exchange_result(
-          credentials.new(
+          credential.new(
             token: "test_token",
             refresh_token: None,
             token_type: "bearer",
@@ -572,7 +577,7 @@ fn nonce_config() -> config.ClientConfig {
   )
 }
 
-fn nonce_params() -> dict.Dict(String, String) {
+fn nonce_parameters() -> dict.Dict(String, String) {
   dict.from_list([#("code", "valid_code"), #("state", "expected")])
 }
 
@@ -583,7 +588,7 @@ pub fn handle_callback_accepts_matching_nonce_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: nonce_config(),
-      callback_params: nonce_params(),
+      callback_params: nonce_parameters(),
       expected_state: "expected",
       code_verifier: "verifier",
       expected_nonce: Some("the-nonce"),
@@ -599,7 +604,7 @@ pub fn handle_callback_rejects_mismatched_nonce_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: nonce_config(),
-      callback_params: nonce_params(),
+      callback_params: nonce_parameters(),
       expected_state: "expected",
       code_verifier: "verifier",
       expected_nonce: Some("the-nonce"),
@@ -614,7 +619,7 @@ pub fn handle_callback_rejects_missing_nonce_claim_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: nonce_config(),
-      callback_params: nonce_params(),
+      callback_params: nonce_parameters(),
       expected_state: "expected",
       code_verifier: "verifier",
       expected_nonce: Some("the-nonce"),
@@ -628,7 +633,7 @@ pub fn handle_callback_rejects_missing_id_token_when_nonce_expected_test() -> Ni
     vestibule.handle_callback(
       strategy,
       config: nonce_config(),
-      callback_params: nonce_params(),
+      callback_params: nonce_parameters(),
       expected_state: "expected",
       code_verifier: "verifier",
       expected_nonce: Some("the-nonce"),
@@ -643,7 +648,7 @@ pub fn handle_callback_skips_nonce_for_plain_oauth_strategy_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: nonce_config(),
-      callback_params: nonce_params(),
+      callback_params: nonce_parameters(),
       expected_state: "expected",
       code_verifier: "verifier",
       expected_nonce: None,
@@ -658,7 +663,7 @@ fn result_error_kind(
 ) -> option.Option(error.AuthError(e)) {
   case result {
     Ok(_) -> None
-    Error(err) -> Some(err)
+    Error(auth_error) -> Some(auth_error)
   }
 }
 
@@ -671,13 +676,13 @@ pub fn handle_callback_rejects_missing_expected_nonce_for_nonce_strategy_test() 
     vestibule.handle_callback(
       strategy,
       config: nonce_config(),
-      callback_params: nonce_params(),
+      callback_params: nonce_parameters(),
       expected_state: "expected",
       code_verifier: "verifier",
       expected_nonce: None,
     )
-  let assert Error(err) = result
-  error.kind(err)
+  let assert Error(auth_error) = result
+  error.kind(auth_error)
   |> fn(actual) {
     assert actual == error.InvalidNonceKind
   }

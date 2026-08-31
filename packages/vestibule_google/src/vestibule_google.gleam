@@ -8,13 +8,13 @@ import gleam/dict
 import gleam/dynamic
 import gleam/dynamic/decode
 import gleam/json
-import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import gleam/uri
 
 import gleam/http/request
+import gleam/http/response
 import gleam/httpc
 
 import glow_auth
@@ -23,7 +23,7 @@ import glow_auth/token_request
 import glow_auth/uri/uri_builder
 
 import vestibule/config.{type AuthorizeOptions, type ClientConfig}
-import vestibule/credentials.{type Credentials}
+import vestibule/credential.{type Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/logger
 import vestibule/provider_support
@@ -68,7 +68,7 @@ pub fn strategy_for_hosted_domain(hosted_domain: String) -> Strategy(e) {
     provider: "google",
     default_scopes: ["openid", "profile", "email"],
     authorize_url: fn(client_config, options, scopes, state) {
-      do_authorize_url_with_hd(
+      do_authorize_url_with_hosted_domain(
         client_config,
         options,
         scopes,
@@ -87,58 +87,95 @@ pub fn strategy_for_hosted_domain(hosted_domain: String) -> Strategy(e) {
 
 /// Parse Google token response JSON.
 pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
-  do_parse_token_response(
-    body,
-    provider_support.RequiredScope(separator: " "),
-    "token",
+  do_parse_token_response(body, provider_support.RequiredScope(separator: " "))
+}
+
+/// Build Google's authorization-code token request without sending it.
+pub fn build_authorization_code_request(
+  client_config: ClientConfig,
+  code: String,
+  code_verifier: Option(String),
+) -> Result(request.Request(String), AuthError(e)) {
+  use site <- result.try(
+    uri.parse("https://oauth2.googleapis.com")
+    |> result.map_error(fn(_) {
+      error.config(reason: "Failed to parse Google OAuth base URL")
+    }),
   )
+  use redirect <- result.try(
+    provider_support.parse_redirect_uri(config.redirect_uri(client_config)),
+  )
+  use client_secret <- result.try(config.client_secret(client_config))
+  let client =
+    glow_auth.Client(
+      id: config.client_id(client_config),
+      secret: client_secret,
+      site: site,
+    )
+  let token_http_request =
+    token_request.authorization_code(
+      client,
+      uri_builder.RelativePath("/token"),
+      code,
+      redirect,
+    )
+    |> request.set_header("accept", "application/json")
+  Ok(strategy.append_code_verifier(token_http_request, code_verifier))
+}
+
+/// Parse Google's authorization-code HTTP response without performing I/O.
+pub fn parse_authorization_code_response(
+  http_response: response.Response(String),
+) -> Result(strategy.ExchangeResult, AuthError(e)) {
+  use body <- result.try(provider_support.check_response_status(http_response))
+  use oauth_credentials <- result.try(parse_token_response(body))
+  Ok(strategy.exchange_result_with_artifacts(
+    oauth_credentials,
+    id_token_artifacts(body),
+  ))
+}
+
+/// Build Google's refresh-token request without sending it.
+pub fn build_refresh_token_request(
+  client_config: ClientConfig,
+  refresh_token: String,
+) -> Result(request.Request(String), AuthError(e)) {
+  use site <- result.try(
+    uri.parse("https://oauth2.googleapis.com")
+    |> result.map_error(fn(_) {
+      error.config(reason: "Failed to parse Google OAuth base URL")
+    }),
+  )
+  use client_secret <- result.try(config.client_secret(client_config))
+  let client =
+    glow_auth.Client(
+      id: config.client_id(client_config),
+      secret: client_secret,
+      site: site,
+    )
+  Ok(
+    token_request.refresh(
+      client,
+      uri_builder.RelativePath("/token"),
+      refresh_token,
+    )
+    |> request.set_header("accept", "application/json"),
+  )
+}
+
+/// Parse Google's refresh-token HTTP response without performing I/O.
+pub fn parse_refresh_token_response(
+  http_response: response.Response(String),
+) -> Result(Credentials, AuthError(e)) {
+  use body <- result.try(provider_support.check_response_status(http_response))
+  do_parse_token_response(body, provider_support.OptionalScope(separator: " "))
 }
 
 fn do_parse_token_response(
   body: String,
   scope_parsing: provider_support.ScopeParsing,
-  endpoint: String,
 ) -> Result(Credentials, AuthError(e)) {
-  let result = provider_support.parse_oauth_token_response(body, scope_parsing)
-  case result {
-    Ok(oauth_credentials) -> {
-      logger.new(
-        level: logger.Debug,
-        event: "vestibule.provider.token_parse.success",
-        phase: "provider_request",
-        outcome: "success",
-        provider: Some("google"),
-        fields: [
-          logger.field("endpoint", endpoint),
-          logger.bool_field(
-            "has_refresh_token",
-            option.is_some(credentials.refresh_token(oauth_credentials)),
-          ),
-          logger.int_field(
-            "scope_count",
-            list.length(credentials.scopes(oauth_credentials)),
-          ),
-        ],
-      )
-      |> logger.emit()
-      Ok(oauth_credentials)
-    }
-    Error(err) -> {
-      logger.new(
-        level: logger.Warning,
-        event: "vestibule.provider.token_parse.failure",
-        phase: "provider_request",
-        outcome: "failure",
-        provider: Some("google"),
-        fields: [
-          logger.field("endpoint", endpoint),
-          logger.field("error_category", logger.auth_error_category(err)),
-        ],
-      )
-      |> logger.emit()
-      Error(err)
-    }
-  }
+  provider_support.parse_oauth_token_response(body, scope_parsing)
 }
 
 /// Build exchange artifacts carrying the OIDC `id_token` when present, so the
@@ -169,10 +206,10 @@ fn parse_id_token(body: String) -> Option(String) {
 pub fn parse_user_response(
   body: String,
 ) -> Result(#(String, user_info.UserInfo), AuthError(e)) {
-  parse_user_response_with_hd(body)
+  parse_user_response_with_hosted_domain(body)
   |> result.map(fn(parsed) {
-    let #(uid, info, _hd) = parsed
-    #(uid, info)
+    let #(user_id, user, _hosted_domain) = parsed
+    #(user_id, user)
   })
 }
 
@@ -181,11 +218,11 @@ pub fn parse_user_response(
 ///
 /// The third tuple element is the raw `hd` claim, or `None` when the account
 /// is a consumer (gmail.com) account or Google omits the claim.
-pub fn parse_user_response_with_hd(
+pub fn parse_user_response_with_hosted_domain(
   body: String,
 ) -> Result(#(String, user_info.UserInfo, Option(String)), AuthError(e)) {
   let decoder = {
-    use sub <- decode.field("sub", decode.string)
+    use subject <- decode.field("sub", decode.string)
     use name <- decode.optional_field(
       "name",
       None,
@@ -206,28 +243,61 @@ pub fn parse_user_response_with_hd(
       None,
       decode.optional(decode.bool),
     )
-    use hd <- decode.optional_field("hd", None, decode.optional(decode.string))
+    use hosted_domain <- decode.optional_field(
+      "hd",
+      None,
+      decode.optional(decode.string),
+    )
     let verified_email = case email, email_verified {
-      Some(addr), Some(True) -> Some(addr)
-      _, _ -> None
+      Some(email_address), Some(True) -> Some(email_address)
+      Some(_email_address), Some(False) -> None
+      Some(_email_address), None -> None
+      None, Some(True) -> None
+      None, Some(False) -> None
+      None, None -> None
     }
     decode.success(#(
-      sub,
+      subject,
       user_info.new()
         |> user_info.with_name(name)
         |> user_info.with_email(verified_email)
         |> user_info.with_nickname(email)
         |> user_info.with_image(picture),
-      hd,
+      hosted_domain,
     ))
   }
   case json.parse(body, decoder) {
     Ok(result) -> Ok(result)
-    Error(err) ->
+    Error(decode_error) ->
       Error(error.user_info(
-        reason: "Failed to parse Google user response: " <> string.inspect(err),
+        reason: "Failed to parse Google user response: "
+        <> string.inspect(decode_error),
       ))
   }
+}
+
+/// Build Google's userinfo request without sending it.
+pub fn build_user_info_request(
+  oauth_credentials: Credentials,
+) -> Result(request.Request(String), AuthError(e)) {
+  use authorization_header <- result.try(strategy.authorization_header(
+    oauth_credentials,
+  ))
+  provider_support.build_json_request_with_auth(
+    "https://www.googleapis.com/oauth2/v3/userinfo",
+    authorization_header,
+    "Google userinfo",
+  )
+}
+
+/// Parse Google's userinfo HTTP response without performing I/O.
+pub fn parse_user_info_response(
+  http_response: response.Response(String),
+) -> Result(#(String, user_info.UserInfo, Option(String)), AuthError(e)) {
+  provider_support.parse_json_response(
+    http_response,
+    parse_user_response_with_hosted_domain,
+  )
 }
 
 /// Validate the returned hosted-domain claim against the required domain.
@@ -241,7 +311,8 @@ pub fn validate_hosted_domain(
   returned returned: Option(String),
 ) -> Result(Option(String), AuthError(e)) {
   case required, returned {
-    None, _ -> Ok(returned)
+    None, Some(actual) -> Ok(Some(actual))
+    None, None -> Ok(None)
     Some(expected), Some(actual) ->
       case expected == actual {
         True -> Ok(Some(actual))
@@ -269,10 +340,16 @@ fn do_authorize_url(
   scopes: List(String),
   state: String,
 ) -> Result(String, AuthError(e)) {
-  do_authorize_url_with_hd(client_config, options, scopes, state, None)
+  do_authorize_url_with_hosted_domain(
+    client_config,
+    options,
+    scopes,
+    state,
+    None,
+  )
 }
 
-fn do_authorize_url_with_hd(
+fn do_authorize_url_with_hosted_domain(
   client_config: ClientConfig,
   options: AuthorizeOptions,
   scopes: List(String),
@@ -294,7 +371,7 @@ fn do_authorize_url_with_hd(
       secret: "",
       site: site,
     )
-  let extra_params = case hosted_domain {
+  let extra_parameters = case hosted_domain {
     Some(domain) -> [
       #("hd", domain),
       ..dict.to_list(config.extra_params(options))
@@ -311,7 +388,7 @@ fn do_authorize_url_with_hd(
     |> authorize_uri.set_state(state)
     |> authorize_uri.to_code_authorization_uri()
     |> uri.to_string()
-    |> provider_support.append_query_params(extra_params)
+    |> provider_support.append_query_params(extra_parameters)
   Ok(url)
 }
 
@@ -320,31 +397,11 @@ fn do_exchange_code(
   code: String,
   code_verifier: Option(String),
 ) -> Result(strategy.ExchangeResult, AuthError(e)) {
-  use site <- result.try(
-    uri.parse("https://oauth2.googleapis.com")
-    |> result.map_error(fn(_) {
-      error.config(reason: "Failed to parse Google OAuth base URL")
-    }),
-  )
-  use redirect <- result.try(
-    provider_support.parse_redirect_uri(config.redirect_uri(client_config)),
-  )
-  use client_secret <- result.try(config.client_secret(client_config))
-  let client =
-    glow_auth.Client(
-      id: config.client_id(client_config),
-      secret: client_secret,
-      site: site,
-    )
-  let req =
-    token_request.authorization_code(
-      client,
-      uri_builder.RelativePath("/token"),
-      code,
-      redirect,
-    )
-    |> request.set_header("accept", "application/json")
-  let req = strategy.append_code_verifier(req, code_verifier)
+  use token_http_request <- result.try(build_authorization_code_request(
+    client_config,
+    code,
+    code_verifier,
+  ))
   logger.new(
     level: logger.Debug,
     event: "vestibule.provider.request.start",
@@ -354,23 +411,8 @@ fn do_exchange_code(
     fields: [logger.field("endpoint", "token")],
   )
   |> logger.emit()
-  case httpc.send(req) {
-    Ok(response) -> {
-      use body <- result.try(
-        provider_support.check_response_status_for_endpoint(
-          response,
-          provider_name: "google",
-          endpoint: "token",
-        ),
-      )
-      parse_token_response(body)
-      |> result.map(fn(oauth_credentials) {
-        strategy.exchange_result_with_artifacts(
-          oauth_credentials,
-          id_token_artifacts(body),
-        )
-      })
-    }
+  case httpc.send(token_http_request) {
+    Ok(response) -> parse_authorization_code_response(response)
     Error(_) -> {
       logger.new(
         level: logger.Error,
@@ -393,26 +435,10 @@ fn do_refresh_token(
   client_config: ClientConfig,
   refresh_token: String,
 ) -> Result(Credentials, AuthError(e)) {
-  use site <- result.try(
-    uri.parse("https://oauth2.googleapis.com")
-    |> result.map_error(fn(_) {
-      error.config(reason: "Failed to parse Google OAuth base URL")
-    }),
-  )
-  use client_secret <- result.try(config.client_secret(client_config))
-  let client =
-    glow_auth.Client(
-      id: config.client_id(client_config),
-      secret: client_secret,
-      site: site,
-    )
-  let req =
-    token_request.refresh(
-      client,
-      uri_builder.RelativePath("/token"),
-      refresh_token,
-    )
-    |> request.set_header("accept", "application/json")
+  use refresh_http_request <- result.try(build_refresh_token_request(
+    client_config,
+    refresh_token,
+  ))
 
   logger.new(
     level: logger.Debug,
@@ -423,21 +449,8 @@ fn do_refresh_token(
     fields: [logger.field("endpoint", "refresh")],
   )
   |> logger.emit()
-  case httpc.send(req) {
-    Ok(response) -> {
-      use body <- result.try(
-        provider_support.check_response_status_for_endpoint(
-          response,
-          provider_name: "google",
-          endpoint: "refresh",
-        ),
-      )
-      do_parse_token_response(
-        body,
-        provider_support.OptionalScope(separator: " "),
-        "refresh",
-      )
-    }
+  case httpc.send(refresh_http_request) {
+    Ok(response) -> parse_refresh_token_response(response)
     Error(_) -> {
       logger.new(
         level: logger.Error,
@@ -458,26 +471,26 @@ fn do_refresh_token(
 
 fn fetch_user_enforcing(
   exchange: strategy.ExchangeResult,
-  required_hd: Option(String),
+  required_hosted_domain: Option(String),
 ) -> Result(UserResult, AuthError(e)) {
-  use auth_header <- result.try(
-    strategy.authorization_header(strategy.exchange_credentials(exchange)),
+  let oauth_credentials = strategy.exchange_credentials(exchange)
+  use user_info_request <- result.try(build_user_info_request(oauth_credentials))
+  use user_info_response <- result.try(
+    httpc.send(user_info_request)
+    |> result.replace_error(error.network(
+      reason: "Failed to connect to Google userinfo API",
+    )),
   )
-  use #(uid, info, returned_hd) <- result.try(
-    provider_support.fetch_json_with_auth(
-      "https://www.googleapis.com/oauth2/v3/userinfo",
-      auth_header,
-      parse_user_response_with_hd,
-      "Google userinfo",
-    ),
+  use #(user_id, user, returned_hosted_domain) <- result.try(
+    parse_user_info_response(user_info_response),
   )
-  use validated_hd <- result.try(validate_hosted_domain(
-    required: required_hd,
-    returned: returned_hd,
+  use validated_hosted_domain <- result.try(validate_hosted_domain(
+    required: required_hosted_domain,
+    returned: returned_hosted_domain,
   ))
-  let extra = case validated_hd {
+  let extra = case validated_hosted_domain {
     Some(domain) -> dict.from_list([#("hd", dynamic.string(domain))])
     None -> dict.new()
   }
-  Ok(strategy.user_result(uid: uid, info: info, extra: extra))
+  Ok(strategy.user_result(uid: user_id, info: user, extra: extra))
 }

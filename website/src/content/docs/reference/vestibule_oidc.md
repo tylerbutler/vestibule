@@ -4,7 +4,7 @@ description: "OpenID Connect Discovery support for auto-configuring strategies."
 nav:
   group: Reference
   groupOrder: 20
-  order: 35
+  order: 36
   label: "vestibule_oidc"
 toc:
   - href: "#types"
@@ -59,6 +59,54 @@ Get the authorization endpoint URL for an OIDC configuration.
 pub fn authorization_endpoint(OidcConfig) -> String
 ```
 
+### `build_authorization_code_request`
+
+Build an OIDC authorization-code token request without sending it.
+
+```gleam
+pub fn build_authorization_code_request(
+  OidcConfig,
+  config.ClientConfig,
+  String,
+  option.Option(String)
+) -> Result(provider_support.SecureRequest, error.AuthError(a))
+```
+
+### `build_discovery_request`
+
+Build an OIDC discovery request without sending it.
+
+The returned request is opaque and can only be sent with
+`provider_support.send_public`, which performs DNS validation and address
+pinning immediately before connecting.
+
+```gleam
+pub fn build_discovery_request(String) -> Result(provider_support.SecureRequest, error.AuthError(a))
+```
+
+### `build_refresh_token_request`
+
+Build an OIDC refresh-token request without sending it.
+
+```gleam
+pub fn build_refresh_token_request(
+  OidcConfig,
+  config.ClientConfig,
+  String
+) -> Result(provider_support.SecureRequest, error.AuthError(a))
+```
+
+### `build_user_info_request`
+
+Build an OIDC userinfo request without sending it.
+
+```gleam
+pub fn build_user_info_request(
+  OidcConfig,
+  credential.Credentials
+) -> Result(provider_support.SecureRequest, error.AuthError(a))
+```
+
 ### `discover`
 
 Discover an OIDC provider and build a strategy in one step.
@@ -90,9 +138,9 @@ Constructs the well-known URL from the issuer, makes a GET request, parses
 the JSON response, and validates that the `issuer` field in the response
 matches the provided `issuer_url` (a security requirement per the OIDC spec).
 
-**Security warning:** If `issuer_url` is provided dynamically by end-users
-(e.g., for custom SSO in a multi-tenant application), you must sanitize
-the URL before passing it here to prevent Server-Side Request Forgery (SSRF).
+Dynamic issuer URLs are sent through Vestibule's secure transport, which
+requires public HTTPS, validates every DNS answer, pins the connection, and
+disables redirects.
 
 ```gleam
 pub fn fetch_configuration(String) -> Result(OidcConfig, error.AuthError(a))
@@ -136,6 +184,14 @@ pub fn new_config(
 ) -> Result(OidcConfig, error.AuthError(a))
 ```
 
+### `parse_authorization_code_response`
+
+Parse an OIDC authorization-code HTTP response without performing I/O.
+
+```gleam
+pub fn parse_authorization_code_response(response.Response(String)) -> Result(strategy.ExchangeResult, error.AuthError(a))
+```
+
 ### `parse_discovery_document`
 
 Parse an OIDC discovery JSON document into an `OidcConfig`.
@@ -147,6 +203,29 @@ required fields from the standard OpenID Connect discovery response.
 pub fn parse_discovery_document(String) -> Result(OidcConfig, error.AuthError(a))
 ```
 
+### `parse_discovery_response`
+
+Parse and validate an OIDC discovery HTTP response without performing I/O.
+
+In addition to parsing the document and validating all discovered endpoints,
+this enforces the OIDC requirement that the returned issuer matches the
+issuer used to construct the request.
+
+```gleam
+pub fn parse_discovery_response(
+  String,
+  response.Response(String)
+) -> Result(OidcConfig, error.AuthError(a))
+```
+
+### `parse_refresh_token_response`
+
+Parse an OIDC refresh-token HTTP response without performing I/O.
+
+```gleam
+pub fn parse_refresh_token_response(response.Response(String)) -> Result(credential.Credentials, error.AuthError(a))
+```
+
 ### `parse_token_response`
 
 Parse a standard OAuth2/OIDC token response.
@@ -155,7 +234,15 @@ Supported parsing helper for custom OIDC strategy authors. Handles both
 success and error responses.
 
 ```gleam
-pub fn parse_token_response(String) -> Result(credentials.Credentials, error.AuthError(a))
+pub fn parse_token_response(String) -> Result(credential.Credentials, error.AuthError(a))
+```
+
+### `parse_user_info_response`
+
+Parse an OIDC userinfo HTTP response without performing I/O.
+
+```gleam
+pub fn parse_user_info_response(response.Response(String)) -> Result(#(String, user_info.UserInfo), error.AuthError(a))
 ```
 
 ### `parse_userinfo_response`

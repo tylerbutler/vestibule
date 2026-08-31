@@ -108,7 +108,7 @@ Returns `Error` if the token type is not "bearer" (case-insensitive),
 as vestibule only supports Bearer token authentication.
 
 ```gleam
-pub fn authorization_header(credentials: credentials.Credentials) -> Result(String, error.AuthError(a))
+pub fn authorization_header(credentials: credential.Credentials) -> Result(String, error.AuthError(a))
 ```
 
 ### `build_authorize_url`
@@ -163,7 +163,7 @@ pub fn exchange_code(
 Return the OAuth credentials produced by the exchange.
 
 ```gleam
-pub fn exchange_credentials(ExchangeResult) -> credentials.Credentials
+pub fn exchange_credentials(ExchangeResult) -> credential.Credentials
 ```
 
 ### `exchange_result`
@@ -171,7 +171,7 @@ pub fn exchange_credentials(ExchangeResult) -> credentials.Credentials
 Build an exchange result for providers with no provider-specific artifacts.
 
 ```gleam
-pub fn exchange_result(credentials.Credentials) -> ExchangeResult
+pub fn exchange_result(credential.Credentials) -> ExchangeResult
 ```
 
 ### `exchange_result_with_artifacts`
@@ -180,7 +180,7 @@ Build an exchange result with provider-specific artifacts.
 
 ```gleam
 pub fn exchange_result_with_artifacts(
-  credentials.Credentials,
+  credential.Credentials,
   dict.Dict(String, dynamic.Dynamic)
 ) -> ExchangeResult
 ```
@@ -254,7 +254,7 @@ pub fn refresh_token(
   Strategy(a),
   config: config.ClientConfig,
   refresh_token: String
-) -> Result(credentials.Credentials, error.AuthError(a))
+) -> Result(credential.Credentials, error.AuthError(a))
 ```
 
 ### `user_result`
@@ -320,6 +320,6 @@ refresh token for fresh credentials. Strategies built without this fail
 ```gleam
 pub fn with_refresh(
   Strategy(a),
-  fn(config.ClientConfig, String) -> Result(credentials.Credentials, error.AuthError(a))
+  fn(config.ClientConfig, String) -> Result(credential.Credentials, error.AuthError(a))
 ) -> Strategy(a)
 ```

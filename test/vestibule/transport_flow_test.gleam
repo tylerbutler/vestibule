@@ -3,7 +3,7 @@ import gleam/option
 import gleam/string
 import vestibule/auth
 import vestibule/config
-import vestibule/credentials
+import vestibule/credential
 import vestibule/error
 import vestibule/registry
 import vestibule/state_store
@@ -36,18 +36,18 @@ pub fn start_authorization_threads_custom_options_to_strategy_test() -> Nil {
       auth: config.ClientSecret("client_secret"),
       redirect_uri: "https://example.com/callback",
     )
-  let assert Ok(reg) =
+  let assert Ok(provider_registry) =
     registry.new()
     |> registry.register(strategy: strategy, config: client_config)
   let assert Ok(options) =
     config.authorize_options()
     |> config.with_extra_params([#("prompt", "consent")])
   let assert Ok(store) =
-    state_store.try_init_named("transport_flow_custom_options_test")
+    state_store.create_named("transport_flow_custom_options_test")
 
   let assert Ok(#(url, _session_id)) =
     transport_flow.start_authorization(
-      reg,
+      provider_registry,
       provider: "custom",
       store: store,
       ttl_seconds: 600,
@@ -73,7 +73,7 @@ fn succeeding_strategy(provider: String) -> strategy.Strategy(Nil) {
     exchange_code: fn(_client_config, _code, _code_verifier) {
       Ok(
         strategy.exchange_result(
-          credentials.new(
+          credential.new(
             token: "token",
             refresh_token: option.None,
             token_type: "Bearer",
@@ -103,23 +103,23 @@ pub fn finish_callback_rejects_session_started_for_another_provider_test() -> Ni
       auth: config.ClientSecret("client_secret"),
       redirect_uri: "https://example.com/callback",
     )
-  let assert Ok(reg) =
+  let assert Ok(provider_registry) =
     registry.new()
     |> registry.register(
       strategy: succeeding_strategy("alpha"),
       config: client_config,
     )
-  let assert Ok(reg) =
+  let assert Ok(provider_registry) =
     registry.register(
-      reg,
+      provider_registry,
       strategy: succeeding_strategy("beta"),
       config: client_config,
     )
-  let assert Ok(store) = state_store.try_init_named("transport_flow_mixup_test")
+  let assert Ok(store) = state_store.create_named("transport_flow_mixup_test")
 
   let assert Ok(#(_url, session_id)) =
     transport_flow.start_authorization(
-      reg,
+      provider_registry,
       provider: "alpha",
       store: store,
       ttl_seconds: 600,
@@ -127,13 +127,15 @@ pub fn finish_callback_rejects_session_started_for_another_provider_test() -> Ni
     )
   let assert Ok(#(state, _verifier, _nonce)) =
     state_store.peek(store, session_id, provider: "alpha")
-  let params = dict.from_list([#("state", state), #("code", "attacker-code")])
+  let parameters =
+    dict.from_list([#("state", state), #("code", "attacker-code")])
 
-  let assert Ok(beta) = transport_flow.ensure_callback_provider(reg, "beta")
+  let assert Ok(beta) =
+    transport_flow.ensure_callback_provider(provider_registry, "beta")
   transport_flow.finish_callback(
     beta,
     store: store,
-    params: params,
+    parameters: parameters,
     session_id: session_id,
   )
   |> fn(actual) {
@@ -141,12 +143,13 @@ pub fn finish_callback_rejects_session_started_for_another_provider_test() -> Ni
   }
 
   // The rejected attempt must not have burned the legitimate in-flight login.
-  let assert Ok(alpha) = transport_flow.ensure_callback_provider(reg, "alpha")
+  let assert Ok(alpha) =
+    transport_flow.ensure_callback_provider(provider_registry, "alpha")
   let assert Ok(auth) =
     transport_flow.finish_callback(
       alpha,
       store: store,
-      params: params,
+      parameters: parameters,
       session_id: session_id,
     )
   auth.uid(auth)

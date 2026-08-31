@@ -8,14 +8,14 @@ import gleam/dict
 import gleam/dynamic/decode
 import gleam/http
 import gleam/http/request
-import gleam/httpc
+import gleam/http/response
 import gleam/json
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import gleam/uri
 
-import vestibule/credentials.{type Credentials}
+import vestibule/credential.{type Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/provider_support
 import vestibule/strategy
@@ -52,7 +52,35 @@ pub fn exchange_code(
   code: String,
   code_verifier: Option(String),
 ) -> Result(#(Credentials, IndieAuthProfile), AuthError(e)) {
-  use _ <- result.try(provider_support.require_public_https(token_endpoint))
+  use http_request <- result.try(build_authorization_code_request(
+    token_endpoint,
+    client_id,
+    redirect_uri,
+    code,
+    code_verifier,
+  ))
+
+  case provider_support.send_public(http_request) {
+    Ok(response) -> parse_authorization_code_response(response)
+    Error(send_error) -> Error(send_error)
+  }
+}
+
+/// Build an IndieAuth authorization-code request without sending it.
+///
+/// The returned request is opaque and can only be sent with
+/// `provider_support.send_public`, which performs DNS validation and address
+/// pinning immediately before connecting.
+pub fn build_authorization_code_request(
+  token_endpoint: String,
+  client_id: String,
+  redirect_uri: String,
+  code: String,
+  code_verifier: Option(String),
+) -> Result(provider_support.SecureRequest, AuthError(e)) {
+  use _ <- result.try(provider_support.require_public_https_format(
+    token_endpoint,
+  ))
   let body =
     uri.query_to_string([
       #("grant_type", "authorization_code"),
@@ -61,42 +89,32 @@ pub fn exchange_code(
       #("redirect_uri", redirect_uri),
     ])
 
-  use req <- result.try(
+  use http_request <- result.try(
     request.to(token_endpoint)
     |> result.replace_error(error.config(
       reason: "Invalid token endpoint URL: " <> token_endpoint,
     )),
   )
 
-  let req =
-    req
+  let http_request =
+    http_request
     |> request.set_method(http.Post)
     |> request.set_header("content-type", "application/x-www-form-urlencoded")
     |> request.set_header("accept", "application/json")
     |> request.set_body(body)
 
-  // Append PKCE code verifier if present
-  let req = strategy.append_code_verifier(req, code_verifier)
+  strategy.append_code_verifier(http_request, code_verifier)
+  |> provider_support.secure_request_with_limit(provider_support.TokenResponse)
+}
 
-  case httpc.send(req) {
-    Ok(response) -> {
-      use body <- result.try(
-        provider_support.check_response_status_for_endpoint(
-          response,
-          provider_name: "indieauth",
-          endpoint: "token",
-        ),
-      )
-      use oauth_credentials <- result.try(parse_token_response(body))
-      use profile <- result.try(parse_profile_from_token_response(body))
-      Ok(#(oauth_credentials, profile))
-    }
-    Error(_) ->
-      Error(error.network(
-        reason: "Failed to connect to IndieAuth token endpoint: "
-        <> token_endpoint,
-      ))
-  }
+/// Parse an IndieAuth authorization-code HTTP response without performing I/O.
+pub fn parse_authorization_code_response(
+  http_response: response.Response(String),
+) -> Result(#(Credentials, IndieAuthProfile), AuthError(e)) {
+  use body <- result.try(provider_support.check_response_status(http_response))
+  use oauth_credentials <- result.try(parse_token_response(body))
+  use profile <- result.try(parse_profile_from_token_response(body))
+  Ok(#(oauth_credentials, profile))
 }
 
 /// Exchange a refresh token for fresh credentials at the token endpoint.
@@ -108,7 +126,30 @@ pub fn refresh(
   client_id: String,
   refresh_token: String,
 ) -> Result(Credentials, AuthError(e)) {
-  use _ <- result.try(provider_support.require_public_https(token_endpoint))
+  use http_request <- result.try(build_refresh_token_request(
+    token_endpoint,
+    client_id,
+    refresh_token,
+  ))
+
+  case provider_support.send_public(http_request) {
+    Ok(response) -> parse_refresh_token_response(response)
+    Error(send_error) -> Error(send_error)
+  }
+}
+
+/// Build an IndieAuth refresh-token request without sending it.
+///
+/// The returned request is opaque and must be sent with
+/// `provider_support.send_public`.
+pub fn build_refresh_token_request(
+  token_endpoint: String,
+  client_id: String,
+  refresh_token: String,
+) -> Result(provider_support.SecureRequest, AuthError(e)) {
+  use _ <- result.try(provider_support.require_public_https_format(
+    token_endpoint,
+  ))
   let body =
     uri.query_to_string([
       #("grant_type", "refresh_token"),
@@ -116,37 +157,30 @@ pub fn refresh(
       #("client_id", client_id),
     ])
 
-  use req <- result.try(
+  use http_request <- result.try(
     request.to(token_endpoint)
     |> result.replace_error(error.config(
       reason: "Invalid token endpoint URL: " <> token_endpoint,
     )),
   )
 
-  let req =
-    req
+  let http_request =
+    http_request
     |> request.set_method(http.Post)
     |> request.set_header("content-type", "application/x-www-form-urlencoded")
     |> request.set_header("accept", "application/json")
     |> request.set_body(body)
+  provider_support.secure_request_with_limit(
+    http_request,
+    provider_support.TokenResponse,
+  )
+}
 
-  case httpc.send(req) {
-    Ok(response) -> {
-      use body <- result.try(
-        provider_support.check_response_status_for_endpoint(
-          response,
-          provider_name: "indieauth",
-          endpoint: "refresh",
-        ),
-      )
-      parse_token_response(body)
-    }
-    Error(_) ->
-      Error(error.network(
-        reason: "Failed to connect to IndieAuth token endpoint: "
-        <> token_endpoint,
-      ))
-  }
+/// Parse an IndieAuth refresh-token HTTP response without performing I/O.
+pub fn parse_refresh_token_response(
+  http_response: response.Response(String),
+) -> Result(Credentials, AuthError(e)) {
+  provider_support.parse_json_response(http_response, parse_token_response)
 }
 
 /// Parse an IndieAuth token response into Credentials.
@@ -175,7 +209,7 @@ pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
   case json.parse(body, error_decoder) {
     Ok(#(code, description)) ->
       Error(error.provider(code: code, description: description, uri: None))
-    _ -> parse_token_success(body)
+    Error(_) -> parse_token_success(body)
   }
 }
 
@@ -196,9 +230,9 @@ fn parse_token_success(body: String) -> Result(Credentials, AuthError(e)) {
     )
     let scopes = case scope {
       "" -> []
-      s -> string.split(s, " ")
+      scope -> string.split(scope, " ")
     }
-    decode.success(credentials.new(
+    decode.success(credential.new(
       token: access_token,
       refresh_token: refresh_token,
       token_type: token_type,
@@ -208,10 +242,10 @@ fn parse_token_success(body: String) -> Result(Credentials, AuthError(e)) {
   }
   case json.parse(body, decoder) {
     Ok(oauth_credentials) -> Ok(oauth_credentials)
-    Error(err) ->
+    Error(parse_error) ->
       Error(error.code_exchange(
         reason: "Failed to parse IndieAuth token response: "
-        <> string.inspect(err),
+        <> string.inspect(parse_error),
       ))
   }
 }
@@ -254,7 +288,7 @@ pub fn parse_profile_from_token_response(
       decode.optional(profile_decoder),
     )
     let #(name, url, photo, email) = case profile {
-      Some(#(n, u, p, e)) -> #(n, u, p, e)
+      Some(#(name, url, photo, email)) -> #(name, url, photo, email)
       None -> #(None, None, None, None)
     }
     decode.success(IndieAuthProfile(
@@ -268,9 +302,10 @@ pub fn parse_profile_from_token_response(
 
   case json.parse(body, decoder) {
     Ok(profile) -> Ok(profile)
-    Error(err) ->
+    Error(parse_error) ->
       Error(error.user_info(
-        reason: "Failed to parse IndieAuth profile: " <> string.inspect(err),
+        reason: "Failed to parse IndieAuth profile: "
+        <> string.inspect(parse_error),
       ))
   }
 }
@@ -280,37 +315,52 @@ pub fn fetch_userinfo(
   userinfo_url: String,
   oauth_credentials: Credentials,
 ) -> Result(#(String, UserInfo), AuthError(e)) {
-  use _ <- result.try(provider_support.require_public_https(userinfo_url))
-  use auth_header <- result.try(strategy.authorization_header(oauth_credentials))
+  use http_request <- result.try(build_user_info_request(
+    userinfo_url,
+    oauth_credentials,
+  ))
 
-  use req <- result.try(
+  case provider_support.send_public(http_request) {
+    Ok(response) -> parse_user_info_response(response)
+    Error(send_error) -> Error(send_error)
+  }
+}
+
+/// Build an IndieAuth userinfo request without sending it.
+///
+/// The returned request is opaque and must be sent with
+/// `provider_support.send_public`.
+pub fn build_user_info_request(
+  userinfo_url: String,
+  oauth_credentials: Credentials,
+) -> Result(provider_support.SecureRequest, AuthError(e)) {
+  use _ <- result.try(provider_support.require_public_https_format(userinfo_url))
+  use authorization_header <- result.try(strategy.authorization_header(
+    oauth_credentials,
+  ))
+
+  use http_request <- result.try(
     request.to(userinfo_url)
     |> result.replace_error(error.config(
       reason: "Invalid userinfo endpoint URL: " <> userinfo_url,
     )),
   )
 
-  let req =
-    req
-    |> request.set_header("authorization", auth_header)
+  let http_request =
+    http_request
+    |> request.set_header("authorization", authorization_header)
     |> request.set_header("accept", "application/json")
+  provider_support.secure_request_with_limit(
+    http_request,
+    provider_support.UserInfoResponse,
+  )
+}
 
-  case httpc.send(req) {
-    Ok(response) -> {
-      use body <- result.try(
-        provider_support.check_response_status_for_endpoint(
-          response,
-          provider_name: "indieauth",
-          endpoint: "userinfo",
-        ),
-      )
-      parse_userinfo_response(body)
-    }
-    Error(_) ->
-      Error(error.network(
-        reason: "Failed to fetch IndieAuth userinfo: " <> userinfo_url,
-      ))
-  }
+/// Parse an IndieAuth userinfo HTTP response without performing I/O.
+pub fn parse_user_info_response(
+  http_response: response.Response(String),
+) -> Result(#(String, UserInfo), AuthError(e)) {
+  provider_support.parse_json_response(http_response, parse_userinfo_response)
 }
 
 /// Parse a userinfo endpoint response.
@@ -341,7 +391,7 @@ pub fn parse_userinfo_response(
       decode.optional(decode.string),
     )
     let urls = case url {
-      Some(u) -> dict.from_list([#("url", u)])
+      Some(profile_url) -> dict.from_list([#("url", profile_url)])
       None -> dict.from_list([#("url", me)])
     }
     decode.success(#(
@@ -356,10 +406,10 @@ pub fn parse_userinfo_response(
 
   case json.parse(body, decoder) {
     Ok(result) -> Ok(result)
-    Error(err) ->
+    Error(parse_error) ->
       Error(error.user_info(
         reason: "Failed to parse IndieAuth userinfo response: "
-        <> string.inspect(err),
+        <> string.inspect(parse_error),
       ))
   }
 }

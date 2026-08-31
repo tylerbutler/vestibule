@@ -38,7 +38,7 @@ pub opaque type AuthError(e) {
     provider_error: Option(ProviderError),
     http_status: Option(Int),
     http_summary: Option(String),
-    missing_param: Option(String),
+    missing_parameter: Option(String),
     custom: Option(e),
   )
 }
@@ -132,7 +132,7 @@ pub fn missing_callback_param(name: String) -> AuthError(e) {
       CallbackPhase,
       "Missing required callback parameter: " <> name,
     ),
-    missing_param: Some(name),
+    missing_parameter: Some(name),
   )
 }
 
@@ -230,45 +230,45 @@ pub fn custom(payload: e) -> AuthError(e) {
 // --- Accessors ------------------------------------------------------------
 
 /// The machine-readable [`ErrorKind`](#ErrorKind) classifier for this error.
-pub fn kind(err: AuthError(e)) -> ErrorKind {
-  err.kind
+pub fn kind(auth_error: AuthError(e)) -> ErrorKind {
+  auth_error.kind
 }
 
 /// The coarse [`Phase`](#Phase) this error occurred in.
-pub fn phase(err: AuthError(e)) -> Phase {
-  err.phase
+pub fn phase(auth_error: AuthError(e)) -> Phase {
+  auth_error.phase
 }
 
 /// A human-readable, log-safe summary of this error.
-pub fn message(err: AuthError(e)) -> String {
-  err.message
+pub fn message(auth_error: AuthError(e)) -> String {
+  auth_error.message
 }
 
 /// Structured provider error data, when the provider returned a standard OAuth
 /// error response.
-pub fn provider_error(err: AuthError(e)) -> Option(ProviderError) {
-  err.provider_error
+pub fn provider_error(auth_error: AuthError(e)) -> Option(ProviderError) {
+  auth_error.provider_error
 }
 
 /// The HTTP status code, for errors that carry one.
-pub fn http_status(err: AuthError(e)) -> Option(Int) {
-  err.http_status
+pub fn http_status(auth_error: AuthError(e)) -> Option(Int) {
+  auth_error.http_status
 }
 
 /// The short HTTP error summary, for `HttpKind` errors. May contain a
 /// truncated snippet of the provider's response body.
-pub fn http_summary(err: AuthError(e)) -> Option(String) {
-  err.http_summary
+pub fn http_summary(auth_error: AuthError(e)) -> Option(String) {
+  auth_error.http_summary
 }
 
 /// The name of the missing callback parameter, for `MissingCallbackParamKind`.
-pub fn missing_param(err: AuthError(e)) -> Option(String) {
-  err.missing_param
+pub fn missing_param(auth_error: AuthError(e)) -> Option(String) {
+  auth_error.missing_parameter
 }
 
 /// The provider-defined custom payload, for `CustomKind` errors.
-pub fn custom_payload(err: AuthError(e)) -> Option(e) {
-  err.custom
+pub fn custom_payload(auth_error: AuthError(e)) -> Option(e) {
+  auth_error.custom
 }
 
 // --- ProviderError accessors ----------------------------------------------
@@ -298,7 +298,7 @@ fn base(kind: ErrorKind, phase: Phase, message: String) -> AuthError(e) {
     provider_error: None,
     http_status: None,
     http_summary: None,
-    missing_param: None,
+    missing_parameter: None,
     custom: None,
   )
 }

@@ -4,7 +4,7 @@ description: "Microsoft Identity Platform (v2.0) strategy."
 nav:
   group: Reference
   groupOrder: 20
-  order: 32
+  order: 33
   label: "vestibule_microsoft"
 toc:
   - href: "#functions"
@@ -38,6 +38,44 @@ authentication when the token was issued by a different tenant.
 
 ## Functions
 
+### `build_authorization_code_request`
+
+Build a Microsoft authorization-code token request without sending it.
+
+Use `"common"` for the multi-tenant endpoint or pass a tenant GUID to
+match `strategy_for_tenant`.
+
+```gleam
+pub fn build_authorization_code_request(
+  String,
+  config.ClientConfig,
+  String,
+  option.Option(String)
+) -> Result(request.Request(String), error.AuthError(a))
+```
+
+### `build_refresh_token_request`
+
+Build a Microsoft refresh-token request without sending it.
+
+Use the same `authority` value as the authorization-code request.
+
+```gleam
+pub fn build_refresh_token_request(
+  String,
+  config.ClientConfig,
+  String
+) -> Result(request.Request(String), error.AuthError(a))
+```
+
+### `build_user_info_request`
+
+Build the Microsoft Graph `/me` request without sending it.
+
+```gleam
+pub fn build_user_info_request(credential.Credentials) -> Result(request.Request(String), error.AuthError(a))
+```
+
 ### `id_token_tenant`
 
 Extract the `tid` (tenant id) claim from a Microsoft ID token's payload.
@@ -49,12 +87,36 @@ not verify the JWT signature — see `verify_tenant` for the trust rationale.
 pub fn id_token_tenant(String) -> Result(String, error.AuthError(a))
 ```
 
+### `parse_authorization_code_response`
+
+Parse Microsoft's authorization-code HTTP response without performing I/O.
+
+```gleam
+pub fn parse_authorization_code_response(response.Response(String)) -> Result(strategy.ExchangeResult, error.AuthError(a))
+```
+
+### `parse_refresh_token_response`
+
+Parse Microsoft's refresh-token HTTP response without performing I/O.
+
+```gleam
+pub fn parse_refresh_token_response(response.Response(String)) -> Result(credential.Credentials, error.AuthError(a))
+```
+
 ### `parse_token_response`
 
 Parse Microsoft token response JSON.
 
 ```gleam
-pub fn parse_token_response(String) -> Result(credentials.Credentials, error.AuthError(a))
+pub fn parse_token_response(String) -> Result(credential.Credentials, error.AuthError(a))
+```
+
+### `parse_user_info_response`
+
+Parse a Microsoft Graph `/me` HTTP response without performing I/O.
+
+```gleam
+pub fn parse_user_info_response(response.Response(String)) -> Result(#(String, user_info.UserInfo), error.AuthError(a))
 ```
 
 ### `parse_user_response`

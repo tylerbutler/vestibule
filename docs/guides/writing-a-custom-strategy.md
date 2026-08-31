@@ -8,7 +8,7 @@ This guide walks through building a vestibule strategy from scratch. By the end,
 
 Custom provider packages should build against the root package's provider SDK:
 `vestibule/strategy` and `vestibule/provider_support`. The application-facing
-modules such as `vestibule/config`, `vestibule/credentials`,
+modules such as `vestibule/config`, `vestibule/credential`,
 `vestibule/error`, and `vestibule/user_info` are also part of the stable root
 surface because strategies exchange those types with applications.
 
@@ -47,9 +47,47 @@ You do not need to implement any of the following -- vestibule's core takes care
 Your strategy is responsible for:
 
 - Building the provider's authorization URL (with scopes, state, redirect URI, and client ID)
-- POSTing to the provider's token endpoint and parsing the response into `ExchangeResult`
-- Fetching user info from the provider's API and normalizing it into `UserResult`
-- Refreshing credentials when the provider issues refresh tokens
+- Building token and user-info HTTP requests
+- Parsing token and user-info HTTP responses into vestibule types
+- Providing convenient strategy functions that send those requests
+- Building and parsing refresh requests when the provider issues refresh tokens
+
+### Use the sans-IO pattern
+
+Provider packages should expose each remote action as two public, independently
+callable functions:
+
+```gleam
+pub fn build_authorization_code_request(
+  config: ClientConfig,
+  code: String,
+  code_verifier: Option(String),
+) -> Result(request.Request(String), AuthError(e))
+
+pub fn parse_authorization_code_response(
+  response: response.Response(String),
+) -> Result(strategy.ExchangeResult, AuthError(e))
+```
+
+The builder validates configuration and constructs a standard `gleam_http`
+request but does not send it. The parser checks the response status and decodes
+the body but performs no I/O. Your private `do_exchange_code` function can keep
+the convenient built-in behavior by joining the two with `httpc.send`.
+
+Use the same shape for refresh and user-info operations:
+`build_refresh_token_request` / `parse_refresh_token_response` and
+`build_user_info_request` / `parse_user_info_response`. Providers with remote
+configuration or keys should also expose pairs for discovery and JWKS. This
+lets callers supply any HTTP client and makes complete request/response behavior
+testable without network access.
+
+This ordinary-request pattern is only appropriate when the provider endpoints
+are fixed by trusted application configuration. If an issuer, discovery
+document, or user-controlled profile selects the destination, return
+`provider_support.SecureRequest` instead and require
+`provider_support.send_public`. The opaque request prevents callers from
+accidentally bypassing all-answer DNS validation, IP pinning, HTTPS hostname
+verification, and redirect blocking. Keep response parsing pure in either case.
 
 ## The Strategy Type
 
@@ -230,6 +268,9 @@ gleeunit = ">= 1.6.0 and < 2.0.0"
 ```
 
 Create `src/vestibule_twitch.gleam` -- this single module will hold the entire strategy.
+`gleam_httpc` is used only by the convenient `strategy()` adapter; the public
+request builders and response parsers depend on `gleam_http` types, not on a
+particular client.
 
 ### 2. Implement authorize_url
 
@@ -251,7 +292,7 @@ import glow_auth/token_request
 import glow_auth/uri/uri_builder
 
 import vestibule/config.{type AuthorizeOptions, type ClientConfig}
-import vestibule/credentials.{type Credentials}
+import vestibule/credential.{type Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/provider_support
 import vestibule/strategy.{type Strategy, type UserResult}
@@ -300,18 +341,24 @@ Key points:
 
 ### 3. Implement exchange_code
 
-The `exchange_code` function POSTs the authorization code to the provider's token endpoint and parses the response into `Credentials`, then wraps them in an `ExchangeResult`.
+First expose a builder for the authorization-code request:
 
 ```gleam
 import gleam/dynamic/decode
+import gleam/http/response
 import gleam/json
 
-fn do_exchange_code(
+pub fn build_authorization_code_request(
   cfg: ClientConfig,
   code: String,
   code_verifier: Option(String),
-) -> Result(strategy.ExchangeResult, AuthError(e)) {
-  let assert Ok(site) = uri.parse("https://id.twitch.tv")
+) -> Result(request.Request(String), AuthError(e)) {
+  use site <- result.try(
+    uri.parse("https://id.twitch.tv")
+    |> result.map_error(fn(_) {
+      error.config(reason: "Failed to parse Twitch OAuth base URL")
+    }),
+  )
   use redirect <- result.try(
     provider_support.parse_redirect_uri(config.redirect_uri(cfg)),
   )
@@ -330,20 +377,8 @@ fn do_exchange_code(
       redirect,
     )
     |> request.set_header("accept", "application/json")
-  let req = strategy.append_code_verifier(req, code_verifier)
-  case httpc.send(req) {
-    Ok(response) -> {
-      use body <- result.try(provider_support.check_response_status(response))
-      parse_token_response(body)
-      |> result.map(strategy.exchange_result)
-    }
-    Error(_) ->
-      Error(error.network(
-        reason: "Failed to connect to Twitch token endpoint",
-      ))
-  }
+  Ok(strategy.append_code_verifier(req, code_verifier))
 }
-
 ```
 
 The PKCE code verifier is appended to the form body with the public `strategy.append_code_verifier` helper. Use that helper in custom strategies instead of copying a local implementation.
@@ -386,7 +421,7 @@ fn parse_success_token(body: String) -> Result(Credentials, AuthError(e)) {
       decode.optional(decode.string),
     )
     use scope <- decode.optional_field("scope", [], decode.list(decode.string))
-    decode.success(credentials.new(
+    decode.success(credential.new(
       token: access_token,
       refresh_token: refresh_token,
       token_type: token_type,
@@ -404,6 +439,36 @@ fn parse_success_token(body: String) -> Result(Credentials, AuthError(e)) {
 }
 ```
 
+Join the body parser to HTTP status handling in a pure response parser, then
+use the chosen HTTP client only in the private strategy adapter:
+
+```gleam
+pub fn parse_authorization_code_response(
+  response: response.Response(String),
+) -> Result(strategy.ExchangeResult, AuthError(e)) {
+  use body <- result.try(provider_support.check_response_status(response))
+  parse_token_response(body)
+  |> result.map(strategy.exchange_result)
+}
+
+fn do_exchange_code(
+  cfg: ClientConfig,
+  code: String,
+  code_verifier: Option(String),
+) -> Result(strategy.ExchangeResult, AuthError(e)) {
+  use req <- result.try(
+    build_authorization_code_request(cfg, code, code_verifier),
+  )
+  case httpc.send(req) {
+    Ok(response) -> parse_authorization_code_response(response)
+    Error(_) ->
+      Error(error.network(
+        reason: "Failed to connect to Twitch token endpoint",
+      ))
+  }
+}
+```
+
 Note how the error response is checked first. This is a pattern used by every vestibule strategy: try to decode an error object, and only if that fails, try to decode a success object. This avoids ambiguity when the HTTP status is 200 but the body contains an error (which some providers do).
 
 Also note: Twitch returns scopes as a JSON array rather than a space-separated string. This is a provider quirk -- adjust your decoder accordingly.
@@ -415,11 +480,16 @@ rotation, scopes, and error response details. Twitch refreshes tokens at the
 same token endpoint:
 
 ```gleam
-fn do_refresh_token(
+pub fn build_refresh_token_request(
   cfg: ClientConfig,
   refresh_token: String,
-) -> Result(Credentials, AuthError(e)) {
-  let assert Ok(site) = uri.parse("https://id.twitch.tv")
+) -> Result(request.Request(String), AuthError(e)) {
+  use site <- result.try(
+    uri.parse("https://id.twitch.tv")
+    |> result.map_error(fn(_) {
+      error.config(reason: "Failed to parse Twitch OAuth base URL")
+    }),
+  )
   use secret <- result.try(config.client_secret(cfg))
   let client =
     glow_auth.Client(
@@ -434,11 +504,23 @@ fn do_refresh_token(
       refresh_token,
     )
     |> request.set_header("accept", "application/json")
+  Ok(req)
+}
+
+pub fn parse_refresh_token_response(
+  response: response.Response(String),
+) -> Result(Credentials, AuthError(e)) {
+  use body <- result.try(provider_support.check_response_status(response))
+  parse_token_response(body)
+}
+
+fn do_refresh_token(
+  cfg: ClientConfig,
+  refresh_token: String,
+) -> Result(Credentials, AuthError(e)) {
+  use req <- result.try(build_refresh_token_request(cfg, refresh_token))
   case httpc.send(req) {
-    Ok(response) -> {
-      use body <- result.try(provider_support.check_response_status(response))
-      parse_token_response(body)
-    }
+    Ok(response) -> parse_refresh_token_response(response)
     Error(_) ->
       Error(error.network(
         reason: "Failed to connect to Twitch token endpoint",
@@ -458,11 +540,10 @@ import gleam/dict
 import gleam/int
 import gleam/list
 
-fn do_fetch_user(
+pub fn build_user_info_request(
   cfg: ClientConfig,
-  exchange: strategy.ExchangeResult,
-) -> Result(UserResult, AuthError(e)) {
-  let creds = strategy.exchange_credentials(exchange)
+  creds: Credentials,
+) -> Result(request.Request(String), AuthError(e)) {
   use auth_header <- result.try(strategy.authorization_header(creds))
   use user_req <- result.try(
     request.to("https://api.twitch.tv/helix/users")
@@ -475,12 +556,18 @@ fn do_fetch_user(
     |> request.set_header("authorization", auth_header)
     |> request.set_header("client-id", config.client_id(cfg))
     |> request.set_header("accept", "application/json")
+  Ok(user_req)
+}
+
+fn do_fetch_user(
+  cfg: ClientConfig,
+  exchange: strategy.ExchangeResult,
+) -> Result(UserResult, AuthError(e)) {
+  use user_req <- result.try(
+    build_user_info_request(cfg, strategy.exchange_credentials(exchange)),
+  )
   case httpc.send(user_req) {
-    Ok(response) -> {
-      use body <- result.try(provider_support.check_response_status(response))
-      use #(uid, info) <- result.try(parse_user_response(body))
-      Ok(strategy.user_result(uid: uid, info: info, extra: dict.new()))
-    }
+    Ok(response) -> parse_user_info_response(response)
     Error(_) ->
       Error(error.network(
         reason: "Failed to connect to Twitch Helix API",
@@ -547,6 +634,14 @@ pub fn parse_user_response(
         reason: "Failed to parse Twitch user response",
       ))
   }
+}
+
+pub fn parse_user_info_response(
+  response: response.Response(String),
+) -> Result(UserResult, AuthError(e)) {
+  use body <- result.try(provider_support.check_response_status(response))
+  use #(uid, info) <- result.try(parse_user_response(body))
+  Ok(strategy.user_result(uid: uid, info: info, extra: dict.new()))
 }
 ```
 
@@ -726,7 +821,7 @@ The `Credentials` type has five fields. Map your provider's token response to th
 | `expires_in` | `expires_in` | Seconds until expiry, or `None` |
 | `scopes` | `scope` | Parse according to the provider's format |
 
-`credentials.expires_in(creds)` returns the provider `expires_in` value (seconds from now), not an absolute timestamp.
+`credential.expires_in(creds)` returns the provider `expires_in` value (seconds from now), not an absolute timestamp.
 
 ## Publishing as a Hex Package
 
@@ -793,9 +888,18 @@ If you are developing inside the vestibule monorepo (in `packages/`), set the re
 repository = { type = "github", user = "tylerbutler", repo = "vestibule", path = "packages/vestibule_twitch" }
 ```
 
-### Supported parser helpers
+### Supported request and parser helpers
 
-Make JSON parsing functions public when they are part of your supported strategy-author API. This makes them unit-testable with mock data and gives downstream strategy authors stable helpers to reuse. Do not rely on private or test-only exports from another package; use public helpers such as `provider_support.parse_oauth_token_response`, `oidc.parse_token_response`, `oidc.parse_userinfo_response`, `github.parse_token_response`, and `github.parse_primary_email` when they fit your provider.
+Make both request builders and response parsers public when they are part of
+your supported strategy-author API. Builders should return
+`request.Request(String)` and parsers should accept `response.Response(String)`.
+Keep body-only JSON parsers public when they are useful independently.
+
+Do not rely on private or test-only exports from another package. Reuse public
+helpers such as `provider_support.build_json_request_with_auth`,
+`provider_support.parse_json_response`,
+`provider_support.parse_oauth_token_response`, and the provider packages'
+`build_*_request` / `parse_*_response` functions when they fit your provider.
 
 `provider_support.parse_oauth_token_response` also needs to know how the
 provider formats scopes:
@@ -834,9 +938,12 @@ pub fn parse_user_response(body: String) -> Result(#(String, UserInfo), AuthErro
 
 ## Testing Your Strategy
 
-### Unit testing with mock JSON
+### Unit testing without network I/O
 
-The primary testing strategy for vestibule providers is parsing mock JSON responses. Since the HTTP calls cannot be easily mocked in Gleam's Erlang runtime, expose supported parsing helpers and test them directly.
+Test request construction and response parsing independently. Assert the
+request method, host, path, headers, and encoded body, then construct a
+`response.Response` with fixture JSON and pass it directly to the response
+parser. No HTTP client or network mocking is required.
 
 Here is a complete test file for the Twitch strategy:
 
@@ -844,7 +951,7 @@ Here is a complete test file for the Twitch strategy:
 import gleam/dict
 import gleam/option.{None, Some}
 import gleeunit
-import vestibule/credentials
+import vestibule/credential
 import vestibule/user_info as ui
 import vestibule_twitch
 
@@ -856,7 +963,7 @@ pub fn parse_token_response_success_test() {
   let body =
     "{\"access_token\":\"cfabdegwdoklmawdzdo98xt2fo512y\",\"expires_in\":14346,\"refresh_token\":\"eyJfMzUtNDU0OC04MWYwLTQ5MDY5ODY4NGNlMSJ9\",\"scope\":[\"user:read:email\"],\"token_type\":\"bearer\"}"
   assert vestibule_twitch.parse_token_response(body)
-    == Ok(credentials.new(
+    == Ok(credential.new(
       token: "cfabdegwdoklmawdzdo98xt2fo512y",
       refresh_token: Some("eyJfMzUtNDU0OC04MWYwLTQ5MDY5ODY4NGNlMSJ9"),
       token_type: "bearer",

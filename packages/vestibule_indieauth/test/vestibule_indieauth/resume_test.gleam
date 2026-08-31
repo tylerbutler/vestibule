@@ -79,3 +79,11 @@ pub fn parse_rejects_non_public_endpoints_test() -> Nil {
     }
   Nil
 }
+
+pub fn parse_rejects_http_profile_identity_test() -> Nil {
+  let assert Error(_) =
+    vestibule_indieauth.parse_endpoints(
+      "{\"me\":\"http://me.example.com/\",\"authorization_endpoint\":\"https://auth.example.com/authorize\",\"token_endpoint\":\"https://auth.example.com/token\",\"issuer\":null,\"userinfo_endpoint\":null}",
+    )
+  Nil
+}

@@ -45,11 +45,27 @@ Errors returned by checked JWKS cache operations.
 
 ```gleam
 pub type JwksCacheError {
-  JwksTableCreateFailed
+  JwksTableCreationFailed(reason: String)
 }
 ```
 
+#### Constructors
+
+##### `JwksTableCreationFailed(reason: String)`
+
+The ETS table backing the cache could not be created (for example
+because it already exists). `reason` describes the underlying storage
+error to aid debugging.
+
 ## Functions
+
+### `build_jwks_request`
+
+Build the request for Apple's JWKS endpoint without sending it.
+
+```gleam
+pub fn build_jwks_request() -> Result(request.Request(String), error.AuthError(a))
+```
 
 ### `get_keys`
 
@@ -60,20 +76,21 @@ Falls back to fetching from Apple's JWKS endpoint.
 pub fn get_keys(JwksCache) -> Result(List(verify_key.VerifyKey), error.AuthError(a))
 ```
 
-### `init`
+### `initialize`
 
 Initialize the JWKS cache. Call once per VM at application startup.
 
 ```gleam
-pub fn init() -> JwksCache
+pub fn initialize() -> Result(JwksCache, JwksCacheError)
 ```
 
-### `init_named`
+### `initialize_named`
 
-Initialize a named JWKS cache. Useful for testing.
+Initialize a named JWKS cache. Returns an error if the table already
+exists or cannot be created.
 
 ```gleam
-pub fn init_named(String) -> JwksCache
+pub fn initialize_named(String) -> Result(JwksCache, JwksCacheError)
 ```
 
 ### `parse_jwks`
@@ -84,27 +101,18 @@ Parse a JWKS JSON response into a list of verification keys.
 pub fn parse_jwks(String) -> Result(List(verify_key.VerifyKey), error.AuthError(a))
 ```
 
+### `parse_jwks_response`
+
+Parse an Apple JWKS HTTP response without performing I/O.
+
+```gleam
+pub fn parse_jwks_response(response.Response(String)) -> Result(List(verify_key.VerifyKey), error.AuthError(a))
+```
+
 ### `refresh_keys`
 
 Force refresh the cached keys from Apple's endpoint.
 
 ```gleam
 pub fn refresh_keys(JwksCache) -> Result(List(verify_key.VerifyKey), error.AuthError(a))
-```
-
-### `try_init`
-
-Try to initialize the JWKS cache.
-
-```gleam
-pub fn try_init() -> Result(JwksCache, JwksCacheError)
-```
-
-### `try_init_named`
-
-Try to initialize a named JWKS cache. Returns an error if the table already
-exists or cannot be created.
-
-```gleam
-pub fn try_init_named(String) -> Result(JwksCache, JwksCacheError)
 ```

@@ -1,13 +1,13 @@
 import gleam/http/request
 import gleam/option
 import vestibule/config
-import vestibule/credentials
+import vestibule/credential
 import vestibule/error
 import vestibule/strategy
 
 pub fn authorization_header_accepts_mixed_case_bearer_test() -> Nil {
   let header =
-    credentials.new(
+    credential.new(
       token: "abc",
       refresh_token: option.None,
       token_type: "BeArEr",
@@ -20,7 +20,7 @@ pub fn authorization_header_accepts_mixed_case_bearer_test() -> Nil {
 
 pub fn authorization_header_rejects_unsupported_token_type_test() -> Nil {
   let assert Error(_) =
-    credentials.new(
+    credential.new(
       token: "abc",
       refresh_token: option.None,
       token_type: "MAC",
@@ -31,49 +31,64 @@ pub fn authorization_header_rejects_unsupported_token_type_test() -> Nil {
   Nil
 }
 
-pub fn append_code_verifier_appends_to_empty_body_test() -> Nil {
-  let assert Ok(req) = request.to("https://example.com/token")
+pub fn authorization_header_rejects_header_injection_test() -> Nil {
+  let assert Error(_) =
+    credential.new(
+      token: "abc\r\nx-injected: true",
+      refresh_token: option.None,
+      token_type: "Bearer",
+      expires_in: option.None,
+      scopes: [],
+    )
+    |> strategy.authorization_header()
+  Nil
+}
 
-  let req =
-    req
+pub fn append_code_verifier_appends_to_empty_body_test() -> Nil {
+  let assert Ok(http_request) = request.to("https://example.com/token")
+
+  let http_request =
+    http_request
     |> request.set_body("")
     |> strategy.append_code_verifier(option.Some("verifier"))
-  assert req.body == "code_verifier=verifier"
+  assert http_request.body == "code_verifier=verifier"
 }
 
 pub fn append_code_verifier_appends_to_existing_body_test() -> Nil {
-  let assert Ok(req) = request.to("https://example.com/token")
+  let assert Ok(http_request) = request.to("https://example.com/token")
 
-  let req =
-    req
+  let http_request =
+    http_request
     |> request.set_body("grant_type=authorization_code")
     |> strategy.append_code_verifier(option.Some("verifier"))
-  assert req.body == "grant_type=authorization_code&code_verifier=verifier"
+  assert http_request.body
+    == "grant_type=authorization_code&code_verifier=verifier"
 }
 
 pub fn append_code_verifier_encodes_special_chars_test() -> Nil {
-  let assert Ok(req) = request.to("https://example.com/token")
+  let assert Ok(http_request) = request.to("https://example.com/token")
 
-  let req =
-    req
+  let http_request =
+    http_request
     |> request.set_body("grant_type=authorization_code")
     |> strategy.append_code_verifier(option.Some("a+b/c="))
-  assert req.body == "grant_type=authorization_code&code_verifier=a%2Bb%2Fc%3D"
+  assert http_request.body
+    == "grant_type=authorization_code&code_verifier=a%2Bb%2Fc%3D"
 }
 
 pub fn append_code_verifier_none_preserves_body_test() -> Nil {
-  let assert Ok(req) = request.to("https://example.com/token")
+  let assert Ok(http_request) = request.to("https://example.com/token")
 
-  let req =
-    req
+  let http_request =
+    http_request
     |> request.set_body("grant_type=authorization_code")
     |> strategy.append_code_verifier(option.None)
-  assert req.body == "grant_type=authorization_code"
+  assert http_request.body == "grant_type=authorization_code"
 }
 
 pub fn credentials_accessors_return_token_fields_test() -> Nil {
   let oauth_credentials =
-    credentials.new(
+    credential.new(
       token: "access-token",
       refresh_token: option.Some("refresh-token"),
       token_type: "Bearer",
@@ -81,12 +96,12 @@ pub fn credentials_accessors_return_token_fields_test() -> Nil {
       scopes: ["read:user"],
     )
 
-  assert credentials.token(oauth_credentials) == "access-token"
-  assert credentials.refresh_token(oauth_credentials)
+  assert credential.token(oauth_credentials) == "access-token"
+  assert credential.refresh_token(oauth_credentials)
     == option.Some("refresh-token")
-  assert credentials.token_type(oauth_credentials) == "Bearer"
-  assert credentials.expires_in(oauth_credentials) == option.Some(3600)
-  assert credentials.scopes(oauth_credentials) == ["read:user"]
+  assert credential.token_type(oauth_credentials) == "Bearer"
+  assert credential.expires_in(oauth_credentials) == option.Some(3600)
+  assert credential.scopes(oauth_credentials) == ["read:user"]
 }
 
 fn test_config() -> config.ClientConfig {
@@ -122,7 +137,7 @@ pub fn refresh_token_unset_returns_refresh_unsupported_test() -> Nil {
 
 pub fn with_refresh_makes_refresh_supported_test() -> Nil {
   let oauth_credentials =
-    credentials.new(
+    credential.new(
       token: "fresh",
       refresh_token: option.None,
       token_type: "bearer",

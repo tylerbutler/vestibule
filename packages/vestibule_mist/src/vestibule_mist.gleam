@@ -247,7 +247,7 @@ pub fn cookie_security(options: Options) -> CookieSecurity {
 /// counterpart, and so a future change can read request metadata without
 /// breaking callers. Hence it is generic over the body type.
 pub fn request_phase(
-  _req: Request(body),
+  _http_request: Request(body),
   registry registry: Registry(e),
   provider provider: String,
   store store: StateStore,
@@ -295,7 +295,7 @@ pub fn request_phase(
       )
       not_found_response()
     }
-    Error(transport_flow.AuthFailed(err)) -> {
+    Error(transport_flow.AuthFailed(authentication_error)) -> {
       logger.emit(
         logger.new(
           level: logger.Warning,
@@ -305,7 +305,10 @@ pub fn request_phase(
           provider: option.Some(provider),
           fields: [
             logger.field("transport", "mist"),
-            logger.field("error_category", logger.auth_error_category(err)),
+            logger.field(
+              "error_category",
+              logger.auth_error_category(authentication_error),
+            ),
           ],
         ),
       )
@@ -370,7 +373,7 @@ pub fn request_phase(
 /// On success, calls `on_success` with the `Auth`. On error, returns a
 /// generic HTML error page. Returns 404 if the provider is not registered.
 pub fn callback_phase(
-  req: Request(Connection),
+  http_request: Request(Connection),
   registry registry: Registry(e),
   provider provider: String,
   store store: StateStore,
@@ -379,7 +382,7 @@ pub fn callback_phase(
 ) -> Response(ResponseData) {
   case
     callback_phase_auth_result(
-      req,
+      http_request,
       registry: registry,
       provider: provider,
       store: store,
@@ -387,7 +390,7 @@ pub fn callback_phase(
     )
   {
     Ok(auth) -> on_success(auth)
-    Error(err) -> callback_error_response(err)
+    Error(callback_error) -> callback_error_response(callback_error)
   }
 }
 
@@ -397,7 +400,7 @@ pub fn callback_phase(
 /// Use this instead of `callback_phase` when you want to decide how to use the
 /// success value or generated error response yourself.
 pub fn callback_phase_result(
-  req: Request(Connection),
+  http_request: Request(Connection),
   registry registry: Registry(e),
   provider provider: String,
   store store: StateStore,
@@ -405,7 +408,7 @@ pub fn callback_phase_result(
 ) -> Result(Auth, Response(ResponseData)) {
   case
     callback_phase_auth_result(
-      req,
+      http_request,
       registry: registry,
       provider: provider,
       store: store,
@@ -413,7 +416,7 @@ pub fn callback_phase_result(
     )
   {
     Ok(auth) -> Ok(auth)
-    Error(err) -> Error(callback_error_response(err))
+    Error(callback_error) -> Error(callback_error_response(callback_error))
   }
 }
 
@@ -427,7 +430,7 @@ pub fn callback_phase_result(
 /// session is consumed, so malformed or wrong-state callbacks do not burn a
 /// valid in-flight login.
 pub fn callback_phase_auth_result(
-  req: Request(Connection),
+  http_request: Request(Connection),
   registry registry: Registry(e),
   provider provider: String,
   store store: StateStore,
@@ -443,15 +446,15 @@ pub fn callback_phase_auth_result(
       fields: [logger.field("transport", "mist")],
     ),
   )
-  case get_callback_params(req) {
-    Error(err) -> {
-      log_callback_error(provider, err)
-      Error(err)
+  case get_callback_params(http_request) {
+    Error(callback_error) -> {
+      log_callback_error(provider, callback_error)
+      Error(callback_error)
     }
-    Ok(params) ->
-      do_callback_phase_auth_result_with_params(
-        req,
-        params: params,
+    Ok(callback_params) ->
+      do_callback_phase_auth_result_with_parameters(
+        http_request,
+        params: callback_params,
         registry: registry,
         provider: provider,
         store: store,
@@ -467,8 +470,8 @@ pub fn callback_phase_auth_result(
 /// Generic over the request body type so it can be used in unit tests with
 /// `Request(BitArray)` or any other body.
 pub fn callback_phase_auth_result_with_params(
-  req: Request(body),
-  params params: dict.Dict(String, String),
+  http_request: Request(body),
+  params callback_params: dict.Dict(String, String),
   registry registry: Registry(e),
   provider provider: String,
   store store: StateStore,
@@ -484,9 +487,9 @@ pub fn callback_phase_auth_result_with_params(
       fields: [logger.field("transport", "mist")],
     ),
   )
-  do_callback_phase_auth_result_with_params(
-    req,
-    params: params,
+  do_callback_phase_auth_result_with_parameters(
+    http_request,
+    params: callback_params,
     registry: registry,
     provider: provider,
     store: store,
@@ -494,9 +497,9 @@ pub fn callback_phase_auth_result_with_params(
   )
 }
 
-fn do_callback_phase_auth_result_with_params(
-  req: Request(body),
-  params params: dict.Dict(String, String),
+fn do_callback_phase_auth_result_with_parameters(
+  http_request: Request(body),
+  params callback_params: dict.Dict(String, String),
   registry registry: Registry(e),
   provider provider: String,
   store store: StateStore,
@@ -509,7 +512,7 @@ fn do_callback_phase_auth_result_with_params(
     )
 
     use session_id <- result.try(get_signed_cookie(
-      req,
+      http_request,
       cookie_name(options),
       options.secret_key_base,
     ))
@@ -517,7 +520,7 @@ fn do_callback_phase_auth_result_with_params(
     transport_flow.finish_callback(
       strategy_config,
       store: store,
-      params: params,
+      parameters: callback_params,
       session_id: session_id,
     )
     |> result.map_error(to_callback_error)
@@ -534,17 +537,17 @@ fn do_callback_phase_auth_result_with_params(
           fields: [logger.field("transport", "mist")],
         ),
       )
-    Error(err) -> log_callback_error(provider, err)
+    Error(callback_error) -> log_callback_error(provider, callback_error)
   }
   outcome
 }
 
 fn get_signed_cookie(
-  req: Request(body),
+  http_request: Request(body),
   cookie_name: String,
   secret_key_base: BitArray,
 ) -> Result(String, CallbackError(e)) {
-  let cookies = request.get_cookies(req)
+  let cookies = request.get_cookies(http_request)
   case list.key_find(cookies, cookie_name) {
     Error(Nil) -> Error(MissingOrInvalidSessionCookie(CookieAbsent))
     Ok(token) ->
@@ -559,29 +562,40 @@ fn get_signed_cookie(
 /// form-encoded body (POST). For POST requests, body parameters are merged
 /// over query parameters so body values take precedence.
 fn get_callback_params(
-  req: Request(Connection),
+  http_request: Request(Connection),
 ) -> Result(dict.Dict(String, String), CallbackError(e)) {
-  let query_params = case req.query {
+  let query_parameters = case http_request.query {
     option.Some(query) -> uri.parse_query(query) |> result.unwrap([])
     option.None -> []
   }
-  case req.method {
+  case http_request.method {
     http.Post -> {
-      use req_with_body <- result.try(
-        mist.read_body(req, max_callback_body_bytes)
+      use request_with_body <- result.try(
+        mist.read_body(http_request, max_callback_body_bytes)
         |> result.replace_error(InvalidCallbackParams(BodyReadFailed)),
       )
       use body_string <- result.try(
-        bit_array.to_string(req_with_body.body)
+        bit_array.to_string(request_with_body.body)
         |> result.replace_error(InvalidCallbackParams(BodyNotUtf8)),
       )
-      use body_params <- result.try(
+      use body_parameters <- result.try(
         uri.parse_query(body_string)
         |> result.replace_error(InvalidCallbackParams(BodyNotFormEncoded)),
       )
-      Ok(dict.merge(dict.from_list(query_params), dict.from_list(body_params)))
+      Ok(dict.merge(
+        dict.from_list(query_parameters),
+        dict.from_list(body_parameters),
+      ))
     }
-    _ -> Ok(dict.from_list(query_params))
+    http.Get
+    | http.Head
+    | http.Put
+    | http.Delete
+    | http.Trace
+    | http.Connect
+    | http.Options
+    | http.Patch
+    | http.Other(_) -> Ok(dict.from_list(query_parameters))
   }
 }
 
@@ -600,25 +614,30 @@ fn secure_attribute(security: CookieSecurity) -> Bool {
 }
 
 fn to_callback_error(
-  err: transport_flow.CallbackFlowError(e),
+  flow_error: transport_flow.CallbackFlowError(e),
 ) -> CallbackError(e) {
-  case err {
+  case flow_error {
     transport_flow.CallbackUnknownProvider(provider) ->
       UnknownProvider(provider)
     transport_flow.CallbackSessionUnavailable -> SessionUnavailable
-    transport_flow.CallbackAuthFailed(err) -> AuthFailed(err)
+    transport_flow.CallbackAuthFailed(authentication_error) ->
+      AuthFailed(authentication_error)
   }
 }
 
-fn log_callback_error(provider: String, err: CallbackError(e)) -> Nil {
-  let category = case err {
+fn log_callback_error(
+  provider: String,
+  callback_error: CallbackError(e),
+) -> Nil {
+  let category = case callback_error {
     UnknownProvider(_) -> "unknown_provider"
     MissingOrInvalidSessionCookie(CookieAbsent) -> "session_cookie_absent"
     MissingOrInvalidSessionCookie(CookieSignatureInvalid) ->
       "session_cookie_signature_invalid"
     SessionUnavailable -> "session_unavailable"
     InvalidCallbackParams(_) -> "invalid_callback_params"
-    AuthFailed(auth_err) -> logger.auth_error_category(auth_err)
+    AuthFailed(authentication_error) ->
+      logger.auth_error_category(authentication_error)
   }
   logger.emit(
     logger.new(
@@ -635,8 +654,10 @@ fn log_callback_error(provider: String, err: CallbackError(e)) -> Nil {
   )
 }
 
-fn callback_error_response(err: CallbackError(e)) -> Response(ResponseData) {
-  case err {
+fn callback_error_response(
+  callback_error: CallbackError(e),
+) -> Response(ResponseData) {
+  case callback_error {
     UnknownProvider(_) -> not_found_response()
     MissingOrInvalidSessionCookie(_) -> generic_error_response()
     SessionUnavailable -> generic_error_response()

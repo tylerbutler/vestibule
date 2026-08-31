@@ -99,11 +99,11 @@ let assert Ok(auth) =
   authorization server returns the URL of the account that actually signed in)
 - **Endpoints are per-user** — Each user may have different authorization/token endpoints
 - **Discovery required** — Call `discover()` before starting the auth flow
-- **Endpoints must be public HTTPS** — Discovered endpoints are chosen by whoever
-  controls the profile URL, so the library refuses `http://` endpoints and any
-  host that is loopback, private, link-local, or `localhost`/`*.local` (this
-  also applies to the profile URL itself). A local IndieAuth server therefore
-  needs a public HTTPS hostname (for example via a tunnel) rather than `localhost`
+- **Identities and endpoints must be public HTTPS** — Profile URLs and
+  discovered endpoints are fetched server-side, so the library refuses
+  `http://` URLs and hosts that are loopback, private, link-local, or
+  `localhost`/`*.local`. A local IndieAuth server therefore needs a public
+  HTTPS hostname (for example via a tunnel) rather than `localhost`
 
 ## Resuming a flow across request and callback
 
@@ -130,6 +130,22 @@ let strategy = vestibule_indieauth.strategy(endpoints, me)
 returning both the endpoints and the canonical `me` URL (unlike `discover`, which
 returns only a `Strategy`, or `discover_endpoints`, which returns only the
 endpoints).
+
+## Secure dynamic requests
+
+The `vestibule_indieauth/discovery` module exposes the multi-step sans-IO
+discovery flow: build and parse the profile request, then, when parsing returns
+`MetadataRequired(url)`, build and parse the metadata request. The
+`vestibule_indieauth/token` module similarly exposes request/response pairs for
+authorization-code exchange, refresh, and userinfo.
+
+Unlike providers with fixed endpoints, these builders do not return an ordinary
+`gleam_http` request. They return an opaque `provider_support.SecureRequest`
+that can only be sent with `provider_support.send_public`. That sender resolves
+the hostname immediately before connecting, rejects the destination if any DNS
+answer is non-public, pins a validated address, preserves the original hostname
+for TLS SNI/certificate validation and the `Host` header, and disables
+redirects. Response parsing remains pure and can still be tested independently.
 
 ## Target
 

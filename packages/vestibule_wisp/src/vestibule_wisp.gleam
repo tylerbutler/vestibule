@@ -230,14 +230,14 @@ pub fn is_host_bound_cookie_name(name: String) -> Bool {
 ///
 /// Returns 404 if the provider is not registered.
 pub fn request_phase(
-  req: Request,
+  http_request: Request,
   registry registry: Registry(e),
   provider provider: String,
   state_store state_store: StateStore,
   authorize_options authorize_options: AuthorizeOptions,
 ) -> Response {
   request_phase_with_options(
-    req,
+    http_request,
     registry: registry,
     provider: provider,
     state_store: state_store,
@@ -249,7 +249,7 @@ pub fn request_phase(
 /// Phase 1: Redirect user to the OAuth provider using custom middleware
 /// options.
 pub fn request_phase_with_options(
-  req: Request,
+  http_request: Request,
   registry registry: Registry(e),
   provider provider: String,
   state_store state_store: StateStore,
@@ -297,7 +297,7 @@ pub fn request_phase_with_options(
       )
       wisp.not_found()
     }
-    Error(transport_flow.AuthFailed(err)) -> {
+    Error(transport_flow.AuthFailed(authentication_error)) -> {
       logger.emit(
         logger.new(
           level: logger.Warning,
@@ -307,7 +307,10 @@ pub fn request_phase_with_options(
           provider: option.Some(provider),
           fields: [
             logger.field("transport", "wisp"),
-            logger.field("error_category", logger.auth_error_category(err)),
+            logger.field(
+              "error_category",
+              logger.auth_error_category(authentication_error),
+            ),
           ],
         ),
       )
@@ -341,7 +344,7 @@ pub fn request_phase_with_options(
         ),
       )
       wisp.redirect(url)
-      |> set_session_cookie(req, middleware_options, session_id)
+      |> set_session_cookie(http_request, middleware_options, session_id)
     }
   }
 }
@@ -358,14 +361,14 @@ pub fn request_phase_with_options(
 /// On error, returns an HTML error page.
 /// Returns 404 if the provider is not registered.
 pub fn callback_phase(
-  req: Request,
+  http_request: Request,
   registry registry: Registry(e),
   provider provider: String,
   state_store state_store: StateStore,
   on_success on_success: fn(Auth) -> Response,
 ) -> Response {
   callback_phase_with_options(
-    req,
+    http_request,
     registry: registry,
     provider: provider,
     state_store: state_store,
@@ -376,7 +379,7 @@ pub fn callback_phase(
 
 /// Phase 2: Handle the OAuth callback using custom middleware options.
 pub fn callback_phase_with_options(
-  req: Request,
+  http_request: Request,
   registry registry: Registry(e),
   provider provider: String,
   state_store state_store: StateStore,
@@ -385,7 +388,7 @@ pub fn callback_phase_with_options(
 ) -> Response {
   case
     callback_phase_auth_result_with_options(
-      req,
+      http_request,
       registry: registry,
       provider: provider,
       state_store: state_store,
@@ -393,7 +396,7 @@ pub fn callback_phase_with_options(
     )
   {
     Ok(auth) -> on_success(auth)
-    Error(err) -> callback_error_response(err)
+    Error(callback_error) -> callback_error_response(callback_error)
   }
 }
 
@@ -406,13 +409,13 @@ pub fn callback_phase_with_options(
 /// Use this instead of `callback_phase` when you want to decide how to use the
 /// success value or generated error response yourself.
 pub fn callback_phase_result(
-  req: Request,
+  http_request: Request,
   registry registry: Registry(e),
   provider provider: String,
   state_store state_store: StateStore,
 ) -> Result(Auth, Response) {
   callback_phase_result_with_options(
-    req,
+    http_request,
     registry: registry,
     provider: provider,
     state_store: state_store,
@@ -423,7 +426,7 @@ pub fn callback_phase_result(
 /// Phase 2 (Result variant): Handle the OAuth callback using custom middleware
 /// options.
 pub fn callback_phase_result_with_options(
-  req: Request,
+  http_request: Request,
   registry registry: Registry(e),
   provider provider: String,
   state_store state_store: StateStore,
@@ -431,7 +434,7 @@ pub fn callback_phase_result_with_options(
 ) -> Result(Auth, Response) {
   case
     callback_phase_auth_result_with_options(
-      req,
+      http_request,
       registry: registry,
       provider: provider,
       state_store: state_store,
@@ -439,7 +442,7 @@ pub fn callback_phase_result_with_options(
     )
   {
     Ok(auth) -> Ok(auth)
-    Error(err) -> Error(callback_error_response(err))
+    Error(callback_error) -> Error(callback_error_response(callback_error))
   }
 }
 
@@ -449,13 +452,13 @@ pub fn callback_phase_result_with_options(
 /// Use this when you want to distinguish provider lookup, session, callback
 /// parameter, and provider authentication failures without parsing responses.
 pub fn callback_phase_auth_result(
-  req: Request,
+  http_request: Request,
   registry registry: Registry(e),
   provider provider: String,
   state_store state_store: StateStore,
 ) -> Result(Auth, CallbackError(e)) {
   callback_phase_auth_result_with_options(
-    req,
+    http_request,
     registry: registry,
     provider: provider,
     state_store: state_store,
@@ -470,7 +473,7 @@ pub fn callback_phase_auth_result(
 /// session is consumed, so malformed or wrong-state callbacks do not burn a
 /// valid in-flight login.
 pub fn callback_phase_auth_result_with_options(
-  req: Request,
+  http_request: Request,
   registry registry: Registry(e),
   provider provider: String,
   state_store state_store: StateStore,
@@ -492,14 +495,17 @@ pub fn callback_phase_auth_result_with_options(
       |> result.map_error(to_callback_error),
     )
 
-    use params <- result.try(get_callback_params(req))
+    use callback_params <- result.try(get_callback_params(http_request))
 
-    use session_id <- result.try(get_signed_cookie(req, cookie_name(options)))
+    use session_id <- result.try(get_signed_cookie(
+      http_request,
+      cookie_name(options),
+    ))
 
     transport_flow.finish_callback(
       strategy_config,
       store: state_store,
-      params: params,
+      parameters: callback_params,
       session_id: session_id,
     )
     |> result.map_error(to_callback_error)
@@ -516,7 +522,7 @@ pub fn callback_phase_auth_result_with_options(
           fields: [logger.field("transport", "wisp")],
         ),
       )
-    Error(err) -> log_callback_error(provider, err)
+    Error(callback_error) -> log_callback_error(provider, callback_error)
   }
   outcome
 }
@@ -529,7 +535,7 @@ pub fn callback_phase_auth_result_with_options(
 /// itself.
 fn set_session_cookie(
   response: Response,
-  req: Request,
+  http_request: Request,
   options: Options,
   session_id: String,
 ) -> Response {
@@ -537,14 +543,15 @@ fn set_session_cookie(
     Lax ->
       wisp.set_cookie(
         response,
-        req,
+        http_request,
         cookie_name(options),
         session_id,
         wisp.Signed,
         session_ttl_seconds(options),
       )
     CrossSite -> {
-      let value = wisp.sign_message(req, <<session_id:utf8>>, crypto.Sha512)
+      let value =
+        wisp.sign_message(http_request, <<session_id:utf8>>, crypto.Sha512)
       let attributes =
         cookie.Attributes(
           ..cookie.defaults(http.Https),
@@ -564,13 +571,13 @@ fn set_session_cookie(
 /// verification result — it only classifies the failure — so the signature is
 /// still the sole thing that authorizes the session.
 fn get_signed_cookie(
-  req: Request,
+  http_request: Request,
   cookie_name: String,
 ) -> Result(String, CallbackError(e)) {
-  case wisp.get_cookie(req, cookie_name, wisp.Signed) {
+  case wisp.get_cookie(http_request, cookie_name, wisp.Signed) {
     Ok(session_id) -> Ok(session_id)
     Error(Nil) ->
-      case list.key_find(request.get_cookies(req), cookie_name) {
+      case list.key_find(request.get_cookies(http_request), cookie_name) {
         Error(Nil) -> Error(MissingOrInvalidSessionCookie(CookieAbsent))
         Ok(_) -> Error(MissingOrInvalidSessionCookie(CookieSignatureInvalid))
       }
@@ -581,50 +588,66 @@ fn get_signed_cookie(
 /// form-encoded body (POST). For POST requests, body parameters
 /// are merged over query parameters so they take precedence.
 fn get_callback_params(
-  req: Request,
+  http_request: Request,
 ) -> Result(dict.Dict(String, String), CallbackError(e)) {
-  let query_params = wisp.get_query(req)
-  case req.method {
+  let query_parameters = wisp.get_query(http_request)
+  case http_request.method {
     http.Post -> {
-      use body_bits <- result.try(
-        wisp.read_body_bits(req)
+      use body_bit_array <- result.try(
+        wisp.read_body_bits(http_request)
         |> result.replace_error(InvalidCallbackParams(BodyReadFailed)),
       )
       use body_string <- result.try(
-        bit_array.to_string(body_bits)
+        bit_array.to_string(body_bit_array)
         |> result.replace_error(InvalidCallbackParams(BodyNotUtf8)),
       )
-      use body_params <- result.try(
+      use body_parameters <- result.try(
         uri.parse_query(body_string)
         |> result.replace_error(InvalidCallbackParams(BodyNotFormEncoded)),
       )
-      // Merge: body params take precedence over query params
-      Ok(dict.merge(dict.from_list(query_params), dict.from_list(body_params)))
+      // Merge: body parameters take precedence over query parameters.
+      Ok(dict.merge(
+        dict.from_list(query_parameters),
+        dict.from_list(body_parameters),
+      ))
     }
-    _ -> Ok(dict.from_list(query_params))
+    http.Get
+    | http.Head
+    | http.Put
+    | http.Delete
+    | http.Trace
+    | http.Connect
+    | http.Options
+    | http.Patch
+    | http.Other(_) -> Ok(dict.from_list(query_parameters))
   }
 }
 
 fn to_callback_error(
-  err: transport_flow.CallbackFlowError(e),
+  flow_error: transport_flow.CallbackFlowError(e),
 ) -> CallbackError(e) {
-  case err {
+  case flow_error {
     transport_flow.CallbackUnknownProvider(provider) ->
       UnknownProvider(provider)
     transport_flow.CallbackSessionUnavailable -> SessionUnavailable
-    transport_flow.CallbackAuthFailed(err) -> AuthFailed(err)
+    transport_flow.CallbackAuthFailed(authentication_error) ->
+      AuthFailed(authentication_error)
   }
 }
 
-fn log_callback_error(provider: String, err: CallbackError(e)) -> Nil {
-  let category = case err {
+fn log_callback_error(
+  provider: String,
+  callback_error: CallbackError(e),
+) -> Nil {
+  let category = case callback_error {
     UnknownProvider(_) -> "unknown_provider"
     MissingOrInvalidSessionCookie(CookieAbsent) -> "session_cookie_absent"
     MissingOrInvalidSessionCookie(CookieSignatureInvalid) ->
       "session_cookie_signature_invalid"
     SessionUnavailable -> "session_unavailable"
     InvalidCallbackParams(_) -> "invalid_callback_params"
-    AuthFailed(auth_err) -> logger.auth_error_category(auth_err)
+    AuthFailed(authentication_error) ->
+      logger.auth_error_category(authentication_error)
   }
   logger.emit(
     logger.new(
@@ -648,8 +671,8 @@ fn secure_attribute(security: CookieSecurity) -> Bool {
   }
 }
 
-fn callback_error_response(err: CallbackError(e)) -> Response {
-  case err {
+fn callback_error_response(callback_error: CallbackError(e)) -> Response {
+  case callback_error {
     UnknownProvider(_) -> wisp.not_found()
     MissingOrInvalidSessionCookie(_) -> generic_error_response()
     SessionUnavailable -> generic_error_response()

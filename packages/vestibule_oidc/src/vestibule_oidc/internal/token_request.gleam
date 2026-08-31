@@ -10,18 +10,19 @@ pub fn authorization_code(
   redirect_uri redirect_uri: String,
   code_verifier code_verifier: Option(String),
 ) -> List(#(String, String)) {
-  let base_params =
+  let base_parameters =
     [
       #("grant_type", "authorization_code"),
       #("code", code),
       #("redirect_uri", redirect_uri),
       #("client_id", config.client_id(client_config)),
     ]
-    |> list.append(client_auth_params(client_config))
+    |> list.append(client_authentication_parameters(client_config))
 
   case code_verifier {
-    Some(verifier) -> list.append(base_params, [#("code_verifier", verifier)])
-    None -> base_params
+    Some(verifier) ->
+      list.append(base_parameters, [#("code_verifier", verifier)])
+    None -> base_parameters
   }
 }
 
@@ -34,10 +35,10 @@ pub fn refresh(
     #("refresh_token", refresh_token),
     #("client_id", config.client_id(client_config)),
   ]
-  |> list.append(client_auth_params(client_config))
+  |> list.append(client_authentication_parameters(client_config))
 }
 
-pub fn client_auth_params(
+pub fn client_authentication_parameters(
   client_config: config.ClientConfig,
 ) -> List(#(String, String)) {
   case config.client_auth(client_config) {

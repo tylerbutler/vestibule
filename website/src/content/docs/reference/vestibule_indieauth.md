@@ -1,6 +1,6 @@
 ---
 title: "vestibule_indieauth"
-description: "Reference for vestibule_indieauth."
+description: "IndieAuth strategy for vestibule — decentralized identity via OAuth 2.0."
 nav:
   group: Reference
   groupOrder: 20
@@ -18,7 +18,32 @@ searchTerms:
 
 # `vestibule_indieauth`
 
-Reference for vestibule_indieauth.
+IndieAuth strategy for vestibule — decentralized identity via OAuth 2.0.
+
+IndieAuth is an identity layer on top of OAuth 2.0 where users are identified
+by a URL they control. Endpoints are discovered dynamically from the user's
+homepage rather than being statically configured.
+
+## Usage
+
+```gleam
+// Discover the user's IndieAuth endpoints
+let assert Ok(strategy) = vestibule_indieauth.discover("https://user.example.com")
+
+// Use with vestibule's standard two-phase flow
+let options = config.authorize_options()
+let assert Ok(authorization_request) =
+  vestibule.create_authorization_request(strategy, config: client_config, options: options)
+```
+
+## Discovery
+
+The `discover` function fetches the user's homepage and finds their
+authorization and token endpoints using a three-tier fallback:
+
+1. IndieAuth server metadata (`rel="indieauth-metadata"` → JSON document)
+2. Direct link relations (`rel="authorization_endpoint"`, `rel="token_endpoint"`)
+3. Falls back from HTTP `Link` headers to HTML `<link>` tags at each tier
 
 ## Functions
 
@@ -44,7 +69,7 @@ let client_config =
     auth: config.PublicClient,
   )
 let options = config.authorize_options()
-let assert Ok(auth_request) =
+let assert Ok(authorization_request) =
   vestibule.create_authorization_request(strategy, config: client_config, options: options)
 ```
 

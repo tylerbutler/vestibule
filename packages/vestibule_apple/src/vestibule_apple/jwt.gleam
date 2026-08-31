@@ -1,13 +1,15 @@
 //// JWT verification using ywt_core with a custom Erlang FFI backend.
 ////
 //// This replaces ywt_erlang to avoid an OTP 27 compatibility issue in
-//// its EC key generation. We only need verification (not key generation)
-//// for production use; the HMAC signing counterpart used by tests lives
+//// its EC key generation. We only need RS256 verification in production;
+//// the RSA signing counterpart used by tests lives
 //// in `test/vestibule_apple/jwt_signing.gleam`.
 
+import gleam/bit_array
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json
 import gleam/result
+import gleam/string
 import gleam/time/timestamp
 import ywt/claim.{type Claim}
 import ywt/internal/core
@@ -22,6 +24,7 @@ pub type ParseError {
   InvalidSignatureEncoding
   InvalidHeaderJson(json.DecodeError)
   InvalidPayloadJson(json.DecodeError)
+  UnsupportedAlgorithm(actual: String)
   NoMatchingKey
   InvalidSignature
   TokenExpired(expired_at: timestamp.Timestamp)
@@ -43,6 +46,7 @@ pub fn decode(
   claims claims: List(Claim),
   keys keys: List(VerifyKey),
 ) -> Result(payload, ParseError) {
+  use Nil <- result.try(validate_rs256_header(jwt))
   let verify = fn(message, signature, key, next) {
     next(verify_bits(message, signature, key))
   }
@@ -52,6 +56,29 @@ pub fn decode(
 
 @external(erlang, "vestibule_apple_jwt_ffi", "verify")
 fn verify_bits(message: BitArray, signature: BitArray, key: VerifyKey) -> Bool
+
+fn validate_rs256_header(token: String) -> Result(Nil, ParseError) {
+  use raw_header <- result.try(case string.split(token, on: ".") {
+    [header, _, _] -> Ok(header)
+    _ -> Error(MalformedToken)
+  })
+  use header_bits <- result.try(
+    bit_array.base64_url_decode(raw_header)
+    |> result.replace_error(InvalidHeaderEncoding),
+  )
+  let header_decoder = {
+    use algorithm <- decode.field("alg", decode.string)
+    decode.success(algorithm)
+  }
+  use algorithm <- result.try(
+    json.parse_bits(header_bits, header_decoder)
+    |> result.map_error(InvalidHeaderJson),
+  )
+  case algorithm {
+    "RS256" -> Ok(Nil)
+    actual -> Error(UnsupportedAlgorithm(actual:))
+  }
+}
 
 fn from_core_error(error: core.ParseError) -> ParseError {
   case error {

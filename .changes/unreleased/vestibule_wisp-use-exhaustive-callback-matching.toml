@@ -1,0 +1,3 @@
+package = "vestibule_wisp"
+kind = "Changed"
+body = "Use exhaustive callback matching and clearer public adapter implementation names"

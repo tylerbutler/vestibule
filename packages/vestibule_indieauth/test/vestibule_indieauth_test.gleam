@@ -4,7 +4,7 @@ import gleam/option.{None}
 import gleam/string
 import gleeunit
 import vestibule/config
-import vestibule/credentials
+import vestibule/credential
 import vestibule/error
 import vestibule/strategy
 import vestibule_indieauth
@@ -36,7 +36,7 @@ pub fn authorize_url_includes_extra_params_test() -> Nil {
     config.authorize_options()
     |> config.with_extra_params([#("prompt", "login")])
 
-  let assert Ok(url) =
+  let assert Ok(authorization_url) =
     strategy.build_authorize_url(
       indieauth_strategy,
       config: client_config,
@@ -45,7 +45,7 @@ pub fn authorize_url_includes_extra_params_test() -> Nil {
       state: "state",
     )
 
-  string.contains(url, "prompt=login")
+  string.contains(authorization_url, "prompt=login")
   |> fn(actual) {
     assert actual
   }
@@ -81,18 +81,18 @@ pub fn authorize_url_rejects_me_extra_param_test() -> Nil {
     )
 
   case result {
-    Error(err) -> {
-      error.kind(err)
+    Error(auth_error) -> {
+      error.kind(auth_error)
       |> fn(actual) {
         assert actual == error.ConfigKind
       }
-      error.message(err)
+      error.message(auth_error)
       |> string.contains("Reserved authorization parameter not allowed: me")
       |> fn(actual) {
         assert actual
       }
     }
-    _ -> panic as "expected ConfigError for reserved IndieAuth me parameter"
+    Ok(_) -> panic as "expected ConfigError for reserved IndieAuth me parameter"
   }
 }
 
@@ -116,8 +116,8 @@ fn test_client_config() -> config.ClientConfig {
 }
 
 fn exchange_with_me(me: option.Option(String)) -> strategy.ExchangeResult {
-  let creds =
-    credentials.new(
+  let oauth_credentials =
+    credential.new(
       token: "token",
       refresh_token: None,
       token_type: "Bearer",
@@ -128,7 +128,7 @@ fn exchange_with_me(me: option.Option(String)) -> strategy.ExchangeResult {
     option.Some(value) -> dict.from_list([#("me", dynamic.string(value))])
     None -> dict.new()
   }
-  strategy.exchange_result_with_artifacts(creds, artifacts)
+  strategy.exchange_result_with_artifacts(oauth_credentials, artifacts)
 }
 
 pub fn fetch_user_uses_verified_me_as_uid_test() -> Nil {
@@ -162,8 +162,8 @@ pub fn fetch_user_rejects_missing_me_test() -> Nil {
       config: test_client_config(),
       exchange: exchange_with_me(None),
     )
-  let assert Error(err) = result
-  error.kind(err)
+  let assert Error(auth_error) = result
+  error.kind(auth_error)
   |> fn(actual) {
     assert actual == error.UserInfoKind
   }

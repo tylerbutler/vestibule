@@ -16,7 +16,7 @@ import gleam/string
 import gleam/uri
 
 import vestibule/config.{type AuthorizeOptions, type ClientConfig}
-import vestibule/credentials
+import vestibule/credential
 import vestibule/error.{type AuthError}
 import vestibule/user_info.{type UserInfo}
 
@@ -62,19 +62,19 @@ pub fn user_result_extra(user: UserResult) -> Dict(String, Dynamic) {
 /// Opaque to keep provider-specific artifacts evolution-safe.
 pub opaque type ExchangeResult {
   ExchangeResult(
-    credentials: credentials.Credentials,
+    credentials: credential.Credentials,
     artifacts: Dict(String, Dynamic),
   )
 }
 
 /// Build an exchange result for providers with no provider-specific artifacts.
-pub fn exchange_result(credentials: credentials.Credentials) -> ExchangeResult {
+pub fn exchange_result(credentials: credential.Credentials) -> ExchangeResult {
   ExchangeResult(credentials: credentials, artifacts: dict.new())
 }
 
 /// Build an exchange result with provider-specific artifacts.
 pub fn exchange_result_with_artifacts(
-  credentials: credentials.Credentials,
+  credentials: credential.Credentials,
   artifacts: Dict(String, Dynamic),
 ) -> ExchangeResult {
   ExchangeResult(credentials: credentials, artifacts: artifacts)
@@ -83,7 +83,7 @@ pub fn exchange_result_with_artifacts(
 /// Return the OAuth credentials produced by the exchange.
 pub fn exchange_credentials(
   exchange: ExchangeResult,
-) -> credentials.Credentials {
+) -> credential.Credentials {
   exchange.credentials
 }
 
@@ -119,7 +119,7 @@ pub opaque type Strategy(e) {
     exchange_code: fn(ClientConfig, String, Option(String)) ->
       Result(ExchangeResult, AuthError(e)),
     refresh_token: Option(
-      fn(ClientConfig, String) -> Result(credentials.Credentials, AuthError(e)),
+      fn(ClientConfig, String) -> Result(credential.Credentials, AuthError(e)),
     ),
     fetch_user: fn(ClientConfig, ExchangeResult) ->
       Result(UserResult, AuthError(e)),
@@ -181,7 +181,7 @@ pub fn new(
 pub fn with_refresh(
   strategy: Strategy(e),
   refresh_token: fn(ClientConfig, String) ->
-    Result(credentials.Credentials, AuthError(e)),
+    Result(credential.Credentials, AuthError(e)),
 ) -> Strategy(e) {
   Strategy(..strategy, refresh_token: option.Some(refresh_token))
 }
@@ -240,7 +240,7 @@ pub fn refresh_token(
   strategy: Strategy(e),
   config config: ClientConfig,
   refresh_token refresh_token: String,
-) -> Result(credentials.Credentials, AuthError(e)) {
+) -> Result(credential.Credentials, AuthError(e)) {
   case strategy.refresh_token {
     option.Some(refresh) -> refresh(config, refresh_token)
     option.None -> Error(error.refresh_unsupported())
@@ -264,10 +264,23 @@ pub fn fetch_user(
 /// Returns `Error` if the token type is not "bearer" (case-insensitive),
 /// as vestibule only supports Bearer token authentication.
 pub fn authorization_header(
-  credentials credentials: credentials.Credentials,
+  credentials credentials: credential.Credentials,
 ) -> Result(String, AuthError(e)) {
-  case string.lowercase(credentials.token_type(credentials)) {
-    "bearer" -> Ok("Bearer " <> credentials.token(credentials))
+  case string.lowercase(credential.token_type(credentials)) {
+    "bearer" -> {
+      let token = credential.token(credentials)
+      case
+        string.contains(token, "\r")
+        || string.contains(token, "\n")
+        || string.contains(token, "\u{0000}")
+      {
+        True ->
+          Error(error.config(
+            reason: "Access token contains invalid HTTP header characters",
+          ))
+        False -> Ok("Bearer " <> token)
+      }
+    }
     other ->
       Error(error.config(
         reason: "Unsupported token type: "
@@ -282,18 +295,19 @@ pub fn authorization_header(
 /// Strategy implementations should call this after building the token
 /// exchange request to include the PKCE verifier parameter.
 pub fn append_code_verifier(
-  req: request.Request(String),
+  http_request: request.Request(String),
   code_verifier: Option(String),
 ) -> request.Request(String) {
   case code_verifier {
     option.Some(verifier) -> {
-      let verifier_param = uri.query_to_string([#("code_verifier", verifier)])
-      let body = case req.body {
-        "" -> verifier_param
-        existing -> existing <> "&" <> verifier_param
+      let verifier_parameter =
+        uri.query_to_string([#("code_verifier", verifier)])
+      let body = case http_request.body {
+        "" -> verifier_parameter
+        existing -> existing <> "&" <> verifier_parameter
       }
-      request.set_body(req, body)
+      request.set_body(http_request, body)
     }
-    option.None -> req
+    option.None -> http_request
   }
 }

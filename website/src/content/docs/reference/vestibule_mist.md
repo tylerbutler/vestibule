@@ -4,11 +4,13 @@ description: "Mist middleware that wires a `Registry` of `Strategy` values into 
 nav:
   group: Reference
   groupOrder: 20
-  order: 33
+  order: 34
   label: "vestibule_mist"
 toc:
   - href: "#types"
     label: "Types"
+  - href: "#constants"
+    label: "Constants"
   - href: "#functions"
     label: "Functions"
 searchTerms:
@@ -102,6 +104,34 @@ The request body was not valid UTF-8.
 
 The request body was not valid form/query encoding.
 
+### `CookieSameSite`
+
+How the session cookie's `SameSite` attribute is set.
+
+```gleam
+pub type CookieSameSite {
+  Lax
+  CrossSite
+}
+```
+
+#### Constructors
+
+##### `Lax`
+
+`SameSite=Lax` (default). Sent on top-level GET navigations, which is
+how every provider that redirects back with query parameters delivers
+its callback.
+
+##### `CrossSite`
+
+`SameSite=None; Secure`. Required for providers that deliver the
+callback with a cross-site POST (`response_mode=form_post`, e.g. Apple):
+browsers do not send `Lax` cookies on cross-site POSTs, so the callback
+would fail with `MissingOrInvalidSessionCookie(CookieAbsent)`. Browsers
+only honour `SameSite=None` together with `Secure`, so `Secure` is set
+even under `AllowInsecure`.
+
 ### `CookieSecurity`
 
 Whether the session cookie is set with the `Secure` attribute.
@@ -132,7 +162,7 @@ Middleware configuration options.
 
 Construct with `new_options` — the HMAC `secret_key_base` is mandatory and
 has no safe default — then customize with `with_cookie_name`,
-`with_session_ttl_seconds`, and `with_cookie_security`. The type is opaque
+`with_session_ttl_seconds`, `with_cookie_security`, and `with_same_site`. The type is opaque
 so the effective cookie name always matches the cookie security: host-bound
 (`__Host-` prefixed) under `SecureOnly`, unprefixed under `AllowInsecure`
 (browsers reject `__Host-` cookies that are not `Secure`). A host-bound
@@ -143,6 +173,28 @@ fixation). Read the effective name with `cookie_name`.
 ```gleam
 pub type Options
 ```
+
+### `OptionsError`
+
+Errors returned by `new_options`.
+
+```gleam
+pub type OptionsError {
+  SecretKeyBaseTooShort(
+    minimum_bytes: Int,
+    actual_bytes: Int
+  )
+}
+```
+
+#### Constructors
+
+##### `SecretKeyBaseTooShort(
+  minimum_bytes: Int,
+  actual_bytes: Int
+)`
+
+`secret_key_base` is shorter than `min_secret_key_base_bytes`.
 
 ### `SessionCookieError`
 
@@ -171,6 +223,18 @@ No cookie with the configured name was present on the request.
 
 A cookie was present but its HMAC signature did not verify: wrong
 secret, tampered payload, or a malformed token.
+
+## Constants
+
+### `min_secret_key_base_bytes`
+
+Minimum length of the HMAC `secret_key_base`, in bytes. 32 bytes is the
+output size of the HMAC-SHA256 used to sign the session cookie; anything
+shorter weakens the signature below the hash's own strength.
+
+```gleam
+pub const min_secret_key_base_bytes: Int
+```
 
 ## Functions
 
@@ -278,14 +342,16 @@ pub fn cookie_security(Options) -> CookieSecurity
 
 ### `new_options`
 
-Build middleware options with the given HMAC `secret_key_base`.
+Build middleware options with the given HMAC `secret_key_base`, which must
+be at least `min_secret_key_base_bytes` (32) bytes of unpredictable data.
 
 Defaults: host-bound cookie name `__Host-vestibule_session`, session TTL
-600 seconds, `SecureOnly` cookies. Customize with `with_cookie_name`,
-`with_session_ttl_seconds`, and `with_cookie_security`.
+600 seconds, `SecureOnly` cookies, `SameSite=Lax`. Customize with
+`with_cookie_name`, `with_session_ttl_seconds`, `with_cookie_security`, and
+`with_same_site`.
 
 ```gleam
-pub fn new_options(BitArray) -> Options
+pub fn new_options(BitArray) -> Result(Options, OptionsError)
 ```
 
 ### `request_phase`
@@ -314,6 +380,14 @@ pub fn request_phase(
   authorize_options: config.AuthorizeOptions,
   options: Options
 ) -> response.Response(mist.ResponseData)
+```
+
+### `same_site`
+
+The session cookie's `SameSite` setting for these options.
+
+```gleam
+pub fn same_site(Options) -> CookieSameSite
 ```
 
 ### `session_ttl_seconds`
@@ -347,6 +421,17 @@ Set whether the session cookie requires HTTPS. See `CookieSecurity`.
 pub fn with_cookie_security(
   Options,
   CookieSecurity
+) -> Options
+```
+
+### `with_same_site`
+
+Set the session cookie's `SameSite` attribute. See `CookieSameSite`.
+
+```gleam
+pub fn with_same_site(
+  Options,
+  CookieSameSite
 ) -> Options
 ```
 

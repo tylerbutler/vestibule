@@ -1,13 +1,17 @@
 import gleam/dict
+import gleam/dynamic/decode
+import gleam/http
+import gleam/http/response
 import gleam/option.{None, Some}
 import gleam/string
 import vestibule/config
-import vestibule/credentials
+import vestibule/credential
 import vestibule/error
+import vestibule/provider_support
 import vestibule/strategy
 import vestibule/user_info
 import vestibule_oidc
-import vestibule_oidc/internal/token_request_params
+import vestibule_oidc/internal/token_request
 
 // --- OidcConfig construction ---
 
@@ -415,6 +419,46 @@ pub fn discovery_url_rejects_loopback_ipv4_issuer_test() -> Nil {
   Nil
 }
 
+pub fn sans_io_discovery_request_and_response_test() -> Nil {
+  let assert Ok(http_request) =
+    vestibule_oidc.build_discovery_request("https://accounts.example.com")
+  let request_uri = provider_support.secure_request_uri(http_request)
+  assert request_uri.host == Some("accounts.example.com")
+  assert request_uri.path == "/.well-known/openid-configuration"
+  assert provider_support.secure_request_header(http_request, "accept")
+    == Ok("application/json")
+  assert provider_support.secure_request_response_limit(http_request)
+    == provider_support.DiscoveryResponse
+
+  let http_response =
+    response.Response(
+      status: 200,
+      headers: [],
+      body: "{\"issuer\":\"https://accounts.example.com\",\"authorization_endpoint\":\"https://accounts.example.com/authorize\",\"token_endpoint\":\"https://accounts.example.com/token\",\"userinfo_endpoint\":\"https://accounts.example.com/userinfo\"}",
+    )
+  let assert Ok(config) =
+    vestibule_oidc.parse_discovery_response(
+      "https://accounts.example.com",
+      http_response,
+    )
+  assert vestibule_oidc.issuer(config) == "https://accounts.example.com"
+}
+
+pub fn sans_io_discovery_response_rejects_issuer_mismatch_test() -> Nil {
+  let http_response =
+    response.Response(
+      status: 200,
+      headers: [],
+      body: "{\"issuer\":\"https://evil.example.com\",\"authorization_endpoint\":\"https://evil.example.com/authorize\",\"token_endpoint\":\"https://evil.example.com/token\",\"userinfo_endpoint\":\"https://evil.example.com/userinfo\"}",
+    )
+  let assert Error(auth_error) =
+    vestibule_oidc.parse_discovery_response(
+      "https://accounts.example.com",
+      http_response,
+    )
+  assert error.kind(auth_error) == error.ConfigKind
+}
+
 // --- parse_token_response ---
 
 pub fn parse_token_response_success_test() -> Nil {
@@ -427,7 +471,7 @@ pub fn parse_token_response_success_test() -> Nil {
   }
   |> fn(actual) {
     assert actual
-      == credentials.new(
+      == credential.new(
         token: "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9",
         refresh_token: Some("dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4"),
         token_type: "Bearer",
@@ -446,7 +490,7 @@ pub fn parse_token_response_minimal_test() -> Nil {
   }
   |> fn(actual) {
     assert actual
-      == credentials.new(
+      == credential.new(
         token: "abc123",
         refresh_token: None,
         token_type: "bearer",
@@ -460,7 +504,7 @@ pub fn parse_token_response_empty_scope_test() -> Nil {
   let json =
     "{\"access_token\":\"abc123\",\"token_type\":\"Bearer\",\"scope\":\"\"}"
   let assert Ok(oauth_credentials) = vestibule_oidc.parse_token_response(json)
-  credentials.scopes(oauth_credentials)
+  credential.scopes(oauth_credentials)
   |> fn(actual) {
     assert actual == []
   }
@@ -591,7 +635,7 @@ pub fn parse_userinfo_response_unverified_email_test() -> Nil {
   let json =
     "{\"sub\":\"user-id-123\",\"email\":\"jane@example.com\",\"email_verified\":false}"
   let result = vestibule_oidc.parse_userinfo_response(json)
-  let assert Ok(#(_, info)) = result
+  let assert Ok(#(_user_id, info)) = result
   user_info.email(info)
   |> fn(actual) {
     assert actual == None
@@ -823,7 +867,7 @@ pub fn strategy_from_config_invalid_redirect_uri_returns_error_test() -> Nil {
   Nil
 }
 
-pub fn token_request_params_include_client_secret_when_configured_test() -> Nil {
+pub fn token_request_includes_client_secret_when_configured_test() -> Nil {
   let client_config =
     config.new(
       client_id: "client-id",
@@ -831,7 +875,7 @@ pub fn token_request_params_include_client_secret_when_configured_test() -> Nil 
       auth: config.ClientSecret("secret"),
     )
 
-  token_request_params.authorization_code(
+  token_request.authorization_code(
     client_config,
     code: "code-123",
     redirect_uri: "https://app.example.com/callback",
@@ -849,7 +893,7 @@ pub fn token_request_params_include_client_secret_when_configured_test() -> Nil 
       ]
   }
 
-  token_request_params.refresh(client_config, refresh_token: "refresh-123")
+  token_request.refresh(client_config, refresh_token: "refresh-123")
   |> fn(actual) {
     assert actual
       == [
@@ -861,7 +905,7 @@ pub fn token_request_params_include_client_secret_when_configured_test() -> Nil 
   }
 }
 
-pub fn token_request_params_omit_client_secret_for_public_client_test() -> Nil {
+pub fn token_request_omits_client_secret_for_public_client_test() -> Nil {
   let client_config =
     config.new(
       client_id: "client-id",
@@ -869,7 +913,7 @@ pub fn token_request_params_omit_client_secret_for_public_client_test() -> Nil {
       auth: config.PublicClient,
     )
 
-  token_request_params.authorization_code(
+  token_request.authorization_code(
     client_config,
     code: "code-123",
     redirect_uri: "https://app.example.com/callback",
@@ -885,7 +929,7 @@ pub fn token_request_params_omit_client_secret_for_public_client_test() -> Nil {
       ]
   }
 
-  token_request_params.refresh(client_config, refresh_token: "refresh-123")
+  token_request.refresh(client_config, refresh_token: "refresh-123")
   |> fn(actual) {
     assert actual
       == [
@@ -896,7 +940,7 @@ pub fn token_request_params_omit_client_secret_for_public_client_test() -> Nil {
   }
 }
 
-pub fn token_request_params_include_client_assertion_without_secret_test() -> Nil {
+pub fn token_request_includes_client_assertion_without_secret_test() -> Nil {
   let client_config =
     config.new(
       client_id: "client-id",
@@ -904,7 +948,7 @@ pub fn token_request_params_include_client_assertion_without_secret_test() -> Ni
       auth: config.ClientAssertion("assertion-jwt"),
     )
 
-  token_request_params.authorization_code(
+  token_request.authorization_code(
     client_config,
     code: "code-123",
     redirect_uri: "https://app.example.com/callback",
@@ -925,7 +969,7 @@ pub fn token_request_params_include_client_assertion_without_secret_test() -> Ni
       ]
   }
 
-  token_request_params.refresh(client_config, refresh_token: "refresh-123")
+  token_request.refresh(client_config, refresh_token: "refresh-123")
   |> fn(actual) {
     assert actual
       == [
@@ -939,6 +983,94 @@ pub fn token_request_params_include_client_assertion_without_secret_test() -> Ni
         #("client_assertion", "assertion-jwt"),
       ]
   }
+}
+
+pub fn sans_io_provider_requests_and_responses_test() -> Nil {
+  let oidc_config = example_config()
+  let client_config =
+    config.new(
+      client_id: "client-id",
+      redirect_uri: "https://app.example.com/callback",
+      auth: config.ClientAssertion("assertion-jwt"),
+    )
+  let assert Ok(token_http_request) =
+    vestibule_oidc.build_authorization_code_request(
+      oidc_config,
+      client_config,
+      "code-123",
+      Some("verifier-123"),
+    )
+  assert provider_support.secure_request_method(token_http_request) == http.Post
+  let token_uri = provider_support.secure_request_uri(token_http_request)
+  assert token_uri.host == Some("accounts.example.com")
+  assert token_uri.path == "/token"
+  assert string.contains(
+    provider_support.secure_request_body(token_http_request),
+    "client_assertion=assertion-jwt",
+  )
+  assert provider_support.secure_request_response_limit(token_http_request)
+    == provider_support.TokenResponse
+
+  let token_http_response =
+    response.Response(
+      status: 200,
+      headers: [],
+      body: "{\"access_token\":\"access-123\",\"token_type\":\"Bearer\",\"id_token\":\"header.payload.signature\"}",
+    )
+  let assert Ok(exchange) =
+    vestibule_oidc.parse_authorization_code_response(token_http_response)
+  assert exchange
+    |> strategy.exchange_credentials
+    |> credential.token
+    == "access-123"
+  let assert Ok(id_token) =
+    dict.get(strategy.exchange_artifacts(exchange), "id_token")
+  assert decode.run(id_token, decode.string) == Ok("header.payload.signature")
+
+  let assert Ok(refresh_http_request) =
+    vestibule_oidc.build_refresh_token_request(
+      oidc_config,
+      client_config,
+      "refresh-123",
+    )
+  assert string.contains(
+    provider_support.secure_request_body(refresh_http_request),
+    "grant_type=refresh_token",
+  )
+  let refresh_http_response =
+    response.Response(
+      status: 200,
+      headers: [],
+      body: "{\"access_token\":\"new-access\",\"token_type\":\"Bearer\"}",
+    )
+  let assert Ok(refreshed_credentials) =
+    vestibule_oidc.parse_refresh_token_response(refresh_http_response)
+  assert credential.token(refreshed_credentials) == "new-access"
+
+  let assert Ok(user_http_request) =
+    vestibule_oidc.build_user_info_request(
+      oidc_config,
+      strategy.exchange_credentials(exchange),
+    )
+  assert provider_support.secure_request_header(
+      user_http_request,
+      "authorization",
+    )
+    == Ok("Bearer access-123")
+
+  assert provider_support.secure_request_response_limit(user_http_request)
+    == provider_support.UserInfoResponse
+
+  let user_http_response =
+    response.Response(
+      status: 200,
+      headers: [],
+      body: "{\"sub\":\"user-123\",\"email\":\"user@example.com\",\"email_verified\":true}",
+    )
+  let assert Ok(#(user_id, info)) =
+    vestibule_oidc.parse_user_info_response(user_http_response)
+  assert user_id == "user-123"
+  assert user_info.email(info) == Some("user@example.com")
 }
 
 fn example_config() -> vestibule_oidc.OidcConfig {

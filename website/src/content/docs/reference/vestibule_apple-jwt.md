@@ -23,8 +23,9 @@ searchTerms:
 JWT verification using ywt_core with a custom Erlang FFI backend.
 
 This replaces ywt_erlang to avoid an OTP 27 compatibility issue in
-its EC key generation. We only need verification (not key generation)
-for production use, plus HMAC signing for tests.
+its EC key generation. We only need RS256 verification in production;
+the RSA signing counterpart used by tests lives
+in `test/vestibule_apple/jwt_signing.gleam`.
 
 ## Types
 
@@ -40,6 +41,7 @@ pub type ParseError {
   InvalidSignatureEncoding
   InvalidHeaderJson(json.DecodeError)
   InvalidPayloadJson(json.DecodeError)
+  UnsupportedAlgorithm(actual: String)
   NoMatchingKey
   InvalidSignature
   TokenExpired(expired_at: timestamp.Timestamp)
@@ -83,24 +85,4 @@ pub fn decode(
   claims: List(claim.Claim),
   keys: List(verify_key.VerifyKey)
 ) -> Result(a, ParseError)
-```
-
-### `encode`
-
-Create a signed JWT (HMAC only — used for testing).
-
-```gleam
-pub fn encode(
-  payload: List(#(String, json.Json)),
-  claims: List(claim.Claim),
-  key: sign_key.SignKey
-) -> String
-```
-
-### `generate_test_key`
-
-Generate an HMAC-SHA256 signing key for testing.
-
-```gleam
-pub fn generate_test_key() -> sign_key.SignKey
 ```

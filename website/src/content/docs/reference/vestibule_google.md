@@ -26,12 +26,67 @@ endpoints, requests `openid email profile` by default, and validates
 
 ## Functions
 
+### `build_authorization_code_request`
+
+Build Google's authorization-code token request without sending it.
+
+```gleam
+pub fn build_authorization_code_request(
+  config.ClientConfig,
+  String,
+  option.Option(String)
+) -> Result(request.Request(String), error.AuthError(a))
+```
+
+### `build_refresh_token_request`
+
+Build Google's refresh-token request without sending it.
+
+```gleam
+pub fn build_refresh_token_request(
+  config.ClientConfig,
+  String
+) -> Result(request.Request(String), error.AuthError(a))
+```
+
+### `build_user_info_request`
+
+Build Google's userinfo request without sending it.
+
+```gleam
+pub fn build_user_info_request(credential.Credentials) -> Result(request.Request(String), error.AuthError(a))
+```
+
+### `parse_authorization_code_response`
+
+Parse Google's authorization-code HTTP response without performing I/O.
+
+```gleam
+pub fn parse_authorization_code_response(response.Response(String)) -> Result(strategy.ExchangeResult, error.AuthError(a))
+```
+
+### `parse_refresh_token_response`
+
+Parse Google's refresh-token HTTP response without performing I/O.
+
+```gleam
+pub fn parse_refresh_token_response(response.Response(String)) -> Result(credential.Credentials, error.AuthError(a))
+```
+
 ### `parse_token_response`
 
 Parse Google token response JSON.
 
 ```gleam
-pub fn parse_token_response(String) -> Result(credentials.Credentials, error.AuthError(a))
+pub fn parse_token_response(String) -> Result(credential.Credentials, error.AuthError(a))
+```
+
+### `parse_user_info_response`
+
+Parse Google's userinfo HTTP response without performing I/O.
+
+```gleam
+pub fn parse_user_info_response(response.Response(String)) -> Result(#(String, user_info.UserInfo, option.Option(String)), error.AuthError(a))
 ```
 
 ### `parse_user_response`
@@ -42,7 +97,7 @@ Parse Google /oauth2/v3/userinfo response JSON.
 pub fn parse_user_response(String) -> Result(#(String, user_info.UserInfo), error.AuthError(a))
 ```
 
-### `parse_user_response_with_hd`
+### `parse_user_response_with_hosted_domain`
 
 Parse Google userinfo JSON, also extracting the optional `hd`
 (hosted-domain) claim used for Workspace domain enforcement.
@@ -51,7 +106,7 @@ The third tuple element is the raw `hd` claim, or `None` when the account
 is a consumer (gmail.com) account or Google omits the claim.
 
 ```gleam
-pub fn parse_user_response_with_hd(String) -> Result(#(String, user_info.UserInfo, option.Option(String)), error.AuthError(a))
+pub fn parse_user_response_with_hosted_domain(String) -> Result(#(String, user_info.UserInfo, option.Option(String)), error.AuthError(a))
 ```
 
 ### `strategy`

@@ -1,7 +1,11 @@
+import gleam/http
+import gleam/http/response
 import gleam/option.{None, Some}
+import gleam/string
 
-import vestibule/credentials
+import vestibule/credential
 import vestibule/error
+import vestibule/provider_support
 import vestibule/user_info
 
 import vestibule_indieauth/token
@@ -23,31 +27,31 @@ pub fn parse_token_response_full_test() -> Nil {
   let assert Ok(oauth_credentials) = result
 
   oauth_credentials
-  |> credentials.token
+  |> credential.token
   |> fn(actual) {
     assert actual == "XXXXXX"
   }
 
   oauth_credentials
-  |> credentials.token_type
+  |> credential.token_type
   |> fn(actual) {
     assert actual == "Bearer"
   }
 
   oauth_credentials
-  |> credentials.scopes
+  |> credential.scopes
   |> fn(actual) {
     assert actual == ["profile", "email", "create"]
   }
 
   oauth_credentials
-  |> credentials.expires_in
+  |> credential.expires_in
   |> fn(actual) {
     assert actual == Some(3600)
   }
 
   oauth_credentials
-  |> credentials.refresh_token
+  |> credential.refresh_token
   |> fn(actual) {
     assert actual == Some("RRRRRR")
   }
@@ -66,25 +70,25 @@ pub fn parse_token_response_minimal_test() -> Nil {
   let assert Ok(oauth_credentials) = result
 
   oauth_credentials
-  |> credentials.token
+  |> credential.token
   |> fn(actual) {
     assert actual == "abc123"
   }
 
   oauth_credentials
-  |> credentials.scopes
+  |> credential.scopes
   |> fn(actual) {
     assert actual == ["profile"]
   }
 
   oauth_credentials
-  |> credentials.expires_in
+  |> credential.expires_in
   |> fn(actual) {
     assert actual == None
   }
 
   oauth_credentials
-  |> credentials.refresh_token
+  |> credential.refresh_token
   |> fn(actual) {
     assert actual == None
   }
@@ -102,7 +106,7 @@ pub fn parse_token_response_empty_scope_test() -> Nil {
   let assert Ok(oauth_credentials) = result
 
   oauth_credentials
-  |> credentials.scopes
+  |> credential.scopes
   |> fn(actual) {
     assert actual == []
   }
@@ -274,24 +278,24 @@ pub fn parse_userinfo_full_test() -> Nil {
   }"
 
   let result = token.parse_userinfo_response(json)
-  let assert Ok(#(uid, info)) = result
+  let assert Ok(#(user_id, profile_info)) = result
 
-  uid
+  user_id
   |> fn(actual) {
     assert actual == "https://user.example.net/"
   }
 
-  user_info.name(info)
+  user_info.name(profile_info)
   |> fn(actual) {
     assert actual == Some("Example User")
   }
 
-  user_info.email(info)
+  user_info.email(profile_info)
   |> fn(actual) {
     assert actual == Some("user@example.net")
   }
 
-  user_info.image(info)
+  user_info.image(profile_info)
   |> fn(actual) {
     assert actual == Some("https://user.example.net/photo.jpg")
   }
@@ -301,19 +305,19 @@ pub fn parse_userinfo_minimal_test() -> Nil {
   let json = "{ \"me\": \"https://user.example.net/\" }"
 
   let result = token.parse_userinfo_response(json)
-  let assert Ok(#(uid, info)) = result
+  let assert Ok(#(user_id, profile_info)) = result
 
-  uid
+  user_id
   |> fn(actual) {
     assert actual == "https://user.example.net/"
   }
 
-  user_info.name(info)
+  user_info.name(profile_info)
   |> fn(actual) {
     assert actual == None
   }
 
-  user_info.email(info)
+  user_info.email(profile_info)
   |> fn(actual) {
     assert actual == None
   }
@@ -333,8 +337,8 @@ pub fn parse_userinfo_invalid_json_test() -> Nil {
 
 pub fn parse_profile_requires_me_test() -> Nil {
   let json = "{ \"access_token\": \"abc\", \"token_type\": \"Bearer\" }"
-  let assert Error(err) = token.parse_profile_from_token_response(json)
-  error.kind(err)
+  let assert Error(auth_error) = token.parse_profile_from_token_response(json)
+  error.kind(auth_error)
   |> fn(actual) {
     assert actual == error.UserInfoKind
   }
@@ -343,7 +347,7 @@ pub fn parse_profile_requires_me_test() -> Nil {
 // === request sites refuse non-public endpoints before any network I/O ===
 
 pub fn exchange_code_rejects_non_public_token_endpoint_test() -> Nil {
-  let assert Error(err) =
+  let assert Error(auth_error) =
     token.exchange_code(
       "http://169.254.169.254/latest/api/token",
       "https://app.example.com/",
@@ -351,34 +355,121 @@ pub fn exchange_code_rejects_non_public_token_endpoint_test() -> Nil {
       "code",
       None,
     )
-  error.kind(err)
+  error.kind(auth_error)
   |> fn(actual) {
     assert actual == error.ConfigKind
   }
 }
 
 pub fn refresh_rejects_non_public_token_endpoint_test() -> Nil {
-  let assert Error(err) =
+  let assert Error(auth_error) =
     token.refresh("https://10.0.0.5/token", "https://app.example.com/", "rt")
-  error.kind(err)
+  error.kind(auth_error)
   |> fn(actual) {
     assert actual == error.ConfigKind
   }
 }
 
 pub fn fetch_userinfo_rejects_non_public_endpoint_test() -> Nil {
-  let creds =
-    credentials.new(
+  let oauth_credentials =
+    credential.new(
       token: "t",
       refresh_token: None,
       token_type: "Bearer",
       expires_in: None,
       scopes: [],
     )
-  let assert Error(err) =
-    token.fetch_userinfo("https://localhost/userinfo", creds)
-  error.kind(err)
+  let assert Error(auth_error) =
+    token.fetch_userinfo("https://localhost/userinfo", oauth_credentials)
+  error.kind(auth_error)
   |> fn(actual) {
     assert actual == error.ConfigKind
   }
+}
+
+pub fn sans_io_token_request_and_response_test() -> Nil {
+  let assert Ok(http_request) =
+    token.build_authorization_code_request(
+      "https://auth.example.com/token",
+      "https://app.example.com/",
+      "https://app.example.com/callback",
+      "code-123",
+      Some("verifier-123"),
+    )
+  assert provider_support.secure_request_method(http_request) == http.Post
+  assert provider_support.secure_request_uri(http_request).host
+    == Some("auth.example.com")
+  assert string.contains(
+    provider_support.secure_request_body(http_request),
+    "code=code-123",
+  )
+  assert string.contains(
+    provider_support.secure_request_body(http_request),
+    "code_verifier=verifier-123",
+  )
+  assert provider_support.secure_request_header(http_request, "accept")
+    == Ok("application/json")
+  assert provider_support.secure_request_response_limit(http_request)
+    == provider_support.TokenResponse
+
+  let http_response =
+    response.Response(
+      status: 200,
+      headers: [],
+      body: "{\"access_token\":\"access-123\",\"token_type\":\"Bearer\",\"scope\":\"profile\",\"me\":\"https://user.example.com/\"}",
+    )
+  let assert Ok(#(oauth_credentials, profile)) =
+    token.parse_authorization_code_response(http_response)
+  assert credential.token(oauth_credentials) == "access-123"
+  assert profile.me == "https://user.example.com/"
+}
+
+pub fn sans_io_refresh_and_user_info_test() -> Nil {
+  let assert Ok(refresh_request) =
+    token.build_refresh_token_request(
+      "https://auth.example.com/token",
+      "https://app.example.com/",
+      "refresh-123",
+    )
+  assert string.contains(
+    provider_support.secure_request_body(refresh_request),
+    "grant_type=refresh_token",
+  )
+  let refresh_response =
+    response.Response(
+      status: 200,
+      headers: [],
+      body: "{\"access_token\":\"new-access\",\"token_type\":\"Bearer\",\"me\":\"https://user.example.com/\"}",
+    )
+  let assert Ok(refreshed_credentials) =
+    token.parse_refresh_token_response(refresh_response)
+  assert credential.token(refreshed_credentials) == "new-access"
+
+  let oauth_credentials =
+    credential.new(
+      token: "access-123",
+      refresh_token: None,
+      token_type: "Bearer",
+      expires_in: None,
+      scopes: [],
+    )
+  let assert Ok(user_request) =
+    token.build_user_info_request(
+      "https://auth.example.com/userinfo",
+      oauth_credentials,
+    )
+  assert provider_support.secure_request_header(user_request, "authorization")
+    == Ok("Bearer access-123")
+
+  assert provider_support.secure_request_response_limit(user_request)
+    == provider_support.UserInfoResponse
+
+  let user_response =
+    response.Response(
+      status: 200,
+      headers: [],
+      body: "{\"me\":\"https://user.example.com/\"}",
+    )
+  let assert Ok(#(user_id, _)) = token.parse_user_info_response(user_response)
+  assert user_id == "https://user.example.com/"
 }

@@ -23,7 +23,7 @@
 ////
 //// Starting a flow is an unauthenticated operation, so the store bounds
 //// what a client can pin in memory: every store has a maximum number of
-//// live entries (`try_init_with_capacity`, default 100 000), and a store
+//// live entries (`create_with_capacity`, default 100 000), and a store
 //// that is full refuses new flows with `StoreFull` rather than growing.
 //// Expired entries are rejected on read, reclaimed on demand when the store
 //// is at capacity, and swept periodically by the owner process; inserts
@@ -82,28 +82,28 @@ pub type StateStoreError {
   /// be reclaimed. New flows are refused until sessions are consumed or
   /// expire.
   StoreFull
-  /// `try_init_with_capacity` was given a `max_entries` of zero or less.
+  /// `create_with_capacity` was given a `max_entries` of zero or less.
   InvalidCapacity
 }
 
-/// Try to initialize the state store. Call once per VM at application
-/// startup; the returned table handle is needed by `try_store`/`consume`.
-pub fn try_init() -> Result(StateStore, StateStoreError) {
-  try_init_named("vestibule_sessions")
+/// Create the state store. Call once per VM at application startup; the
+/// returned table handle is needed by `store` and `consume`.
+pub fn create() -> Result(StateStore, StateStoreError) {
+  create_named("vestibule_sessions")
 }
 
-/// Try to initialize a named state store with the default capacity. Returns
+/// Create a named state store with the default capacity. Returns
 /// `Error(TableAlreadyExists)` if the table already exists, or another
 /// `StateStoreError` if the owner process or ETS operation fails.
-pub fn try_init_named(name: String) -> Result(StateStore, StateStoreError) {
-  try_init_with_capacity(name: name, max_entries: default_max_entries)
+pub fn create_named(name: String) -> Result(StateStore, StateStoreError) {
+  create_with_capacity(name: name, max_entries: default_max_entries)
 }
 
-/// Try to initialize a named state store that holds at most `max_entries`
-/// live sessions. Once full, `try_store` fails with `StoreFull` until
+/// Create a named state store that holds at most `max_entries` live
+/// sessions. Once full, `store` fails with `StoreFull` until
 /// sessions are consumed or expire. Returns `Error(InvalidCapacity)` when
 /// `max_entries` is not positive.
-pub fn try_init_with_capacity(
+pub fn create_with_capacity(
   name name: String,
   max_entries max_entries: Int,
 ) -> Result(StateStore, StateStoreError) {
@@ -122,19 +122,19 @@ pub fn sweep_expired(table: StateStore) -> Result(Int, StateStoreError) {
   |> result.map_error(map_cleanup_error)
 }
 
-/// Try to store a CSRF state value, PKCE code verifier, and optional OIDC
-/// nonce for a flow started with `provider`, returning a session ID.
+/// Store a CSRF state value, PKCE code verifier, and optional OIDC nonce for
+/// a flow started with `provider`, returning a session ID.
 ///
 /// `provider` is the strategy's provider name; `consume` and `peek` must be
 /// called with the same value.
-pub fn try_store(
+pub fn store(
   table: StateStore,
   provider provider: String,
   state state: String,
   code_verifier code_verifier: String,
   nonce nonce: Option(String),
 ) -> Result(String, StateStoreError) {
-  try_store_with_ttl(
+  store_with_ttl(
     table,
     provider: provider,
     state: state,
@@ -144,9 +144,9 @@ pub fn try_store(
   )
 }
 
-/// Try to store a CSRF state value, PKCE verifier, and optional OIDC nonce
-/// for a flow started with `provider`, with a TTL, returning a session ID.
-pub fn try_store_with_ttl(
+/// Store a CSRF state value, PKCE verifier, and optional OIDC nonce for a
+/// flow started with `provider`, with a TTL, returning a session ID.
+pub fn store_with_ttl(
   table: StateStore,
   provider provider: String,
   state state: String,
@@ -264,7 +264,7 @@ fn validate_session(
 fn is_expired(session: SessionState) -> Bool {
   case timestamp.compare(timestamp.system_time(), session.expires_at) {
     order.Lt -> False
-    _ -> True
+    order.Eq | order.Gt -> True
   }
 }
 

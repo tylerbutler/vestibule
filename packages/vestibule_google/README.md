@@ -54,6 +54,14 @@ validated.
 
 `openid email profile`. Override per request with `config.with_scopes` on `AuthorizeOptions`.
 
+## Custom HTTP clients
+
+For sans-IO use, build token, refresh, and userinfo requests with
+`build_authorization_code_request`, `build_refresh_token_request`, and
+`build_user_info_request`. Send the returned `gleam_http` request with any
+client, then pass its response to the matching `parse_*_response` function.
+`strategy()` remains the convenient `gleam_httpc` adapter.
+
 ## Google Cloud Console setup
 
 1. Create or select a project at <https://console.cloud.google.com/>.

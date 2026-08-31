@@ -1,0 +1,3 @@
+package = "vestibule_indieauth"
+kind = "Security"
+body = "Require HTTPS identities and route dynamic endpoints through DNS-pinned, bounded secure requests"

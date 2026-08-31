@@ -30,29 +30,32 @@ pub fn landing(providers: List(String)) -> wisp.Response {
 </html>", 200)
 }
 
-fn capitalize(s: String) -> String {
-  case string.pop_grapheme(s) {
+fn capitalize(input: String) -> String {
+  case string.pop_grapheme(input) {
     Ok(#(first, rest)) -> string.uppercase(first) <> rest
-    Error(Nil) -> s
+    Error(Nil) -> input
   }
 }
 
 /// Success page showing authenticated user info.
-pub fn success(auth: Auth) -> wisp.Response {
-  let info = auth.info(auth)
-  let name = houdini.escape(option.unwrap(user_info.name(info), "—"))
-  let email = houdini.escape(option.unwrap(user_info.email(info), "—"))
-  let nickname = houdini.escape(option.unwrap(user_info.nickname(info), "—"))
-  let provider = houdini.escape(auth.provider(auth))
-  let uid = houdini.escape(auth.uid(auth))
-  let image_html = case user_info.image(info) {
+pub fn success(authentication: Auth) -> wisp.Response {
+  let user_information = auth.info(authentication)
+  let name =
+    houdini.escape(option.unwrap(user_info.name(user_information), "—"))
+  let email =
+    houdini.escape(option.unwrap(user_info.email(user_information), "—"))
+  let nickname =
+    houdini.escape(option.unwrap(user_info.nickname(user_information), "—"))
+  let provider = houdini.escape(auth.provider(authentication))
+  let user_id = houdini.escape(auth.uid(authentication))
+  let image_html = case user_info.image(user_information) {
     Some(url) ->
       case html.safe_image_url(url) {
-        Some(safe_url) ->
+        Ok(safe_url) ->
           "<img src=\""
           <> safe_url
           <> "\" width=\"80\" height=\"80\" style=\"border-radius: 50%;\" />"
-        None -> ""
+        Error(Nil) -> ""
       }
     None -> ""
   }
@@ -63,7 +66,7 @@ pub fn success(auth: Auth) -> wisp.Response {
   " <> image_html <> "
   <table style=\"margin: 20px 0; border-collapse: collapse;\">
     <tr><td style=\"padding: 8px; font-weight: bold;\">Provider</td><td style=\"padding: 8px;\">" <> provider <> "</td></tr>
-    <tr><td style=\"padding: 8px; font-weight: bold;\">UID</td><td style=\"padding: 8px;\">" <> uid <> "</td></tr>
+    <tr><td style=\"padding: 8px; font-weight: bold;\">UID</td><td style=\"padding: 8px;\">" <> user_id <> "</td></tr>
     <tr><td style=\"padding: 8px; font-weight: bold;\">Name</td><td style=\"padding: 8px;\">" <> name <> "</td></tr>
     <tr><td style=\"padding: 8px; font-weight: bold;\">Email</td><td style=\"padding: 8px;\">" <> email <> "</td></tr>
     <tr><td style=\"padding: 8px; font-weight: bold;\">Nickname</td><td style=\"padding: 8px;\">" <> nickname <> "</td></tr>
