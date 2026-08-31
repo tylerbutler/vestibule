@@ -1,6 +1,6 @@
 name = "vestibule"
 version = "0.0.0"
-description = "Strategy-based OAuth2 authentication for Gleam"
+description = "Demo-ready OAuth sign-in for Gleam. Real auth flows for demos and prototypes — not audited, not for production."
 licences = ["MIT"]
 repository = { type = "github", user = "tylerbutler", repo = "vestibule" }
 gleam = ">= 1.11.0"
@@ -60,17 +60,10 @@ stringly_typed_error = "off"
 # configured here too: https://trellis.tylerbutler.com/docs/configuration/
 [tools.trellis]
 
-# The example app and the Apple, Google, Microsoft, and OIDC providers remain
-# full workspace members, so normal tasks still build and test them. They are
-# not versioned, tagged, released, or published by trellis.
+# The example app remains a full workspace member, so normal tasks still build
+# and test it. It is not versioned, tagged, released, or published by trellis.
 [tools.trellis.exclude]
-"@release" = [
-  "example",
-  "packages/vestibule_apple",
-  "packages/vestibule_google",
-  "packages/vestibule_microsoft",
-  "packages/vestibule_oidc",
-]
+"@release" = ["example"]
 docs = ["example"]
 
 [tools.trellis.publish]

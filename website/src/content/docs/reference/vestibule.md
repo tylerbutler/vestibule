@@ -1,6 +1,6 @@
 ---
 title: "vestibule"
-description: "Vestibule — a strategy-based authentication library for Gleam."
+description: "Vestibule — demo-ready OAuth sign-in for Gleam."
 nav:
   group: Reference
   groupOrder: 20
@@ -18,11 +18,15 @@ searchTerms:
 
 # `vestibule`
 
-Vestibule — a strategy-based authentication library for Gleam.
+Vestibule — demo-ready OAuth sign-in for Gleam.
 
 Provides a consistent interface across OAuth2 identity providers
 using a two-phase flow: redirect to provider, then handle callback.
-All flows use PKCE (Proof Key for Code Exchange) for enhanced security.
+All flows use PKCE (Proof Key for Code Exchange).
+
+**Warning:** vestibule has not been security audited and must not be
+considered secure. It is intended for demos and prototypes that need
+real OAuth flows — do not use it in production.
 
 ## Functions
 

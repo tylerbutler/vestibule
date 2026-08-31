@@ -2,6 +2,11 @@
 
 Microsoft OAuth strategy for vestibule using the `/common` tenant endpoints.
 
+> [!WARNING]
+> Vestibule has not been security audited and must not be considered secure.
+> It is intended for demos and prototypes that need real OAuth flows — do not
+> use it in production.
+
 ## Install
 
 ```sh

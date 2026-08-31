@@ -4,6 +4,11 @@
 
 A Gleam library/application targeting the Erlang (BEAM) runtime.
 
+Vestibule is positioned as **demo-ready OAuth sign-in** — real auth flows for
+demos and prototypes. It has **not been security audited** and must not be
+presented as secure or production-ready; keep all user-facing copy (READMEs,
+website, package descriptions, docstrings) consistent with that framing.
+
 ## Build Commands
 
 ```bash
@@ -186,7 +191,7 @@ engine is native — no second binary in CI:
 - Add an entry with `just change <package> <kind> "What changed"` (`trellis changelog new` under the hood — non-interactive)
 - `just changelog-preview` (`trellis version plan`) shows the bumps the pending fragments imply
 - Packages that path-depend on a bumped package are bumped too, with a generated `Dependencies` entry
-- The `example` app and the Apple, Google, Microsoft, and OIDC providers are workspace members but are excluded from releases via `exclude."@release"` (which takes paths, e.g. `packages/vestibule_apple`) — leaving a release set of `vestibule`, `vestibule_github`, `vestibule_indieauth`, `vestibule_mist`, `vestibule_wisp`
+- The `example` app is a workspace member but is excluded from releases via `exclude."@release"`; every package, including all providers, is versioned and released
 
 ## Conventions
 

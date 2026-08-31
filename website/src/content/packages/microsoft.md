@@ -11,7 +11,7 @@ defaultScopes: openid User.Read
 setup:
   - Create a Microsoft Entra ID app registration.
   - Select the account types that your tenant supports.
-  - Add Web redirect URIs for development and production.
+  - Add Web redirect URIs for each environment you demo from.
   - Copy the Application client ID and client secret value.
 highlights:
   - The default strategy uses /common and performs no tenant validation.

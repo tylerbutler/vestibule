@@ -29,21 +29,21 @@ Vestibule packages are not published on Hex. Follow the [installation guide](/do
 
 | Package | Version | Modules | Description |
 |---|---:|---:|---|
-| `vestibule` | `0.0.0` | 13 | Strategy-based OAuth2 authentication for Gleam |
-| `vestibule_apple` | `0.0.0` | 3 | Apple Sign In strategy for vestibule |
-| `vestibule_github` | `0.0.0` | 1 | GitHub OAuth strategy for vestibule |
-| `vestibule_google` | `0.0.0` | 1 | Google OAuth strategy for vestibule |
-| `vestibule_indieauth` | `0.0.0` | 5 | IndieAuth strategy for vestibule — decentralized identity via OAuth 2.0 |
-| `vestibule_microsoft` | `0.0.0` | 1 | Microsoft OAuth strategy for vestibule |
-| `vestibule_mist` | `0.0.0` | 2 | Mist middleware for vestibule OAuth authentication |
-| `vestibule_oidc` | `0.0.0` | 1 | OpenID Connect discovery for vestibule — auto-configure strategies from an issuer URL |
-| `vestibule_wisp` | `0.0.0` | 1 | Wisp middleware for vestibule OAuth authentication |
+| `vestibule` | `0.0.0` | 13 | Demo-ready OAuth sign-in for Gleam. Real auth flows for demos and prototypes — not audited, not for production. |
+| `vestibule_apple` | `0.0.0` | 3 | Apple Sign In strategy for vestibule (demo-ready — not audited, not for production) |
+| `vestibule_github` | `0.0.0` | 1 | GitHub OAuth strategy for vestibule (demo-ready — not audited, not for production) |
+| `vestibule_google` | `0.0.0` | 1 | Google OAuth strategy for vestibule (demo-ready — not audited, not for production) |
+| `vestibule_indieauth` | `0.0.0` | 5 | IndieAuth strategy for vestibule — decentralized identity via OAuth 2.0 (demo-ready — not audited, not for production) |
+| `vestibule_microsoft` | `0.0.0` | 1 | Microsoft OAuth strategy for vestibule (demo-ready — not audited, not for production) |
+| `vestibule_mist` | `0.0.0` | 2 | Mist middleware for vestibule OAuth authentication (demo-ready — not audited, not for production) |
+| `vestibule_oidc` | `0.0.0` | 1 | OpenID Connect discovery for vestibule — auto-configure strategies from an issuer URL (demo-ready — not audited, not for production) |
+| `vestibule_wisp` | `0.0.0` | 1 | Wisp middleware for vestibule OAuth authentication (demo-ready — not audited, not for production) |
 
 ## Modules
 
 | Package | Module | Description |
 |---|---|---|
-| `vestibule` | [`vestibule`](/docs/reference/vestibule) | Vestibule — a strategy-based authentication library for Gleam. |
+| `vestibule` | [`vestibule`](/docs/reference/vestibule) | Vestibule — demo-ready OAuth sign-in for Gleam. |
 | `vestibule` | [`vestibule/auth`](/docs/reference/vestibule-auth) | Authentication result types returned to the calling application after a successful OAuth/OIDC flow. |
 | `vestibule` | [`vestibule/authorization_request`](/docs/reference/vestibule-authorization_request) | An opaque value carrying everything the middleware needs to start an authorization flow: the URL to redirect the browser to, the CSRF `state`, the PKCE `code_verifier`, and an optional OIDC `nonce`, all of which must be stored for the callback. |
 | `vestibule` | [`vestibule/config`](/docs/reference/vestibule-config) | OAuth client configuration and per-authorization request options. |

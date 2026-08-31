@@ -1,0 +1,3 @@
+package = "vestibule_github"
+kind = "Changed"
+body = "Repositioned as demo-ready auth: not security audited, not for production use"

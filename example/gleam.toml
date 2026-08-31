@@ -1,6 +1,6 @@
 name = "vestibule_example"
 version = "0.0.0"
-description = "Example Wisp app demonstrating vestibule with multiple OAuth providers"
+description = "Example Wisp app demonstrating vestibule with multiple OAuth providers (demo-ready — not audited, not for production)"
 gleam = ">= 1.11.0"
 
 [dependencies]

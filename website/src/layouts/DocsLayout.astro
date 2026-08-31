@@ -3,6 +3,7 @@ import "@fontsource-variable/figtree/wght.css";
 import "@fontsource-variable/figtree/wght-italic.css";
 import "@fontsource/commit-mono/400.css";
 import "@fontsource/commit-mono/400-italic.css";
+import DemoWarning from "../components/DemoWarning.astro";
 import { getNavigation, getSearchEntries } from "../data/content";
 import "../styles/global.css";
 
@@ -116,6 +117,7 @@ const moduleLabel = (subTitle: string, label: string) =>
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to main content</a>
+    <DemoWarning />
     <header class="site-header">
       <a class="brand" href="/" aria-label="Vestibule documentation home">
         <img
@@ -128,7 +130,7 @@ const moduleLabel = (subTitle: string, label: string) =>
         />
         <span>
           <strong>Vestibule</strong>
-          <small>OAuth2 for Gleam</small>
+          <small>Demo-ready OAuth for Gleam</small>
         </span>
       </a>
       <div class="header-actions">
