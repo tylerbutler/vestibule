@@ -46,7 +46,8 @@ pub fn main() -> Nil {
         )
       provider_registry
     }
-    Error(Nil), Ok(_) | Ok(_), Error(Nil) | Error(Nil), Error(Nil) -> provider_registry
+    Error(Nil), Ok(_) | Ok(_), Error(Nil) | Error(Nil), Error(Nil) ->
+      provider_registry
   }
 
   let provider_registry = case
@@ -67,7 +68,8 @@ pub fn main() -> Nil {
         )
       provider_registry
     }
-    Error(Nil), Ok(_) | Ok(_), Error(Nil) | Error(Nil), Error(Nil) -> provider_registry
+    Error(Nil), Ok(_) | Ok(_), Error(Nil) | Error(Nil), Error(Nil) ->
+      provider_registry
   }
 
   let provider_registry = case
@@ -88,7 +90,8 @@ pub fn main() -> Nil {
         )
       provider_registry
     }
-    Error(Nil), Ok(_) | Ok(_), Error(Nil) | Error(Nil), Error(Nil) -> provider_registry
+    Error(Nil), Ok(_) | Ok(_), Error(Nil) | Error(Nil), Error(Nil) ->
+      provider_registry
   }
 
   // Require at least one provider
