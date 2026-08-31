@@ -31,16 +31,18 @@ import gleam/option.{type Option, None, Some}
 /// [`http_status`](#http_status), [`missing_param`](#missing_param), and
 /// [`custom_payload`](#custom_payload).
 pub opaque type AuthError(e) {
-  AuthError(
-    kind: ErrorKind,
-    phase: Phase,
-    message: String,
-    provider_error: Option(ProviderError),
-    http_status: Option(Int),
-    http_summary: Option(String),
-    missing_parameter: Option(String),
-    custom: Option(e),
-  )
+  StateMismatch
+  InvalidNonce
+  MissingCallbackParam(name: String)
+  CodeExchange(reason: String)
+  UserInfo(reason: String)
+  ProviderReturnedError(error: ProviderError)
+  HttpError(status: Int, summary: String)
+  DecodeError(context: String, reason: String)
+  NetworkError(reason: String)
+  ConfigError(reason: String)
+  RefreshUnsupported
+  CustomError(payload: e)
 }
 
 /// A coarse classification of where in the OAuth flow an error occurred.
@@ -108,46 +110,27 @@ pub opaque type ProviderError {
 
 /// State parameter mismatch — possible CSRF attack.
 pub fn state_mismatch() -> AuthError(e) {
-  base(
-    StateMismatchKind,
-    CallbackPhase,
-    "State parameter mismatch — possible CSRF attack",
-  )
+  StateMismatch
 }
 
 /// OIDC `nonce` mismatch or missing-but-expected — possible id_token replay.
 pub fn invalid_nonce() -> AuthError(e) {
-  base(
-    InvalidNonceKind,
-    CallbackPhase,
-    "OIDC nonce mismatch — possible id_token replay or injection",
-  )
+  InvalidNonce
 }
 
 /// A required OAuth callback parameter was missing.
 pub fn missing_callback_param(name: String) -> AuthError(e) {
-  AuthError(
-    ..base(
-      MissingCallbackParamKind,
-      CallbackPhase,
-      "Missing required callback parameter: " <> name,
-    ),
-    missing_parameter: Some(name),
-  )
+  MissingCallbackParam(name)
 }
 
 /// Failed to exchange the authorization code for tokens.
 pub fn code_exchange(reason reason: String) -> AuthError(e) {
-  base(
-    CodeExchangeKind,
-    TokenExchangePhase,
-    "Failed to exchange authorization code: " <> reason,
-  )
+  CodeExchange(reason)
 }
 
 /// Failed to fetch user info from the provider.
 pub fn user_info(reason reason: String) -> AuthError(e) {
-  base(UserInfoKind, UserInfoPhase, "Failed to fetch user info: " <> reason)
+  UserInfo(reason)
 }
 
 /// The provider returned a standard OAuth error response.
@@ -156,18 +139,11 @@ pub fn provider(
   description description: String,
   uri uri: Option(String),
 ) -> AuthError(e) {
-  AuthError(
-    ..base(
-      ProviderKind,
-      ProviderPhase,
-      "Provider returned error: " <> code <> " — " <> description,
-    ),
-    provider_error: Some(ProviderError(
-      code: code,
-      description: description,
-      uri: uri,
-    )),
-  )
+  ProviderReturnedError(ProviderError(
+    code: code,
+    description: description,
+    uri: uri,
+  ))
 }
 
 /// The provider returned a non-success HTTP response.
@@ -177,34 +153,22 @@ pub fn provider(
 /// response body here to aid debugging, so the summary may contain provider
 /// response content — treat it accordingly before surfacing it to end users.
 pub fn http(status status: Int, summary summary: String) -> AuthError(e) {
-  AuthError(
-    ..base(
-      HttpKind,
-      TransportPhase,
-      "HTTP " <> int.to_string(status) <> ": " <> summary,
-    ),
-    http_status: Some(status),
-    http_summary: Some(summary),
-  )
+  HttpError(status, summary)
 }
 
 /// A provider response body could not be decoded.
 pub fn decode(context context: String, reason reason: String) -> AuthError(e) {
-  base(
-    DecodeKind,
-    TransportPhase,
-    "Failed to decode " <> context <> ": " <> reason,
-  )
+  DecodeError(context, reason)
 }
 
 /// An HTTP request failed at the network level.
 pub fn network(reason reason: String) -> AuthError(e) {
-  base(NetworkKind, TransportPhase, "Network request failed: " <> reason)
+  NetworkError(reason)
 }
 
 /// Invalid configuration.
 pub fn config(reason reason: String) -> AuthError(e) {
-  base(ConfigKind, ConfigPhase, "Invalid configuration: " <> reason)
+  ConfigError(reason)
 }
 
 /// The strategy does not support refreshing access tokens.
@@ -212,63 +176,164 @@ pub fn config(reason reason: String) -> AuthError(e) {
 /// Returned when `strategy.refresh_token` is called on a strategy that was built
 /// without a refresh capability (no `with_refresh`).
 pub fn refresh_unsupported() -> AuthError(e) {
-  base(
-    RefreshUnsupportedKind,
-    RefreshPhase,
-    "This strategy does not support refreshing access tokens",
-  )
+  RefreshUnsupported
 }
 
 /// A provider-specific custom error carrying a payload of type `e`.
 pub fn custom(payload: e) -> AuthError(e) {
-  AuthError(
-    ..base(CustomKind, ProviderPhase, "Provider-specific error"),
-    custom: Some(payload),
-  )
+  CustomError(payload)
 }
 
 // --- Accessors ------------------------------------------------------------
 
 /// The machine-readable [`ErrorKind`](#ErrorKind) classifier for this error.
 pub fn kind(auth_error: AuthError(e)) -> ErrorKind {
-  auth_error.kind
+  case auth_error {
+    StateMismatch -> StateMismatchKind
+    InvalidNonce -> InvalidNonceKind
+    MissingCallbackParam(_) -> MissingCallbackParamKind
+    CodeExchange(_) -> CodeExchangeKind
+    UserInfo(_) -> UserInfoKind
+    ProviderReturnedError(_) -> ProviderKind
+    HttpError(_, _) -> HttpKind
+    DecodeError(_, _) -> DecodeKind
+    NetworkError(_) -> NetworkKind
+    ConfigError(_) -> ConfigKind
+    RefreshUnsupported -> RefreshUnsupportedKind
+    CustomError(_) -> CustomKind
+  }
 }
 
 /// The coarse [`Phase`](#Phase) this error occurred in.
 pub fn phase(auth_error: AuthError(e)) -> Phase {
-  auth_error.phase
+  case auth_error {
+    StateMismatch | InvalidNonce | MissingCallbackParam(_) -> CallbackPhase
+    CodeExchange(_) -> TokenExchangePhase
+    UserInfo(_) -> UserInfoPhase
+    ConfigError(_) -> ConfigPhase
+    ProviderReturnedError(_) | CustomError(_) -> ProviderPhase
+    HttpError(_, _) | DecodeError(_, _) | NetworkError(_) -> TransportPhase
+    RefreshUnsupported -> RefreshPhase
+  }
 }
 
 /// A human-readable, log-safe summary of this error.
 pub fn message(auth_error: AuthError(e)) -> String {
-  auth_error.message
+  case auth_error {
+    StateMismatch -> "State parameter mismatch — possible CSRF attack"
+    InvalidNonce ->
+      "OIDC nonce mismatch — possible id_token replay or injection"
+    MissingCallbackParam(name) ->
+      "Missing required callback parameter: " <> name
+    CodeExchange(reason) -> "Failed to exchange authorization code: " <> reason
+    UserInfo(reason) -> "Failed to fetch user info: " <> reason
+    ProviderReturnedError(ProviderError(
+      code: code,
+      description: description,
+      ..,
+    )) -> "Provider returned error: " <> code <> " — " <> description
+    HttpError(status, summary) ->
+      "HTTP " <> int.to_string(status) <> ": " <> summary
+    DecodeError(context, reason) ->
+      "Failed to decode " <> context <> ": " <> reason
+    NetworkError(reason) -> "Network request failed: " <> reason
+    ConfigError(reason) -> "Invalid configuration: " <> reason
+    RefreshUnsupported ->
+      "This strategy does not support refreshing access tokens"
+    CustomError(_) -> "Provider-specific error"
+  }
 }
 
 /// Structured provider error data, when the provider returned a standard OAuth
 /// error response.
 pub fn provider_error(auth_error: AuthError(e)) -> Option(ProviderError) {
-  auth_error.provider_error
+  case auth_error {
+    ProviderReturnedError(provider_error) -> Some(provider_error)
+    StateMismatch
+    | InvalidNonce
+    | MissingCallbackParam(_)
+    | CodeExchange(_)
+    | UserInfo(_)
+    | HttpError(_, _)
+    | DecodeError(_, _)
+    | NetworkError(_)
+    | ConfigError(_)
+    | RefreshUnsupported
+    | CustomError(_) -> None
+  }
 }
 
 /// The HTTP status code, for errors that carry one.
 pub fn http_status(auth_error: AuthError(e)) -> Option(Int) {
-  auth_error.http_status
+  case auth_error {
+    HttpError(status, _) -> Some(status)
+    StateMismatch
+    | InvalidNonce
+    | MissingCallbackParam(_)
+    | CodeExchange(_)
+    | UserInfo(_)
+    | ProviderReturnedError(_)
+    | DecodeError(_, _)
+    | NetworkError(_)
+    | ConfigError(_)
+    | RefreshUnsupported
+    | CustomError(_) -> None
+  }
 }
 
 /// The short HTTP error summary, for `HttpKind` errors. May contain a
 /// truncated snippet of the provider's response body.
 pub fn http_summary(auth_error: AuthError(e)) -> Option(String) {
-  auth_error.http_summary
+  case auth_error {
+    HttpError(_, summary) -> Some(summary)
+    StateMismatch
+    | InvalidNonce
+    | MissingCallbackParam(_)
+    | CodeExchange(_)
+    | UserInfo(_)
+    | ProviderReturnedError(_)
+    | DecodeError(_, _)
+    | NetworkError(_)
+    | ConfigError(_)
+    | RefreshUnsupported
+    | CustomError(_) -> None
+  }
 }
 
 /// The name of the missing callback parameter, for `MissingCallbackParamKind`.
 pub fn missing_param(auth_error: AuthError(e)) -> Option(String) {
-  auth_error.missing_parameter
+  case auth_error {
+    MissingCallbackParam(name) -> Some(name)
+    StateMismatch
+    | InvalidNonce
+    | CodeExchange(_)
+    | UserInfo(_)
+    | ProviderReturnedError(_)
+    | HttpError(_, _)
+    | DecodeError(_, _)
+    | NetworkError(_)
+    | ConfigError(_)
+    | RefreshUnsupported
+    | CustomError(_) -> None
+  }
 }
 
 /// The provider-defined custom payload, for `CustomKind` errors.
 pub fn custom_payload(auth_error: AuthError(e)) -> Option(e) {
-  auth_error.custom
+  case auth_error {
+    CustomError(payload) -> Some(payload)
+    StateMismatch
+    | InvalidNonce
+    | MissingCallbackParam(_)
+    | CodeExchange(_)
+    | UserInfo(_)
+    | ProviderReturnedError(_)
+    | HttpError(_, _)
+    | DecodeError(_, _)
+    | NetworkError(_)
+    | ConfigError(_)
+    | RefreshUnsupported -> None
+  }
 }
 
 // --- ProviderError accessors ----------------------------------------------
@@ -286,19 +351,4 @@ pub fn provider_description(provider_error: ProviderError) -> String {
 /// The standard OAuth `error_uri`, when present.
 pub fn provider_uri(provider_error: ProviderError) -> Option(String) {
   provider_error.uri
-}
-
-// --- Internal helpers -----------------------------------------------------
-
-fn base(kind: ErrorKind, phase: Phase, message: String) -> AuthError(e) {
-  AuthError(
-    kind: kind,
-    phase: phase,
-    message: message,
-    provider_error: None,
-    http_status: None,
-    http_summary: None,
-    missing_parameter: None,
-    custom: None,
-  )
 }
