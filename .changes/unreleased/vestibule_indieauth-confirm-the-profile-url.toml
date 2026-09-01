@@ -1,3 +1,0 @@
-package = "vestibule_indieauth"
-kind = "Security"
-body = "Confirm the profile URL (`me`) returned by the token endpoint against the authorization server the flow used (IndieAuth §5.3.4) before using it as the user's identity, and require the userinfo endpoint's `me` to match. Previously the userinfo response's `me` was trusted verbatim and the token response's `me` was ignored, letting a malicious or shared authorization server assert any user's identity"

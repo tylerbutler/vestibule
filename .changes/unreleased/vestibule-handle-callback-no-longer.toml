@@ -1,3 +1,0 @@
-package = "vestibule"
-kind = "Fixed"
-body = "`handle_callback` no longer falls open when a nonce-using strategy is called with `expected_nonce: None`; it now fails with `InvalidNonceKind`, so a caller that forgets to store the nonce cannot silently lose id_token replay protection"

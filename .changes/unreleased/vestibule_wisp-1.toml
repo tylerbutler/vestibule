@@ -1,3 +1,0 @@
-package = "vestibule_wisp"
-kind = "Breaking"
-body = "Add `CookieSecurity` to `Options`: `with_cookie_security(AllowInsecure)` drops the `__Host-` cookie name prefix so the session cookie survives local development over plain HTTP, where Wisp omits `Secure` and browsers reject `__Host-` cookies"

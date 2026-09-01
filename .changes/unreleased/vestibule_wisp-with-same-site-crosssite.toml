@@ -1,3 +1,0 @@
-package = "vestibule_wisp"
-kind = "Added"
-body = "`with_same_site(CrossSite)` emits a `SameSite=None; Secure` session cookie so providers that deliver the callback with a cross-site POST (`response_mode=form_post`, e.g. Apple) can find the session"

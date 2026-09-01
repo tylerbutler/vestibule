@@ -1,3 +1,0 @@
-package = "vestibule_mist"
-kind = "Breaking"
-body = "`new_options` now returns `Result(Options, OptionsError)` and rejects a `secret_key_base` shorter than 32 bytes with `SecretKeyBaseTooShort`"

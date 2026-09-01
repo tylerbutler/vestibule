@@ -1,5 +1,5 @@
 name = "vestibule_mist"
-version = "0.0.0"
+version = "0.1.0"
 description = "Mist middleware for vestibule OAuth authentication (demo-ready — not audited, not for production)"
 licences = ["MIT"]
 repository = { type = "github", user = "tylerbutler", repo = "vestibule", path = "packages/vestibule_mist" }

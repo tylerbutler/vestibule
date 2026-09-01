@@ -1,3 +1,0 @@
-package = "vestibule_indieauth"
-kind = "Fixed"
-body = "Module documentation now uses `////` doc comments so it appears in generated documentation instead of silently attaching to the first import"

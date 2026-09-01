@@ -1,3 +1,0 @@
-package = "vestibule"
-kind = "Dependencies"
-body = "Switch test framework from startest to gleeunit"
