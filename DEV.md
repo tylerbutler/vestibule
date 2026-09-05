@@ -38,6 +38,44 @@ just ci
 
 ## Development Workflow
 
+### Agent Package Manager
+
+This repository is also an [APM package](https://microsoft.github.io/apm/).
+It ships two agents (`monorepo-test-runner` and `oauth-security-reviewer`)
+and two skills (`gleam-review` and `publish-check`). These are development
+tools; their output does not make Vestibule audited or production-ready.
+The `publish-check` skill is only for an explicitly requested future Hex
+release. Current releases remain git-only.
+
+With APM installed, run:
+
+```bash
+apm install
+```
+
+Edit agent and skill sources under `.apm/`, then run `apm install` again.
+Commit the sources, `apm.lock.yaml`, and generated runtime files together:
+
+| Content | Claude output | Copilot output |
+|---------|---------------|----------------|
+| Agents | `.claude/agents/` | `.github/agents/` |
+| Skills | `.claude/skills/` | `.agents/skills/` |
+
+The manifest selects both targets. Existing Claude hooks and `CLAUDE.md`
+remain separate from the APM package. Do not use `apm compile` to replace
+the hand-maintained project instructions. To validate the package without
+generating root instructions, use `apm compile --validate`.
+
+Agent tool lists use names supported by both runtimes. No model is pinned;
+each agent inherits the runtime's model selection. Shell access is retained
+for tests and source inspection, so read-only review instructions are not
+a filesystem sandbox.
+
+Other repositories can install this package with
+`apm install tylerbutler/vestibule --target claude,copilot`.
+The test and OAuth agents expect the Vestibule repository layout.
+The APM manifest version is maintained separately from Gleam package releases.
+
 ### Daily Development
 
 ```bash
