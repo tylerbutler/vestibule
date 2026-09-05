@@ -31,6 +31,9 @@ Thumbs.db
 /.review-scratch/
 /vally-results/
 
+# Installed APM dependencies
+apm_modules/
+
 # Worktrees
 .worktrees/
 

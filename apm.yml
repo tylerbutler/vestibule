@@ -1,0 +1,17 @@
+name: vestibule
+version: 0.1.0
+description: Development agents and skills for Vestibule, demo-ready OAuth 
+  sign-in for Gleam.
+license: MIT
+targets:
+  - claude
+  - copilot
+includes:
+  - .apm/agents/
+  - .apm/skills/
+dependencies:
+  apm: []
+  mcp: []
+devDependencies:
+  apm:
+    - tylerbutler/apm-base
