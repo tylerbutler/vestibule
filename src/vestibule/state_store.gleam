@@ -101,6 +101,14 @@ pub type StateStoreError {
   ClientLimitReached
 }
 
+/// Why a stored browser session could not be returned.
+pub type SessionLookupError {
+  /// No live session exists for this identifier.
+  SessionMissing
+  /// The session belongs to a different OAuth provider.
+  SessionProviderMismatch
+}
+
 /// Create the state store. Call once per VM at application startup; the
 /// returned table handle is needed by `store` and `consume`.
 pub fn create() -> Result(StateStore, StateStoreError) {
@@ -313,17 +321,29 @@ pub fn peek(
   session_id: String,
   provider provider: String,
 ) -> Result(#(String, String, Option(String)), Nil) {
+  peek_with_error(table, session_id, provider)
+  |> result.map_error(fn(_) { Nil })
+}
+
+/// Look up a session without consuming it and preserve provider-mismatch
+/// information. Transport adapters use this to avoid clearing a valid
+/// in-flight cookie when it is presented to another provider's callback.
+pub fn peek_with_error(
+  table: StateStore,
+  session_id: String,
+  provider provider: String,
+) -> Result(#(String, String, Option(String)), SessionLookupError) {
   case lookup(table.table, session_id) {
     Ok(session) -> {
       case is_expired(session) {
         True -> {
           let _deleted = delete_key(table.table, session_id)
-          Error(Nil)
+          Error(SessionMissing)
         }
         False -> validate_session(session, provider)
       }
     }
-    Error(_) -> Error(Nil)
+    Error(_) -> Error(SessionMissing)
   }
 }
 
@@ -360,7 +380,7 @@ fn map_cleanup_error(reason: String) -> StateStoreError {
 fn validate_session(
   session: SessionState,
   provider: String,
-) -> Result(#(String, String, Option(String)), Nil) {
+) -> Result(#(String, String, Option(String)), SessionLookupError) {
   let SessionState(
     provider: stored_provider,
     state:,
@@ -368,9 +388,10 @@ fn validate_session(
     nonce:,
     ..,
   ) = session
-  case is_expired(session) || stored_provider != provider {
-    True -> Error(Nil)
-    False ->
+  case is_expired(session), stored_provider == provider {
+    True, _ -> Error(SessionMissing)
+    False, False -> Error(SessionProviderMismatch)
+    False, True ->
       Ok(#(
         secret.expose(state),
         secret.expose(code_verifier),

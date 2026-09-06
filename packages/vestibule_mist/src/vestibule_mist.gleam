@@ -111,6 +111,8 @@ pub type CallbackError(e) {
   MissingOrInvalidSessionCookie(reason: SessionCookieError)
   /// The session state was not found, expired, or already used.
   SessionUnavailable
+  /// The signed session belongs to another registered provider.
+  SessionProviderMismatch
   /// Callback parameters could not be extracted from the request; `reason`
   /// says why.
   InvalidCallbackParams(reason: CallbackParamsError)
@@ -135,6 +137,8 @@ pub type SessionCookieError {
 
 /// Why callback parameters could not be extracted from a POST callback body.
 pub type CallbackParamsError {
+  /// The callback query string was not valid form/query encoding.
+  QueryNotFormEncoded
   /// The request body could not be read (e.g. larger than the 64 KiB limit,
   /// or a transport failure).
   BodyReadFailed
@@ -244,12 +248,32 @@ pub fn cookie_security(options: Options) -> CookieSecurity {
 /// Returns 404 if the provider is not registered, or a generic 400 HTML error
 /// if URL generation or state persistence fails.
 ///
-/// The request is not inspected at all — everything the response needs comes
-/// from `options` and the registry. It is still taken as an argument so this
-/// function has the same shape as `callback_phase` and its `vestibule_wisp`
-/// counterpart, and so a future change can read request metadata without
-/// breaking callers. Hence it is generic over the body type.
+/// The direct socket peer address is the admission key. Forwarded headers are
+/// not trusted.
 pub fn request_phase(
+  http_request: Request(Connection),
+  registry registry: Registry(e),
+  provider provider: String,
+  store store: StateStore,
+  authorize_options authorize_options: AuthorizeOptions,
+  options options: Options,
+) -> Response(ResponseData) {
+  request_phase_for_direct_client(
+    http_request,
+    registry,
+    provider,
+    store,
+    authorize_options,
+    options,
+  )
+}
+
+/// Start authorization using one shared admission bucket.
+///
+/// This lets any eight concurrent anonymous starts deny new starts, so prefer
+/// `request_phase` or `request_phase_for_client`. Use this only behind an
+/// upstream rate limit.
+pub fn request_phase_with_shared_bucket(
   http_request: Request(body),
   registry registry: Registry(e),
   provider provider: String,
@@ -264,7 +288,7 @@ pub fn request_phase(
     store,
     authorize_options,
     options,
-    client_key: "unidentified",
+    client_key: "shared",
   )
 }
 
@@ -689,6 +713,7 @@ fn callback_cookie_is_terminal(
     Error(MissingOrInvalidSessionCookie(CookieSignatureInvalid)) -> True
     Error(UnknownProvider(_))
     | Error(MissingOrInvalidSessionCookie(CookieAbsent))
+    | Error(SessionProviderMismatch)
     | Error(InvalidCallbackParams(_)) -> False
     Error(AuthFailed(_)) ->
       case
@@ -730,10 +755,7 @@ fn get_signed_cookie(
 fn get_callback_params(
   http_request: Request(Connection),
 ) -> Result(dict.Dict(String, String), CallbackError(e)) {
-  let query_parameters = case http_request.query {
-    option.Some(query) -> uri.parse_query(query) |> result.unwrap([])
-    option.None -> []
-  }
+  use query_parameters <- result.try(parse_callback_query(http_request.query))
   case http_request.method {
     http.Post -> {
       use request_with_body <- result.try(
@@ -759,6 +781,18 @@ fn get_callback_params(
     | http.Options
     | http.Patch
     | http.Other(_) -> callback_parameters_from_pairs(query_parameters, [])
+  }
+}
+
+/// Parse a callback query without silently replacing malformed input.
+pub fn parse_callback_query(
+  query: option.Option(String),
+) -> Result(List(#(String, String)), CallbackError(e)) {
+  case query {
+    option.Some(value) ->
+      uri.parse_query(value)
+      |> result.replace_error(InvalidCallbackParams(QueryNotFormEncoded))
+    option.None -> Ok([])
   }
 }
 
@@ -798,6 +832,7 @@ fn to_callback_error(
     transport_flow.CallbackUnknownProvider(provider) ->
       UnknownProvider(provider)
     transport_flow.CallbackSessionUnavailable -> SessionUnavailable
+    transport_flow.CallbackSessionProviderMismatch -> SessionProviderMismatch
     transport_flow.CallbackAuthFailed(authentication_error) ->
       AuthFailed(authentication_error)
   }
@@ -813,6 +848,7 @@ fn log_callback_error(
     MissingOrInvalidSessionCookie(CookieSignatureInvalid) ->
       "session_cookie_signature_invalid"
     SessionUnavailable -> "session_unavailable"
+    SessionProviderMismatch -> "provider_mismatch"
     InvalidCallbackParams(_) -> "invalid_callback_params"
     AuthFailed(authentication_error) ->
       logger.auth_error_category(authentication_error)
@@ -839,6 +875,7 @@ fn callback_error_response(
     UnknownProvider(_) -> not_found_response()
     MissingOrInvalidSessionCookie(_) -> generic_error_response()
     SessionUnavailable -> generic_error_response()
+    SessionProviderMismatch -> generic_error_response()
     InvalidCallbackParams(_) -> generic_error_response()
     AuthFailed(_) -> generic_error_response()
   }

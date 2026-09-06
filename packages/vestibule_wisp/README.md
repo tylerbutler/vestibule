@@ -56,12 +56,13 @@ Then pass that store to the request and callback phases:
 ```gleam
 case wisp.path_segments(request), request.method {
   ["auth", provider], http.Get ->
-    vestibule_wisp.request_phase(
+    vestibule_wisp.request_phase_for_client(
       request,
       registry,
       provider,
       store,
       authorize_options: config.authorize_options(),
+      client_key: direct_peer_identity,
     )
 
   ["auth", provider, "callback"], http.Get
@@ -125,13 +126,14 @@ let development_options =
   vestibule_wisp.default_options()
   |> vestibule_wisp.with_cookie_security(vestibule_wisp.AllowInsecure)
 
-vestibule_wisp.request_phase_with_options(
+vestibule_wisp.request_phase_for_client_with_options(
   request,
   registry,
   provider,
   store,
   authorize_options: config.authorize_options(),
   middleware_options: options,
+  client_key: direct_peer_identity,
 )
 vestibule_wisp.callback_phase_with_options(
   request,
@@ -196,7 +198,9 @@ provider-controlled error descriptions are not reflected to users. Use
 `callback_phase_auth_result` or `callback_phase_auth_result_with_options` when
 the application needs structured error details for logging or custom rendering.
 
-Malformed provider responses and missing `state` or `code` parameters are
+Malformed query encoding is rejected before a POST body is parsed, so a valid
+body cannot hide ambiguous query input. Malformed provider responses and
+missing `state` or `code` parameters are
 reported through `AuthFailed`. `InvalidCallbackParams` is returned when callback
 parameters cannot be extracted from the request, such as malformed POST form
 data.
@@ -226,10 +230,14 @@ stores through the module functions.
 - Expired sessions are treated as missing and removed from the store.
 - A store holds at most 4,096 live sessions and eight live sessions per client
   by default. Use `create_with_limits` to change both limits.
-- The compatibility request helpers classify requests as one shared
-  `unidentified` client, so they allow only eight concurrent starts. Production
-  applications should call `request_phase_for_client` or
-  `request_phase_for_client_with_options` with a stable direct-peer identifier.
+- The request helpers without a client identity fail closed with 429. Wisp does
+  not expose the direct socket peer, so applications must call
+  `request_phase_for_client` or `request_phase_for_client_with_options` with a
+  stable direct-peer identifier.
+- `request_phase_with_shared_bucket` and
+  `request_phase_with_shared_bucket_and_options` are explicit compatibility
+  opt-ins. Any eight anonymous starts can fill that bucket, so use them only
+  behind an upstream rate limit.
   Do not use `Forwarded` or `X-Forwarded-For` unless a trusted proxy removes
   client-supplied values and validates the complete proxy chain.
 - Admission and insertion are atomic. A rejected request returns 429 and stores
@@ -249,3 +257,6 @@ headers.
 
 Run `just test-pkg vestibule_wisp` for the repeatable admission, cookie replay,
 duplicate-cookie, SameSite, and 64 KiB boundary checks.
+When Chromium, OpenSSL, and Python's `websocket-client` are installed, run
+`python test/browser_cookie_matrix.py` from the repository root for the real
+browser fixation, SameSite POST, and cookie-expiry matrix.

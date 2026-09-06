@@ -126,7 +126,7 @@ pub fn request_phase_unknown_provider_returns_404_test() -> Nil {
     state_store.create_named("test_mist_request_unknown_provider")
 
   let response =
-    vestibule_mist.request_phase(
+    vestibule_mist.request_phase_with_shared_bucket(
       http_request,
       registry.new(),
       "unknown",
@@ -149,7 +149,7 @@ pub fn request_phase_success_sets_signed_cookie_and_redirects_test() -> Nil {
     |> registry.register(strategy: test_strategy(), config: test_config())
 
   let response =
-    vestibule_mist.request_phase(
+    vestibule_mist.request_phase_with_shared_bucket(
       http_request,
       registry,
       "test",
@@ -200,7 +200,7 @@ pub fn request_phase_allows_secure_cookie_opt_out_test() -> Nil {
     |> vestibule_mist.with_cookie_security(vestibule_mist.AllowInsecure)
 
   let response =
-    vestibule_mist.request_phase(
+    vestibule_mist.request_phase_with_shared_bucket(
       http_request,
       registry,
       "test",
@@ -239,7 +239,7 @@ pub fn request_phase_passes_authorize_options_test() -> Nil {
     |> config.with_extra_params([#("prompt", "login")])
 
   let response =
-    vestibule_mist.request_phase(
+    vestibule_mist.request_phase_with_shared_bucket(
       http_request,
       registry,
       "test",
@@ -431,6 +431,56 @@ pub fn callback_rejects_query_post_parameter_collision_test() -> Nil {
         "state",
       )),
     )
+}
+
+pub fn callback_rejects_malformed_query_test() -> Nil {
+  assert vestibule_mist.parse_callback_query(option.Some("state=%ZZ"))
+    == Error(vestibule_mist.InvalidCallbackParams(
+      vestibule_mist.QueryNotFormEncoded,
+    ))
+}
+
+pub fn wrong_provider_callback_preserves_session_test() -> Nil {
+  let assert Ok(store) =
+    state_store.create_named("test_mist_wrong_provider_session")
+  let assert Ok(session_id) =
+    state_store.store(
+      store,
+      provider: "alpha",
+      state: "state",
+      code_verifier: "verifier",
+      nonce: option.None,
+    )
+  let token =
+    signed_cookie.sign(payload: session_id, secret_key_base: test_secret())
+  let http_request =
+    request.new()
+    |> request.set_cookie("__Host-vestibule_session", token)
+  let assert Ok(registry) =
+    registry.new()
+    |> registry.register(
+      strategy: named_test_strategy("alpha"),
+      config: test_config(),
+    )
+  let assert Ok(registry) =
+    registry
+    |> registry.register(
+      strategy: named_test_strategy("beta"),
+      config: test_config(),
+    )
+
+  let result =
+    vestibule_mist.callback_phase_auth_result_with_params(
+      http_request,
+      dict.from_list([#("state", "state"), #("code", "code")]),
+      registry,
+      "beta",
+      store,
+      test_options(),
+    )
+  assert result == Error(vestibule_mist.SessionProviderMismatch)
+  assert state_store.consume(store, session_id, provider: "alpha")
+    == Ok(#("state", "verifier", option.None))
 }
 
 pub fn callback_wrong_secret_reports_invalid_signature_test() -> Nil {
@@ -678,8 +728,12 @@ fn test_options() -> vestibule_mist.Options {
 }
 
 fn test_strategy() -> Strategy(e) {
+  named_test_strategy("test")
+}
+
+fn named_test_strategy(provider: String) -> Strategy(e) {
   strategy.new(
-    provider: "test",
+    provider: provider,
     default_scopes: [],
     authorize_url: fn(_config, _options, _scopes, _state) {
       Ok("https://example.com")
@@ -789,7 +843,7 @@ pub fn request_phase_cross_site_cookie_sets_same_site_none_and_secure_test() -> 
     |> registry.register(strategy: test_strategy(), config: test_config())
 
   let response =
-    vestibule_mist.request_phase(
+    vestibule_mist.request_phase_with_shared_bucket(
       http_request,
       registry,
       "test",

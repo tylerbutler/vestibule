@@ -172,7 +172,9 @@ provider-controlled error descriptions are not reflected to users. Use
 `callback_phase_auth_result` when the application needs structured error
 details for logging or custom rendering.
 
-Malformed provider responses and missing `state` or `code` parameters are
+Malformed query encoding is rejected before a POST body is parsed, so a valid
+body cannot hide ambiguous query input. Malformed provider responses and
+missing `state` or `code` parameters are
 reported through `AuthFailed`. `InvalidCallbackParams` is returned when
 callback parameters cannot be extracted from the request, such as malformed
 POST form data.
@@ -200,11 +202,11 @@ See the `vestibule/state_store` API docs for `create`, `create_named`,
 store holds at most 4,096 live sessions and eight live sessions per client by
 default.
 
-The compatibility `request_phase` classifies requests as one shared
-`unidentified` client, so it allows only eight concurrent starts. Production
-applications should call `request_phase_for_direct_client`, which uses Mist's
-direct socket peer and fails closed if it cannot read the address.
-`request_phase_for_client` is available for deployments behind a trusted edge.
+`request_phase` uses Mist's direct socket peer and fails closed if it cannot
+read the address. `request_phase_for_client` is available for deployments
+behind a trusted edge. `request_phase_with_shared_bucket` is an explicit
+compatibility opt-in; any eight anonymous starts can fill that bucket, so use
+it only behind an upstream rate limit.
 Do not use `Forwarded` or `X-Forwarded-For` unless that edge removes
 client-supplied values and validates the full proxy chain. Rejected requests
 return 429 and store no state.

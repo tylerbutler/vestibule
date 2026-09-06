@@ -455,6 +455,14 @@ pub fn concurrent_take_has_one_winner_test() -> Nil {
   assert concurrent_take_winner_count() == 1
 }
 
+pub fn delayed_owner_rechecks_expiry_before_consume_test() -> Nil {
+  assert delayed_consume_rejects_expired()
+}
+
+pub fn timed_out_insert_does_not_commit_later_test() -> Nil {
+  assert timed_out_insert_does_not_commit()
+}
+
 pub fn store_persists_and_returns_nonce_test() -> Nil {
   let assert Ok(table) = state_store.create_named("test_store_nonce")
   let assert Ok(session_id) =
@@ -629,6 +637,12 @@ fn kill_owner() -> Nil
 
 @external(erlang, "vestibule_state_store_test_ffi", "concurrent_take_winner_count")
 fn concurrent_take_winner_count() -> Int
+
+@external(erlang, "vestibule_state_store_test_ffi", "delayed_consume_rejects_expired")
+fn delayed_consume_rejects_expired() -> Bool
+
+@external(erlang, "vestibule_state_store_test_ffi", "timed_out_insert_does_not_commit")
+fn timed_out_insert_does_not_commit() -> Bool
 
 @external(erlang, "vestibule_state_store_test_ffi", "owner_death_during_call_is_controlled")
 fn owner_death_during_call_is_controlled() -> Bool

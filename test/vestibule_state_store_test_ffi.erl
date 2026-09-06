@@ -3,7 +3,8 @@
 -export([state_store_survives_creator_process_exit/0, count_store_entries/1,
          trigger_owner_sweep/1, kill_owner/0, concurrent_take_winner_count/0,
          owner_death_during_call_is_controlled/0, consume_after_expiry/3,
-         format_store_entry/2]).
+         format_store_entry/2, delayed_consume_rejects_expired/0,
+         timed_out_insert_does_not_commit/0]).
 
 state_store_survives_creator_process_exit() ->
     Name = <<"vestibule_owner_lifetime_test">>,
@@ -96,6 +97,71 @@ concurrent_take_winner_count() ->
     Results = [receive {result, Result1} -> Result1 end,
                receive {result, Result2} -> Result2 end],
     length([ok || {ok, _} <- Results]).
+
+delayed_consume_rejects_expired() ->
+    Name = <<"vestibule_delayed_consume_expiry_test">>,
+    Key = <<"session">>,
+    {ok, Store} = vestibule_state_store_ffi:create_table(Name, 8, 2),
+    ExpiresAt = erlang:monotonic_time(second) + 1,
+    Value = {session_state, <<"test">>, <<"state">>, <<"verifier">>, none,
+             ExpiresAt},
+    {ok, nil} =
+        vestibule_state_store_ffi:insert(Store, Key, <<"client">>, Value),
+    Owner = whereis(vestibule_state_store_owner),
+    true = erlang:suspend_process(Owner),
+    Parent = self(),
+    Caller = spawn(fun() ->
+        Parent ! {consume_started, self()},
+        Parent ! {consume_finished,
+                  vestibule_state_store_ffi:take_for_provider(
+                    Store, Key, <<"test">>)}
+    end),
+    receive {consume_started, Caller} -> ok end,
+    wait_until_after(ExpiresAt),
+    true = erlang:resume_process(Owner),
+    receive
+        {consume_finished, {error, nil}} -> true;
+        {consume_finished, _} -> false
+    after 5000 ->
+        false
+    end.
+
+wait_until_after(ExpiresAt) ->
+    case erlang:monotonic_time(second) > ExpiresAt of
+        true -> ok;
+        false ->
+            erlang:yield(),
+            wait_until_after(ExpiresAt)
+    end.
+
+timed_out_insert_does_not_commit() ->
+    Name = <<"vestibule_timed_out_insert_test">>,
+    Key = <<"session">>,
+    {ok, Store} = vestibule_state_store_ffi:create_table(Name, 8, 2),
+    Owner = whereis(vestibule_state_store_owner),
+    true = erlang:suspend_process(Owner),
+    Parent = self(),
+    Value = {session_state, <<"test">>, <<"state">>, <<"verifier">>, none,
+             erlang:monotonic_time(second) + 600},
+    Caller = spawn(fun() ->
+        Parent ! {insert_started, self()},
+        Parent ! {insert_finished,
+                  vestibule_state_store_ffi:insert(
+                    Store, Key, <<"client">>, Value)}
+    end),
+    receive {insert_started, Caller} -> ok end,
+    TimedOut = receive
+        {insert_finished, {error, <<"timeout">>}} -> true;
+        {insert_finished, _} -> false
+    after 6000 ->
+        false
+    end,
+    true = erlang:resume_process(Owner),
+    Missing = case vestibule_state_store_ffi:lookup(Store, Key) of
+        {error, nil} -> true;
+        _ -> false
+    end,
+    TimedOut andalso Missing.
 
 owner_death_during_call_is_controlled() ->
     Name = <<"vestibule_owner_mid_call_test">>,

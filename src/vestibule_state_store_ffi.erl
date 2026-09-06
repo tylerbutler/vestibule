@@ -10,6 +10,7 @@
 %% entries are also rejected on read, so this only bounds how long a stale
 %% entry occupies memory and a capacity slot.
 -define(SWEEP_INTERVAL_MS, 30000).
+-define(CALL_TIMEOUT_MS, 5000).
 
 %% A store handle is {Name, MaxEntries, MaxEntriesPerClient}. Carrying the limits
 %% lets the owner recreate a table with the right configuration if it has
@@ -20,13 +21,14 @@ create_table(Name, MaxEntries, MaxEntriesPerClient) ->
     call({create, Name, MaxEntries, MaxEntriesPerClient}).
 
 insert(Handle, Key, ClientKey, Value) ->
-    call({insert, Handle, Key, ClientKey, Value}).
+    Deadline = erlang:monotonic_time(millisecond) + ?CALL_TIMEOUT_MS,
+    call({insert, Handle, Key, ClientKey, Value, Deadline}).
 
 take(Handle, Key) ->
     call({take, Handle, Key}).
 
 take_for_provider(Handle, Key, Provider) ->
-    take_for_provider_at(Handle, Key, Provider, monotonic_seconds()).
+    call({take_for_provider, Handle, Key, Provider}).
 
 take_for_provider_at(Handle, Key, Provider, Now) ->
     call({take_for_provider, Handle, Key, Provider, Now}).
@@ -55,7 +57,7 @@ call(Request) ->
                     Reply;
                 {'DOWN', Monitor, process, Pid, _Reason} ->
                     {error, <<"owner_unavailable">>}
-            after 5000 ->
+            after ?CALL_TIMEOUT_MS ->
                 erlang:demonitor(Monitor, [flush]),
                 {error, <<"timeout">>}
             end;
@@ -106,11 +108,16 @@ loop(Tables) ->
                             loop(Tables)
                     end
             end;
-        {From, Ref, {insert, Handle, Key, ClientKey, Value}} ->
-            {Reply, Tables2} = with_table(Handle, Tables, fun(Table, Counts, MaxEntries, MaxPerClient) ->
-                insert_bounded(Table, Counts, MaxEntries, MaxPerClient,
-                               Key, ClientKey, Value)
-            end),
+        {From, Ref, {insert, Handle, Key, ClientKey, Value, Deadline}} ->
+            {Reply, Tables2} =
+                case erlang:monotonic_time(millisecond) >= Deadline of
+                    true -> {{error, <<"timeout">>}, Tables};
+                    false ->
+                        with_table(Handle, Tables, fun(Table, Counts, MaxEntries, MaxPerClient) ->
+                            insert_bounded(Table, Counts, MaxEntries, MaxPerClient,
+                                           Key, ClientKey, Value)
+                        end)
+                end,
             From ! {Ref, Reply},
             loop(Tables2);
         {From, Ref, {take, Handle, Key}} ->
@@ -124,25 +131,14 @@ loop(Tables) ->
             end),
             From ! {Ref, Reply},
             loop(Tables2);
+        {From, Ref, {take_for_provider, Handle, Key, Provider}} ->
+            {Reply, Tables2} = take_for_provider_reply(
+                Handle, Key, Provider, monotonic_seconds(), Tables),
+            From ! {Ref, Reply},
+            loop(Tables2);
         {From, Ref, {take_for_provider, Handle, Key, Provider, Now}} ->
-            {Reply, Tables2} = with_table(Handle, Tables, fun(Table, Counts, _, _) ->
-                case ets:lookup(Table, Key) of
-                    [{Key, ClientKey,
-                      {session_state, Provider, _, _, _, ExpiresAt} = Value}] ->
-                        case ExpiresAt =< Now of
-                            true ->
-                                ets:delete(Table, Key),
-                                decrement_count(Counts, ClientKey, Value),
-                                {error, nil};
-                            false ->
-                                ets:delete(Table, Key),
-                                decrement_count(Counts, ClientKey, Value),
-                                {ok, Value}
-                        end;
-                    [{Key, _, _}] -> {error, nil};
-                    [] -> {error, nil}
-                end
-            end),
+            {Reply, Tables2} = take_for_provider_reply(
+                Handle, Key, Provider, Now, Tables),
             From ! {Ref, Reply},
             loop(Tables2);
         {From, Ref, {lookup, Handle, Key}} ->
@@ -189,6 +185,27 @@ loop(Tables) ->
         _Unexpected ->
             loop(Tables)
     end.
+
+take_for_provider_reply(Handle, Key, Provider, Now, Tables) ->
+            {Reply, Tables2} = with_table(Handle, Tables, fun(Table, Counts, _, _) ->
+                case ets:lookup(Table, Key) of
+                    [{Key, ClientKey,
+                      {session_state, Provider, _, _, _, ExpiresAt} = Value}] ->
+                        case ExpiresAt =< Now of
+                            true ->
+                                ets:delete(Table, Key),
+                                decrement_count(Counts, ClientKey, Value),
+                                {error, nil};
+                            false ->
+                                ets:delete(Table, Key),
+                                decrement_count(Counts, ClientKey, Value),
+                                {ok, Value}
+                        end;
+                    [{Key, _, _}] -> {error, nil};
+                    [] -> {error, nil}
+                end
+            end),
+            {Reply, Tables2}.
 
 %% Run Fun against the table a handle names, recreating the table (empty)
 %% if this owner does not know it. Returns {Reply, Tables}.

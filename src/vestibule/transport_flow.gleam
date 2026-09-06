@@ -33,6 +33,7 @@ pub type RequestFlowError(e) {
 pub type CallbackFlowError(e) {
   CallbackUnknownProvider(provider: String)
   CallbackSessionUnavailable
+  CallbackSessionProviderMismatch
   CallbackAuthFailed(AuthError(e))
 }
 
@@ -299,8 +300,13 @@ pub fn finish_callback(
   use received_state <- result.try(state_result)
 
   let peek_result =
-    state_store.peek(store, session_id, provider: provider)
-    |> result.map_error(fn(_) { CallbackSessionUnavailable })
+    state_store.peek_with_error(store, session_id, provider: provider)
+    |> result.map_error(fn(error) {
+      case error {
+        state_store.SessionMissing -> CallbackSessionUnavailable
+        state_store.SessionProviderMismatch -> CallbackSessionProviderMismatch
+      }
+    })
   case peek_result {
     Ok(_) ->
       logger.emit(
@@ -313,7 +319,7 @@ pub fn finish_callback(
           fields: [],
         ),
       )
-    Error(_) ->
+    Error(peek_error) ->
       logger.emit(
         logger.new(
           level: logger.Warning,
@@ -321,7 +327,14 @@ pub fn finish_callback(
           phase: "callback",
           outcome: "failure",
           provider: option.Some(provider),
-          fields: [logger.field("error_category", "session_unavailable")],
+          fields: [
+            logger.field("error_category", case peek_error {
+              CallbackSessionProviderMismatch -> "provider_mismatch"
+              CallbackSessionUnavailable -> "session_unavailable"
+              CallbackUnknownProvider(_) -> "unknown_provider"
+              CallbackAuthFailed(_) -> "authentication_failed"
+            }),
+          ],
         ),
       )
   }
@@ -436,6 +449,17 @@ pub fn finish_callback(
           outcome: "failure",
           provider: option.Some(provider),
           fields: [logger.field("error_category", "session_unavailable")],
+        ),
+      )
+    Error(CallbackSessionProviderMismatch) ->
+      logger.emit(
+        logger.new(
+          level: logger.Warning,
+          event: "vestibule.transport.callback.failure",
+          phase: "callback",
+          outcome: "failure",
+          provider: option.Some(provider),
+          fields: [logger.field("error_category", "provider_mismatch")],
         ),
       )
     Error(CallbackUnknownProvider(_)) ->
