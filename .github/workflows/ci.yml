@@ -10,30 +10,61 @@ on:
     branches: [main]
   workflow_call:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  policy:
+    name: CI Security Policy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: |
+          python3 scripts/check_ci_security.py
+          python3 scripts/test_release_gate.py
+
   dependencies:
     name: Dependencies
     runs-on: ubuntu-latest
-    env:
-      HEXPM_READ_API_KEY: ${{ secrets.HEXPM_API_KEY }}
+    needs: policy
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: Setup environment
+        id: setup
         uses: ./.github/actions/setup
       # Warm the shared dependency cache before the fan-out jobs start. Running
       # serially lets later packages reuse downloads from earlier packages and
       # avoids a burst of concurrent requests from one runner.
       - run: trellis run deps --serial
+      # Pull-request caches are never saved. GitHub permits PR jobs to restore
+      # the base branch cache, but caches created for a PR merge ref cannot be
+      # restored by main or release jobs.
+      - name: Save trusted dependency cache
+        if: github.event_name == 'push'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # ratchet:actions/cache@v6
+        with:
+          path: |
+            build/packages
+            packages/*/build/packages
+            example/build/packages
+            ~/.cache/gleam
+          key: ${{ steps.setup.outputs.cache-key }}
   format:
     name: Format
     runs-on: ubuntu-latest
     needs: dependencies
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: Setup environment
         uses: ./.github/actions/setup
       - run: trellis run format --check
@@ -44,6 +75,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: Setup environment
         uses: ./.github/actions/setup
       - run: trellis run check
@@ -54,6 +87,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: Setup environment
         uses: ./.github/actions/setup
       - run: trellis run lint
@@ -64,6 +99,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: Setup environment
         uses: ./.github/actions/setup
       - run: trellis run build --strict
@@ -74,6 +111,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: Setup environment
         uses: ./.github/actions/setup
       - run: trellis run test
@@ -84,6 +123,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: Setup environment
         uses: ./.github/actions/setup
       - run: trellis run docs

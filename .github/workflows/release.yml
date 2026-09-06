@@ -3,23 +3,20 @@ name: Release
 on:
   push:
     branches: [main]
-  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - name: Generate app token
-        id: app-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # ratchet:actions/create-github-app-token@v3
-        with:
-          app-id: ${{ secrets.RELEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 0
-          token: ${{ steps.app-token.outputs.token }}
+          persist-credentials: false
 
       - name: Setup tools
         uses: ./.github/actions/mise
@@ -31,6 +28,16 @@ jobs:
           plan=$(trellis version plan --json)
           echo "count=$(echo "$plan" | jq '.bumped | length')" >> "$GITHUB_OUTPUT"
           echo "versions=$(echo "$plan" | jq -r '[.bumped[] | "\(.name) \(.current) -> \(.next)"] | join(", ")')" >> "$GITHUB_OUTPUT"
+
+      - name: Generate app token
+        if: steps.plan.outputs.count != '0'
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # ratchet:actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
 
       # `release pr` runs `version apply` on a branch and opens (or updates) the
       # PR. Version bumps, per-package CHANGELOG.md files, and the locked

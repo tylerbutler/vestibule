@@ -11,6 +11,11 @@ inputs:
     required: false
     default: "false"
 
+outputs:
+  cache-key:
+    description: "The exact Gleam dependency cache key"
+    value: ${{ steps.cache-key.outputs.value }}
+
 runs:
   using: "composite"
   steps:
@@ -23,19 +28,22 @@ runs:
       with:
         node-version: "22"
 
-    - name: Cache Gleam dependencies
+    - name: Compute dependency cache key
+      id: cache-key
       if: inputs.cache == 'true'
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # ratchet:actions/cache@v6
+      shell: bash
+      env:
+        MANIFEST_HASH: ${{ hashFiles('gleam.toml', 'manifest.toml', 'packages/*/gleam.toml', 'packages/*/manifest.toml', 'example/gleam.toml', 'example/manifest.toml') }}
+      run: echo "value=gleam-${RUNNER_OS}-${MANIFEST_HASH}" >> "$GITHUB_OUTPUT"
+
+    - name: Restore Gleam dependencies
+      if: inputs.cache == 'true'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # ratchet:actions/cache@v6
       with:
         path: |
           build/packages
           packages/*/build/packages
           example/build/packages
           ~/.cache/gleam
-        # Hash every member's manifests so the cache invalidates when any of them
-        # adds, removes, or changes a dependency. The example is included: it is
-        # a task-fan-out member, and its git dependency makes it re-resolve. The
-        # CI dependency job warms this complete cache before the task jobs fan
-        # out, keeping Hex access on one runner.
-        key: gleam-${{ runner.os }}-${{ hashFiles('gleam.toml', 'manifest.toml', 'packages/*/gleam.toml', 'packages/*/manifest.toml', 'example/gleam.toml', 'example/manifest.toml') }}
+        key: ${{ steps.cache-key.outputs.value }}
         restore-keys: gleam-${{ runner.os }}-

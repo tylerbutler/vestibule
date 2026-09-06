@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Security"
+body = "Pinned CI actions and tool downloads, removed secrets and write tokens from pull-request execution, and added a supply-chain policy check."
