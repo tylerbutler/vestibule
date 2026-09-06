@@ -53,11 +53,25 @@ their ten `manifest.toml` lockfiles, plus `website/package.json`,
 `website/pnpm-lock.yaml`, `.tool-versions`, `.mise.toml`, `mise.lock`, all
 workflows, composite actions, and workflow templates.
 
+This inventory includes the runtime dependency changes from PR #182. The
+independent CI change in PR #183 does not add those runtime dependencies.
+
 - The Gleam lockfiles contain 48 distinct Hex package/version pairs. The Hex API
   reported no retired locked release and no unresolved lookup.
-- The shared verifier additions `ywt_core` 1.2.0 and `bigi` 4.1.1 are included
-  in that inventory. Neither locked release is retired, and Dependabot reported
-  no open alert for either package at review time.
+- The shared verifier declares `ywt_core >= 1.2.0 and < 2.0.0`; the root lock
+  selects `ywt_core` 1.2.0 and its transitive `bigi` 4.1.1. The manifest binds
+  their Hex archives with outer checksums
+  `AAA8F04B1592631229E5E4F48BDD76D9AE06081FB9E025A001C17E4C575F7BC1`
+  and
+  `44FEDF1DF5C1F426A80B67C32B976D0828D66524E11BDC2DD22B78D37C883BA7`.
+  All package and example lockfiles were refreshed after the shared verifier
+  change. Neither locked release is retired, and Dependabot reported no open
+  alert for either package at review time.
+- Hex metadata links `ywt_core` to `https://gitlab.com/arkandos/ywt` and `bigi`
+  to `https://git.ahlcode.fi/nicd/bigi`. The Hex checksums detect archive
+  replacement, but the lock does not record an upstream source commit or a
+  build attestation for either package. The verifier depends on both packages'
+  source and release processes. Checksums do not prove package safety.
 - `bravo` is the only external Git dependency. It is pinned to commit
   `0f49223187fe57f646642ad0be12468c400401a2`; its repository was active and not
   archived, but the commit has no verified GitHub signature.
