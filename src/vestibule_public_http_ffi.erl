@@ -5,12 +5,19 @@
     validate_addresses/2,
     send/1,
     send/2,
+    send_with/5,
+    admission_limit/0,
     address_is_global/1
 ]).
 
 -define(TIMEOUT, 30000).
 -define(DEFAULT_BODY_LIMIT, 262144).
 -define(MAX_BODY_LIMIT, 1048576).
+-define(MAX_REQUEST_URL_BYTES, 8192).
+-define(MAX_REQUEST_HEADER_BYTES, 65536).
+-define(MAX_REQUEST_BODY_BYTES, 1048576).
+-define(MAX_IN_FLIGHT, 64).
+-define(ADMISSION_SERVER, vestibule_public_http_admission).
 
 validate_host(Host) when is_binary(Host) ->
     case resolve_public(Host) of
@@ -55,48 +62,348 @@ send(Request) ->
 
 send(Request = {request, _, _, _, _, _, _, _, _}, BodyLimit)
 when is_integer(BodyLimit), BodyLimit > 0, BodyLimit =< ?MAX_BODY_LIMIT ->
-    Caller = self(),
-    Reference = make_ref(),
-    {_Coordinator, Monitor} = spawn_monitor(fun() ->
-        coordinate_request(Caller, Reference, Request, BodyLimit)
-    end),
-    receive
-        {Reference, Result} ->
-            erlang:demonitor(Monitor, [flush]),
-            Result;
-        {'DOWN', Monitor, process, _CoordinatorPid, Reason} ->
-            {error,
-                {network_failure,
-                    format_error(httpc_coordinator, Reason)}}
-    end;
+    send_with(
+        Request,
+        BodyLimit,
+        fun resolve_addresses/1,
+        fun vestibule_public_http_transport:request/11,
+        ?TIMEOUT
+    );
 send(_, _) ->
     {error, {network_failure, <<"Invalid HTTP request or response limit">>}}.
 
-coordinate_request(Caller, Reference, Request, BodyLimit) ->
-    CallerMonitor = erlang:monitor(process, Caller),
+send_with(
+    Request = {request, _, _, _, _, _, _, _, _},
+    BodyLimit,
+    Resolver,
+    Transport,
+    Timeout
+)
+when
+    is_integer(BodyLimit),
+    BodyLimit > 0,
+    BodyLimit =< ?MAX_BODY_LIMIT,
+    is_function(Resolver, 1),
+    is_function(Transport, 11),
+    is_integer(Timeout),
+    Timeout > 0
+->
+    case validate_request_budget(Request) of
+        ok ->
+            case acquire_admission() of
+                {ok, Permit} ->
+                    send_admitted(
+                        Request,
+                        BodyLimit,
+                        Resolver,
+                        Transport,
+                        Timeout,
+                        Permit
+                    );
+                full ->
+                    {error,
+                        {network_failure,
+                            <<"Too many public HTTP requests are in flight">>}};
+                {error, Reason} ->
+                    {error, {network_failure, Reason}}
+            end;
+        {error, Reason} ->
+            {error, {network_failure, Reason}}
+    end;
+send_with(_, _, _, _, _) ->
+    {error, {network_failure, <<"Invalid HTTP request or response limit">>}}.
+
+admission_limit() ->
+    ?MAX_IN_FLIGHT.
+
+send_admitted(Request, BodyLimit, Resolver, Transport, Timeout, Permit) ->
+    Caller = self(),
+    Reference = make_ref(),
+    {Coordinator, Monitor} = spawn_monitor(fun() ->
+        CallerMonitor = erlang:monitor(process, Caller),
+        receive
+            start ->
+                coordinate_request(
+                    Caller,
+                    Reference,
+                    Request,
+                    BodyLimit,
+                    Resolver,
+                    Transport,
+                    Timeout,
+                    Permit,
+                    CallerMonitor
+                );
+            {'DOWN', CallerMonitor, process, Caller, _Reason} ->
+                ok
+        after Timeout ->
+            ok
+        end
+    end),
+    case transfer_admission(Permit, Coordinator) of
+        ok ->
+            Coordinator ! start,
+            receive
+                {Reference, Result} ->
+                    erlang:demonitor(Monitor, [flush]),
+                    Result;
+                {'DOWN', Monitor, process, Coordinator, Reason} ->
+                    {error,
+                        {network_failure,
+                            format_error(httpc_coordinator, Reason)}}
+            end;
+        {error, Reason} ->
+            exit(Coordinator, kill),
+            receive
+                {'DOWN', Monitor, process, Coordinator, _} -> ok
+            end,
+            {error, {network_failure, Reason}}
+    end.
+
+validate_request_budget(
+    {request, _Method, Headers, Body, Scheme, Host, Port, Path, Query}
+) when
+    is_list(Headers),
+    is_binary(Body),
+    is_atom(Scheme),
+    is_binary(Host),
+    is_binary(Path)
+->
+    UrlBytes = request_url_bytes(Scheme, Host, Port, Path, Query),
+    HeaderBytes = request_header_bytes(
+        [
+            {<<"host">>, host_header(Host, Scheme, Port)},
+            {<<"connection">>, <<"close">>},
+            {<<"content-length">>, integer_to_binary(byte_size(Body))}
+            | Headers
+        ],
+        0
+    ),
+    case {
+        UrlBytes =< ?MAX_REQUEST_URL_BYTES,
+        HeaderBytes,
+        byte_size(Body) =< ?MAX_REQUEST_BODY_BYTES
+    } of
+        {false, _, _} ->
+            {error, <<"HTTP request URL exceeds 8192 bytes">>};
+        {true, overflow, _} ->
+            {error, <<"HTTP request headers exceed 65536 bytes">>};
+        {true, _, false} ->
+            {error, <<"HTTP request body exceeds 1048576 bytes">>};
+        {true, _, true} ->
+            ok
+    end;
+validate_request_budget(_) ->
+    {error, <<"Invalid HTTP request">>}.
+
+request_url_bytes(Scheme, Host, Port, Path, Query) ->
+    byte_size(atom_to_binary(Scheme, utf8))
+        + 3
+        + byte_size(Host)
+        + port_bytes(Port)
+        + byte_size(Path)
+        + query_bytes(Query).
+
+port_bytes(none) -> 0;
+port_bytes({some, Port}) when is_integer(Port) ->
+    1 + byte_size(integer_to_binary(Port));
+port_bytes(_) -> ?MAX_REQUEST_URL_BYTES + 1.
+
+query_bytes(none) -> 0;
+query_bytes({some, Query}) when is_binary(Query) -> 1 + byte_size(Query);
+query_bytes(_) -> ?MAX_REQUEST_URL_BYTES + 1.
+
+request_header_bytes([], Bytes) ->
+    Bytes;
+request_header_bytes([{Name, Value} | Rest], Bytes)
+when is_binary(Name), is_binary(Value) ->
+    NewBytes = Bytes + byte_size(Name) + byte_size(Value) + 4,
+    case NewBytes =< ?MAX_REQUEST_HEADER_BYTES of
+        true -> request_header_bytes(Rest, NewBytes);
+        false -> overflow
+    end;
+request_header_bytes(_, _) ->
+    overflow.
+
+acquire_admission() ->
+    Server = admission_server(),
+    Reference = erlang:alias([reply]),
+    Monitor = erlang:monitor(process, Server),
+    Server ! {acquire, self(), Reference},
+    receive
+        {Reference, Result} ->
+            erlang:unalias(Reference),
+            erlang:demonitor(Monitor, [flush]),
+            case Result of
+                {ok, Permit} -> {ok, {Server, Permit}};
+                full -> full
+            end;
+        {'DOWN', Monitor, process, Server, _Reason} ->
+            erlang:unalias(Reference),
+            acquire_admission()
+    after 1000 ->
+        erlang:unalias(Reference),
+        erlang:demonitor(Monitor, [flush]),
+        Server ! {cancel, self(), Reference},
+        {error, <<"Public HTTP admission control did not respond">>}
+    end.
+
+transfer_admission({Server, Permit}, NewOwner) ->
+    Reference = erlang:alias([reply]),
+    Monitor = erlang:monitor(process, Server),
+    Server ! {transfer, self(), Reference, Permit, NewOwner},
+    receive
+        {Reference, transferred} ->
+            erlang:unalias(Reference),
+            erlang:demonitor(Monitor, [flush]),
+            ok;
+        {Reference, invalid_permit} ->
+            erlang:unalias(Reference),
+            erlang:demonitor(Monitor, [flush]),
+            {error, <<"Public HTTP admission permit was lost">>};
+        {'DOWN', Monitor, process, Server, _Reason} ->
+            erlang:unalias(Reference),
+            {error, <<"Public HTTP admission control stopped">>}
+    after 1000 ->
+        erlang:unalias(Reference),
+        erlang:demonitor(Monitor, [flush]),
+        {error, <<"Public HTTP admission control did not transfer permit">>}
+    end.
+
+release_admission({Server, Permit}) ->
+    Reference = erlang:alias([reply]),
+    Server ! {release, self(), Reference, Permit},
+    receive
+        {Reference, released} ->
+            erlang:unalias(Reference),
+            ok
+    after 1000 ->
+        erlang:unalias(Reference),
+        ok
+    end.
+
+admission_server() ->
+    case whereis(?ADMISSION_SERVER) of
+        undefined ->
+            Candidate = spawn(fun() -> admission_loop(#{}) end),
+            try
+                true = register(?ADMISSION_SERVER, Candidate),
+                Candidate
+            catch
+                error:badarg ->
+                    exit(Candidate, kill),
+                    admission_server()
+            end;
+        Server ->
+            Server
+    end.
+
+admission_loop(Permits) ->
+    receive
+        {acquire, Caller, Reference} when is_pid(Caller) ->
+            case map_size(Permits) < ?MAX_IN_FLIGHT of
+                true ->
+                    Permit = Reference,
+                    Monitor = erlang:monitor(process, Caller),
+                    Reference ! {Reference, {ok, Permit}},
+                    admission_loop(
+                        maps:put(Permit, {Caller, Monitor}, Permits)
+                    );
+                false ->
+                    Reference ! {Reference, full},
+                    admission_loop(Permits)
+            end;
+        {cancel, Caller, Permit} when is_pid(Caller) ->
+            admission_loop(remove_owned_permit(Permits, Permit, Caller));
+        {transfer, Caller, Reference, Permit, NewOwner}
+        when is_pid(Caller), is_pid(NewOwner) ->
+            case maps:find(Permit, Permits) of
+                {ok, {Caller, OldMonitor}} ->
+                    erlang:demonitor(OldMonitor, [flush]),
+                    NewMonitor = erlang:monitor(process, NewOwner),
+                    Reference ! {Reference, transferred},
+                    admission_loop(
+                        maps:put(Permit, {NewOwner, NewMonitor}, Permits)
+                    );
+                _ ->
+                    Reference ! {Reference, invalid_permit},
+                    admission_loop(Permits)
+            end;
+        {release, Caller, Reference, Permit} when is_pid(Caller) ->
+            case maps:take(Permit, Permits) of
+                {{_Caller, Monitor}, Remaining} ->
+                    erlang:demonitor(Monitor, [flush]),
+                    Reference ! {Reference, released},
+                    admission_loop(Remaining);
+                error ->
+                    Reference ! {Reference, released},
+                    admission_loop(Permits)
+            end;
+        {barrier, Caller, Reference} when is_pid(Caller) ->
+            Caller ! {Reference, ready},
+            admission_loop(Permits);
+        {'DOWN', Monitor, process, Caller, _Reason} ->
+            admission_loop(remove_dead_permit(Permits, Caller, Monitor));
+        _ ->
+            admission_loop(Permits)
+    end.
+
+remove_dead_permit(Permits, Caller, Monitor) ->
+    maps:filter(
+        fun(_Permit, Entry) -> Entry =/= {Caller, Monitor} end,
+        Permits
+    ).
+
+remove_owned_permit(Permits, Permit, Caller) ->
+    case maps:find(Permit, Permits) of
+        {ok, {Caller, Monitor}} ->
+            erlang:demonitor(Monitor, [flush]),
+            maps:remove(Permit, Permits);
+        _ ->
+            Permits
+    end.
+
+coordinate_request(
+    Caller,
+    Reference,
+    Request,
+    BodyLimit,
+    Resolver,
+    Transport,
+    Timeout,
+    Permit,
+    CallerMonitor
+) ->
     Coordinator = self(),
     {Worker, WorkerMonitor} = spawn_monitor(fun() ->
         process_flag(trap_exit, true),
-        Coordinator ! {Reference, send_request(Request, BodyLimit)}
+        Coordinator ! {
+            Reference,
+            send_request(Request, BodyLimit, Resolver, Transport, Timeout)
+        }
     end),
     receive
         {Reference, Result} ->
             erlang:demonitor(CallerMonitor, [flush]),
             erlang:demonitor(WorkerMonitor, [flush]),
+            release_admission(Permit),
             Caller ! {Reference, Result};
         {'DOWN', CallerMonitor, process, Caller, _Reason} ->
-            stop_worker(Worker, WorkerMonitor);
+            stop_worker(Worker, WorkerMonitor),
+            release_admission(Permit);
         {'DOWN', WorkerMonitor, process, Worker, Reason} ->
             erlang:demonitor(CallerMonitor, [flush]),
+            release_admission(Permit),
             Caller ! {
                 Reference,
                 {error,
                     {network_failure,
                         format_error(httpc_worker, Reason)}}
             }
-    after ?TIMEOUT ->
+    after Timeout ->
         erlang:demonitor(CallerMonitor, [flush]),
         stop_worker(Worker, WorkerMonitor),
+        release_admission(Permit),
         Caller ! {
             Reference,
             {error, {network_failure, <<"HTTP request timed out">>}}
@@ -111,10 +418,13 @@ stop_worker(Worker, WorkerMonitor) ->
 
 send_request(
     {request, Method, Headers, Body, Scheme, Host, Port, Path, Query},
-    BodyLimit
+    BodyLimit,
+    Resolver,
+    Transport,
+    Timeout
 ) ->
     try
-        case resolve_public(Host) of
+        case resolve_public(Host, Resolver) of
             {ok, Addresses = [_ | _]} ->
                 send_pinned_addresses(
                     Addresses,
@@ -127,6 +437,8 @@ send_request(
                     Path,
                     Query,
                     BodyLimit,
+                    Transport,
+                    Timeout,
                     undefined
                 );
             {ok, []} ->
@@ -150,6 +462,8 @@ send_pinned_addresses(
     _Path,
     _Query,
     _BodyLimit,
+    _Transport,
+    _Timeout,
     LastError
 ) ->
     LastError;
@@ -164,6 +478,8 @@ send_pinned_addresses(
     Path,
     Query,
     BodyLimit,
+    Transport,
+    Timeout,
     _LastError
 ) ->
     case send_pinned(
@@ -176,7 +492,9 @@ send_pinned_addresses(
         Path,
         Query,
         Address,
-        BodyLimit
+        BodyLimit,
+        Transport,
+        Timeout
     ) of
         Result = {ok, _} ->
             Result;
@@ -192,6 +510,8 @@ send_pinned_addresses(
                 Path,
                 Query,
                 BodyLimit,
+                Transport,
+                Timeout,
                 Error
             );
         {error, {response_failure, Reason}} ->
@@ -199,12 +519,15 @@ send_pinned_addresses(
     end.
 
 resolve_public(Host0) ->
+    resolve_public(Host0, fun resolve_addresses/1).
+
+resolve_public(Host0, Resolver) ->
     Host = strip_brackets(strip_trailing_dot(Host0)),
     case blocked_hostname(Host) of
         true ->
             {error, <<"Host is not publicly routable: ", Host0/binary>>};
         false ->
-            case resolve_addresses(Host) of
+            case Resolver(Host) of
                 {ok, Addresses} ->
                     case validate_resolved_addresses(Host0, Addresses) of
                         {ok, nil} -> {ok, Addresses};
@@ -286,7 +609,9 @@ send_pinned(
     Path,
     Query,
     Address,
-    BodyLimit
+    BodyLimit,
+    Transport,
+    Timeout
 ) ->
     case validate_headers(Headers0) of
         ok ->
@@ -300,7 +625,9 @@ send_pinned(
                 Path,
                 Query,
                 Address,
-                BodyLimit
+                BodyLimit,
+                Transport,
+                Timeout
             );
         {error, Reason} ->
             {error, {network_failure, Reason}}
@@ -316,7 +643,9 @@ send_pinned_valid(
     Path,
     Query,
     Address,
-    BodyLimit
+    BodyLimit,
+    Transport,
+    Timeout
 ) ->
     HostHeader = host_header(Host, Scheme, Port),
     Headers = prepare_headers(
@@ -327,7 +656,7 @@ send_pinned_valid(
         )
     ),
     handle_response(
-        vestibule_public_http_transport:request(
+        Transport(
             Method,
             Headers,
             Body,
@@ -338,7 +667,7 @@ send_pinned_valid(
             Query,
             Address,
             BodyLimit,
-            ?TIMEOUT
+            Timeout
         )
     ).
 

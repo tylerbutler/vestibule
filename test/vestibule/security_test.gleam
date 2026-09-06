@@ -180,7 +180,7 @@ pub fn create_authorization_request_always_includes_pkce_test() -> Nil {
   let client_config =
     config.new(
       client_id: "id",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
       redirect_uri: "https://localhost/cb",
     )
   let assert Ok(authorization_request_value) =
@@ -200,7 +200,7 @@ pub fn create_authorization_request_produces_fresh_state_and_verifier_test() -> 
   let client_config =
     config.new(
       client_id: "id",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
       redirect_uri: "https://localhost/cb",
     )
   let assert Ok(req1) =
@@ -231,7 +231,7 @@ pub fn callback_rejects_state_mismatch_test() -> Nil {
   let client_config =
     config.new(
       client_id: "id",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
       redirect_uri: "https://localhost/cb",
     )
   let parameters =
@@ -254,7 +254,7 @@ pub fn callback_rejects_missing_state_test() -> Nil {
   let client_config =
     config.new(
       client_id: "id",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
       redirect_uri: "https://localhost/cb",
     )
   let parameters = dict.from_list([#("code", "valid_code")])
@@ -276,7 +276,7 @@ pub fn callback_rejects_empty_parameters_test() -> Nil {
   let client_config =
     config.new(
       client_id: "id",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
       redirect_uri: "https://localhost/cb",
     )
   let result =
@@ -299,7 +299,7 @@ pub fn callback_detects_provider_error_test() -> Nil {
   let client_config =
     config.new(
       client_id: "id",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
       redirect_uri: "https://localhost/cb",
     )
   let state_value = "matching_state"
@@ -331,7 +331,7 @@ pub fn callback_preserves_provider_error_uri_test() -> Nil {
   let client_config =
     config.new(
       client_id: "id",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
       redirect_uri: "https://localhost/cb",
     )
   let state_value = "matching_state"
@@ -365,7 +365,7 @@ pub fn callback_rejects_provider_error_when_state_mismatch_test() -> Nil {
   let client_config =
     config.new(
       client_id: "id",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
       redirect_uri: "https://localhost/cb",
     )
   let parameters =
@@ -392,7 +392,7 @@ pub fn callback_ignores_extra_parameters_test() -> Nil {
   let client_config =
     config.new(
       client_id: "id",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
       redirect_uri: "https://localhost/cb",
     )
   let state_value = "test_state"
@@ -449,7 +449,11 @@ pub fn refresh_response_handles_error_without_description_test() -> Nil {
       body,
       provider_support.OptionalScope(" "),
     )
-    == Error(error.provider(code: "invalid_grant", description: "", uri: None))
+    == Error(error.provider(
+      code: "invalid_grant",
+      description: "Provider rejected the request",
+      uri: None,
+    ))
 }
 
 /// Security: refresh response with extremely long token should not crash.

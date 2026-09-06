@@ -168,6 +168,22 @@ pub fn retrieve_consumes_expired_session_test() -> Nil {
   }
 }
 
+pub fn expiration_between_peek_and_consume_is_rejected_test() -> Nil {
+  let assert Ok(table) =
+    state_store.create_named("vestibule_expire_between_operations_test")
+  let assert Ok(session_id) =
+    state_store.store(
+      table,
+      provider: "test",
+      state: "state",
+      code_verifier: "verifier",
+      nonce: None,
+    )
+  let assert Ok(_) = state_store.peek(table, session_id, provider: "test")
+  assert consume_after_expiry(table, session_id, "test") == Error(Nil)
+  assert state_store.consume(table, session_id, provider: "test") == Error(Nil)
+}
+
 pub fn expired_sessions_are_removed_by_sweep_not_on_insert_test() -> Nil {
   // Cleanup used to run a full table scan on every insert, which made the
   // request phase O(n) and let an unauthenticated client stall every login.
@@ -300,6 +316,145 @@ pub fn create_with_capacity_rejects_non_positive_capacity_test() -> Nil {
   Nil
 }
 
+pub fn admission_rejects_one_client_without_filling_store_test() -> Nil {
+  let name = "vestibule_per_client_admission_test"
+  let assert Ok(table) =
+    state_store.create_with_limits(
+      name: name,
+      max_entries: 12,
+      max_entries_per_client: 2,
+    )
+  let store = fn(client, state) {
+    state_store.store_for_client(
+      table,
+      client_key: client,
+      provider: "test",
+      state: state,
+      code_verifier: "verifier",
+      nonce: None,
+    )
+  }
+  let assert Ok(existing) = store("legitimate", "existing")
+  let assert Ok(_) = store("attacker", "one")
+  let assert Ok(_) = store("attacker", "two")
+
+  store("attacker", "rejected")
+  |> fn(actual) {
+    assert actual == Error(state_store.ClientLimitReached)
+  }
+  count_store_entries(name)
+  |> fn(actual) {
+    assert actual == 3
+  }
+
+  let assert Ok(_) = state_store.consume(table, existing, provider: "test")
+  let assert Ok(_) = store("legitimate", "replacement")
+  Nil
+}
+
+pub fn global_admission_is_a_hard_bound_without_eviction_test() -> Nil {
+  let name = "vestibule_global_admission_test"
+  let assert Ok(table) =
+    state_store.create_with_limits(
+      name: name,
+      max_entries: 2,
+      max_entries_per_client: 2,
+    )
+  let store = fn(client) {
+    state_store.store_for_client(
+      table,
+      client_key: client,
+      provider: "test",
+      state: client,
+      code_verifier: "verifier",
+      nonce: None,
+    )
+  }
+  let assert Ok(existing) = store("legitimate")
+  let assert Ok(_) = store("attacker-one")
+  assert store("attacker-two") == Error(state_store.StoreFull)
+  assert count_store_entries(name) == 2
+  assert state_store.consume(table, existing, provider: "test")
+    == Ok(#("legitimate", "verifier", None))
+}
+
+pub fn rejected_load_never_inserts_state_test() -> Nil {
+  let name = "vestibule_rejected_load_test"
+  let assert Ok(table) =
+    state_store.create_with_limits(
+      name: name,
+      max_entries: 32,
+      max_entries_per_client: 1,
+    )
+  let assert Ok(_) =
+    state_store.store_for_client(
+      table,
+      client_key: "attacker",
+      provider: "test",
+      state: "first",
+      code_verifier: "verifier",
+      nonce: None,
+    )
+  reject_many(table, 1000)
+  count_store_entries(name)
+  |> fn(actual) {
+    assert actual == 1
+  }
+}
+
+pub fn client_admission_recovers_after_expiration_test() -> Nil {
+  let assert Ok(table) =
+    state_store.create_with_limits(
+      name: "vestibule_client_expiry_recovery_test",
+      max_entries: 4,
+      max_entries_per_client: 1,
+    )
+  let assert Ok(_) =
+    state_store.store_for_client_with_ttl(
+      table,
+      client_key: "client",
+      provider: "test",
+      state: "expired",
+      code_verifier: "verifier",
+      nonce: None,
+      ttl_seconds: 0,
+    )
+  let assert Ok(_) =
+    state_store.store_for_client(
+      table,
+      client_key: "client",
+      provider: "test",
+      state: "fresh",
+      code_verifier: "verifier",
+      nonce: None,
+    )
+  Nil
+}
+
+fn reject_many(table: state_store.StateStore, remaining: Int) -> Nil {
+  case remaining {
+    0 -> Nil
+    _ -> {
+      state_store.store_for_client(
+        table,
+        client_key: "attacker",
+        provider: "test",
+        state: "rejected",
+        code_verifier: "verifier",
+        nonce: None,
+      )
+      |> fn(actual) {
+        assert actual == Error(state_store.ClientLimitReached)
+      }
+      reject_many(table, remaining - 1)
+    }
+  }
+}
+
+pub fn concurrent_take_has_one_winner_test() -> Nil {
+  assert concurrent_take_winner_count() == 1
+}
+
 pub fn store_persists_and_returns_nonce_test() -> Nil {
   let assert Ok(table) = state_store.create_named("test_store_nonce")
   let assert Ok(session_id) =
@@ -320,8 +475,37 @@ pub fn store_persists_and_returns_nonce_test() -> Nil {
   }
 }
 
+pub fn stored_session_term_does_not_render_secrets_test() -> Nil {
+  let state = "STATE-SECRET-7f3a"
+  let verifier = "VERIFIER-SECRET-8b4c"
+  let nonce = "NONCE-SECRET-9d5e"
+  let assert Ok(table) =
+    state_store.create_named("test_state_store_secret_rendering")
+  let assert Ok(session_id) =
+    state_store.store(
+      table,
+      provider: "test",
+      state: state,
+      code_verifier: verifier,
+      nonce: Some(nonce),
+    )
+
+  let rendered = format_store_entry(table, session_id)
+  assert !string.contains(rendered, state)
+  assert !string.contains(rendered, verifier)
+  assert !string.contains(rendered, nonce)
+  assert state_store.peek(table, session_id, provider: "test")
+    == Ok(#(state, verifier, Some(nonce)))
+}
+
 @external(erlang, "vestibule_state_store_test_ffi", "state_store_survives_creator_process_exit")
 fn state_store_survives_creator_process_exit() -> Bool
+
+@external(erlang, "vestibule_state_store_test_ffi", "format_store_entry")
+fn format_store_entry(
+  table: state_store.StateStore,
+  session_id: String,
+) -> String
 
 @external(erlang, "vestibule_state_store_test_ffi", "count_store_entries")
 fn count_store_entries(name: String) -> Int
@@ -350,6 +534,14 @@ pub fn consume_rejects_other_provider_test() -> Nil {
   |> fn(result) {
     let assert Error(value) = result
     value
+  }
+  state_store.consume(table, session_id, provider: "alpha")
+  |> fn(result) {
+    let assert Ok(value) = result
+    value
+  }
+  |> fn(actual) {
+    assert actual == #("state", "verifier", None)
   }
 }
 
@@ -428,5 +620,22 @@ pub fn store_recovers_after_owner_crash_test() -> Nil {
   }
 }
 
+pub fn operation_returns_error_when_owner_dies_mid_call_test() -> Nil {
+  assert owner_death_during_call_is_controlled()
+}
+
 @external(erlang, "vestibule_state_store_test_ffi", "kill_owner")
 fn kill_owner() -> Nil
+
+@external(erlang, "vestibule_state_store_test_ffi", "concurrent_take_winner_count")
+fn concurrent_take_winner_count() -> Int
+
+@external(erlang, "vestibule_state_store_test_ffi", "owner_death_during_call_is_controlled")
+fn owner_death_during_call_is_controlled() -> Bool
+
+@external(erlang, "vestibule_state_store_test_ffi", "consume_after_expiry")
+fn consume_after_expiry(
+  store: state_store.StateStore,
+  session_id: String,
+  provider: String,
+) -> Result(#(String, String, option.Option(String)), Nil)

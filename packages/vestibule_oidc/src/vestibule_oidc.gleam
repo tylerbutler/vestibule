@@ -33,6 +33,7 @@ import gleam/uri
 import vestibule/config
 import vestibule/credential.{type Credentials}
 import vestibule/error.{type AuthError}
+import vestibule/oidc
 import vestibule/provider_support
 import vestibule/strategy.{type Strategy, type UserResult}
 import vestibule/user_info
@@ -50,6 +51,10 @@ pub opaque type OidcConfig {
     token_endpoint: String,
     /// The userinfo endpoint URL.
     userinfo_endpoint: String,
+    /// The JSON Web Key Set endpoint URL.
+    jwks_uri: String,
+    /// ID-token signing algorithms advertised by the issuer.
+    signing_algorithms: List(String),
     /// Scopes supported by this provider.
     scopes_supported: List(String),
   )
@@ -69,6 +74,30 @@ pub fn new_config(
   userinfo_endpoint userinfo_endpoint: String,
   scopes_supported scopes_supported: List(String),
 ) -> Result(OidcConfig, AuthError(e)) {
+  new_config_with_jwks(
+    issuer: issuer,
+    authorization_endpoint: authorization_endpoint,
+    token_endpoint: token_endpoint,
+    userinfo_endpoint: userinfo_endpoint,
+    jwks_uri: strip_trailing_slash(issuer) <> "/.well-known/jwks.json",
+    signing_algorithms: ["RS256"],
+    scopes_supported: scopes_supported,
+  )
+}
+
+/// Construct a validated OIDC configuration with explicit verification data.
+///
+/// Only issuers that advertise RS256 are accepted. The generic strategy pins
+/// ID-token verification to that algorithm.
+pub fn new_config_with_jwks(
+  issuer issuer: String,
+  authorization_endpoint authorization_endpoint: String,
+  token_endpoint token_endpoint: String,
+  userinfo_endpoint userinfo_endpoint: String,
+  jwks_uri jwks_uri: String,
+  signing_algorithms signing_algorithms: List(String),
+  scopes_supported scopes_supported: List(String),
+) -> Result(OidcConfig, AuthError(e)) {
   use _ <- result.try(provider_support.require_public_https_format(issuer))
   use _ <- result.try(provider_support.require_public_https_format(
     authorization_endpoint,
@@ -79,12 +108,22 @@ pub fn new_config(
   use _ <- result.try(provider_support.require_public_https_format(
     userinfo_endpoint,
   ))
+  use _ <- result.try(provider_support.require_public_https_format(jwks_uri))
+  use _ <- result.try(case list.contains(signing_algorithms, "RS256") {
+    True -> Ok(Nil)
+    False ->
+      Error(error.config(
+        reason: "OIDC discovery does not advertise RS256 ID-token signing",
+      ))
+  })
 
   Ok(OidcConfig(
     issuer: issuer,
     authorization_endpoint: authorization_endpoint,
     token_endpoint: token_endpoint,
     userinfo_endpoint: userinfo_endpoint,
+    jwks_uri: jwks_uri,
+    signing_algorithms: signing_algorithms,
     scopes_supported: scopes_supported,
   ))
 }
@@ -107,6 +146,16 @@ pub fn token_endpoint(config: OidcConfig) -> String {
 /// Get the userinfo endpoint URL for an OIDC configuration.
 pub fn userinfo_endpoint(config: OidcConfig) -> String {
   config.userinfo_endpoint
+}
+
+/// Get the provider's JSON Web Key Set endpoint URL.
+pub fn jwks_uri(config: OidcConfig) -> String {
+  config.jwks_uri
+}
+
+/// Get the provider's advertised ID-token signing algorithms.
+pub fn signing_algorithms(config: OidcConfig) -> List(String) {
+  config.signing_algorithms
 }
 
 /// Get the scopes supported by an OIDC configuration.
@@ -167,9 +216,7 @@ pub fn parse_discovery_response(
 ) -> Result(OidcConfig, AuthError(e)) {
   use body <- result.try(provider_support.check_response_status(http_response))
   use oidc_config <- result.try(parse_discovery_document(body))
-  let normalized_issuer = strip_trailing_slash(issuer_url)
-  let response_issuer = strip_trailing_slash(oidc_config.issuer)
-  case normalized_issuer == response_issuer {
+  case issuer_url == oidc_config.issuer {
     True -> Ok(oidc_config)
     False ->
       Error(error.config(
@@ -228,6 +275,11 @@ pub fn parse_discovery_document(
     )
     use token_endpoint <- decode.field("token_endpoint", decode.string)
     use userinfo_endpoint <- decode.field("userinfo_endpoint", decode.string)
+    use jwks_uri <- decode.field("jwks_uri", decode.string)
+    use signing_algorithms <- decode.field(
+      "id_token_signing_alg_values_supported",
+      decode.list(decode.string),
+    )
     use scopes_supported <- decode.optional_field(
       "scopes_supported",
       [],
@@ -238,6 +290,8 @@ pub fn parse_discovery_document(
       authorization_endpoint,
       token_endpoint,
       userinfo_endpoint,
+      jwks_uri,
+      signing_algorithms,
       scopes_supported,
     ))
   }
@@ -247,13 +301,17 @@ pub fn parse_discovery_document(
       authorization_endpoint,
       token_endpoint,
       userinfo_endpoint,
+      jwks_uri,
+      signing_algorithms,
       scopes_supported,
     )) ->
-      new_config(
+      new_config_with_jwks(
         issuer: issuer,
         authorization_endpoint: authorization_endpoint,
         token_endpoint: token_endpoint,
         userinfo_endpoint: userinfo_endpoint,
+        jwks_uri: jwks_uri,
+        signing_algorithms: signing_algorithms,
         scopes_supported: scopes_supported,
       )
     Error(parse_error) ->
@@ -276,27 +334,52 @@ pub fn strategy_from_config(
   oidc_config: OidcConfig,
   provider_name: String,
 ) -> Strategy(e) {
+  strategy_from_config_with_sender(
+    oidc_config,
+    provider_name,
+    provider_support.send_public,
+  )
+}
+
+/// Build a strategy with a caller-supplied secure-request sender.
+///
+/// This supports deterministic callback tests and applications that wrap
+/// Vestibule's secure transport. The sender must preserve the security
+/// properties documented by `provider_support.SecureRequest`.
+pub fn strategy_from_config_with_sender(
+  oidc_config: OidcConfig,
+  provider_name: String,
+  send: fn(provider_support.SecureRequest) ->
+    Result(response.Response(String), AuthError(e)),
+) -> Strategy(e) {
   let scopes = filter_default_scopes(oidc_config.scopes_supported)
   strategy.new(
     provider: provider_name,
     default_scopes: scopes,
     authorize_url: build_authorize_url_fn(oidc_config.authorization_endpoint),
-    exchange_code: build_exchange_code_fn(oidc_config),
-    fetch_user: build_fetch_user_fn(oidc_config),
+    exchange_code: build_exchange_code_fn(oidc_config, send),
+    fetch_user: build_fetch_user_fn(oidc_config, send),
   )
   |> strategy.with_nonce()
-  |> strategy.with_refresh(build_refresh_token_fn(oidc_config))
+  |> strategy.with_refresh(build_refresh_token_fn(oidc_config, send))
 }
 
 /// Discover an OIDC provider and build a strategy in one step.
 ///
 /// Fetches the discovery document from the issuer's well-known endpoint,
 /// then constructs a strategy using the discovered configuration.
-/// The issuer's hostname is used as the provider name.
+/// The full validated issuer is used as the provider identity namespace.
 pub fn discover(issuer_url: String) -> Result(Strategy(e), AuthError(e)) {
   use oidc_config <- result.try(fetch_configuration(issuer_url))
-  let provider_name = extract_hostname(issuer_url)
-  Ok(strategy_from_config(oidc_config, provider_name))
+  Ok(strategy_from_config(oidc_config, issuer_namespace(oidc_config)))
+}
+
+/// Return the stable account namespace for an OIDC issuer.
+///
+/// This preserves issuer paths and non-default ports. A single trailing slash
+/// is removed to match discovery's issuer comparison.
+pub fn issuer_namespace(oidc_config: OidcConfig) -> String {
+  oidc_config.issuer
 }
 
 /// Filter scopes to only include the standard OIDC scopes that the provider supports.
@@ -333,14 +416,13 @@ pub fn build_authorization_code_request(
   use redirect <- result.try(
     provider_support.parse_redirect_uri(config.redirect_uri(client_config)),
   )
-  let body =
-    token_request.authorization_code(
-      client_config,
-      code: code,
-      redirect_uri: uri.to_string(redirect),
-      code_verifier: code_verifier,
-    )
-    |> uri.query_to_string
+  use parameters <- result.try(token_request.authorization_code(
+    client_config,
+    code: code,
+    redirect_uri: uri.to_string(redirect),
+    code_verifier: code_verifier,
+  ))
+  let body = uri.query_to_string(parameters)
   build_token_request(oidc_config.token_endpoint, body)
 }
 
@@ -362,9 +444,11 @@ pub fn build_refresh_token_request(
   client_config: config.ClientConfig,
   refresh_token: String,
 ) -> Result(provider_support.SecureRequest, AuthError(e)) {
-  let body =
-    token_request.refresh(client_config, refresh_token: refresh_token)
-    |> uri.query_to_string
+  use parameters <- result.try(token_request.refresh(
+    client_config,
+    refresh_token: refresh_token,
+  ))
+  let body = uri.query_to_string(parameters)
   build_token_request(oidc_config.token_endpoint, body)
 }
 
@@ -399,6 +483,34 @@ pub fn parse_user_info_response(
   http_response: response.Response(String),
 ) -> Result(#(String, user_info.UserInfo), AuthError(e)) {
   provider_support.parse_json_response(http_response, parse_userinfo_response)
+}
+
+/// Build an OIDC JWKS request without sending it.
+pub fn build_jwks_request(
+  oidc_config: OidcConfig,
+) -> Result(provider_support.SecureRequest, AuthError(e)) {
+  use http_request <- result.try(
+    request.to(oidc_config.jwks_uri)
+    |> result.map_error(fn(_parse_error) {
+      error.config(reason: "Invalid OIDC JWKS URL")
+    }),
+  )
+  http_request
+  |> request.set_header("accept", "application/json")
+  |> provider_support.secure_request_with_limit(
+    provider_support.DiscoveryResponse,
+  )
+}
+
+/// Parse and validate an OIDC JWKS response without performing I/O.
+pub fn parse_jwks_response(
+  http_response: response.Response(String),
+) -> Result(oidc.Jwks, AuthError(e)) {
+  use body <- result.try(provider_support.check_response_status(http_response))
+  oidc.parse_jwks(body)
+  |> result.map_error(fn(verification_error) {
+    error.config(reason: oidc.error_message(verification_error))
+  })
 }
 
 fn build_token_request(
@@ -476,7 +588,11 @@ pub fn parse_userinfo_response(
     ))
   }
   case json.parse(body, decoder) {
-    Ok(result) -> Ok(result)
+    Ok(#(sub, _) as parsed) ->
+      case string.trim(sub) {
+        "" -> Error(error.user_info(reason: "OIDC userinfo subject is empty"))
+        _ -> Ok(parsed)
+      }
     Error(parse_error) ->
       Error(error.user_info(
         reason: "Failed to parse OIDC userinfo response: "
@@ -514,17 +630,6 @@ fn parse_id_token(body: String) -> option.Option(String) {
 fn strip_trailing_slash(url: String) -> String {
   use <- bool.guard(when: !string.ends_with(url, "/"), return: url)
   string.drop_end(url, 1)
-}
-
-fn extract_hostname(url: String) -> String {
-  case uri.parse(url) {
-    Ok(parsed) ->
-      case parsed.host {
-        Some(host) -> host
-        None -> "oidc"
-      }
-    Error(_parse_error) -> "oidc"
-  }
 }
 
 fn build_authorize_url_fn(
@@ -567,6 +672,8 @@ fn build_authorize_url_fn(
 
 fn build_exchange_code_fn(
   oidc_config: OidcConfig,
+  send: fn(provider_support.SecureRequest) ->
+    Result(response.Response(String), AuthError(e)),
 ) -> fn(config.ClientConfig, String, option.Option(String)) ->
   Result(strategy.ExchangeResult, AuthError(e)) {
   fn(
@@ -581,8 +688,26 @@ fn build_exchange_code_fn(
       code_verifier,
     ))
 
-    case provider_support.send_public(http_request) {
-      Ok(response) -> parse_authorization_code_response(response)
+    case send(http_request) {
+      Ok(response) -> {
+        use exchange <- result.try(parse_authorization_code_response(response))
+        use verified_subject <- result.try(verify_exchange_id_token(
+          oidc_config,
+          client_config,
+          exchange,
+          send,
+        ))
+        let artifacts =
+          strategy.exchange_artifacts(exchange)
+          |> dict.insert(
+            "verified_id_token_subject",
+            dynamic.string(verified_subject),
+          )
+        Ok(strategy.exchange_result_with_artifacts(
+          strategy.exchange_credentials(exchange),
+          artifacts,
+        ))
+      }
       Error(send_error) -> Error(send_error)
     }
   }
@@ -590,24 +715,50 @@ fn build_exchange_code_fn(
 
 fn build_fetch_user_fn(
   oidc_config: OidcConfig,
+  send: fn(provider_support.SecureRequest) ->
+    Result(response.Response(String), AuthError(e)),
 ) -> fn(config.ClientConfig, strategy.ExchangeResult) ->
   Result(UserResult, AuthError(e)) {
   fn(_client_config: config.ClientConfig, exchange: strategy.ExchangeResult) -> Result(
     UserResult,
     AuthError(e),
   ) {
+    use verified_subject <- result.try(verified_exchange_subject(exchange))
     use http_request <- result.try(build_user_info_request(
       oidc_config,
       strategy.exchange_credentials(exchange),
     ))
-    use http_response <- result.try(provider_support.send_public(http_request))
+    use http_response <- result.try(send(http_request))
     use #(uid, info) <- result.try(parse_user_info_response(http_response))
-    Ok(strategy.user_result(uid: uid, info: info, extra: dict.new()))
+    case uid == verified_subject {
+      True -> Ok(strategy.user_result(uid: uid, info: info, extra: dict.new()))
+      False ->
+        Error(error.user_info(
+          reason: "OIDC UserInfo subject does not match the ID token",
+        ))
+    }
   }
+}
+
+fn verified_exchange_subject(
+  exchange: strategy.ExchangeResult,
+) -> Result(String, AuthError(e)) {
+  use value <- result.try(
+    dict.get(strategy.exchange_artifacts(exchange), "verified_id_token_subject")
+    |> result.map_error(fn(_) {
+      error.user_info(reason: "OIDC exchange has no verified ID-token subject")
+    }),
+  )
+  decode.run(value, decode.string)
+  |> result.map_error(fn(_) {
+    error.user_info(reason: "OIDC exchange has an invalid verified subject")
+  })
 }
 
 fn build_refresh_token_fn(
   oidc_config: OidcConfig,
+  send: fn(provider_support.SecureRequest) ->
+    Result(response.Response(String), AuthError(e)),
 ) -> fn(config.ClientConfig, String) -> Result(Credentials, AuthError(e)) {
   fn(client_config: config.ClientConfig, refresh_token: String) -> Result(
     Credentials,
@@ -619,9 +770,88 @@ fn build_refresh_token_fn(
       refresh_token,
     ))
 
-    case provider_support.send_public(http_request) {
+    case send(http_request) {
       Ok(response) -> parse_refresh_token_response(response)
       Error(send_error) -> Error(send_error)
     }
   }
 }
+
+const jwks_cache_ttl_seconds = 3600
+
+fn verify_exchange_id_token(
+  oidc_config: OidcConfig,
+  client_config: config.ClientConfig,
+  exchange: strategy.ExchangeResult,
+  send: fn(provider_support.SecureRequest) ->
+    Result(response.Response(String), AuthError(e)),
+) -> Result(String, AuthError(e)) {
+  use id_token_value <- result.try(
+    dict.get(strategy.exchange_artifacts(exchange), "id_token")
+    |> result.map_error(fn(_) {
+      error.user_info(reason: "OIDC token response is missing an ID token")
+    }),
+  )
+  use id_token <- result.try(
+    decode.run(id_token_value, decode.string)
+    |> result.map_error(fn(_) {
+      error.user_info(reason: "OIDC token response has an invalid ID token")
+    }),
+  )
+  let cache_key = oidc_config.issuer <> "\n" <> oidc_config.jwks_uri
+  use keys <- result.try(case cache_get(cache_key, jwks_cache_ttl_seconds) {
+    Ok(keys) -> Ok(keys)
+    Error(_) -> fetch_jwks(oidc_config, send)
+  })
+  case verify_id_token(id_token, keys, oidc_config, client_config) {
+    Error(oidc.UnknownKey) -> {
+      use refreshed <- result.try(fetch_jwks(oidc_config, send))
+      verify_id_token(id_token, refreshed, oidc_config, client_config)
+      |> result.map(oidc.subject)
+      |> result.map_error(verification_auth_error)
+    }
+    Error(verification_error) ->
+      Error(verification_auth_error(verification_error))
+    Ok(verified) -> Ok(oidc.subject(verified))
+  }
+}
+
+fn fetch_jwks(
+  oidc_config: OidcConfig,
+  send: fn(provider_support.SecureRequest) ->
+    Result(response.Response(String), AuthError(e)),
+) -> Result(oidc.Jwks, AuthError(e)) {
+  use http_request <- result.try(build_jwks_request(oidc_config))
+  use http_response <- result.try(send(http_request))
+  use keys <- result.try(parse_jwks_response(http_response))
+  let cache_key = oidc_config.issuer <> "\n" <> oidc_config.jwks_uri
+  cache_put(cache_key, keys)
+  Ok(keys)
+}
+
+fn verify_id_token(
+  id_token: String,
+  keys: oidc.Jwks,
+  oidc_config: OidcConfig,
+  client_config: config.ClientConfig,
+) -> Result(oidc.VerifiedIdToken, oidc.VerificationError) {
+  oidc.verify_rs256(
+    token: id_token,
+    using: keys,
+    issuer: oidc_config.issuer,
+    audience: config.client_id(client_config),
+    expected_nonce: None,
+  )
+}
+
+fn verification_auth_error(
+  verification_error: oidc.VerificationError,
+) -> AuthError(e) {
+  error.user_info(reason: oidc.error_message(verification_error))
+}
+
+@external(erlang, "vestibule_oidc_cache_ffi", "get")
+fn cache_get(key: String, ttl_seconds: Int) -> Result(oidc.Jwks, Nil)
+
+@external(erlang, "vestibule_oidc_cache_ffi", "put")
+fn cache_put(key: String, keys: oidc.Jwks) -> Nil

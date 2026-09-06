@@ -106,6 +106,77 @@ pub fn verify_id_token_accepts_correct_key_test() -> Nil {
   Nil
 }
 
+pub fn verify_id_token_selects_rotated_key_by_kid_test() -> Nil {
+  let token =
+    jwt_signing.encode(
+      [#("sub", gleam_json.string("user-123"))],
+      [
+        claim.issuer("https://appleid.apple.com", []),
+        claim.audience("com.example.app", []),
+        claim.expires_at(
+          max_age: duration.minutes(5),
+          leeway: duration.seconds(0),
+        ),
+      ],
+      jwt_signing.test_key(),
+    )
+  let assert Ok(other_keys) = jwks.parse_jwks(jwt_signing.other_key_jwks())
+  let assert Ok(#(user_id, _)) =
+    vestibule_apple.verify_id_token(
+      jwt: token,
+      keys: [jwt_signing.test_verify_key(), ..other_keys],
+      client_id: "com.example.app",
+    )
+  assert user_id == "user-123"
+}
+
+pub fn verify_id_token_rejects_unknown_kid_test() -> Nil {
+  let token =
+    jwt_signing.encode(
+      [#("sub", gleam_json.string("user-123"))],
+      [
+        claim.issuer("https://appleid.apple.com", []),
+        claim.audience("com.example.app", []),
+        claim.expires_at(
+          max_age: duration.minutes(5),
+          leeway: duration.seconds(0),
+        ),
+      ],
+      jwt_signing.test_key(),
+    )
+  let assert Ok(other_keys) = jwks.parse_jwks(jwt_signing.other_key_jwks())
+  let assert Error(authentication_error) =
+    vestibule_apple.verify_id_token(
+      jwt: token,
+      keys: other_keys,
+      client_id: "com.example.app",
+    )
+  assert error.kind(authentication_error) == error.UserInfoKind
+}
+
+pub fn verify_id_token_rejects_missing_subject_test() -> Nil {
+  let token =
+    jwt_signing.encode(
+      [],
+      [
+        claim.issuer("https://appleid.apple.com", []),
+        claim.audience("com.example.app", []),
+        claim.expires_at(
+          max_age: duration.minutes(5),
+          leeway: duration.seconds(0),
+        ),
+      ],
+      jwt_signing.test_key(),
+    )
+  let assert Error(authentication_error) =
+    vestibule_apple.verify_id_token(
+      jwt: token,
+      keys: [jwt_signing.test_verify_key()],
+      client_id: "com.example.app",
+    )
+  assert error.kind(authentication_error) == error.UserInfoKind
+}
+
 /// Security: verify_id_token rejects JWT with wrong issuer.
 pub fn verify_id_token_rejects_wrong_issuer_test() -> Nil {
   let key = jwt_signing.test_key()

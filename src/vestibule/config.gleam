@@ -3,12 +3,24 @@
 import gleam/dict.{type Dict}
 import gleam/list
 import vestibule/error.{type AuthError}
+import vestibule/internal/secret.{type Secret}
 
 /// OAuth client authentication method.
-pub type ClientAuth {
+///
+/// Opaque so client credentials cannot appear in inspected configuration or
+/// registry terms. Construct values with `public_client`,
+/// `client_secret_auth`, or `client_assertion_auth`.
+pub opaque type ClientAuth {
   PublicClient
-  ClientSecret(String)
-  ClientAssertion(String)
+  ClientSecret(Secret)
+  ClientAssertion(Secret)
+}
+
+/// The non-sensitive kind of client authentication.
+pub type ClientAuthKind {
+  PublicClientAuth
+  ClientSecretAuth
+  ClientAssertionAuth
 }
 
 /// Durable OAuth client configuration.
@@ -30,6 +42,21 @@ pub fn new(
   ClientConfig(client_id: client_id, redirect_uri: redirect_uri, auth: auth)
 }
 
+/// Configure a public client that has no client credential.
+pub fn public_client() -> ClientAuth {
+  PublicClient
+}
+
+/// Configure client-secret authentication.
+pub fn client_secret_auth(value: String) -> ClientAuth {
+  ClientSecret(secret.from_string(value))
+}
+
+/// Configure client-assertion authentication.
+pub fn client_assertion_auth(value: String) -> ClientAuth {
+  ClientAssertion(secret.from_string(value))
+}
+
 /// Return the configured OAuth client ID.
 pub fn client_id(config: ClientConfig) -> String {
   config.client_id
@@ -45,13 +72,38 @@ pub fn client_auth(config: ClientConfig) -> ClientAuth {
   config.auth
 }
 
+/// Return the configured client authentication kind without exposing its
+/// credential.
+pub fn client_auth_kind(auth: ClientAuth) -> ClientAuthKind {
+  case auth {
+    PublicClient -> PublicClientAuth
+    ClientSecret(_) -> ClientSecretAuth
+    ClientAssertion(_) -> ClientAssertionAuth
+  }
+}
+
 /// Return a client secret value when the authentication method provides one.
+///
+/// Call this only while constructing the token endpoint request.
 pub fn client_secret(config: ClientConfig) -> Result(String, AuthError(e)) {
   case config.auth {
-    ClientSecret(secret) -> Ok(secret)
+    ClientSecret(value) -> Ok(secret.expose(value))
     PublicClient | ClientAssertion(_) ->
       Error(error.config(
         reason: "Client authentication does not provide a client_secret",
+      ))
+  }
+}
+
+/// Return a client assertion when the authentication method provides one.
+///
+/// Call this only while constructing the token endpoint request.
+pub fn client_assertion(config: ClientConfig) -> Result(String, AuthError(e)) {
+  case config.auth {
+    ClientAssertion(value) -> Ok(secret.expose(value))
+    PublicClient | ClientSecret(_) ->
+      Error(error.config(
+        reason: "Client authentication does not provide a client_assertion",
       ))
   }
 }

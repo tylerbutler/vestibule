@@ -1,5 +1,8 @@
+import gleam/dict
+import gleam/dynamic
 import gleam/http/request
 import gleam/option
+import gleam/string
 import vestibule/config
 import vestibule/credential
 import vestibule/error
@@ -104,10 +107,29 @@ pub fn credentials_accessors_return_token_fields_test() -> Nil {
   assert credential.scopes(oauth_credentials) == ["read:user"]
 }
 
+pub fn exchange_result_inspection_does_not_expose_artifacts_test() -> Nil {
+  let id_token = "ID-TOKEN-SECRET-7f3a"
+  let exchange =
+    strategy.exchange_result_with_artifacts(
+      credential.new(
+        token: "access-token",
+        refresh_token: option.None,
+        token_type: "Bearer",
+        expires_in: option.None,
+        scopes: [],
+      ),
+      dict.from_list([#("id_token", dynamic.string(id_token))]),
+    )
+
+  assert !string.contains(string.inspect(exchange), id_token)
+  assert !string.contains(erlang_term(exchange), id_token)
+  assert dict.has_key(strategy.exchange_artifacts(exchange), "id_token")
+}
+
 fn test_config() -> config.ClientConfig {
   config.new(
     client_id: "id",
-    auth: config.ClientSecret("secret"),
+    auth: config.client_secret_auth("secret"),
     redirect_uri: "https://example.com/cb",
   )
 }
@@ -127,6 +149,9 @@ fn bare_strategy(provider: String) -> strategy.Strategy(e) {
     },
   )
 }
+
+@external(erlang, "vestibule_secret_test_ffi", "format_term")
+fn erlang_term(value: a) -> String
 
 pub fn refresh_token_unset_returns_refresh_unsupported_test() -> Nil {
   let result =
@@ -163,4 +188,19 @@ pub fn with_nonce_enables_uses_nonce_test() -> Nil {
 
 pub fn new_defaults_uses_nonce_to_false_test() -> Nil {
   assert !strategy.uses_nonce(bare_strategy("plain"))
+}
+
+pub fn authorization_header_does_not_echo_unsupported_token_type_test() -> Nil {
+  let credentials =
+    credential.new(
+      token: "token",
+      refresh_token: option.None,
+      token_type: "client-secret-7f3a",
+      expires_in: option.None,
+      scopes: [],
+    )
+  let assert Error(failure) = strategy.authorization_header(credentials)
+  assert error.kind(failure) == error.ConfigKind
+  assert !string.contains(string.inspect(failure), "client-secret-7f3a")
+  assert !string.contains(error.message(failure), "client-secret-7f3a")
 }

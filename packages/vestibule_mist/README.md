@@ -126,7 +126,8 @@ the structured API returns `MissingOrInvalidSessionCookie(reason)`, where
 `CookieSignatureInvalid` (a cookie was sent that this secret did not sign —
 possible tampering, or a secret rotation). If the cookie is valid but the
 stored state is missing, expired, or already used, it returns
-`SessionUnavailable`.
+`SessionUnavailable`. Requests with duplicate session-cookie names are rejected
+as invalid instead of choosing one by header order.
 
 ## Callback error handling
 
@@ -138,6 +139,13 @@ stored state is missing, expired, or already used, it returns
   failures are still generated mist responses.
 - `callback_phase_auth_result` returns `Result(Auth, CallbackError(e))`;
   use this for structured/custom error handling.
+
+`callback_phase` expires the in-flight cookie after a successful callback or
+terminal failure. With either Result variant, expire the cookie on the final
+response with `expire_session_cookie(response, options)` after success;
+terminal error responses from `callback_phase_result` are already expired.
+Malformed or wrong-state callbacks keep the cookie because their stored flow
+remains valid.
 
 ```gleam
 case vestibule_mist.callback_phase_auth_result(
@@ -171,9 +179,11 @@ POST form data.
 
 ## POST callbacks
 
-`GET` callbacks read query parameters. `POST` callbacks read
+`GET` callbacks read query parameters. The signed session cookie is verified
+before a POST body is read. `POST` callbacks read
 `application/x-www-form-urlencoded` body parameters (up to 64 KiB) and
-merge them over query parameters, so body values take precedence. If a
+merge them with query parameters. Repeated parameter names are rejected,
+including identical values and names present once in each source. If a
 POST body cannot be read, decoded as UTF-8, or parsed as form data,
 callback handling returns `InvalidCallbackParams` instead of falling back
 to query parameters.
@@ -186,6 +196,28 @@ to query parameters.
 across all transports.
 
 See the `vestibule/state_store` API docs for `create`, `create_named`,
-`create_with_capacity`, TTL, and capacity semantics. A store holds at most
-100 000 live sessions by default; once full, `request_phase` fails with a
-generic error until sessions are consumed or expire.
+`create_with_capacity`, `create_with_limits`, TTL, and capacity semantics. A
+store holds at most 4,096 live sessions and eight live sessions per client by
+default.
+
+The compatibility `request_phase` classifies requests as one shared
+`unidentified` client, so it allows only eight concurrent starts. Production
+applications should call `request_phase_for_direct_client`, which uses Mist's
+direct socket peer and fails closed if it cannot read the address.
+`request_phase_for_client` is available for deployments behind a trusted edge.
+Do not use `Forwarded` or `X-Forwarded-For` unless that edge removes
+client-supplied values and validates the full proxy chain. Rejected requests
+return 429 and store no state.
+
+## Deployment limits
+
+Vestibule bounds callback bodies to 64 KiB, state lifetime to 600 seconds,
+one client to eight live flows, and one store to 4,096 live flows by default.
+The application or edge proxy must also limit request rate and concurrent
+connections for `/auth/*`, cap request headers, enforce read timeouts, and
+rate-limit the callback route. These upstream limits must use the direct peer
+or a validated trusted-proxy identity. Vestibule does not trust forwarded
+headers.
+
+Run `just test-pkg vestibule_mist` for the repeatable admission, cookie replay,
+duplicate-cookie, and SameSite checks.

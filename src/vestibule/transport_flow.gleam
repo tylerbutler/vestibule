@@ -7,6 +7,7 @@
 //// the middleware packages rather than this module.
 
 import gleam/dict.{type Dict}
+import gleam/list
 import gleam/option
 import gleam/result
 
@@ -35,11 +36,55 @@ pub type CallbackFlowError(e) {
   CallbackAuthFailed(AuthError(e))
 }
 
+/// Convert raw callback parameter pairs to a dictionary, rejecting every
+/// repeated name. OAuth parameters are single-valued; choosing the first or
+/// last duplicate makes validation depend on parser and proxy ordering.
+pub fn callback_parameters(
+  query: List(#(String, String)),
+  body: List(#(String, String)),
+) -> Result(Dict(String, String), String) {
+  unique_parameters(list.append(query, body), dict.new())
+}
+
+fn unique_parameters(
+  parameters: List(#(String, String)),
+  values: Dict(String, String),
+) -> Result(Dict(String, String), String) {
+  case parameters {
+    [] -> Ok(values)
+    [#(name, value), ..rest] ->
+      case dict.has_key(values, name) {
+        True -> Error(name)
+        False -> unique_parameters(rest, dict.insert(values, name, value))
+      }
+  }
+}
+
 /// Generate an authorization URL and store the expected state/verifier.
 pub fn start_authorization(
   provider_registry: Registry(e),
   provider provider: String,
   store store: StateStore,
+  ttl_seconds ttl_seconds: Int,
+  options options: AuthorizeOptions,
+) -> Result(#(String, String), RequestFlowError(e)) {
+  start_authorization_for_client(
+    provider_registry,
+    provider: provider,
+    store: store,
+    client_key: "unidentified",
+    ttl_seconds: ttl_seconds,
+    options: options,
+  )
+}
+
+/// Generate an authorization URL after applying admission limits for a
+/// stable direct-client identifier.
+pub fn start_authorization_for_client(
+  provider_registry: Registry(e),
+  provider provider: String,
+  store store: StateStore,
+  client_key client_key: String,
   ttl_seconds ttl_seconds: Int,
   options options: AuthorizeOptions,
 ) -> Result(#(String, String), RequestFlowError(e)) {
@@ -68,8 +113,9 @@ pub fn start_authorization(
       |> result.map_error(AuthFailed),
     )
     use session_id <- result.try(
-      state_store.store_with_ttl(
+      state_store.store_for_client_with_ttl(
         store,
+        client_key: client_key,
         provider: strategy.provider(strategy),
         state: authorization_request.state(authorization_request_value),
         code_verifier: authorization_request.code_verifier(
@@ -121,6 +167,18 @@ pub fn start_authorization(
               logger.auth_error_category(auth_error),
             ),
           ],
+        ),
+      )
+    Error(StoreFailed(state_store.ClientLimitReached))
+    | Error(StoreFailed(state_store.StoreFull)) ->
+      logger.emit(
+        logger.new(
+          level: logger.Warning,
+          event: "vestibule.transport.request.rejected",
+          phase: "request",
+          outcome: "failure",
+          provider: option.Some(provider),
+          fields: [logger.field("error_category", "admission_limit")],
         ),
       )
     Error(StoreFailed(_)) ->

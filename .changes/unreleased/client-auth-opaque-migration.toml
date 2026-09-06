@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Breaking"
+body = "Make ClientAuth opaque to prevent credential disclosure during term inspection. Replace PublicClient, ClientSecret, and ClientAssertion constructors with public_client(), client_secret_auth(value), and client_assertion_auth(value); use client_auth_kind to inspect the authentication method."

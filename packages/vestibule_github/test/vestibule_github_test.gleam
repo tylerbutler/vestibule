@@ -7,6 +7,7 @@ import gleam/string
 import gleeunit
 import vestibule/config
 import vestibule/credential
+import vestibule/error
 import vestibule/strategy
 import vestibule/user_info
 import vestibule_github
@@ -46,14 +47,12 @@ pub fn parse_token_response_with_multiple_scopes_test() -> Nil {
   }
 }
 
-pub fn parse_token_response_empty_scope_test() -> Nil {
+pub fn parse_token_response_empty_scope_is_rejected_test() -> Nil {
   let json =
     "{\"access_token\":\"gho_abc123\",\"token_type\":\"bearer\",\"scope\":\"\"}"
-  let assert Ok(oauth_credentials) = vestibule_github.parse_token_response(json)
-  credential.scopes(oauth_credentials)
-  |> fn(actual) {
-    assert actual == []
-  }
+  let assert Error(authentication_error) =
+    vestibule_github.parse_token_response(json)
+  assert error.kind(authentication_error) == error.CodeExchangeKind
 }
 
 pub fn parse_token_response_error_test() -> Nil {
@@ -66,6 +65,24 @@ pub fn parse_token_response_error_test() -> Nil {
       value
     }
   Nil
+}
+
+pub fn parse_token_response_rejects_wrong_token_type_test() -> Nil {
+  let result =
+    vestibule_github.parse_token_response(
+      "{\"access_token\":\"token\",\"token_type\":\"mac\",\"scope\":\"user:email\"}",
+    )
+  let assert Error(authentication_error) = result
+  assert error.kind(authentication_error) == error.CodeExchangeKind
+}
+
+pub fn parse_token_response_rejects_missing_email_scope_test() -> Nil {
+  let result =
+    vestibule_github.parse_token_response(
+      "{\"access_token\":\"token\",\"token_type\":\"bearer\",\"scope\":\"read:org\"}",
+    )
+  let assert Error(authentication_error) = result
+  assert error.kind(authentication_error) == error.CodeExchangeKind
 }
 
 pub fn parse_user_response_full_test() -> Nil {
@@ -154,7 +171,7 @@ pub fn authorize_url_invalid_redirect_uri_returns_error_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "not a uri",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
     )
   let _ =
     strategy.build_authorize_url(
@@ -177,7 +194,7 @@ pub fn authorize_url_includes_extra_parameters_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "http://localhost/callback",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
     )
   let assert Ok(options) =
     config.authorize_options()
@@ -201,7 +218,7 @@ pub fn sans_io_token_request_and_response_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "https://app.example.com/callback",
-      auth: config.ClientSecret("client-secret"),
+      auth: config.client_secret_auth("client-secret"),
     )
   let assert Ok(http_request) =
     vestibule_github.build_authorization_code_request(
@@ -235,7 +252,7 @@ pub fn sans_io_refresh_and_user_requests_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "https://app.example.com/callback",
-      auth: config.ClientSecret("client-secret"),
+      auth: config.client_secret_auth("client-secret"),
     )
   let assert Ok(refresh_request) =
     vestibule_github.build_refresh_token_request(
@@ -290,4 +307,64 @@ pub fn sans_io_refresh_and_user_requests_test() -> Nil {
     )
   assert vestibule_github.parse_user_email_response(email_response)
     == Ok(Some("user@example.com"))
+}
+
+pub fn callback_responses_bind_email_to_numeric_user_id_test() -> Nil {
+  let user_response =
+    response.Response(
+      status: 200,
+      headers: [],
+      body: "{\"id\":99,\"login\":\"octocat\",\"email\":\"attacker@example.com\"}",
+    )
+  let email_response =
+    response.Response(
+      status: 200,
+      headers: [],
+      body: "[{\"email\":\"verified@example.com\",\"primary\":true,\"verified\":true}]",
+    )
+  let assert Ok(user) =
+    vestibule_github.parse_callback_user_responses(
+      user_response,
+      email_response,
+    )
+  assert strategy.user_result_uid(user) == "99"
+  assert user
+    |> strategy.user_result_info
+    |> user_info.email
+    == Some("verified@example.com")
+}
+
+pub fn callback_responses_fail_without_primary_verified_email_test() -> Nil {
+  let user_response =
+    response.Response(
+      status: 200,
+      headers: [],
+      body: "{\"id\":99,\"login\":\"octocat\"}",
+    )
+  let email_response =
+    response.Response(
+      status: 200,
+      headers: [],
+      body: "[{\"email\":\"unverified@example.com\",\"primary\":true,\"verified\":false}]",
+    )
+  let assert Error(authentication_error) =
+    vestibule_github.parse_callback_user_responses(
+      user_response,
+      email_response,
+    )
+  assert error.kind(authentication_error) == error.UserInfoKind
+}
+
+pub fn refresh_response_allows_omitted_scope_and_rotates_refresh_token_test() -> Nil {
+  let refresh_response =
+    response.Response(
+      status: 200,
+      headers: [],
+      body: "{\"access_token\":\"new-access\",\"token_type\":\"bearer\",\"refresh_token\":\"new-refresh\",\"expires_in\":28800}",
+    )
+  let assert Ok(oauth_credentials) =
+    vestibule_github.parse_refresh_token_response(refresh_response)
+  assert credential.token(oauth_credentials) == "new-access"
+  assert credential.refresh_token(oauth_credentials) == Some("new-refresh")
+  assert credential.scopes(oauth_credentials) == []
 }

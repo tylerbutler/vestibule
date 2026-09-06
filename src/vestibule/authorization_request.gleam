@@ -4,6 +4,7 @@
 //// which must be stored for the callback.
 
 import gleam/option.{type Option}
+import vestibule/internal/secret.{type Secret}
 
 /// Represents the result of generating an authorization URL.
 ///
@@ -15,10 +16,10 @@ import gleam/option.{type Option}
 /// `code_verifier`, and `nonce` accessors.
 pub opaque type AuthorizationRequest {
   AuthorizationRequest(
-    url: String,
-    state: String,
-    code_verifier: String,
-    nonce: Option(String),
+    url: Secret,
+    state: Secret,
+    code_verifier: Secret,
+    nonce: Option(Secret),
   )
 }
 
@@ -33,33 +34,33 @@ pub fn new(
   nonce nonce: Option(String),
 ) -> AuthorizationRequest {
   AuthorizationRequest(
-    url: url,
-    state: state,
-    code_verifier: code_verifier,
-    nonce: nonce,
+    url: secret.from_string(url),
+    state: secret.from_string(state),
+    code_verifier: secret.from_string(code_verifier),
+    nonce: option.map(nonce, secret.from_string),
   )
 }
 
 /// The authorization URL to redirect the user to.
 pub fn url(authorization_request: AuthorizationRequest) -> String {
-  authorization_request.url
+  secret.expose(authorization_request.url)
 }
 
 /// The CSRF state parameter (must be stored for validation).
 ///
 /// Store a timestamp alongside it if you need time-based expiration.
 pub fn state(authorization_request: AuthorizationRequest) -> String {
-  authorization_request.state
+  secret.expose(authorization_request.state)
 }
 
 /// The PKCE code verifier (must be stored for token exchange).
 pub fn code_verifier(authorization_request: AuthorizationRequest) -> String {
-  authorization_request.code_verifier
+  secret.expose(authorization_request.code_verifier)
 }
 
 /// The OIDC `nonce` (must be stored for id_token validation).
 ///
 /// `Some` for OIDC strategies, `None` for plain OAuth2 strategies.
 pub fn nonce(authorization_request: AuthorizationRequest) -> Option(String) {
-  authorization_request.nonce
+  option.map(authorization_request.nonce, secret.expose)
 }

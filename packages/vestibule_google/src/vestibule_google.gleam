@@ -8,6 +8,7 @@ import gleam/dict
 import gleam/dynamic
 import gleam/dynamic/decode
 import gleam/json
+import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
@@ -26,9 +27,12 @@ import vestibule/config.{type AuthorizeOptions, type ClientConfig}
 import vestibule/credential.{type Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/logger
+import vestibule/oidc
 import vestibule/provider_support
 import vestibule/strategy.{type Strategy, type UserResult}
 import vestibule/user_info
+
+const google_jwks_url = "https://www.googleapis.com/oauth2/v3/certs"
 
 /// Create a Google authentication strategy.
 ///
@@ -43,8 +47,8 @@ pub fn strategy() -> Strategy(e) {
     default_scopes: ["openid", "profile", "email"],
     authorize_url: do_authorize_url,
     exchange_code: do_exchange_code,
-    fetch_user: fn(_client_config, exchange) {
-      fetch_user_enforcing(exchange, None)
+    fetch_user: fn(client_config, exchange) {
+      fetch_user_enforcing(client_config, exchange, None)
     },
   )
   |> strategy.with_nonce()
@@ -77,8 +81,8 @@ pub fn strategy_for_hosted_domain(hosted_domain: String) -> Strategy(e) {
       )
     },
     exchange_code: do_exchange_code,
-    fetch_user: fn(_client_config, exchange) {
-      fetch_user_enforcing(exchange, Some(hosted_domain))
+    fetch_user: fn(client_config, exchange) {
+      fetch_user_enforcing(client_config, exchange, Some(hosted_domain))
     },
   )
   |> strategy.with_nonce()
@@ -87,7 +91,12 @@ pub fn strategy_for_hosted_domain(hosted_domain: String) -> Strategy(e) {
 
 /// Parse Google token response JSON.
 pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
-  do_parse_token_response(body, provider_support.RequiredScope(separator: " "))
+  use oauth_credentials <- result.try(do_parse_token_response(
+    body,
+    provider_support.RequiredScope(separator: " "),
+  ))
+  use _ <- result.try(require_google_scopes(oauth_credentials))
+  Ok(oauth_credentials)
 }
 
 /// Build Google's authorization-code token request without sending it.
@@ -300,6 +309,24 @@ pub fn parse_user_info_response(
   )
 }
 
+/// Build Google's OIDC JWKS request without sending it.
+pub fn build_jwks_request() -> Result(request.Request(String), AuthError(e)) {
+  use http_request <- result.try(
+    request.to(google_jwks_url)
+    |> result.replace_error(error.config(reason: "Invalid Google JWKS URL")),
+  )
+  Ok(request.set_header(http_request, "accept", "application/json"))
+}
+
+/// Parse Google's OIDC JWKS response without performing I/O.
+pub fn parse_jwks_response(
+  http_response: response.Response(String),
+) -> Result(oidc.Jwks, AuthError(e)) {
+  use body <- result.try(provider_support.check_response_status(http_response))
+  oidc.parse_jwks(body)
+  |> result.map_error(oidc_auth_error)
+}
+
 /// Validate the returned hosted-domain claim against the required domain.
 ///
 /// When `required` is `None` the returned claim (if any) passes through
@@ -470,9 +497,17 @@ fn do_refresh_token(
 }
 
 fn fetch_user_enforcing(
+  client_config: ClientConfig,
   exchange: strategy.ExchangeResult,
   required_hosted_domain: Option(String),
 ) -> Result(UserResult, AuthError(e)) {
+  use id_token <- result.try(exchange_id_token(exchange))
+  use jwks <- result.try(fetch_google_jwks())
+  use verified_id_token <- result.try(verify_google_id_token(
+    id_token,
+    jwks,
+    config.client_id(client_config),
+  ))
   let oauth_credentials = strategy.exchange_credentials(exchange)
   use user_info_request <- result.try(build_user_info_request(oauth_credentials))
   use user_info_response <- result.try(
@@ -481,16 +516,119 @@ fn fetch_user_enforcing(
       reason: "Failed to connect to Google userinfo API",
     )),
   )
-  use #(user_id, user, returned_hosted_domain) <- result.try(
+  use #(user_id, user, _returned_hosted_domain) <- result.try(
     parse_user_info_response(user_info_response),
   )
-  use validated_hosted_domain <- result.try(validate_hosted_domain(
+  use validated_hosted_domain <- result.try(validate_google_identity(
+    verified_id_token,
+    user_id,
     required: required_hosted_domain,
-    returned: returned_hosted_domain,
   ))
   let extra = case validated_hosted_domain {
     Some(domain) -> dict.from_list([#("hd", dynamic.string(domain))])
     None -> dict.new()
   }
   Ok(strategy.user_result(uid: user_id, info: user, extra: extra))
+}
+
+fn fetch_google_jwks() -> Result(oidc.Jwks, AuthError(e)) {
+  use http_request <- result.try(build_jwks_request())
+  httpc.send(http_request)
+  |> result.replace_error(error.network(
+    reason: "Failed to connect to Google JWKS endpoint",
+  ))
+  |> result.then(parse_jwks_response)
+}
+
+fn verify_google_id_token(
+  id_token: String,
+  jwks: oidc.Jwks,
+  client_id: String,
+) -> Result(oidc.VerifiedIdToken, AuthError(e)) {
+  case oidc.verify_rs256(
+    token: id_token,
+    using: jwks,
+    issuer: "https://accounts.google.com",
+    audience: client_id,
+    expected_nonce: None,
+  ) {
+    Error(oidc.InvalidIssuer) ->
+      oidc.verify_rs256(
+        token: id_token,
+        using: jwks,
+        issuer: "accounts.google.com",
+        audience: client_id,
+        expected_nonce: None,
+      )
+      |> result.map_error(oidc_auth_error)
+    Error(verification_error) -> Error(oidc_auth_error(verification_error))
+    Ok(verified) -> Ok(verified)
+  }
+}
+
+fn validate_google_identity(
+  verified_id_token: oidc.VerifiedIdToken,
+  userinfo_subject: String,
+  required required_hosted_domain: Option(String),
+) -> Result(Option(String), AuthError(e)) {
+  use _ <- result.try(case oidc.subject(verified_id_token) == userinfo_subject {
+    True -> Ok(Nil)
+    False ->
+      Error(error.user_info(
+        reason: "Google userinfo subject does not match the verified ID token",
+      ))
+  })
+  use hosted_domain <- result.try(
+    oidc.optional_string_claim(verified_id_token, "hd")
+    |> result.map_error(oidc_auth_error),
+  )
+  validate_hosted_domain(
+    required: required_hosted_domain,
+    returned: hosted_domain,
+  )
+}
+
+fn exchange_id_token(
+  exchange: strategy.ExchangeResult,
+) -> Result(String, AuthError(e)) {
+  case dict.get(strategy.exchange_artifacts(exchange), "id_token") {
+    Ok(value) ->
+      decode.run(value, decode.string)
+      |> result.replace_error(error.user_info(
+        reason: "Google token response did not include a valid ID token",
+      ))
+    Error(_) ->
+      Error(error.user_info(
+        reason: "Google token response did not include a valid ID token",
+      ))
+  }
+}
+
+fn require_google_scopes(
+  oauth_credentials: Credentials,
+) -> Result(Nil, AuthError(e)) {
+  let scopes = credential.scopes(oauth_credentials)
+  let has_email =
+    list.contains(scopes, "email")
+    || list.contains(
+      scopes,
+      "https://www.googleapis.com/auth/userinfo.email",
+    )
+  let has_profile =
+    list.contains(scopes, "profile")
+    || list.contains(
+      scopes,
+      "https://www.googleapis.com/auth/userinfo.profile",
+    )
+  case list.contains(scopes, "openid") && has_email && has_profile {
+    True -> Ok(Nil)
+    False ->
+      Error(error.code_exchange(
+        reason: "Google did not grant the required OpenID profile scopes",
+      ))
+  }
+}
+
+fn oidc_auth_error(verification_error: oidc.VerificationError) -> AuthError(e) {
+  error.user_info(reason: oidc.error_message(verification_error))
 }

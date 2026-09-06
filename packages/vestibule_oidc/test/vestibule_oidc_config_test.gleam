@@ -252,7 +252,7 @@ pub fn new_config_allows_public_https_endpoints_test() -> Nil {
 
 pub fn parse_discovery_document_full_test() -> Nil {
   let json =
-    "{\"issuer\":\"https://accounts.example.com\",\"authorization_endpoint\":\"https://accounts.example.com/authorize\",\"token_endpoint\":\"https://accounts.example.com/token\",\"userinfo_endpoint\":\"https://accounts.example.com/userinfo\",\"scopes_supported\":[\"openid\",\"profile\",\"email\",\"address\"]}"
+    "{\"issuer\":\"https://accounts.example.com\",\"authorization_endpoint\":\"https://accounts.example.com/authorize\",\"token_endpoint\":\"https://accounts.example.com/token\",\"userinfo_endpoint\":\"https://accounts.example.com/userinfo\",\"jwks_uri\":\"https://accounts.example.com/keys\",\"id_token_signing_alg_values_supported\":[\"RS256\"],\"scopes_supported\":[\"openid\",\"profile\",\"email\",\"address\"]}"
   let result = vestibule_oidc.parse_discovery_document(json)
   let assert Ok(config) = result
   vestibule_oidc.issuer(config)
@@ -271,6 +271,8 @@ pub fn parse_discovery_document_full_test() -> Nil {
   |> fn(actual) {
     assert actual == "https://accounts.example.com/userinfo"
   }
+  assert vestibule_oidc.jwks_uri(config) == "https://accounts.example.com/keys"
+  assert vestibule_oidc.signing_algorithms(config) == ["RS256"]
   vestibule_oidc.scopes_supported(config)
   |> fn(actual) {
     assert actual == ["openid", "profile", "email", "address"]
@@ -279,13 +281,34 @@ pub fn parse_discovery_document_full_test() -> Nil {
 
 pub fn parse_discovery_document_without_scopes_test() -> Nil {
   let json =
-    "{\"issuer\":\"https://example.com\",\"authorization_endpoint\":\"https://example.com/auth\",\"token_endpoint\":\"https://example.com/token\",\"userinfo_endpoint\":\"https://example.com/userinfo\"}"
+    "{\"issuer\":\"https://example.com\",\"authorization_endpoint\":\"https://example.com/auth\",\"token_endpoint\":\"https://example.com/token\",\"userinfo_endpoint\":\"https://example.com/userinfo\",\"jwks_uri\":\"https://example.com/keys\",\"id_token_signing_alg_values_supported\":[\"RS256\"]}"
   let result = vestibule_oidc.parse_discovery_document(json)
   let assert Ok(config) = result
   vestibule_oidc.scopes_supported(config)
   |> fn(actual) {
     assert actual == []
   }
+}
+
+pub fn parse_discovery_document_requires_jwks_uri_test() -> Nil {
+  let json =
+    "{\"issuer\":\"https://example.com\",\"authorization_endpoint\":\"https://example.com/auth\",\"token_endpoint\":\"https://example.com/token\",\"userinfo_endpoint\":\"https://example.com/userinfo\",\"id_token_signing_alg_values_supported\":[\"RS256\"]}"
+  let assert Error(_) = vestibule_oidc.parse_discovery_document(json)
+  Nil
+}
+
+pub fn parse_discovery_document_requires_signing_algorithms_test() -> Nil {
+  let json =
+    "{\"issuer\":\"https://example.com\",\"authorization_endpoint\":\"https://example.com/auth\",\"token_endpoint\":\"https://example.com/token\",\"userinfo_endpoint\":\"https://example.com/userinfo\",\"jwks_uri\":\"https://example.com/keys\"}"
+  let assert Error(_) = vestibule_oidc.parse_discovery_document(json)
+  Nil
+}
+
+pub fn parse_discovery_document_requires_rs256_test() -> Nil {
+  let json =
+    "{\"issuer\":\"https://example.com\",\"authorization_endpoint\":\"https://example.com/auth\",\"token_endpoint\":\"https://example.com/token\",\"userinfo_endpoint\":\"https://example.com/userinfo\",\"jwks_uri\":\"https://example.com/keys\",\"id_token_signing_alg_values_supported\":[\"ES256\"]}"
+  let assert Error(_) = vestibule_oidc.parse_discovery_document(json)
+  Nil
 }
 
 pub fn parse_discovery_document_rejects_http_endpoint_test() -> Nil {
@@ -434,7 +457,7 @@ pub fn sans_io_discovery_request_and_response_test() -> Nil {
     response.Response(
       status: 200,
       headers: [],
-      body: "{\"issuer\":\"https://accounts.example.com\",\"authorization_endpoint\":\"https://accounts.example.com/authorize\",\"token_endpoint\":\"https://accounts.example.com/token\",\"userinfo_endpoint\":\"https://accounts.example.com/userinfo\"}",
+      body: "{\"issuer\":\"https://accounts.example.com\",\"authorization_endpoint\":\"https://accounts.example.com/authorize\",\"token_endpoint\":\"https://accounts.example.com/token\",\"userinfo_endpoint\":\"https://accounts.example.com/userinfo\",\"jwks_uri\":\"https://accounts.example.com/keys\",\"id_token_signing_alg_values_supported\":[\"RS256\"]}",
     )
   let assert Ok(config) =
     vestibule_oidc.parse_discovery_response(
@@ -449,7 +472,22 @@ pub fn sans_io_discovery_response_rejects_issuer_mismatch_test() -> Nil {
     response.Response(
       status: 200,
       headers: [],
-      body: "{\"issuer\":\"https://evil.example.com\",\"authorization_endpoint\":\"https://evil.example.com/authorize\",\"token_endpoint\":\"https://evil.example.com/token\",\"userinfo_endpoint\":\"https://evil.example.com/userinfo\"}",
+      body: "{\"issuer\":\"https://evil.example.com\",\"authorization_endpoint\":\"https://evil.example.com/authorize\",\"token_endpoint\":\"https://evil.example.com/token\",\"userinfo_endpoint\":\"https://evil.example.com/userinfo\",\"jwks_uri\":\"https://evil.example.com/keys\",\"id_token_signing_alg_values_supported\":[\"RS256\"]}",
+    )
+  let assert Error(auth_error) =
+    vestibule_oidc.parse_discovery_response(
+      "https://accounts.example.com",
+      http_response,
+    )
+  assert error.kind(auth_error) == error.ConfigKind
+}
+
+pub fn sans_io_discovery_response_rejects_trailing_slash_mismatch_test() -> Nil {
+  let http_response =
+    response.Response(
+      status: 200,
+      headers: [],
+      body: "{\"issuer\":\"https://accounts.example.com/\",\"authorization_endpoint\":\"https://accounts.example.com/authorize\",\"token_endpoint\":\"https://accounts.example.com/token\",\"userinfo_endpoint\":\"https://accounts.example.com/userinfo\",\"jwks_uri\":\"https://accounts.example.com/keys\",\"id_token_signing_alg_values_supported\":[\"RS256\"]}",
     )
   let assert Error(auth_error) =
     vestibule_oidc.parse_discovery_response(
@@ -532,7 +570,11 @@ pub fn parse_token_response_error_without_description_test() -> Nil {
     }
     |> fn(actual) {
       assert actual
-        == error.provider(code: "invalid_grant", description: "", uri: None)
+        == error.provider(
+          code: "invalid_grant",
+          description: "Provider rejected the token request",
+          uri: None,
+        )
     }
   Nil
 }
@@ -763,7 +805,7 @@ pub fn strategy_from_config_authorize_url_test() -> Nil {
     config.new(
       client_id: "my-client-id",
       redirect_uri: "http://localhost/callback",
-      auth: config.ClientSecret("my-secret"),
+      auth: config.client_secret_auth("my-secret"),
     )
   let result =
     strategy.build_authorize_url(
@@ -816,7 +858,7 @@ pub fn strategy_from_config_authorize_url_with_extra_params_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "http://localhost/cb",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
     )
   let assert Ok(options) =
     config.authorize_options()
@@ -850,7 +892,7 @@ pub fn strategy_from_config_invalid_redirect_uri_returns_error_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "not a uri",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
     )
   let _ =
     strategy.build_authorize_url(
@@ -872,7 +914,7 @@ pub fn token_request_includes_client_secret_when_configured_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "https://app.example.com/callback",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
     )
 
   token_request.authorization_code(
@@ -883,25 +925,25 @@ pub fn token_request_includes_client_secret_when_configured_test() -> Nil {
   )
   |> fn(actual) {
     assert actual
-      == [
+      == Ok([
         #("grant_type", "authorization_code"),
         #("code", "code-123"),
         #("redirect_uri", "https://app.example.com/callback"),
         #("client_id", "client-id"),
         #("client_secret", "secret"),
         #("code_verifier", "verifier-123"),
-      ]
+      ])
   }
 
   token_request.refresh(client_config, refresh_token: "refresh-123")
   |> fn(actual) {
     assert actual
-      == [
+      == Ok([
         #("grant_type", "refresh_token"),
         #("refresh_token", "refresh-123"),
         #("client_id", "client-id"),
         #("client_secret", "secret"),
-      ]
+      ])
   }
 }
 
@@ -910,7 +952,7 @@ pub fn token_request_omits_client_secret_for_public_client_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "https://app.example.com/callback",
-      auth: config.PublicClient,
+      auth: config.public_client(),
     )
 
   token_request.authorization_code(
@@ -921,22 +963,22 @@ pub fn token_request_omits_client_secret_for_public_client_test() -> Nil {
   )
   |> fn(actual) {
     assert actual
-      == [
+      == Ok([
         #("grant_type", "authorization_code"),
         #("code", "code-123"),
         #("redirect_uri", "https://app.example.com/callback"),
         #("client_id", "client-id"),
-      ]
+      ])
   }
 
   token_request.refresh(client_config, refresh_token: "refresh-123")
   |> fn(actual) {
     assert actual
-      == [
+      == Ok([
         #("grant_type", "refresh_token"),
         #("refresh_token", "refresh-123"),
         #("client_id", "client-id"),
-      ]
+      ])
   }
 }
 
@@ -945,7 +987,7 @@ pub fn token_request_includes_client_assertion_without_secret_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "https://app.example.com/callback",
-      auth: config.ClientAssertion("assertion-jwt"),
+      auth: config.client_assertion_auth("assertion-jwt"),
     )
 
   token_request.authorization_code(
@@ -956,7 +998,7 @@ pub fn token_request_includes_client_assertion_without_secret_test() -> Nil {
   )
   |> fn(actual) {
     assert actual
-      == [
+      == Ok([
         #("grant_type", "authorization_code"),
         #("code", "code-123"),
         #("redirect_uri", "https://app.example.com/callback"),
@@ -966,13 +1008,13 @@ pub fn token_request_includes_client_assertion_without_secret_test() -> Nil {
           "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
         ),
         #("client_assertion", "assertion-jwt"),
-      ]
+      ])
   }
 
   token_request.refresh(client_config, refresh_token: "refresh-123")
   |> fn(actual) {
     assert actual
-      == [
+      == Ok([
         #("grant_type", "refresh_token"),
         #("refresh_token", "refresh-123"),
         #("client_id", "client-id"),
@@ -981,7 +1023,7 @@ pub fn token_request_includes_client_assertion_without_secret_test() -> Nil {
           "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
         ),
         #("client_assertion", "assertion-jwt"),
-      ]
+      ])
   }
 }
 
@@ -991,7 +1033,7 @@ pub fn sans_io_provider_requests_and_responses_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "https://app.example.com/callback",
-      auth: config.ClientAssertion("assertion-jwt"),
+      auth: config.client_assertion_auth("assertion-jwt"),
     )
   let assert Ok(token_http_request) =
     vestibule_oidc.build_authorization_code_request(

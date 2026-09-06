@@ -1,0 +1,3 @@
+package = "vestibule_oidc"
+kind = "Security"
+body = "Verify generic OIDC ID-token RS256 signatures and identity claims with bounded JWKS caching and one unknown-key refresh."

@@ -1,0 +1,3 @@
+package = "vestibule_apple"
+kind = "Security"
+body = "Refresh Apple signing keys on an unknown key ID and strengthen ID-token validation coverage."

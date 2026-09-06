@@ -32,7 +32,7 @@ code: |
     config.new(
       client_id: "your-client-id",
       redirect_uri: "https://myapp.example.com/auth/oidc/callback",
-      auth: config.ClientSecret("your-client-secret"),
+      auth: config.client_secret_auth("your-client-secret"),
     )
 
   let options = config.authorize_options()

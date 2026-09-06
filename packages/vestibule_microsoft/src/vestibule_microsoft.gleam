@@ -41,9 +41,13 @@ import vestibule/config.{type AuthorizeOptions, type ClientConfig}
 import vestibule/credential.{type Credentials}
 import vestibule/error.{type AuthError}
 import vestibule/logger
+import vestibule/oidc
 import vestibule/provider_support
 import vestibule/strategy.{type Strategy, type UserResult}
 import vestibule/user_info.{type UserInfo}
+
+const microsoft_jwks_url =
+  "https://login.microsoftonline.com/common/discovery/v2.0/keys"
 
 /// Create a Microsoft authentication strategy using the `/common` authority.
 ///
@@ -259,6 +263,24 @@ pub fn parse_user_info_response(
   provider_support.parse_json_response(http_response, parse_user_response)
 }
 
+/// Build Microsoft's OpenID Connect JWKS request without sending it.
+pub fn build_jwks_request() -> Result(request.Request(String), AuthError(e)) {
+  use http_request <- result.try(
+    request.to(microsoft_jwks_url)
+    |> result.replace_error(error.config(reason: "Invalid Microsoft JWKS URL")),
+  )
+  Ok(request.set_header(http_request, "accept", "application/json"))
+}
+
+/// Parse Microsoft's OpenID Connect JWKS response without performing I/O.
+pub fn parse_jwks_response(
+  http_response: response.Response(String),
+) -> Result(oidc.Jwks, AuthError(e)) {
+  use body <- result.try(provider_support.check_response_status(http_response))
+  oidc.parse_jwks(body)
+  |> result.map_error(oidc_auth_error)
+}
+
 fn do_authorize_url(
   authority: String,
   client_configuration: ClientConfig,
@@ -429,10 +451,14 @@ fn do_refresh_token(
 
 fn do_fetch_user(
   expected_tenant: Option(String),
-  _client_configuration: ClientConfig,
+  client_configuration: ClientConfig,
   exchange: strategy.ExchangeResult,
 ) -> Result(UserResult, AuthError(e)) {
-  use _ <- result.try(enforce_tenant(expected_tenant, exchange))
+  use verified_object_id <- result.try(verify_microsoft_exchange(
+    expected_tenant,
+    client_configuration,
+    exchange,
+  ))
   use user_info_request <- result.try(
     build_user_info_request(strategy.exchange_credentials(exchange)),
   )
@@ -445,34 +471,76 @@ fn do_fetch_user(
   use #(user_id, user_information) <- result.try(parse_user_info_response(
     user_info_response,
   ))
+  use _ <- result.try(case
+    string.lowercase(user_id) == string.lowercase(verified_object_id)
+  {
+    True -> Ok(Nil)
+    False ->
+      Error(error.user_info(
+        reason: "Microsoft Graph identity does not match the verified ID token",
+      ))
+  })
   Ok(strategy.user_result(
-    uid: user_id,
+    uid: verified_object_id,
     info: user_information,
     extra: dict.new(),
   ))
 }
 
-/// Enforce that the exchange's ID token was issued by the configured tenant.
-///
-/// Returns `Ok` immediately for multi-tenant (`/common`) strategies. For
-/// tenant-locked strategies, requires an `id_token` artifact and verifies its
-/// `tid` claim against the configured tenant, failing closed when the token is
-/// absent or belongs to a different tenant.
-fn enforce_tenant(
+fn verify_microsoft_exchange(
   expected_tenant: Option(String),
+  client_configuration: ClientConfig,
   exchange: strategy.ExchangeResult,
-) -> Result(Nil, AuthError(e)) {
-  case expected_tenant {
-    None -> Ok(Nil)
-    Some(tenant_id) -> {
-      use id_token <- result.try(exchange_id_token(exchange))
-      use _ <- result.try(verify_tenant(
-        expected_tenant: tenant_id,
-        id_token: id_token,
+) -> Result(String, AuthError(e)) {
+  use id_token <- result.try(exchange_id_token(exchange))
+  use tenant_for_issuer <- result.try(case expected_tenant {
+    Some(tenant_id) -> Ok(string.lowercase(tenant_id))
+    None -> untrusted_id_token_tenant(id_token) |> result.map(string.lowercase)
+  })
+  use jwks <- result.try(fetch_microsoft_jwks())
+  use verified <- result.try(
+    oidc.verify_rs256(
+      token: id_token,
+      using: jwks,
+      issuer: "https://login.microsoftonline.com/"
+        <> tenant_for_issuer
+        <> "/v2.0",
+      audience: config.client_id(client_configuration),
+      expected_nonce: None,
+    )
+    |> result.map_error(oidc_auth_error),
+  )
+  use verified_tenant <- result.try(
+    oidc.string_claim(verified, "tid")
+    |> result.map_error(oidc_auth_error),
+  )
+  use object_id <- result.try(
+    oidc.string_claim(verified, "oid")
+    |> result.map_error(oidc_auth_error),
+  )
+  use _ <- result.try(case
+    string.trim(verified_tenant),
+    string.trim(object_id),
+    string.lowercase(verified_tenant) == tenant_for_issuer
+  {
+    "", _, _ | _, "", _ | _, _, False ->
+      Error(error.user_info(
+        reason: "Microsoft ID token identity claims are invalid",
       ))
-      Ok(Nil)
-    }
-  }
+    _, _, True -> Ok(Nil)
+  })
+  use _ <- result.try(case expected_tenant {
+    Some(tenant_id) ->
+      case string.lowercase(tenant_id) == string.lowercase(verified_tenant) {
+        True -> Ok(Nil)
+        False ->
+          Error(error.user_info(
+            reason: "Microsoft ID token tenant does not match this strategy",
+          ))
+      }
+    None -> Ok(Nil)
+  })
+  Ok(object_id)
 }
 
 fn exchange_id_token(
@@ -495,39 +563,18 @@ fn exchange_id_token(
   }
 }
 
-/// Verify that a Microsoft OpenID Connect ID token was issued by the expected
-/// tenant.
-///
-/// Reads the `tid` (tenant id) claim from the ID token payload and compares it,
-/// case-insensitively, against `expected_tenant`. Returns the token's `tid` on
-/// success, or an `AuthError` when the claim is missing, malformed, or belongs
-/// to a different tenant.
-///
-/// The ID token is delivered to the client over the back-channel directly from
-/// Microsoft's token endpoint over TLS, so its payload is trusted without a
-/// separate JWKS signature check (OpenID Connect Core 1.0, section 3.1.3.7).
-pub fn verify_tenant(
-  expected_tenant expected_tenant: String,
-  id_token id_token: String,
-) -> Result(String, AuthError(e)) {
-  use tenant_id <- result.try(id_token_tenant(id_token))
-  case string.lowercase(tenant_id) == string.lowercase(expected_tenant) {
-    True -> Ok(tenant_id)
-    False ->
-      Error(error.user_info(
-        reason: "Microsoft tenant mismatch: ID token was issued by tenant "
-        <> tenant_id
-        <> " but this strategy is locked to tenant "
-        <> expected_tenant,
-      ))
-  }
+fn fetch_microsoft_jwks() -> Result(oidc.Jwks, AuthError(e)) {
+  use http_request <- result.try(build_jwks_request())
+  httpc.send(http_request)
+  |> result.replace_error(error.network(
+    reason: "Failed to connect to Microsoft JWKS endpoint",
+  ))
+  |> result.then(parse_jwks_response)
 }
 
-/// Extract the `tid` (tenant id) claim from a Microsoft ID token's payload.
-///
-/// Decodes the JWT payload segment (base64url) and reads the `tid` claim. Does
-/// not verify the JWT signature — see `verify_tenant` for the trust rationale.
-pub fn id_token_tenant(id_token: String) -> Result(String, AuthError(e)) {
+// Used only to select the tenant-specific issuer before signature validation.
+// The same `tid` is required again from the verified token.
+fn untrusted_id_token_tenant(id_token: String) -> Result(String, AuthError(e)) {
   use payload <- result.try(decode_jwt_payload(id_token))
   let decoder = {
     use tenant_id <- decode.optional_field(
@@ -537,6 +584,7 @@ pub fn id_token_tenant(id_token: String) -> Result(String, AuthError(e)) {
     )
     decode.success(tenant_id)
   }
+
   case json.parse(payload, decoder) {
     Ok(Some(tenant_id)) -> Ok(tenant_id)
     Ok(None) ->
@@ -548,6 +596,10 @@ pub fn id_token_tenant(id_token: String) -> Result(String, AuthError(e)) {
         reason: "Failed to parse Microsoft ID token payload",
       ))
   }
+}
+
+fn oidc_auth_error(verification_error: oidc.VerificationError) -> AuthError(e) {
+  error.user_info(reason: oidc.error_message(verification_error))
 }
 
 fn decode_jwt_payload(id_token: String) -> Result(String, AuthError(e)) {

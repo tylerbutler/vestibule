@@ -147,7 +147,7 @@ pub fn create_authorization_request_returns_authorization_request_test() -> Nil 
   let client_config =
     config.new(
       client_id: "id",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
       redirect_uri: "http://localhost/cb",
     )
   let assert Ok(authorization_request_value) =
@@ -179,7 +179,7 @@ pub fn create_authorization_request_emits_nonce_for_oidc_strategy_test() -> Nil 
   let client_config =
     config.new(
       client_id: "id",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
       redirect_uri: "http://localhost/cb",
     )
   let assert Ok(authorization_request_value) =
@@ -201,7 +201,7 @@ pub fn create_authorization_request_appends_pkce_before_url_fragment_test() -> N
   let client_config =
     config.new(
       client_id: "id",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
       redirect_uri: "http://localhost/cb",
     )
   let assert Ok(authorization_request_value) =
@@ -221,7 +221,7 @@ pub fn create_authorization_request_uses_config_scopes_when_present_test() -> Ni
   let client_config =
     config.new(
       client_id: "id",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
       redirect_uri: "http://localhost/cb",
     )
   let options =
@@ -243,7 +243,7 @@ pub fn create_authorization_request_uses_default_scopes_when_config_empty_test()
   let client_config =
     config.new(
       client_id: "id",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
       redirect_uri: "http://localhost/cb",
     )
   let assert Ok(authorization_request_value) =
@@ -261,7 +261,7 @@ pub fn handle_callback_succeeds_with_valid_parameters_test() -> Nil {
   let client_config =
     config.new(
       client_id: "id",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
       redirect_uri: "http://localhost/cb",
     )
   let state = "test_state_value"
@@ -287,7 +287,7 @@ pub fn handle_callback_populates_auth_extra_from_strategy_user_result_test() -> 
   let client_config =
     config.new(
       client_id: "id",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
       redirect_uri: "http://localhost/cb",
     )
   let state = "test_state_value"
@@ -310,7 +310,7 @@ pub fn handle_callback_passes_exchange_artifacts_to_fetch_user_test() -> Nil {
   let client_config =
     config.new(
       client_id: "id",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
       redirect_uri: "http://localhost/cb",
     )
   let state = "test_state_value"
@@ -335,7 +335,7 @@ pub fn refresh_token_delegates_to_strategy_refresh_token_test() -> Nil {
   let client_config =
     config.new(
       client_id: "client-id",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
       redirect_uri: "http://localhost/cb",
     )
 
@@ -362,7 +362,7 @@ pub fn handle_callback_fails_on_state_mismatch_test() -> Nil {
   let client_config =
     config.new(
       client_id: "id",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
       redirect_uri: "http://localhost/cb",
     )
   let parameters =
@@ -385,7 +385,7 @@ pub fn missing_callback_state_is_structured_test() -> Nil {
   let client_config =
     config.new(
       client_id: "id",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
       redirect_uri: "http://localhost/cb",
     )
   let parameters = dict.from_list([#("code", "valid_code")])
@@ -407,7 +407,7 @@ pub fn handle_callback_fails_on_missing_code_test() -> Nil {
   let client_config =
     config.new(
       client_id: "id",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
       redirect_uri: "http://localhost/cb",
     )
   let state = "test_state"
@@ -430,7 +430,7 @@ pub fn missing_callback_code_is_structured_test() -> Nil {
   let client_config =
     config.new(
       client_id: "id",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
       redirect_uri: "http://localhost/cb",
     )
   let state = "test_state"
@@ -453,7 +453,7 @@ pub fn logging_does_not_change_core_result_shapes_test() -> Nil {
   let client_config =
     config.new(
       client_id: "id",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
       redirect_uri: "http://localhost/cb",
     )
   let assert Ok(authorization_request_value) =
@@ -572,7 +572,7 @@ fn make_id_token(payload_json: String) -> String {
 fn nonce_config() -> config.ClientConfig {
   config.new(
     client_id: "id",
-    auth: config.ClientSecret("secret"),
+    auth: config.client_secret_auth("secret"),
     redirect_uri: "http://localhost/cb",
   )
 }

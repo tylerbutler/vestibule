@@ -64,7 +64,7 @@ import vestibule_indieauth/url
 ///   config.new(
 ///     client_id: "https://myapp.com/",
 ///     redirect_uri: "https://myapp.com/callback",
-///     auth: config.PublicClient,
+///     auth: config.public_client(),
 ///   )
 /// let options = config.authorize_options()
 /// let assert Ok(authorization_request) =
@@ -187,22 +187,28 @@ pub fn parse_endpoints(
 /// Use this with `discover_endpoints` when you want to separate
 /// discovery from strategy creation.
 pub fn strategy(endpoints: DiscoveredEndpoints, me: String) -> Strategy(e) {
-  strategy.new(
-    provider: "indieauth",
-    default_scopes: ["profile"],
-    authorize_url: fn(client_config, options, scopes, state) {
-      do_authorize_url(endpoints, me, client_config, options, scopes, state)
-    },
-    exchange_code: fn(client_config, code, code_verifier) {
-      do_exchange_code(endpoints, client_config, code, code_verifier)
-    },
-    fetch_user: fn(_client_config, exchange) {
-      do_fetch_user(endpoints, me, exchange)
-    },
-  )
-  |> strategy.with_refresh(fn(client_config, refresh_token) {
-    do_refresh_token(endpoints, client_config, refresh_token)
-  })
+  let discovered_strategy =
+    strategy.new(
+      provider: "indieauth",
+      default_scopes: ["profile"],
+      authorize_url: fn(client_config, options, scopes, state) {
+        do_authorize_url(endpoints, me, client_config, options, scopes, state)
+      },
+      exchange_code: fn(client_config, code, code_verifier) {
+        do_exchange_code(endpoints, client_config, code, code_verifier)
+      },
+      fetch_user: fn(_client_config, exchange) {
+        do_fetch_user(endpoints, me, exchange)
+      },
+    )
+    |> strategy.with_refresh(fn(client_config, refresh_token) {
+      do_refresh_token(endpoints, client_config, refresh_token)
+    })
+
+  case endpoints.issuer {
+    Some(issuer) -> strategy.with_callback_issuer(discovered_strategy, issuer)
+    None -> discovered_strategy
+  }
 }
 
 fn do_authorize_url(

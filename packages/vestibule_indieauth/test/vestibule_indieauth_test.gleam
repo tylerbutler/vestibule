@@ -30,7 +30,7 @@ pub fn authorize_url_includes_extra_params_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "http://localhost/callback",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
     )
   let assert Ok(options) =
     config.authorize_options()
@@ -65,7 +65,7 @@ pub fn authorize_url_rejects_me_extra_param_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "http://localhost/callback",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
     )
   let assert Ok(options) =
     config.authorize_options()
@@ -96,6 +96,26 @@ pub fn authorize_url_rejects_me_extra_param_test() -> Nil {
   }
 }
 
+pub fn metadata_issuer_is_bound_to_callback_test() -> Nil {
+  let endpoints =
+    DiscoveredEndpoints(
+      authorization_endpoint: "https://auth.example.com/authorize",
+      token_endpoint: "https://auth.example.com/token",
+      issuer: option.Some("https://auth.example.com/"),
+      userinfo_endpoint: None,
+    )
+  let indieauth_strategy =
+    vestibule_indieauth.strategy(endpoints, "https://me.example.com/")
+  assert strategy.callback_issuer(indieauth_strategy)
+    == option.Some("https://auth.example.com/")
+}
+
+pub fn legacy_discovery_does_not_require_callback_issuer_test() -> Nil {
+  let indieauth_strategy =
+    vestibule_indieauth.strategy(test_endpoints(), "https://me.example.com/")
+  assert strategy.callback_issuer(indieauth_strategy) == None
+}
+
 // === fetch_user: profile URL verification ===
 
 fn test_endpoints() -> DiscoveredEndpoints {
@@ -111,7 +131,7 @@ fn test_client_config() -> config.ClientConfig {
   config.new(
     client_id: "https://app.example.com/",
     redirect_uri: "https://app.example.com/callback",
-    auth: config.PublicClient,
+    auth: config.public_client(),
   )
 }
 

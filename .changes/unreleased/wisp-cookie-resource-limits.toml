@@ -1,0 +1,3 @@
+package = "vestibule_wisp"
+kind = "Security"
+body = "Reject duplicate session cookies and callback parameters, cap callback bodies at 64 KiB before parsing, verify cookies before reading POST bodies, expire completed in-flight cookies, and add bounded authorization admission."

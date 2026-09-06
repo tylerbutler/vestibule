@@ -10,7 +10,7 @@ useWhen: Use IndieAuth if users sign in with their own domains instead of a cent
 defaultScopes: "profile"
 setup:
   - Host your application at a stable HTTPS URL. This URL is your client_id.
-  - "Use `auth: config.PublicClient`. IndieAuth clients are public and do not send a client secret."
+  - "Use `auth: config.public_client()`. IndieAuth clients are public and do not send a client secret."
   - Register the redirect URI your app uses for the callback.
   - Call discover with the user-supplied profile URL before starting the flow.
 highlights:
@@ -33,7 +33,7 @@ code: |
     config.new(
       client_id: "https://myapp.example.com/",
       redirect_uri: "https://myapp.example.com/auth/indieauth/callback",
-      auth: config.PublicClient,
+      auth: config.public_client(),
     )
 
   let options = config.authorize_options()

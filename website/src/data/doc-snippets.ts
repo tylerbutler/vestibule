@@ -20,7 +20,7 @@ let client_config =
   config.new(
     client_id: "client_id",
     redirect_uri: "http://localhost:8000/auth/github/callback",
-    auth: config.ClientSecret("client_secret"),
+    auth: config.client_secret_auth("client_secret"),
   )
 
 let options = config.authorize_options()
@@ -82,7 +82,7 @@ let assert Ok(registry) =
     config.new(
       client_id: "client_id",
       redirect_uri: "http://localhost:8000/auth/github/callback",
-      auth: config.ClientSecret("client_secret"),
+      auth: config.client_secret_auth("client_secret"),
     ),
   )
 
@@ -169,7 +169,7 @@ let client_config =
   config.new(
     client_id: "your-client-id",
     redirect_uri: "http://localhost:8000/auth/oidc/callback",
-    auth: config.ClientSecret("your-client-secret"),
+    auth: config.client_secret_auth("your-client-secret"),
   )
 
 let options = config.authorize_options()
