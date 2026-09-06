@@ -63,6 +63,8 @@ import {
       <p>
         Register the strategies once. Initialize the state store once. Then
         route the request and callback paths to the middleware.
+        For Wisp, supply a stable client key from the direct peer or a trusted
+        edge. Do not derive it from unvalidated forwarded headers.
       </p>
       <p>
         <strong>What to notice:</strong> the request route stores temporary
@@ -119,8 +121,9 @@ import {
         <code>authorization_request.state(auth_request)</code> and{" "}
         <code>authorization_request.code_verifier(auth_request)</code>. Then
         redirect to <code>authorization_request.url(auth_request)</code>.
-        Supply the stored values during callback validation. Delete them after
-        a successful callback.
+        Validate the provider and callback state, then atomically consume the
+        stored flow before calling <code>handle_callback</code>. Pass the
+        consumed values to that function.
       </p>
       <p>
         <strong>What to notice:</strong> use an assertion only when you create
@@ -136,9 +139,9 @@ import {
         </li>
         <li>
           <strong>Do not reuse stored callback data.</strong>
-          Delete the stored values after a successful callback. Expire unused
-          values quickly. A state mismatch must not delete a valid login
-          session.
+          Atomically consume the stored values before token exchange. Do not
+          restore them after a failure. Expire unused values quickly. A state
+          mismatch must not delete a valid login session.
         </li>
         <li>
           <strong>Never assert the callback result.</strong>

@@ -4,7 +4,7 @@ description: "Provider-strategy interface. A `Strategy(e)` is an opaque record b
 nav:
   group: Reference
   groupOrder: 20
-  order: 21
+  order: 22
   label: "vestibule/strategy"
 toc:
   - href: "#types"
@@ -123,6 +123,14 @@ pub fn build_authorize_url(
   scopes: List(String),
   state: String
 ) -> Result(String, error.AuthError(a))
+```
+
+### `callback_issuer`
+
+Return the required authorization-response issuer, if configured.
+
+```gleam
+pub fn callback_issuer(Strategy(a)) -> option.Option(String)
 ```
 
 ### `default_scopes`
@@ -299,6 +307,20 @@ Whether this strategy uses the OIDC `nonce` (generate + validate).
 
 ```gleam
 pub fn uses_nonce(Strategy(a)) -> Bool
+```
+
+### `with_callback_issuer`
+
+Require the authorization response's `iss` parameter to match this issuer.
+
+Use this when the provider's protocol or metadata requires issuer
+identification in authorization responses. The comparison is exact.
+
+```gleam
+pub fn with_callback_issuer(
+  Strategy(a),
+  String
+) -> Strategy(a)
 ```
 
 ### `with_nonce`

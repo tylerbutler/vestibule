@@ -41,8 +41,9 @@ let params =
     #("code", "authorization code from callback"),
   ])
 
-// Validate the callback. Never assert here: state can mismatch and
-// providers can reject the user.
+// Validate and atomically consume the stored session before this call.
+// Pass the consumed state and verifier; do not restore them after failure.
+// Never assert the callback result.
 case
   vestibule.handle_callback(
     strategy,
@@ -54,8 +55,7 @@ case
   )
 {
   Ok(auth) -> {
-    // Delete the stored state and code_verifier, then map auth.uid(auth)
-    // to an account and start a session.
+    // Map auth.uid(auth) to an account and start a session.
     sign_in(auth)
   }
   // Possible CSRF or a stale tab: discard and restart the flow.
@@ -88,31 +88,26 @@ let assert Ok(registry) =
 
 let assert Ok(store) = state_store.create()
 
+// Supply client_key from the direct peer or a trusted edge.
+// Do not use unvalidated Forwarded or X-Forwarded-For headers.
 case wisp.path_segments(req), req.method {
   ["auth", provider], http.Get ->
-    vestibule_wisp.request_phase(
+    vestibule_wisp.request_phase_for_client(
       req,
-      registry,
-      provider,
-      store,
+      registry: registry,
+      provider: provider,
+      state_store: store,
       authorize_options: config.authorize_options(),
+      client_key: client_key,
     )
 
   ["auth", provider, "callback"], http.Get
   | ["auth", provider, "callback"], http.Post ->
-    case vestibule_wisp.callback_phase_auth_result(req, registry, provider, store) {
-      // auth.uid(auth) identifies the user: map it to an account, then
-      // start your own session.
-      Ok(auth) -> start_session(auth)
-
-      // Benign: a stale tab, back button, or already-used callback.
-      Error(vestibule_wisp.SessionUnavailable) ->
-        wisp.redirect("/login?error=expired")
-
-      // Everything else (forged state, provider rejection, bad params).
-      Error(_) ->
-        wisp.redirect("/login?error=auth")
-    }
+    vestibule_wisp.callback_phase(req, registry, provider, store, fn(auth) {
+      // The response wrapper handles the in-flight cookie lifecycle.
+      // Map auth.uid(auth) to an account and start your own session.
+      start_session(auth)
+    })
 
   _, _ ->
     wisp.not_found()
@@ -122,6 +117,7 @@ export const callbackFailureCode = `import gleam/option
 import vestibule
 import vestibule/error
 
+// Validate and atomically consume the stored flow before this call.
 case
   vestibule.handle_callback(
     strategy,
