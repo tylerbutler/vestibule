@@ -5,7 +5,8 @@
          owner_death_during_call_is_controlled/0, consume_after_expiry/3,
          format_store_entry/2, delayed_consume_rejects_expired/0,
          timed_out_insert_does_not_commit/0,
-         post_check_timeout_rolls_back_insert/0]).
+         post_check_timeout_rolls_back_insert/0,
+         delayed_confirmation_keeps_committed_insert/0]).
 
 state_store_survives_creator_process_exit() ->
     Name = <<"vestibule_owner_lifetime_test">>,
@@ -179,6 +180,7 @@ post_check_timeout_rolls_back_insert() ->
     true = erlang:suspend_process(Owner),
     wait_until_ms_after(Deadline),
     true = erlang:resume_process(Owner),
+    receive {Ref, {error, <<"timeout">>}} -> ok after 1000 -> error(no_timeout) end,
     Missing = case vestibule_state_store_ffi:lookup(Store, Key) of
         {error, nil} -> true;
         _ -> false
@@ -190,6 +192,44 @@ post_check_timeout_rolls_back_insert() ->
     Replacement = vestibule_state_store_ffi:insert(
         Store, <<"replacement">>, <<"client">>, Value),
     Missing andalso CountReconciled andalso Replacement =:= {ok, nil}.
+
+delayed_confirmation_keeps_committed_insert() ->
+    Name = <<"vestibule_delayed_insert_confirmation_test">>,
+    Key = <<"session">>,
+    {ok, Store} = vestibule_state_store_ffi:create_table(Name, 8, 1),
+    Owner = whereis(vestibule_state_store_owner),
+    Deadline = erlang:monotonic_time(millisecond) + 100,
+    Value = {session_state, <<"test">>, <<"state">>, <<"verifier">>, none,
+             erlang:monotonic_time(second) + 600},
+    Parent = self(),
+    Caller = spawn(fun() ->
+        Ref = make_ref(),
+        Owner ! {self(), Ref,
+                 {insert, Store, Key, <<"client">>, Value, Deadline}},
+        receive {Ref, insert_provisional} -> ok end,
+        Owner ! {self(), Ref, insert_ack},
+        Barrier = make_ref(),
+        Owner ! {self(), Barrier, {count, Store}},
+        receive {Barrier, {ok, 1}} -> ok end,
+        Parent ! {confirmation_queued, self()},
+        receive continue -> ok end,
+        Parent ! {delayed_result,
+                  receive
+                      {Ref, {insert_confirmed, Reply}} -> Reply;
+                      {Ref, Reply} -> Reply
+                  after 0 ->
+                      missing
+                  end}
+    end),
+    receive {confirmation_queued, Caller} -> ok end,
+    wait_until_ms_after(Deadline),
+    Caller ! continue,
+    Result = receive {delayed_result, Reply} -> Reply after 1000 -> missing end,
+    Stored = case vestibule_state_store_ffi:lookup(Store, Key) of
+        {ok, Value} -> true;
+        _ -> false
+    end,
+    Result =:= {ok, nil} andalso Stored.
 
 wait_until_ms_after(Deadline) ->
     case erlang:monotonic_time(millisecond) > Deadline of

@@ -80,7 +80,7 @@ await_insert_provisional(Pid, Ref, Monitor, Deadline) ->
     receive
         {Ref, insert_provisional} ->
             Pid ! {self(), Ref, insert_ack},
-            await_insert_confirmation(Pid, Ref, Monitor, Deadline);
+            await_insert_confirmation(Pid, Ref, Monitor);
         {Ref, Reply} ->
             erlang:demonitor(Monitor, [flush]),
             Reply;
@@ -92,10 +92,9 @@ await_insert_provisional(Pid, Ref, Monitor, Deadline) ->
         {error, <<"timeout">>}
     end.
 
-await_insert_confirmation(Pid, Ref, Monitor, Deadline) ->
+await_insert_confirmation(Pid, Ref, Monitor) ->
     receive
         {Ref, {insert_confirmed, Reply}} ->
-            Pid ! {self(), Ref, insert_received},
             erlang:demonitor(Monitor, [flush]),
             Reply;
         {Ref, Reply} ->
@@ -103,10 +102,6 @@ await_insert_confirmation(Pid, Ref, Monitor, Deadline) ->
             Reply;
         {'DOWN', Monitor, process, Pid, _Reason} ->
             {error, <<"owner_unavailable">>}
-    after remaining_ms(Deadline) ->
-        Pid ! {self(), Ref, insert_cancel},
-        erlang:demonitor(Monitor, [flush]),
-        {error, <<"timeout">>}
     end.
 
 remaining_ms(Deadline) ->
@@ -138,21 +133,66 @@ ensure_owner() ->
 %% Tables maps a table name to
 %% {SessionTable, ClientCountTable, MaxEntries, MaxEntriesPerClient}.
 loop(Tables) ->
+    loop(Tables, #{}).
+
+loop(Tables, Pending) ->
     receive
+        {From, Ref, insert_ack} ->
+            case maps:take(Ref, Pending) of
+                {{From, Monitor, Deadline, Handle, Key}, Pending2} ->
+                    erlang:demonitor(Monitor, [flush]),
+                    case erlang:monotonic_time(millisecond) >= Deadline of
+                        true ->
+                            rollback_insert(Handle, Key, Tables),
+                            From ! {Ref, {error, <<"timeout">>}};
+                        false ->
+                            From ! {Ref, {insert_confirmed, {ok, nil}}}
+                    end,
+                    loop(Tables, Pending2);
+                _ ->
+                    loop(Tables, Pending)
+            end;
+        {From, Ref, insert_cancel} ->
+            case maps:take(Ref, Pending) of
+                {{From, Monitor, _Deadline, Handle, Key}, Pending2} ->
+                    erlang:demonitor(Monitor, [flush]),
+                    rollback_insert(Handle, Key, Tables),
+                    loop(Tables, Pending2);
+                _ ->
+                    loop(Tables, Pending)
+            end;
+        {insert_deadline, Ref} ->
+            case maps:take(Ref, Pending) of
+                {{From, Monitor, _Deadline, Handle, Key}, Pending2} ->
+                    erlang:demonitor(Monitor, [flush]),
+                    rollback_insert(Handle, Key, Tables),
+                    From ! {Ref, {error, <<"timeout">>}},
+                    loop(Tables, Pending2);
+                error ->
+                    loop(Tables, Pending)
+            end;
+        {'DOWN', Monitor, process, _Pid, _Reason} ->
+            case take_pending_by_monitor(Monitor, maps:to_list(Pending)) of
+                {ok, Ref, {_From, Monitor, _Deadline, Handle, Key}} ->
+                    rollback_insert(Handle, Key, Tables),
+                    loop(Tables, maps:remove(Ref, Pending));
+                error ->
+                    loop(Tables, Pending)
+            end;
         {From, Ref, {create, Name, MaxEntries, MaxEntriesPerClient}} ->
             case maps:is_key(Name, Tables) of
                 true ->
                     From ! {Ref, {error, <<"table_already_exists">>}},
-                    loop(Tables);
+                    loop(Tables, Pending);
                 false ->
                     case new_table(Name, MaxEntries, MaxEntriesPerClient, Tables) of
                         {ok, Tables2} ->
                             From ! {Ref, {ok, {Name, MaxEntries,
                                                MaxEntriesPerClient}}},
-                            loop(Tables2);
+                            loop(Tables2, Pending);
                         error ->
                             From ! {Ref, {error, <<"table_create_failed">>}},
-                            loop(Tables)
+                            loop(Tables, Pending)
                     end
             end;
         {From, Ref, {insert, Handle, Key, ClientKey, Value, Deadline}} ->
@@ -167,17 +207,22 @@ loop(Tables) ->
                 end,
             case Reply of
                 {ok, nil} ->
+                    Monitor = erlang:monitor(process, From),
+                    erlang:send_after(
+                        remaining_ms(Deadline),
+                        self(),
+                        {insert_deadline, Ref}
+                    ),
                     From ! {Ref, insert_provisional},
-                    case confirm_insert(From, Ref, Deadline) of
-                        confirmed ->
-                            loop(Tables2);
-                        abandoned ->
-                            rollback_insert(Handle, Key, Tables2),
-                            loop(Tables2)
-                    end;
+                    Pending2 = maps:put(
+                        Ref,
+                        {From, Monitor, Deadline, Handle, Key},
+                        Pending
+                    ),
+                    loop(Tables2, Pending2);
                 _ ->
                     From ! {Ref, Reply},
-                    loop(Tables2)
+                    loop(Tables2, Pending)
             end;
         {From, Ref, {take, Handle, Key}} ->
             {Reply, Tables2} = with_table(Handle, Tables, fun(Table, Counts, _, _) ->
@@ -189,17 +234,17 @@ loop(Tables) ->
                 end
             end),
             From ! {Ref, Reply},
-            loop(Tables2);
+            loop(Tables2, Pending);
         {From, Ref, {take_for_provider, Handle, Key, Provider}} ->
             {Reply, Tables2} = take_for_provider_reply(
                 Handle, Key, Provider, monotonic_seconds(), Tables),
             From ! {Ref, Reply},
-            loop(Tables2);
+            loop(Tables2, Pending);
         {From, Ref, {take_for_provider, Handle, Key, Provider, Now}} ->
             {Reply, Tables2} = take_for_provider_reply(
                 Handle, Key, Provider, Now, Tables),
             From ! {Ref, Reply},
-            loop(Tables2);
+            loop(Tables2, Pending);
         {From, Ref, {lookup, Handle, Key}} ->
             {Reply, Tables2} = with_table(Handle, Tables, fun(Table, _, _, _) ->
                 case ets:lookup(Table, Key) of
@@ -208,7 +253,7 @@ loop(Tables) ->
                 end
             end),
             From ! {Ref, Reply},
-            loop(Tables2);
+            loop(Tables2, Pending);
         {From, Ref, {delete_key, Handle, Key}} ->
             {Reply, Tables2} = with_table(Handle, Tables, fun(Table, Counts, _, _) ->
                 case ets:take(Table, Key) of
@@ -219,19 +264,19 @@ loop(Tables) ->
                 {ok, nil}
             end),
             From ! {Ref, Reply},
-            loop(Tables2);
+            loop(Tables2, Pending);
         {From, Ref, {cleanup_expired, Handle}} ->
             {Reply, Tables2} = with_table(Handle, Tables, fun(Table, Counts, _, _) ->
                 {ok, sweep_expired(Table, Counts)}
             end),
             From ! {Ref, Reply},
-            loop(Tables2);
+            loop(Tables2, Pending);
         {From, Ref, {count, Handle}} ->
             {Reply, Tables2} = with_table(Handle, Tables, fun(Table, _, _, _) ->
                 {ok, ets:info(Table, size)}
             end),
             From ! {Ref, Reply},
-            loop(Tables2);
+            loop(Tables2, Pending);
         {sweep, Name} ->
             case maps:find(Name, Tables) of
                 {ok, {Table, Counts, _, _}} ->
@@ -240,45 +285,17 @@ loop(Tables) ->
                 error ->
                     ok
             end,
-            loop(Tables);
+            loop(Tables, Pending);
         _Unexpected ->
-            loop(Tables)
+            loop(Tables, Pending)
     end.
 
-confirm_insert(From, Ref, Deadline) ->
-    Monitor = erlang:monitor(process, From),
-    receive
-        {From, Ref, insert_ack} ->
-            case erlang:monotonic_time(millisecond) >= Deadline of
-                true ->
-                    From ! {Ref, {error, <<"timeout">>}},
-                    erlang:demonitor(Monitor, [flush]),
-                    abandoned;
-                false ->
-                    From ! {Ref, {insert_confirmed, {ok, nil}}},
-                    receive
-                        {From, Ref, insert_received} ->
-                            erlang:demonitor(Monitor, [flush]),
-                            confirmed;
-                        {From, Ref, insert_cancel} ->
-                            erlang:demonitor(Monitor, [flush]),
-                            abandoned;
-                        {'DOWN', Monitor, process, From, _Reason} ->
-                            abandoned
-                    after remaining_ms(Deadline) ->
-                        erlang:demonitor(Monitor, [flush]),
-                        abandoned
-                    end
-            end;
-        {From, Ref, insert_cancel} ->
-            erlang:demonitor(Monitor, [flush]),
-            abandoned;
-        {'DOWN', Monitor, process, From, _Reason} ->
-            abandoned
-    after remaining_ms(Deadline) ->
-        erlang:demonitor(Monitor, [flush]),
-        abandoned
-    end.
+take_pending_by_monitor(_Monitor, []) ->
+    error;
+take_pending_by_monitor(Monitor, [{Ref, {_, Monitor, _, _, _} = Value} | _]) ->
+    {ok, Ref, Value};
+take_pending_by_monitor(Monitor, [_ | Rest]) ->
+    take_pending_by_monitor(Monitor, Rest).
 
 rollback_insert({Name, _, _}, Key, Tables) ->
     case maps:find(Name, Tables) of

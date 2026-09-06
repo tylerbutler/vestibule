@@ -321,7 +321,7 @@ pub fn peek(
   session_id: String,
   provider provider: String,
 ) -> Result(#(String, String, Option(String)), Nil) {
-  peek_with_error(table, session_id, provider)
+  peek_with_error(table, session_id, provider: provider)
   |> result.map_error(fn(_) { Nil })
 }
 
