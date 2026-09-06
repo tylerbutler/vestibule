@@ -463,6 +463,10 @@ pub fn timed_out_insert_does_not_commit_later_test() -> Nil {
   assert timed_out_insert_does_not_commit()
 }
 
+pub fn post_check_timed_out_insert_rolls_back_entry_and_count_test() -> Nil {
+  assert post_check_timeout_rolls_back_insert()
+}
+
 pub fn store_persists_and_returns_nonce_test() -> Nil {
   let assert Ok(table) = state_store.create_named("test_store_nonce")
   let assert Ok(session_id) =
@@ -643,6 +647,9 @@ fn delayed_consume_rejects_expired() -> Bool
 
 @external(erlang, "vestibule_state_store_test_ffi", "timed_out_insert_does_not_commit")
 fn timed_out_insert_does_not_commit() -> Bool
+
+@external(erlang, "vestibule_state_store_test_ffi", "post_check_timeout_rolls_back_insert")
+fn post_check_timeout_rolls_back_insert() -> Bool
 
 @external(erlang, "vestibule_state_store_test_ffi", "owner_death_during_call_is_controlled")
 fn owner_death_during_call_is_controlled() -> Bool

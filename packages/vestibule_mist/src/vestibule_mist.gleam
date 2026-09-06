@@ -724,8 +724,12 @@ fn callback_cookie_is_terminal(
         )
       {
         Ok(session_id) ->
-          state_store.peek(store, session_id, provider: provider)
-          |> result.is_error
+          case
+            state_store.peek_with_error(store, session_id, provider: provider)
+          {
+            Ok(_) | Error(state_store.SessionProviderMismatch) -> False
+            Error(state_store.SessionMissing) -> True
+          }
         Error(_) -> True
       }
   }

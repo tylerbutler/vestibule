@@ -22,7 +22,7 @@ create_table(Name, MaxEntries, MaxEntriesPerClient) ->
 
 insert(Handle, Key, ClientKey, Value) ->
     Deadline = erlang:monotonic_time(millisecond) + ?CALL_TIMEOUT_MS,
-    call({insert, Handle, Key, ClientKey, Value, Deadline}).
+    call_insert({insert, Handle, Key, ClientKey, Value, Deadline}, Deadline).
 
 take(Handle, Key) ->
     call({take, Handle, Key}).
@@ -64,6 +64,53 @@ call(Request) ->
         error ->
             {error, <<"owner_init_failed">>}
     end.
+
+call_insert(Request, Deadline) ->
+    case ensure_owner() of
+        {ok, Pid} ->
+            Ref = make_ref(),
+            Monitor = erlang:monitor(process, Pid),
+            Pid ! {self(), Ref, Request},
+            await_insert_provisional(Pid, Ref, Monitor, Deadline);
+        error ->
+            {error, <<"owner_init_failed">>}
+    end.
+
+await_insert_provisional(Pid, Ref, Monitor, Deadline) ->
+    receive
+        {Ref, insert_provisional} ->
+            Pid ! {self(), Ref, insert_ack},
+            await_insert_confirmation(Pid, Ref, Monitor, Deadline);
+        {Ref, Reply} ->
+            erlang:demonitor(Monitor, [flush]),
+            Reply;
+        {'DOWN', Monitor, process, Pid, _Reason} ->
+            {error, <<"owner_unavailable">>}
+    after remaining_ms(Deadline) ->
+        Pid ! {self(), Ref, insert_cancel},
+        erlang:demonitor(Monitor, [flush]),
+        {error, <<"timeout">>}
+    end.
+
+await_insert_confirmation(Pid, Ref, Monitor, Deadline) ->
+    receive
+        {Ref, {insert_confirmed, Reply}} ->
+            Pid ! {self(), Ref, insert_received},
+            erlang:demonitor(Monitor, [flush]),
+            Reply;
+        {Ref, Reply} ->
+            erlang:demonitor(Monitor, [flush]),
+            Reply;
+        {'DOWN', Monitor, process, Pid, _Reason} ->
+            {error, <<"owner_unavailable">>}
+    after remaining_ms(Deadline) ->
+        Pid ! {self(), Ref, insert_cancel},
+        erlang:demonitor(Monitor, [flush]),
+        {error, <<"timeout">>}
+    end.
+
+remaining_ms(Deadline) ->
+    max(0, Deadline - erlang:monotonic_time(millisecond)).
 
 ensure_owner() ->
     case whereis(?SERVER) of
@@ -118,8 +165,20 @@ loop(Tables) ->
                                            Key, ClientKey, Value)
                         end)
                 end,
-            From ! {Ref, Reply},
-            loop(Tables2);
+            case Reply of
+                {ok, nil} ->
+                    From ! {Ref, insert_provisional},
+                    case confirm_insert(From, Ref, Deadline) of
+                        confirmed ->
+                            loop(Tables2);
+                        abandoned ->
+                            rollback_insert(Handle, Key, Tables2),
+                            loop(Tables2)
+                    end;
+                _ ->
+                    From ! {Ref, Reply},
+                    loop(Tables2)
+            end;
         {From, Ref, {take, Handle, Key}} ->
             {Reply, Tables2} = with_table(Handle, Tables, fun(Table, Counts, _, _) ->
                 case ets:take(Table, Key) of
@@ -185,6 +244,56 @@ loop(Tables) ->
         _Unexpected ->
             loop(Tables)
     end.
+
+confirm_insert(From, Ref, Deadline) ->
+    Monitor = erlang:monitor(process, From),
+    receive
+        {From, Ref, insert_ack} ->
+            case erlang:monotonic_time(millisecond) >= Deadline of
+                true ->
+                    From ! {Ref, {error, <<"timeout">>}},
+                    erlang:demonitor(Monitor, [flush]),
+                    abandoned;
+                false ->
+                    From ! {Ref, {insert_confirmed, {ok, nil}}},
+                    receive
+                        {From, Ref, insert_received} ->
+                            erlang:demonitor(Monitor, [flush]),
+                            confirmed;
+                        {From, Ref, insert_cancel} ->
+                            erlang:demonitor(Monitor, [flush]),
+                            abandoned;
+                        {'DOWN', Monitor, process, From, _Reason} ->
+                            abandoned
+                    after remaining_ms(Deadline) ->
+                        erlang:demonitor(Monitor, [flush]),
+                        abandoned
+                    end
+            end;
+        {From, Ref, insert_cancel} ->
+            erlang:demonitor(Monitor, [flush]),
+            abandoned;
+        {'DOWN', Monitor, process, From, _Reason} ->
+            abandoned
+    after remaining_ms(Deadline) ->
+        erlang:demonitor(Monitor, [flush]),
+        abandoned
+    end.
+
+rollback_insert({Name, _, _}, Key, Tables) ->
+    case maps:find(Name, Tables) of
+        {ok, {Table, Counts, _, _}} ->
+            case ets:take(Table, Key) of
+                [{Key, ClientKey, Value}] ->
+                    decrement_count(Counts, ClientKey, Value);
+                [] ->
+                    ok
+            end;
+        error ->
+            ok
+    end;
+rollback_insert(_, _, _) ->
+    ok.
 
 take_for_provider_reply(Handle, Key, Provider, Now, Tables) ->
             {Reply, Tables2} = with_table(Handle, Tables, fun(Table, Counts, _, _) ->

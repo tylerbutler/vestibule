@@ -4,7 +4,8 @@
          trigger_owner_sweep/1, kill_owner/0, concurrent_take_winner_count/0,
          owner_death_during_call_is_controlled/0, consume_after_expiry/3,
          format_store_entry/2, delayed_consume_rejects_expired/0,
-         timed_out_insert_does_not_commit/0]).
+         timed_out_insert_does_not_commit/0,
+         post_check_timeout_rolls_back_insert/0]).
 
 state_store_survives_creator_process_exit() ->
     Name = <<"vestibule_owner_lifetime_test">>,
@@ -162,6 +163,41 @@ timed_out_insert_does_not_commit() ->
         _ -> false
     end,
     TimedOut andalso Missing.
+
+post_check_timeout_rolls_back_insert() ->
+    Name = <<"vestibule_post_check_insert_timeout_test">>,
+    Key = <<"abandoned">>,
+    {ok, Store} = vestibule_state_store_ffi:create_table(Name, 8, 1),
+    Owner = whereis(vestibule_state_store_owner),
+    Deadline = erlang:monotonic_time(millisecond) + 100,
+    Value = {session_state, <<"test">>, <<"state">>, <<"verifier">>, none,
+             erlang:monotonic_time(second) + 600},
+    Ref = make_ref(),
+    Owner ! {self(), Ref,
+             {insert, Store, Key, <<"client">>, Value, Deadline}},
+    receive {Ref, insert_provisional} -> ok after 1000 -> error(no_provisional) end,
+    true = erlang:suspend_process(Owner),
+    wait_until_ms_after(Deadline),
+    true = erlang:resume_process(Owner),
+    Missing = case vestibule_state_store_ffi:lookup(Store, Key) of
+        {error, nil} -> true;
+        _ -> false
+    end,
+    CountReconciled = case vestibule_state_store_ffi:count(Store) of
+        {ok, 0} -> true;
+        _ -> false
+    end,
+    Replacement = vestibule_state_store_ffi:insert(
+        Store, <<"replacement">>, <<"client">>, Value),
+    Missing andalso CountReconciled andalso Replacement =:= {ok, nil}.
+
+wait_until_ms_after(Deadline) ->
+    case erlang:monotonic_time(millisecond) > Deadline of
+        true -> ok;
+        false ->
+            erlang:yield(),
+            wait_until_ms_after(Deadline)
+    end.
 
 owner_death_during_call_is_controlled() ->
     Name = <<"vestibule_owner_mid_call_test">>,

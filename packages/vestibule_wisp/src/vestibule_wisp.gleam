@@ -742,8 +742,16 @@ fn callback_cookie_is_terminal(
     Error(AuthFailed(_)) ->
       case get_signed_cookie(http_request, cookie_name(options)) {
         Ok(session_id) ->
-          state_store.peek(state_store, session_id, provider: provider)
-          |> result.is_error
+          case
+            state_store.peek_with_error(
+              state_store,
+              session_id,
+              provider: provider,
+            )
+          {
+            Ok(_) | Error(state_store.SessionProviderMismatch) -> False
+            Error(state_store.SessionMissing) -> True
+          }
         Error(_) -> True
       }
   }

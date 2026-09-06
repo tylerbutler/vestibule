@@ -522,6 +522,37 @@ pub fn wrong_provider_callback_preserves_cookie_and_session_test() -> Nil {
     == Ok(#("state", "verifier", option.None))
 }
 
+pub fn wrong_provider_callback_without_state_preserves_cookie_and_session_test() -> Nil {
+  let assert Ok(store) =
+    state_store.create_named("test_wisp_wrong_provider_missing_state")
+  let assert Ok(session_id) =
+    state_store.store(
+      store,
+      provider: "alpha",
+      state: "state",
+      code_verifier: "verifier",
+      nonce: option.None,
+    )
+  let assert Ok(registry) =
+    registry.new()
+    |> registry.register(
+      strategy: named_test_strategy("beta"),
+      config: test_config(),
+    )
+  let request =
+    simulate.request(http.Get, "/auth/beta/callback?code=junk")
+    |> simulate.cookie("__Host-vestibule_session", session_id, wisp.Signed)
+  let response =
+    vestibule_wisp.callback_phase(request, registry, "beta", store, fn(_) {
+      wisp.html_response("unexpected", 200)
+    })
+
+  assert response.status == 400
+  assert list.key_find(response.headers, "set-cookie") == Error(Nil)
+  assert state_store.consume(store, session_id, provider: "alpha")
+    == Ok(#("state", "verifier", option.None))
+}
+
 pub fn callback_post_body_limit_is_64_kib_test() -> Nil {
   let assert Ok(store) =
     state_store.create_named("test_callback_body_limit_exact")
