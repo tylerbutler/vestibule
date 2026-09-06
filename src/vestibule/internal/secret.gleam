@@ -1,11 +1,12 @@
-//// Wrapper for sensitive strings (bearer/refresh/id tokens) that must never
-//// appear in `string.inspect`, Erlang `~p` formatting, logs, or crash reports.
+//// Wrapper for sensitive strings that must not appear in `string.inspect` or
+//// Erlang `~p` formatting.
 ////
 //// The secret value is captured inside a closure. On the Erlang target a
-//// function is rendered as `//fn() { ... }` and its captured environment is
-//// never shown, so inspecting a value that holds a `Secret` redacts the
-//// underlying string instead of leaking it. Callers must opt in to the raw
-//// value through `expose`.
+//// function is rendered without its captured environment, so inspecting a
+//// value that holds a `Secret` redacts the underlying string. This reduces
+//// accidental disclosure through ordinary term rendering; it does not erase
+//// process memory or guarantee secrecy in VM dumps. Callers must opt in to the
+//// raw value through `expose`.
 
 /// An opaque holder for a sensitive string. Its `inspect`/debug rendering never
 /// reveals the wrapped value.

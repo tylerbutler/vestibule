@@ -366,7 +366,7 @@ let github = github.strategy()
 let config = config.new(
   client_id: "...",
   redirect_uri: "http://localhost:3000/auth/github/callback",
-  auth: config.ClientSecret("..."),
+  auth: config.client_secret_auth("..."),
 )
 
 // Level 2: Custom scopes
@@ -374,7 +374,7 @@ let config =
   config.new(
     client_id: "...",
     redirect_uri: "...",
-    auth: config.ClientSecret("..."),
+    auth: config.client_secret_auth("..."),
   )
 let options =
   config.authorize_options()
@@ -385,7 +385,7 @@ let config =
   config.new(
     client_id: "...",
     redirect_uri: "...",
-    auth: config.ClientSecret("..."),
+    auth: config.client_secret_auth("..."),
   )
 let assert Ok(options) =
   config.authorize_options()
@@ -646,7 +646,7 @@ pub fn setup() -> Context {
       config.new(
         client_id: "your_client_id",
         redirect_uri: "http://localhost:3000/auth/github/callback",
-        auth: config.ClientSecret("your_client_secret"),
+        auth: config.client_secret_auth("your_client_secret"),
       ),
     )
 

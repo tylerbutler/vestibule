@@ -51,7 +51,7 @@ let client_config =
   config.new(
     client_id: "client_id",
     redirect_uri: "http://localhost:8000/auth/github/callback",
-    auth: config.ClientSecret("client_secret"),
+    auth: config.client_secret_auth("client_secret"),
   )
 let options = config.authorize_options()
 
@@ -74,7 +74,9 @@ let params =
     #("code", "authorization code from callback"),
   ])
 
-let assert Ok(auth) =
+// Atomically validate and consume the stored session before this call.
+// Pass the consumed state and verifier; do not restore them after failure.
+case
   vestibule.handle_callback(
     strategy,
     client_config,
@@ -83,8 +85,10 @@ let assert Ok(auth) =
     "code verifier from session",
     expected_nonce: option.None,
   )
-// Delete the stored state and code verifier after a successful callback.
-// auth.uid(auth), user_info.email(auth.info(auth)), credential.token(auth.credentials(auth))
+{
+  Ok(auth) -> sign_in(auth)
+  Error(auth_error) -> show_auth_error(auth_error)
+}
 ```
 
 `ClientConfig` is durable app/provider configuration: client ID, redirect URI,
@@ -93,9 +97,10 @@ per-request authorization choices, such as scopes or provider-specific query
 parameters. Create fresh options for each authorization request.
 
 Store `state` and the PKCE `code_verifier` on the server, bound to the user's
-session. Expire them quickly, reject callbacks with missing or mismatched
-values, and delete both values after a successful callback so they cannot be
-replayed.
+session. Expire them quickly. Validate the provider and callback state, then
+atomically consume the stored values before calling `handle_callback`.
+Do not restore consumed values after a failure. A malformed callback or state
+mismatch must not delete a valid flow.
 
 Or use the `vestibule_wisp` middleware for a higher-level API:
 
@@ -116,20 +121,22 @@ let assert Ok(registry) =
     config.new(
       client_id: "client_id",
       redirect_uri: "http://localhost:8000/auth/github/callback",
-      auth: config.ClientSecret("client_secret"),
+      auth: config.client_secret_auth("client_secret"),
     ),
   )
 let assert Ok(store) = state_store.create()
 
-// In your router
+// In your router, client_key comes from the direct peer or a trusted edge.
+// Do not use unvalidated Forwarded or X-Forwarded-For headers.
 case wisp.path_segments(request), request.method {
   ["auth", provider], http.Get ->
-    vestibule_wisp.request_phase(
+    vestibule_wisp.request_phase_for_client(
       request,
-      registry,
-      provider,
-      store,
+      registry: registry,
+      provider: provider,
+      state_store: store,
       authorize_options: config.authorize_options(),
+      client_key: client_key,
     )
   // Accept both GET and POST — Apple uses response_mode=form_post
   ["auth", provider, "callback"], http.Get
@@ -149,8 +156,10 @@ duplicate-table errors explicitly. The same store can be shared between
 `vestibule_wisp` and `vestibule_mist`.
 
 Starting a flow is unauthenticated, so the store is bounded: it holds at most
-100 000 live sessions by default (`state_store.create_with_capacity` to
-change it) and refuses new flows with `StoreFull` once full. Expired sessions
+4 096 live sessions and eight per client by default. Use
+`state_store.create_with_limits` to change those limits. Wisp requires a trusted
+client key; Mist's default path uses the direct socket peer. Shared admission
+buckets require explicit opt-in. The store refuses new flows once full. Expired sessions
 are rejected on read, reclaimed on demand when the store is at capacity, and
 swept periodically; inserts are O(1). Rate-limit the request endpoint upstream
 if you need a stronger guarantee than the cap.
@@ -320,7 +329,7 @@ let client_config =
   config.new(
     client_id: "your-client-id",
     redirect_uri: "http://localhost:8000/auth/oidc/callback",
-    auth: config.ClientSecret("your-client-secret"),
+    auth: config.client_secret_auth("your-client-secret"),
   )
 let options = config.authorize_options()
 
@@ -385,9 +394,10 @@ found issues. Do not rely on vestibule to secure a production system.
 
 - **Persist `state` and `code_verifier`** server-side, bound to the
   user's session, with a short TTL. Reject callbacks that are missing
-  either, and **delete both after a successful callback** so they
-  cannot be replayed. The `vestibule_wisp` middleware handles this
-  via single-use ETS entries.
+  either. **Validate and atomically consume the stored values before
+  `handle_callback`**, so concurrent callbacks cannot reuse them.
+  Preserve valid flows on malformed callbacks or state mismatch.
+  The middleware handles this with single-use ETS entries.
 - **Redact `Credentials` and `Auth`** in logs and error reports.
   Access tokens, refresh tokens, and ID tokens are bearer credentials —
   treat them like passwords.

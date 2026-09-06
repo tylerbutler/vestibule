@@ -46,23 +46,27 @@ pub fn check_response_status_rejects_non_2xx_test() -> Nil {
     Error(auth_error) -> {
       assert error.kind(auth_error) == error.HttpKind
       assert error.http_status(auth_error) == Some(500)
-      assert error.http_summary(auth_error) == Some("boom")
+      assert error.http_summary(auth_error)
+        == Some("Provider returned a non-success HTTP response")
+      assert !string.contains(error.message(auth_error), "boom")
     }
     Ok(_) -> panic as "expected HttpError"
   }
 }
 
-pub fn http_error_truncates_long_body_test() -> Nil {
-  let long_body = string.repeat("x", 200)
+pub fn http_error_does_not_include_response_body_test() -> Nil {
+  let secret_body = string.repeat("secret-body-", 20)
   let result =
-    response.Response(status: 400, headers: [], body: long_body)
+    response.Response(status: 400, headers: [], body: secret_body)
     |> provider_support.check_response_status()
 
   case result {
     Error(auth_error) -> {
       assert error.http_status(auth_error) == Some(400)
       let summary = error.http_summary(auth_error) |> option.unwrap("")
-      assert string.length(summary) <= 120
+      assert summary == "Provider returned a non-success HTTP response"
+      assert !string.contains(error.message(auth_error), secret_body)
+      assert !string.contains(error.message(auth_error), "secret-body-")
     }
     Ok(_) -> panic as "expected HttpError"
   }
@@ -84,8 +88,9 @@ pub fn require_https_rejects_remote_http_test() -> Nil {
       assert error.kind(auth_error) == error.ConfigKind
       assert string.contains(
         error.message(auth_error),
-        "HTTPS required for endpoint URL: http://example.com",
+        "HTTPS required for endpoint URL",
       )
+      assert !string.contains(error.message(auth_error), "example.com")
     }
     Ok(_) -> panic as "expected ConfigError"
   }
@@ -99,8 +104,9 @@ pub fn require_https_rejects_https_without_host_test() -> Nil {
       assert error.kind(auth_error) == error.ConfigKind
       assert string.contains(
         error.message(auth_error),
-        "URL must include a host: https:///callback",
+        "URL must include a host",
       )
+      assert !string.contains(error.message(auth_error), "/callback")
     }
     Ok(_) -> panic as "expected ConfigError"
   }
@@ -191,8 +197,9 @@ pub fn parse_redirect_uri_rejects_remote_http_test() -> Nil {
       assert error.kind(auth_error) == error.ConfigKind
       assert string.contains(
         error.message(auth_error),
-        "Redirect URI must use HTTPS (except localhost): http://example.com/callback",
+        "Redirect URI must use HTTPS (except localhost)",
       )
+      assert !string.contains(error.message(auth_error), "example.com")
     }
     Ok(_) -> panic as "expected ConfigError"
   }
@@ -206,8 +213,9 @@ pub fn parse_redirect_uri_rejects_https_without_host_test() -> Nil {
       assert error.kind(auth_error) == error.ConfigKind
       assert string.contains(
         error.message(auth_error),
-        "Redirect URI must include a host: https:///callback",
+        "Redirect URI must include a host",
       )
+      assert !string.contains(error.message(auth_error), "/callback")
     }
     Ok(_) -> panic as "expected ConfigError"
   }
@@ -237,23 +245,64 @@ pub fn check_token_error_returns_provider_error_test() -> Nil {
   assert result
     == Error(error.provider(
       code: "invalid_grant",
-      description: "expired",
+      description: "Provider rejected the request",
       uri: None,
     ))
 }
 
-pub fn check_token_error_preserves_error_uri_test() -> Nil {
+pub fn check_token_error_drops_provider_description_and_uri_test() -> Nil {
+  let secret = "CLIENT-SECRET-7f3a"
   let result =
     provider_support.check_token_error(
-      "{\"error\":\"invalid_grant\",\"error_description\":\"expired\",\"error_uri\":\"https://example.com/error\"}",
+      "{\"error\":\"invalid_grant\",\"error_description\":\""
+      <> secret
+      <> "\",\"error_uri\":\"https://example.com/"
+      <> secret
+      <> "\"}",
     )
 
-  assert result
-    == Error(error.provider(
-      code: "invalid_grant",
-      description: "expired",
-      uri: Some("https://example.com/error"),
-    ))
+  case result {
+    Error(auth_error) -> {
+      assert error.provider_error(auth_error)
+        |> option.map(error.provider_code)
+        == Some("invalid_grant")
+      assert !string.contains(error.message(auth_error), secret)
+    }
+    Ok(_) -> panic as "expected ProviderError"
+  }
+}
+
+pub fn url_validation_errors_do_not_echo_query_secrets_test() -> Nil {
+  let secret = "ACCESS-TOKEN-SECRET-7f3a"
+  let url = "http://example.com/userinfo?access_token=" <> secret
+  let assert Error(auth_error) = provider_support.require_https(url)
+
+  assert !string.contains(error.message(auth_error), secret)
+  assert !string.contains(error.message(auth_error), "example.com")
+}
+
+pub fn check_token_error_replaces_unknown_provider_code_test() -> Nil {
+  let secret = "REFRESH-TOKEN-SECRET-9b21"
+  let result =
+    provider_support.check_token_error(
+      "{\"error\":\""
+      <> secret
+      <> "\",\"error_description\":\""
+      <> secret
+      <> "\",\"error_uri\":\"https://example.com/"
+      <> secret
+      <> "\"}",
+    )
+
+  case result {
+    Error(auth_error) -> {
+      assert error.provider_error(auth_error)
+        |> option.map(error.provider_code)
+        == Some("provider_error")
+      assert !string.contains(error.message(auth_error), secret)
+    }
+    Ok(_) -> panic as "expected ProviderError"
+  }
 }
 
 pub fn parse_oauth_token_response_required_scope_success_test() -> Nil {
@@ -336,7 +385,7 @@ pub fn parse_oauth_token_response_calls_check_token_error_first_test() -> Nil {
     )
     == Error(error.provider(
       code: "invalid_client",
-      description: "bad secret",
+      description: "Provider rejected the request",
       uri: None,
     ))
 }
@@ -415,7 +464,7 @@ pub fn parse_oauth_token_response_required_scope_rejects_missing_scope_test() ->
   }
 }
 
-pub fn check_response_status_truncates_error_body_test() -> Nil {
+pub fn check_response_status_redacts_error_body_test() -> Nil {
   let long_body = string.repeat("secret-body-", 20)
   let result =
     response.Response(status: 502, headers: [], body: long_body)
@@ -425,7 +474,8 @@ pub fn check_response_status_truncates_error_body_test() -> Nil {
     Error(auth_error) -> {
       assert error.http_status(auth_error) == Some(502)
       let summary = error.http_summary(auth_error) |> option.unwrap("")
-      assert string.length(summary) <= 120
+      assert summary == "Provider returned a non-success HTTP response"
+      assert !string.contains(summary, "secret-body-")
     }
     Ok(_) -> panic as "expected HttpError"
   }
@@ -445,8 +495,9 @@ pub fn fetch_json_with_auth_rejects_remote_http_before_sending_token_test() -> N
       assert error.kind(auth_error) == error.ConfigKind
       assert string.contains(
         error.message(auth_error),
-        "HTTPS required for endpoint URL: http://example.com/userinfo",
+        "HTTPS required for endpoint URL",
       )
+      assert !string.contains(error.message(auth_error), "example.com")
     }
     Ok(_) -> panic as "expected ConfigError before sending bearer token"
   }
@@ -690,7 +741,7 @@ pub fn all_public_dns_answers_are_accepted_test() -> Nil {
 pub fn localhost_alias_resolving_to_loopback_is_rejected_test() -> Nil {
   let assert Error(auth_error) =
     provider_support.require_public_host("https://localhost.localdomain/")
-  assert string.contains(error.message(auth_error), "non-public address")
+  assert string.contains(error.message(auth_error), "not publicly routable")
 }
 
 pub fn unresolved_hostname_is_rejected_without_fallback_test() -> Nil {
@@ -706,7 +757,7 @@ pub fn secure_sender_rejects_dns_loopback_before_connecting_test() -> Nil {
   let assert Ok(secure_request) = provider_support.secure_request(http_request)
   let assert Error(auth_error) = provider_support.send_public(secure_request)
   assert error.kind(auth_error) == error.ConfigKind
-  assert string.contains(error.message(auth_error), "non-public address")
+  assert string.contains(error.message(auth_error), "not publicly routable")
 }
 
 pub fn secure_request_rejects_plain_http_test() -> Nil {
@@ -762,4 +813,15 @@ pub fn require_public_host_rejects_missing_host_test() -> Nil {
       value
     }
   Nil
+}
+
+pub fn token_type_cannot_echo_a_client_secret_test() -> Nil {
+  let assert Error(failure) =
+    provider_support.parse_oauth_token_response(
+      "{\"access_token\":\"token\",\"token_type\":\"client-secret-7f3a\"}",
+      provider_support.NoScope,
+    )
+  assert error.kind(failure) == error.CodeExchangeKind
+  assert !string.contains(string.inspect(failure), "client-secret-7f3a")
+  assert !string.contains(error.message(failure), "client-secret-7f3a")
 }

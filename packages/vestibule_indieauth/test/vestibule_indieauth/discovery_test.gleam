@@ -41,35 +41,27 @@ pub fn parse_metadata_full_test() -> Nil {
   }
 }
 
-pub fn parse_metadata_minimal_test() -> Nil {
+pub fn parse_metadata_missing_issuer_test() -> Nil {
   let json =
     "{
     \"authorization_endpoint\": \"https://example.com/auth\",
     \"token_endpoint\": \"https://example.com/token\"
   }"
 
-  let result = discovery.parse_metadata(json)
-  let assert Ok(endpoints) = result
+  let assert Error(_) = discovery.parse_metadata(json)
+  Nil
+}
 
-  endpoints.authorization_endpoint
-  |> fn(actual) {
-    assert actual == "https://example.com/auth"
-  }
+pub fn parse_metadata_missing_issuer_with_response_iss_flag_test() -> Nil {
+  let json =
+    "{
+    \"authorization_endpoint\": \"https://example.com/auth\",
+    \"token_endpoint\": \"https://example.com/token\",
+    \"authorization_response_iss_parameter_supported\": true
+  }"
 
-  endpoints.token_endpoint
-  |> fn(actual) {
-    assert actual == "https://example.com/token"
-  }
-
-  endpoints.issuer
-  |> fn(actual) {
-    assert actual == None
-  }
-
-  endpoints.userinfo_endpoint
-  |> fn(actual) {
-    assert actual == None
-  }
+  let assert Error(_) = discovery.parse_metadata(json)
+  Nil
 }
 
 pub fn parse_metadata_missing_auth_endpoint_test() -> Nil {
@@ -363,7 +355,7 @@ pub fn sans_io_profile_and_metadata_discovery_test() -> Nil {
     response.Response(
       status: 200,
       headers: [],
-      body: "{\"authorization_endpoint\":\"https://auth.example.com/authorize\",\"token_endpoint\":\"https://auth.example.com/token\"}",
+      body: "{\"issuer\":\"https://auth.example.com/\",\"authorization_endpoint\":\"https://auth.example.com/authorize\",\"token_endpoint\":\"https://auth.example.com/token\"}",
     )
   let assert Ok(endpoints) =
     discovery.parse_metadata_response(metadata_url, metadata_response)

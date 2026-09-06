@@ -13,6 +13,7 @@ setup:
   - Configure Wisp with a strong, stable secret key base.
   - Initialize the shared state store once per BEAM VM.
   - Register one or more provider strategies in a registry.
+  - Pass a stable client key from the direct peer or a trusted edge. Do not trust raw forwarded headers.
   - Route /auth/:provider and /auth/:provider/callback to the middleware.
 highlights:
   - Handles GET and POST callbacks. Apple uses response_mode=form_post.
@@ -35,20 +36,22 @@ code: |
       config.new(
         client_id: "client_id",
         redirect_uri: "http://localhost:8000/auth/github/callback",
-        auth: config.ClientSecret("client_secret"),
+        auth: config.client_secret_auth("client_secret"),
       ),
     )
 
   let assert Ok(store) = state_store.create()
 
+  // client_key must come from the direct peer or a trusted edge.
   case wisp.path_segments(request), request.method {
     ["auth", provider], http.Get ->
-      vestibule_wisp.request_phase(
+      vestibule_wisp.request_phase_for_client(
         request,
-        registry,
-        provider,
-        store,
+        registry: registry,
+        provider: provider,
+        state_store: store,
         authorize_options: config.authorize_options(),
+        client_key: client_key,
       )
 
     ["auth", provider, "callback"], http.Get
@@ -67,7 +70,7 @@ code: |
 notes:
   - Custom cookie names are automatically given the __Host- prefix under the default SecureOnly cookie security.
   - Use with_cookie_security(AllowInsecure) for local development over plain HTTP, where browsers reject __Host- cookies.
-  - Use callback_phase_auth_result for structured logging or custom error recovery.
+  - Prefer callback_phase for cookie lifecycle handling. With callback_phase_auth_result, your response handler must expire completed-flow cookies and preserve valid flows on recoverable errors.
 navOrder: 20
 searchTerms:
   - routing

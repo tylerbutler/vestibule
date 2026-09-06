@@ -4,7 +4,7 @@ description: "Mist middleware that wires a `Registry` of `Strategy` values into 
 nav:
   group: Reference
   groupOrder: 20
-  order: 34
+  order: 35
   label: "vestibule_mist"
 toc:
   - href: "#types"
@@ -48,6 +48,7 @@ pub type CallbackError(a) {
   UnknownProvider(provider: String)
   MissingOrInvalidSessionCookie(reason: SessionCookieError)
   SessionUnavailable
+  SessionProviderMismatch
   InvalidCallbackParams(reason: CallbackParamsError)
   AuthFailed(error.AuthError(a))
 }
@@ -68,6 +69,10 @@ invalid; `reason` says which.
 
 The session state was not found, expired, or already used.
 
+##### `SessionProviderMismatch`
+
+The signed session belongs to another registered provider.
+
 ##### `InvalidCallbackParams(reason: CallbackParamsError)`
 
 Callback parameters could not be extracted from the request; `reason`
@@ -83,13 +88,19 @@ Why callback parameters could not be extracted from a POST callback body.
 
 ```gleam
 pub type CallbackParamsError {
+  QueryNotFormEncoded
   BodyReadFailed
   BodyNotUtf8
   BodyNotFormEncoded
+  DuplicateParameter(name: String)
 }
 ```
 
 #### Constructors
+
+##### `QueryNotFormEncoded`
+
+The callback query string was not valid form/query encoding.
 
 ##### `BodyReadFailed`
 
@@ -103,6 +114,11 @@ The request body was not valid UTF-8.
 ##### `BodyNotFormEncoded`
 
 The request body was not valid form/query encoding.
+
+##### `DuplicateParameter(name: String)`
+
+A callback parameter name occurred more than once, including once in
+the query and once in a POST body.
 
 ### `CookieSameSite`
 
@@ -238,6 +254,21 @@ pub const min_secret_key_base_bytes: Int
 
 ## Functions
 
+### `callback_parameters_from_pairs`
+
+Convert parsed callback pairs to a dictionary, rejecting duplicate names.
+
+Use this when callback parameters are extracted outside
+`callback_phase_auth_result`; converting to a dictionary first would hide
+duplicate OAuth parameters.
+
+```gleam
+pub fn callback_parameters_from_pairs(
+  List(#(String, String)),
+  List(#(String, String))
+) -> Result(dict.Dict(String, String), CallbackError(a))
+```
+
 ### `callback_phase`
 
 Phase 2: Handle the OAuth callback and return the `Auth` result to the
@@ -340,6 +371,32 @@ The cookie security for these options.
 pub fn cookie_security(Options) -> CookieSecurity
 ```
 
+### `direct_client_key`
+
+Return a stable admission key from the direct socket peer address.
+
+Use this with `request_phase_for_client`. The port is intentionally
+excluded so reconnecting cannot bypass the per-client limit.
+
+```gleam
+pub fn direct_client_key(request.Request(http.Connection)) -> Result(String, Nil)
+```
+
+### `expire_session_cookie`
+
+Expire the in-flight OAuth session cookie on a response.
+
+`callback_phase` does this automatically after success or a terminal
+failure. Call this when using a Result callback variant and constructing
+the final response yourself.
+
+```gleam
+pub fn expire_session_cookie(
+  response.Response(a),
+  Options
+) -> response.Response(a)
+```
+
 ### `new_options`
 
 Build middleware options with the given HMAC `secret_key_base`, which must
@@ -354,6 +411,14 @@ Defaults: host-bound cookie name `__Host-vestibule_session`, session TTL
 pub fn new_options(BitArray) -> Result(Options, OptionsError)
 ```
 
+### `parse_callback_query`
+
+Parse a callback query without silently replacing malformed input.
+
+```gleam
+pub fn parse_callback_query(option.Option(String)) -> Result(List(#(String, String)), CallbackError(a))
+```
+
 ### `request_phase`
 
 Phase 1: Redirect the user to the OAuth provider.
@@ -365,14 +430,68 @@ a signed session cookie, and returns a 302 response.
 Returns 404 if the provider is not registered, or a generic 400 HTML error
 if URL generation or state persistence fails.
 
-The request is not inspected at all — everything the response needs comes
-from `options` and the registry. It is still taken as an argument so this
-function has the same shape as `callback_phase` and its `vestibule_wisp`
-counterpart, and so a future change can read request metadata without
-breaking callers. Hence it is generic over the body type.
+The direct socket peer address is the admission key. Forwarded headers are
+not trusted.
 
 ```gleam
 pub fn request_phase(
+  request.Request(http.Connection),
+  registry: registry.Registry(a),
+  provider: String,
+  store: state_store.StateStore,
+  authorize_options: config.AuthorizeOptions,
+  options: Options
+) -> response.Response(mist.ResponseData)
+```
+
+### `request_phase_for_client`
+
+Start authorization with a stable identifier for the direct client.
+
+Use the socket peer address, or an identifier supplied by a trusted edge
+that also rate-limits requests. Do not use forwarded headers without
+validating the proxy chain.
+
+```gleam
+pub fn request_phase_for_client(
+  request.Request(a),
+  registry: registry.Registry(b),
+  provider: String,
+  store: state_store.StateStore,
+  authorize_options: config.AuthorizeOptions,
+  options: Options,
+  client_key: String
+) -> response.Response(mist.ResponseData)
+```
+
+### `request_phase_for_direct_client`
+
+Start authorization using the direct socket peer as the admission key.
+
+If Mist cannot read the peer address, this fails closed with 429 and does
+not create state.
+
+```gleam
+pub fn request_phase_for_direct_client(
+  request.Request(http.Connection),
+  registry: registry.Registry(a),
+  provider: String,
+  store: state_store.StateStore,
+  authorize_options: config.AuthorizeOptions,
+  options: Options
+) -> response.Response(mist.ResponseData)
+```
+
+### `request_phase_with_shared_bucket`
+
+Start authorization using one shared admission bucket.
+
+This lets any eight concurrent anonymous starts deny new starts, so prefer
+`request_phase` or `request_phase_for_client`. Use this only behind an
+upstream rate limit.
+
+```gleam
+pub fn request_phase_with_shared_bucket(
   request.Request(a),
   registry: registry.Registry(b),
   provider: String,

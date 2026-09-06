@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Security"
+body = "Redact client secrets and assertions from inspected client authentication, configuration, and registry terms while keeping explicit request-construction accessors."

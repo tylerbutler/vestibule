@@ -1,0 +1,3 @@
+package = "vestibule_mist"
+kind = "Breaking"
+body = "Mist request_phase requires Request(Connection) and derives admission identity from the direct socket peer. Generic request integrations must use an explicit client identity or request_phase_with_shared_bucket."

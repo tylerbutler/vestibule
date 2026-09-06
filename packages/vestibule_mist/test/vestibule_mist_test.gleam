@@ -1,5 +1,6 @@
 import gleam/dict
 import gleam/http/request
+import gleam/http/response
 import gleam/list
 import gleam/option
 import gleam/string
@@ -125,7 +126,7 @@ pub fn request_phase_unknown_provider_returns_404_test() -> Nil {
     state_store.create_named("test_mist_request_unknown_provider")
 
   let response =
-    vestibule_mist.request_phase(
+    vestibule_mist.request_phase_with_shared_bucket(
       http_request,
       registry.new(),
       "unknown",
@@ -148,7 +149,7 @@ pub fn request_phase_success_sets_signed_cookie_and_redirects_test() -> Nil {
     |> registry.register(strategy: test_strategy(), config: test_config())
 
   let response =
-    vestibule_mist.request_phase(
+    vestibule_mist.request_phase_with_shared_bucket(
       http_request,
       registry,
       "test",
@@ -199,7 +200,7 @@ pub fn request_phase_allows_secure_cookie_opt_out_test() -> Nil {
     |> vestibule_mist.with_cookie_security(vestibule_mist.AllowInsecure)
 
   let response =
-    vestibule_mist.request_phase(
+    vestibule_mist.request_phase_with_shared_bucket(
       http_request,
       registry,
       "test",
@@ -238,7 +239,7 @@ pub fn request_phase_passes_authorize_options_test() -> Nil {
     |> config.with_extra_params([#("prompt", "login")])
 
   let response =
-    vestibule_mist.request_phase(
+    vestibule_mist.request_phase_with_shared_bucket(
       http_request,
       registry,
       "test",
@@ -252,6 +253,41 @@ pub fn request_phase_passes_authorize_options_test() -> Nil {
   |> fn(actual) {
     assert actual
   }
+}
+
+pub fn request_phase_rejects_client_above_admission_limit_test() -> Nil {
+  let http_request = request.new() |> request.set_path("/auth/test")
+  let assert Ok(store) =
+    state_store.create_with_limits(
+      name: "test_mist_request_admission",
+      max_entries: 20,
+      max_entries_per_client: 1,
+    )
+  let assert Ok(registry) =
+    registry.new()
+    |> registry.register(strategy: test_strategy(), config: test_config())
+  let first =
+    vestibule_mist.request_phase_for_client(
+      http_request,
+      registry,
+      "test",
+      store,
+      config.authorize_options(),
+      test_options(),
+      client_key: "192.0.2.1",
+    )
+  assert first.status == 302
+  let rejected =
+    vestibule_mist.request_phase_for_client(
+      http_request,
+      registry,
+      "test",
+      store,
+      config.authorize_options(),
+      test_options(),
+      client_key: "192.0.2.1",
+    )
+  assert rejected.status == 429
 }
 
 // === callback_phase_auth_result_with_params ===
@@ -324,6 +360,127 @@ pub fn callback_tampered_cookie_reports_invalid_signature_test() -> Nil {
         vestibule_mist.CookieSignatureInvalid,
       ))
   }
+}
+
+pub fn callback_duplicate_cookie_reports_invalid_signature_test() -> Nil {
+  let http_request =
+    request.new()
+    |> request.set_header(
+      "cookie",
+      "__Host-vestibule_session=first; __Host-vestibule_session=second",
+    )
+  let assert Ok(store) =
+    state_store.create_named("test_mist_cb_duplicate_cookie")
+  let assert Ok(registry) =
+    registry.new()
+    |> registry.register(strategy: test_strategy(), config: test_config())
+
+  vestibule_mist.callback_phase_auth_result_with_params(
+    http_request,
+    dict.from_list([#("state", "s"), #("code", "c")]),
+    registry,
+    "test",
+    store,
+    test_options(),
+  )
+  |> fn(actual) {
+    assert actual
+      == Error(vestibule_mist.MissingOrInvalidSessionCookie(
+        vestibule_mist.CookieSignatureInvalid,
+      ))
+  }
+}
+
+pub fn callback_rejects_identical_duplicate_parameters_test() -> Nil {
+  let result =
+    vestibule_mist.callback_parameters_from_pairs(
+      [#("state", "state"), #("state", "state")],
+      [],
+    )
+  assert result
+    == Error(
+      vestibule_mist.InvalidCallbackParams(vestibule_mist.DuplicateParameter(
+        "state",
+      )),
+    )
+}
+
+pub fn callback_rejects_conflicting_duplicate_parameters_test() -> Nil {
+  let result =
+    vestibule_mist.callback_parameters_from_pairs(
+      [#("state", "expected"), #("state", "attacker")],
+      [],
+    )
+  assert result
+    == Error(
+      vestibule_mist.InvalidCallbackParams(vestibule_mist.DuplicateParameter(
+        "state",
+      )),
+    )
+}
+
+pub fn callback_rejects_query_post_parameter_collision_test() -> Nil {
+  let result =
+    vestibule_mist.callback_parameters_from_pairs([#("state", "expected")], [
+      #("state", "attacker"),
+      #("code", "code"),
+    ])
+  assert result
+    == Error(
+      vestibule_mist.InvalidCallbackParams(vestibule_mist.DuplicateParameter(
+        "state",
+      )),
+    )
+}
+
+pub fn callback_rejects_malformed_query_test() -> Nil {
+  assert vestibule_mist.parse_callback_query(option.Some("state=%ZZ"))
+    == Error(vestibule_mist.InvalidCallbackParams(
+      vestibule_mist.QueryNotFormEncoded,
+    ))
+}
+
+pub fn wrong_provider_callback_preserves_session_test() -> Nil {
+  let assert Ok(store) =
+    state_store.create_named("test_mist_wrong_provider_session")
+  let assert Ok(session_id) =
+    state_store.store(
+      store,
+      provider: "alpha",
+      state: "state",
+      code_verifier: "verifier",
+      nonce: option.None,
+    )
+  let token =
+    signed_cookie.sign(payload: session_id, secret_key_base: test_secret())
+  let http_request =
+    request.new()
+    |> request.set_cookie("__Host-vestibule_session", token)
+  let assert Ok(registry) =
+    registry.new()
+    |> registry.register(
+      strategy: named_test_strategy("alpha"),
+      config: test_config(),
+    )
+  let assert Ok(registry) =
+    registry
+    |> registry.register(
+      strategy: named_test_strategy("beta"),
+      config: test_config(),
+    )
+
+  let result =
+    vestibule_mist.callback_phase_auth_result_with_params(
+      http_request,
+      dict.from_list([#("state", "state"), #("code", "code")]),
+      registry,
+      "beta",
+      store,
+      test_options(),
+    )
+  assert result == Error(vestibule_mist.SessionProviderMismatch)
+  assert state_store.consume(store, session_id, provider: "alpha")
+    == Ok(#("state", "verifier", option.None))
 }
 
 pub fn callback_wrong_secret_reports_invalid_signature_test() -> Nil {
@@ -406,6 +563,18 @@ pub fn callback_missing_state_does_not_consume_session_test() -> Nil {
   |> fn(actual) {
     assert actual
       == Error(vestibule_mist.AuthFailed(error.config(reason: "test")))
+  }
+
+  vestibule_mist.callback_phase_auth_result_with_params(
+    http_request,
+    dict.from_list([#("state", "state"), #("code", "c")]),
+    registry,
+    "test",
+    store,
+    test_options(),
+  )
+  |> fn(actual) {
+    assert actual == Error(vestibule_mist.SessionUnavailable)
   }
 }
 
@@ -532,6 +701,21 @@ pub fn callback_custom_cookie_name_is_honored_test() -> Nil {
   }
 }
 
+pub fn expire_session_cookie_matches_configured_attributes_test() -> Nil {
+  let options =
+    test_options()
+    |> vestibule_mist.with_same_site(vestibule_mist.CrossSite)
+  let expired =
+    response.new(200)
+    |> vestibule_mist.expire_session_cookie(options)
+  let assert Ok(set_cookie) = list.key_find(expired.headers, "set-cookie")
+  assert string.contains(set_cookie, "__Host-vestibule_session=")
+  assert string.contains(set_cookie, "Max-Age=0")
+  assert string.contains(set_cookie, "SameSite=None")
+  assert string.contains(set_cookie, "Secure")
+  assert string.contains(set_cookie, "Path=/")
+}
+
 // === helpers ===
 
 fn test_secret() -> BitArray {
@@ -544,8 +728,12 @@ fn test_options() -> vestibule_mist.Options {
 }
 
 fn test_strategy() -> Strategy(e) {
+  named_test_strategy("test")
+}
+
+fn named_test_strategy(provider: String) -> Strategy(e) {
   strategy.new(
-    provider: "test",
+    provider: provider,
     default_scopes: [],
     authorize_url: fn(_config, _options, _scopes, _state) {
       Ok("https://example.com")
@@ -605,7 +793,7 @@ fn test_config() -> config.ClientConfig {
   config.new(
     client_id: "client_id",
     redirect_uri: "https://example.com/callback",
-    auth: config.ClientSecret("client_secret"),
+    auth: config.client_secret_auth("client_secret"),
   )
 }
 
@@ -655,7 +843,7 @@ pub fn request_phase_cross_site_cookie_sets_same_site_none_and_secure_test() -> 
     |> registry.register(strategy: test_strategy(), config: test_config())
 
   let response =
-    vestibule_mist.request_phase(
+    vestibule_mist.request_phase_with_shared_bucket(
       http_request,
       registry,
       "test",

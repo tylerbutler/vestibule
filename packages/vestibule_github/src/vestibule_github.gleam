@@ -40,10 +40,15 @@ pub fn strategy() -> Strategy(e) {
 /// Parse a GitHub token exchange response into Credentials.
 /// Supported parsing helper for GitHub strategy integrations.
 pub fn parse_token_response(body: String) -> Result(Credentials, AuthError(e)) {
-  provider_support.parse_oauth_token_response(
-    body,
-    provider_support.RequiredScope(separator: ","),
+  use oauth_credentials <- result.try(
+    provider_support.parse_oauth_token_response(
+      body,
+      provider_support.RequiredScope(separator: ","),
+    ),
   )
+  use _ <- result.try(require_bearer_token(oauth_credentials))
+  use _ <- result.try(require_email_scope(oauth_credentials))
+  Ok(oauth_credentials)
 }
 
 /// Build GitHub's authorization-code token request without sending it.
@@ -121,7 +126,16 @@ pub fn build_refresh_token_request(
 pub fn parse_refresh_token_response(
   http_response: response.Response(String),
 ) -> Result(Credentials, AuthError(e)) {
-  provider_support.parse_json_response(http_response, parse_token_response)
+  provider_support.parse_json_response(http_response, fn(body) {
+    use oauth_credentials <- result.try(
+      provider_support.parse_oauth_token_response(
+        body,
+        provider_support.OptionalScope(separator: ","),
+      ),
+    )
+    use _ <- result.try(require_bearer_token(oauth_credentials))
+    Ok(oauth_credentials)
+  })
 }
 
 /// Parse a GitHub /user API response into a user ID and UserInfo.
@@ -238,6 +252,58 @@ pub fn parse_user_email_response(
   http_response: response.Response(String),
 ) -> Result(Option(String), AuthError(e)) {
   provider_support.parse_json_response(http_response, parse_primary_email)
+}
+
+/// Validate the GitHub callback's user and email responses.
+///
+/// The numeric `/user` id establishes identity. The email is included only
+/// when `/user/emails` returns a primary, verified address; otherwise the
+/// callback fails closed.
+pub fn parse_callback_user_responses(
+  user_response: response.Response(String),
+  email_response: response.Response(String),
+) -> Result(UserResult, AuthError(e)) {
+  use #(user_id, user_information) <- result.try(parse_user_info_response(
+    user_response,
+  ))
+  use email <- result.try(parse_user_email_response(email_response))
+  use verified_email <- result.try(case email {
+    option.Some(email) -> Ok(email)
+    None ->
+      Error(error.user_info(
+        reason: "GitHub did not return a primary verified email address",
+      ))
+  })
+  Ok(strategy.user_result(
+    uid: user_id,
+    info: user_info.with_email(user_information, option.Some(verified_email)),
+    extra: dict.new(),
+  ))
+}
+
+fn require_bearer_token(
+  oauth_credentials: Credentials,
+) -> Result(Nil, AuthError(e)) {
+  case string.lowercase(credential.token_type(oauth_credentials)) {
+    "bearer" -> Ok(Nil)
+    _ ->
+      Error(error.code_exchange(
+        reason: "GitHub token response must use the Bearer token type",
+      ))
+  }
+}
+
+fn require_email_scope(
+  oauth_credentials: Credentials,
+) -> Result(Nil, AuthError(e)) {
+  let scopes = credential.scopes(oauth_credentials)
+  case list.contains(scopes, "user:email") || list.contains(scopes, "user") {
+    True -> Ok(Nil)
+    False ->
+      Error(error.code_exchange(
+        reason: "GitHub did not grant the user:email scope",
+      ))
+  }
 }
 
 fn build_api_request(
@@ -406,53 +472,21 @@ fn do_fetch_user(
       Error(error.network(reason: "Failed to fetch GitHub user info"))
     }
   })
-  use #(user_id, user_information) <- result.try(parse_user_info_response(
-    response,
-  ))
-
-  // Fetch verified primary email (best-effort — don't fail if this errors)
-  let email = case build_user_email_request(oauth_credentials) {
-    Ok(email_request) -> {
-      logger.new(
-        level: logger.Debug,
-        event: "vestibule.provider.request.start",
-        phase: "provider_request",
-        outcome: "start",
-        provider: option.Some("github"),
-        fields: [logger.field("endpoint", "user_email")],
-      )
-      |> logger.emit()
-      case httpc.send(email_request) {
-        Ok(response) ->
-          parse_user_email_response(response) |> result.unwrap(None)
-        Error(_) -> {
-          logger.new(
-            level: logger.Error,
-            event: "vestibule.provider.request.failure",
-            phase: "provider_request",
-            outcome: "failure",
-            provider: option.Some("github"),
-            fields: [
-              logger.field("endpoint", "user_email"),
-              logger.field("error_category", "network_error"),
-            ],
-          )
-          |> logger.emit()
-          None
-        }
-      }
-    }
-    Error(_) -> None
-  }
-
-  let final_user_information = case email {
-    option.Some(_) -> user_info.with_email(user_information, email)
-    None -> user_information
-  }
-
-  Ok(strategy.user_result(
-    uid: user_id,
-    info: final_user_information,
-    extra: dict.new(),
-  ))
+  use email_request <- result.try(build_user_email_request(oauth_credentials))
+  logger.new(
+    level: logger.Debug,
+    event: "vestibule.provider.request.start",
+    phase: "provider_request",
+    outcome: "start",
+    provider: option.Some("github"),
+    fields: [logger.field("endpoint", "user_email")],
+  )
+  |> logger.emit()
+  use email_response <- result.try(
+    httpc.send(email_request)
+    |> result.replace_error(error.network(
+      reason: "Failed to fetch GitHub verified email",
+    )),
+  )
+  parse_callback_user_responses(response, email_response)
 }

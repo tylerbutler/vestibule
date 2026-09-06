@@ -1,0 +1,3 @@
+package = "vestibule_oidc"
+kind = "Breaking"
+body = "Use the full exact OIDC issuer as the discovered strategy provider key instead of only the hostname."

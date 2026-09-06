@@ -135,7 +135,7 @@ pub fn request_phase_sets_host_bound_cookie_test() -> Nil {
   let http_request = simulate.request(http.Get, "/auth/test")
 
   let response =
-    vestibule_wisp.request_phase(
+    vestibule_wisp.request_phase_with_shared_bucket(
       http_request,
       registry: registry,
       provider: "test",
@@ -147,10 +147,37 @@ pub fn request_phase_sets_host_bound_cookie_test() -> Nil {
     Ok(value) -> value
     Error(_) -> panic as "expected a set-cookie header"
   }
+
   assert string.contains(set_cookie, "__Host-vestibule_session=")
   assert string.contains(set_cookie, "Secure")
   assert string.contains(set_cookie, "Path=/")
   assert !string.contains(set_cookie, "Domain=")
+}
+
+pub fn request_phase_requires_admission_identity_test() -> Nil {
+  let assert Ok(store) =
+    state_store.create_with_capacity(
+      name: "test_wisp_request_identity_required",
+      max_entries: 1,
+    )
+  let response =
+    vestibule_wisp.request_phase(
+      simulate.request(http.Get, "/auth/test"),
+      registry.new(),
+      "test",
+      store,
+      config.authorize_options(),
+    )
+  assert response.status == 429
+  let assert Ok(_) =
+    state_store.store(
+      store,
+      provider: "test",
+      state: "state",
+      code_verifier: "verifier",
+      nonce: option.None,
+    )
+  Nil
 }
 
 pub fn request_phase_over_plain_http_can_opt_out_of_host_binding_test() -> Nil {
@@ -163,7 +190,7 @@ pub fn request_phase_over_plain_http_can_opt_out_of_host_binding_test() -> Nil {
     simulate.request(http.Get, "/auth/test") |> insecure_localhost
 
   let response =
-    vestibule_wisp.request_phase_with_options(
+    vestibule_wisp.request_phase_with_shared_bucket_and_options(
       http_request,
       registry: registry,
       provider: "test",
@@ -204,7 +231,7 @@ pub fn request_phase_with_options_passes_authorize_options_test() -> Nil {
     |> config.with_extra_params([#("prompt", "login")])
 
   let response =
-    vestibule_wisp.request_phase_with_options(
+    vestibule_wisp.request_phase_with_shared_bucket_and_options(
       http_request,
       registry: registry,
       provider: "test",
@@ -226,6 +253,42 @@ pub fn request_phase_with_options_passes_authorize_options_test() -> Nil {
     Error(_) -> panic as "expected a set-cookie header"
   }
   assert string.contains(set_cookie, "__Host-custom_session=")
+}
+
+pub fn request_phase_rejects_client_above_admission_limit_test() -> Nil {
+  let assert Ok(store) =
+    state_store.create_with_limits(
+      name: "test_wisp_request_admission",
+      max_entries: 20,
+      max_entries_per_client: 1,
+    )
+  let assert Ok(registry) =
+    registry.new()
+    |> registry.register(strategy: test_strategy(), config: test_config())
+  let request = simulate.request(http.Get, "/auth/test")
+  let options = vestibule_wisp.default_options()
+  let first =
+    vestibule_wisp.request_phase_for_client_with_options(
+      request,
+      registry,
+      "test",
+      store,
+      config.authorize_options(),
+      options,
+      client_key: "192.0.2.1",
+    )
+  assert first.status == 303
+  let rejected =
+    vestibule_wisp.request_phase_for_client_with_options(
+      request,
+      registry,
+      "test",
+      store,
+      config.authorize_options(),
+      options,
+      client_key: "192.0.2.1",
+    )
+  assert rejected.status == 429
 }
 
 pub fn callback_phase_auth_result_with_options_uses_cookie_name_test() -> Nil {
@@ -291,6 +354,282 @@ pub fn callback_phase_auth_result_malformed_post_body_returns_invalid_parameters
     == Error(vestibule_wisp.InvalidCallbackParams(vestibule_wisp.BodyNotUtf8))
 }
 
+pub fn callback_rejects_duplicate_session_cookies_test() -> Nil {
+  let http_request =
+    simulate.request(http.Get, "/auth/test/callback?state=state&code=code")
+    |> request.set_header(
+      "cookie",
+      "__Host-vestibule_session=first; __Host-vestibule_session=second",
+    )
+  let assert Ok(store) =
+    state_store.create_named("test_callback_duplicate_cookie")
+  let assert Ok(registry) =
+    registry.new()
+    |> registry.register(strategy: test_strategy(), config: test_config())
+
+  let result =
+    vestibule_wisp.callback_phase_auth_result(
+      http_request,
+      registry,
+      "test",
+      store,
+    )
+  assert result
+    == Error(vestibule_wisp.MissingOrInvalidSessionCookie(
+      vestibule_wisp.CookieSignatureInvalid,
+    ))
+}
+
+pub fn callback_rejects_identical_duplicate_parameters_test() -> Nil {
+  let assert Ok(store) =
+    state_store.create_named("test_callback_identical_duplicate_parameter")
+  let assert Ok(session_id) =
+    state_store.store(
+      store,
+      provider: "test",
+      state: "state",
+      code_verifier: "verifier",
+      nonce: option.None,
+    )
+  let http_request =
+    simulate.request(
+      http.Get,
+      "/auth/test/callback?state=state&state=state&code=code",
+    )
+    |> simulate.cookie("__Host-vestibule_session", session_id, wisp.Signed)
+  let assert Ok(registry) =
+    registry.new()
+    |> registry.register(strategy: test_strategy(), config: test_config())
+
+  let result =
+    vestibule_wisp.callback_phase_auth_result(
+      http_request,
+      registry,
+      "test",
+      store,
+    )
+  assert result
+    == Error(
+      vestibule_wisp.InvalidCallbackParams(vestibule_wisp.DuplicateParameter(
+        "state",
+      )),
+    )
+  assert state_store.peek(store, session_id, provider: "test")
+    == Ok(#("state", "verifier", option.None))
+}
+
+pub fn callback_rejects_conflicting_duplicate_parameters_test() -> Nil {
+  let result =
+    vestibule_wisp.callback_parameters_from_pairs(
+      [#("state", "expected"), #("state", "attacker")],
+      [],
+    )
+  assert result
+    == Error(
+      vestibule_wisp.InvalidCallbackParams(vestibule_wisp.DuplicateParameter(
+        "state",
+      )),
+    )
+}
+
+pub fn callback_rejects_query_post_parameter_collision_test() -> Nil {
+  let result =
+    vestibule_wisp.callback_parameters_from_pairs([#("state", "expected")], [
+      #("state", "attacker"),
+      #("code", "code"),
+    ])
+  assert result
+    == Error(
+      vestibule_wisp.InvalidCallbackParams(vestibule_wisp.DuplicateParameter(
+        "state",
+      )),
+    )
+}
+
+pub fn callback_rejects_malformed_query_test() -> Nil {
+  assert vestibule_wisp.parse_callback_query(option.Some("state=%ZZ"))
+    == Error(vestibule_wisp.InvalidCallbackParams(
+      vestibule_wisp.QueryNotFormEncoded,
+    ))
+}
+
+pub fn callback_malformed_query_cannot_hide_behind_valid_post_body_test() -> Nil {
+  let assert Ok(store) =
+    state_store.create_named("test_wisp_malformed_query_with_post")
+  let assert Ok(session_id) =
+    state_store.store(
+      store,
+      provider: "test",
+      state: "state",
+      code_verifier: "verifier",
+      nonce: option.None,
+    )
+  let assert Ok(registry) =
+    registry.new()
+    |> registry.register(strategy: test_strategy(), config: test_config())
+  let request =
+    simulate.request(http.Post, "/auth/test/callback?state=%ZZ")
+    |> simulate.form_body([#("state", "state"), #("code", "code")])
+    |> simulate.cookie("__Host-vestibule_session", session_id, wisp.Signed)
+
+  assert vestibule_wisp.callback_phase_auth_result(
+      request,
+      registry,
+      "test",
+      store,
+    )
+    == Error(vestibule_wisp.InvalidCallbackParams(
+      vestibule_wisp.QueryNotFormEncoded,
+    ))
+  assert state_store.peek(store, session_id, provider: "test")
+    == Ok(#("state", "verifier", option.None))
+}
+
+pub fn wrong_provider_callback_preserves_cookie_and_session_test() -> Nil {
+  let assert Ok(store) =
+    state_store.create_named("test_wisp_wrong_provider_cookie")
+  let assert Ok(session_id) =
+    state_store.store(
+      store,
+      provider: "alpha",
+      state: "state",
+      code_verifier: "verifier",
+      nonce: option.None,
+    )
+  let assert Ok(registry) =
+    registry.new()
+    |> registry.register(
+      strategy: named_test_strategy("alpha"),
+      config: test_config(),
+    )
+  let assert Ok(registry) =
+    registry
+    |> registry.register(
+      strategy: named_test_strategy("beta"),
+      config: test_config(),
+    )
+  let request =
+    simulate.request(http.Get, "/auth/beta/callback?state=state&code=code")
+    |> simulate.cookie("__Host-vestibule_session", session_id, wisp.Signed)
+  let response =
+    vestibule_wisp.callback_phase(request, registry, "beta", store, fn(_) {
+      wisp.html_response("unexpected", 200)
+    })
+
+  assert response.status == 400
+  assert list.key_find(response.headers, "set-cookie") == Error(Nil)
+  assert state_store.consume(store, session_id, provider: "alpha")
+    == Ok(#("state", "verifier", option.None))
+}
+
+pub fn wrong_provider_callback_without_state_preserves_cookie_and_session_test() -> Nil {
+  let assert Ok(store) =
+    state_store.create_named("test_wisp_wrong_provider_missing_state")
+  let assert Ok(session_id) =
+    state_store.store(
+      store,
+      provider: "alpha",
+      state: "state",
+      code_verifier: "verifier",
+      nonce: option.None,
+    )
+  let assert Ok(registry) =
+    registry.new()
+    |> registry.register(
+      strategy: named_test_strategy("beta"),
+      config: test_config(),
+    )
+  let request =
+    simulate.request(http.Get, "/auth/beta/callback?code=junk")
+    |> simulate.cookie("__Host-vestibule_session", session_id, wisp.Signed)
+  let response =
+    vestibule_wisp.callback_phase(request, registry, "beta", store, fn(_) {
+      wisp.html_response("unexpected", 200)
+    })
+
+  assert response.status == 400
+  assert list.key_find(response.headers, "set-cookie") == Error(Nil)
+  assert state_store.consume(store, session_id, provider: "alpha")
+    == Ok(#("state", "verifier", option.None))
+}
+
+pub fn callback_post_body_limit_is_64_kib_test() -> Nil {
+  let assert Ok(store) =
+    state_store.create_named("test_callback_body_limit_exact")
+  let assert Ok(session_id) =
+    state_store.store(
+      store,
+      provider: "test",
+      state: "state",
+      code_verifier: "verifier",
+      nonce: option.None,
+    )
+  let assert Ok(registry) =
+    registry.new()
+    |> registry.register(strategy: test_strategy(), config: test_config())
+  let prefix = "state=state&code=code&padding="
+  let at_limit = prefix <> string.repeat("a", 65_536 - string.byte_size(prefix))
+  let request_at_limit =
+    simulate.request(http.Post, "/auth/test/callback")
+    |> simulate.string_body(at_limit)
+    |> simulate.cookie("__Host-vestibule_session", session_id, wisp.Signed)
+  let result =
+    vestibule_wisp.callback_phase_auth_result(
+      request_at_limit,
+      registry,
+      "test",
+      store,
+    )
+  assert result
+    == Error(vestibule_wisp.AuthFailed(error.config(reason: "test")))
+
+  let assert Ok(second_session) =
+    state_store.store(
+      store,
+      provider: "test",
+      state: "state",
+      code_verifier: "verifier",
+      nonce: option.None,
+    )
+  let over_limit = at_limit <> "a"
+  let request_over_limit =
+    simulate.request(http.Post, "/auth/test/callback")
+    |> simulate.string_body(over_limit)
+    |> simulate.cookie("__Host-vestibule_session", second_session, wisp.Signed)
+  let over_result =
+    vestibule_wisp.callback_phase_auth_result(
+      request_over_limit,
+      registry,
+      "test",
+      store,
+    )
+  assert over_result
+    == Error(vestibule_wisp.InvalidCallbackParams(vestibule_wisp.BodyReadFailed))
+}
+
+pub fn callback_checks_cookie_before_reading_post_body_test() -> Nil {
+  let assert Ok(store) =
+    state_store.create_named("test_callback_cookie_before_body")
+  let assert Ok(registry) =
+    registry.new()
+    |> registry.register(strategy: test_strategy(), config: test_config())
+  let http_request =
+    simulate.request(http.Post, "/auth/test/callback")
+    |> simulate.string_body(string.repeat("a", 65_537))
+
+  let result =
+    vestibule_wisp.callback_phase_auth_result(
+      http_request,
+      registry,
+      "test",
+      store,
+    )
+  assert result
+    == Error(vestibule_wisp.MissingOrInvalidSessionCookie(
+      vestibule_wisp.CookieAbsent,
+    ))
+}
+
 pub fn callback_phase_auth_result_missing_state_does_not_consume_session_test() -> Nil {
   let assert Ok(store) =
     state_store.create_named("test_callback_missing_state_reusable")
@@ -331,11 +670,24 @@ pub fn callback_phase_auth_result_missing_state_does_not_consume_session_test() 
     )
   assert with_state_result
     == Error(vestibule_wisp.AuthFailed(error.config(reason: "test")))
+
+  let replay_result =
+    vestibule_wisp.callback_phase_auth_result(
+      req_with_state,
+      registry,
+      "test",
+      store,
+    )
+  assert replay_result == Error(vestibule_wisp.SessionUnavailable)
 }
 
 fn test_strategy() -> Strategy(e) {
+  named_test_strategy("test")
+}
+
+fn named_test_strategy(provider: String) -> Strategy(e) {
   strategy.new(
-    provider: "test",
+    provider: provider,
     default_scopes: [],
     authorize_url: fn(_config, _options, _scopes, _state) {
       Ok("https://example.com")
@@ -395,7 +747,7 @@ fn test_config() -> config.ClientConfig {
   config.new(
     client_id: "client_id",
     redirect_uri: "https://example.com/callback",
-    auth: config.ClientSecret("client_secret"),
+    auth: config.client_secret_auth("client_secret"),
   )
 }
 
@@ -437,6 +789,9 @@ pub fn callback_phase_default_error_response_does_not_render_provider_details_te
   assert !string.contains(body, "secret-token")
   assert !string.contains(body, "provider-controlled phishing text")
   assert string.contains(body, "Authentication failed")
+  let assert Ok(expired_cookie) = list.key_find(response.headers, "set-cookie")
+  assert string.contains(expired_cookie, "__Host-vestibule_session=")
+  assert string.contains(expired_cookie, "Max-Age=0")
 }
 
 pub fn callback_phase_auth_result_preserves_provider_error_details_test() -> Nil {
@@ -487,7 +842,7 @@ pub fn request_phase_cross_site_cookie_sets_same_site_none_and_secure_test() -> 
   let http_request = simulate.request(http.Get, "/auth/test")
 
   let response =
-    vestibule_wisp.request_phase_with_options(
+    vestibule_wisp.request_phase_with_shared_bucket_and_options(
       http_request,
       registry: registry,
       provider: "test",
@@ -535,7 +890,7 @@ pub fn cross_site_cookie_is_accepted_by_callback_test() -> Nil {
     |> vestibule_wisp.with_same_site(vestibule_wisp.CrossSite)
 
   let response =
-    vestibule_wisp.request_phase_with_options(
+    vestibule_wisp.request_phase_with_shared_bucket_and_options(
       simulate.request(http.Get, "/auth/test"),
       registry: registry,
       provider: "test",
@@ -579,6 +934,8 @@ pub fn cross_site_cookie_is_accepted_by_callback_test() -> Nil {
       panic as "cross-site cookie was not accepted by the callback"
     Error(vestibule_wisp.SessionUnavailable) ->
       panic as "session was not found for the cross-site cookie"
+    Error(vestibule_wisp.SessionProviderMismatch) ->
+      panic as "session unexpectedly belonged to another provider"
     Ok(_)
     | Error(vestibule_wisp.UnknownProvider(_))
     | Error(vestibule_wisp.InvalidCallbackParams(_))

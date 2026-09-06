@@ -63,13 +63,13 @@ pub fn user_result_extra(user: UserResult) -> Dict(String, Dynamic) {
 pub opaque type ExchangeResult {
   ExchangeResult(
     credentials: credential.Credentials,
-    artifacts: Dict(String, Dynamic),
+    artifacts: fn() -> Dict(String, Dynamic),
   )
 }
 
 /// Build an exchange result for providers with no provider-specific artifacts.
 pub fn exchange_result(credentials: credential.Credentials) -> ExchangeResult {
-  ExchangeResult(credentials: credentials, artifacts: dict.new())
+  ExchangeResult(credentials: credentials, artifacts: fn() { dict.new() })
 }
 
 /// Build an exchange result with provider-specific artifacts.
@@ -77,7 +77,7 @@ pub fn exchange_result_with_artifacts(
   credentials: credential.Credentials,
   artifacts: Dict(String, Dynamic),
 ) -> ExchangeResult {
-  ExchangeResult(credentials: credentials, artifacts: artifacts)
+  ExchangeResult(credentials: credentials, artifacts: fn() { artifacts })
 }
 
 /// Return the OAuth credentials produced by the exchange.
@@ -90,7 +90,7 @@ pub fn exchange_credentials(
 /// Return provider-specific artifacts produced by the exchange
 /// (e.g., an OpenID Connect `id_token`).
 pub fn exchange_artifacts(exchange: ExchangeResult) -> Dict(String, Dynamic) {
-  exchange.artifacts
+  exchange.artifacts()
 }
 
 /// A strategy is the bundle of provider-specific functions needed to
@@ -114,6 +114,7 @@ pub opaque type Strategy(e) {
     provider: String,
     default_scopes: List(String),
     uses_nonce: Bool,
+    callback_issuer: Option(String),
     authorize_url: fn(ClientConfig, AuthorizeOptions, List(String), String) ->
       Result(String, AuthError(e)),
     exchange_code: fn(ClientConfig, String, Option(String)) ->
@@ -168,6 +169,7 @@ pub fn new(
     provider: provider,
     default_scopes: default_scopes,
     uses_nonce: False,
+    callback_issuer: option.None,
     authorize_url: authorize_url,
     exchange_code: exchange_code,
     refresh_token: option.None,
@@ -191,6 +193,22 @@ pub fn with_refresh(
 /// `id_token` on callback. Plain OAuth2 strategies should omit this.
 pub fn with_nonce(strategy: Strategy(e)) -> Strategy(e) {
   Strategy(..strategy, uses_nonce: True)
+}
+
+/// Require the authorization response's `iss` parameter to match this issuer.
+///
+/// Use this when the provider's protocol or metadata requires issuer
+/// identification in authorization responses. The comparison is exact.
+pub fn with_callback_issuer(
+  strategy: Strategy(e),
+  issuer: String,
+) -> Strategy(e) {
+  Strategy(..strategy, callback_issuer: option.Some(issuer))
+}
+
+/// Return the required authorization-response issuer, if configured.
+pub fn callback_issuer(strategy: Strategy(e)) -> Option(String) {
+  strategy.callback_issuer
 }
 
 /// Return the human-readable provider name (e.g., `"github"`, `"google"`).
@@ -281,12 +299,7 @@ pub fn authorization_header(
         False -> Ok("Bearer " <> token)
       }
     }
-    other ->
-      Error(error.config(
-        reason: "Unsupported token type: "
-        <> other
-        <> ". Only Bearer tokens are supported.",
-      ))
+    _ -> Error(error.config(reason: "Unsupported token type"))
   }
 }
 

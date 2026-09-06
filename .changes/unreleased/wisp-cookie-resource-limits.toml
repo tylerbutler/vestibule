@@ -1,0 +1,3 @@
+package = "vestibule_wisp"
+kind = "Security"
+body = "Require an explicit admission identity or shared-bucket opt-in, reject malformed or duplicate callback parameters and duplicate session cookies, cap callback bodies at 64 KiB before parsing, verify cookies before reading POST bodies, preserve other-provider flows, and expire completed in-flight cookies."

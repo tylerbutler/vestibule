@@ -4,7 +4,7 @@ description: "OpenID Connect Discovery support for auto-configuring strategies."
 nav:
   group: Reference
   groupOrder: 20
-  order: 36
+  order: 37
   label: "vestibule_oidc"
 toc:
   - href: "#types"
@@ -59,6 +59,14 @@ Get the authorization endpoint URL for an OIDC configuration.
 pub fn authorization_endpoint(OidcConfig) -> String
 ```
 
+### `authorization_response_issuer_supported`
+
+Whether discovery says authorization responses include an issuer parameter.
+
+```gleam
+pub fn authorization_response_issuer_supported(OidcConfig) -> Bool
+```
+
 ### `build_authorization_code_request`
 
 Build an OIDC authorization-code token request without sending it.
@@ -82,6 +90,14 @@ pinning immediately before connecting.
 
 ```gleam
 pub fn build_discovery_request(String) -> Result(provider_support.SecureRequest, error.AuthError(a))
+```
+
+### `build_jwks_request`
+
+Build an OIDC JWKS request without sending it.
+
+```gleam
+pub fn build_jwks_request(OidcConfig) -> Result(provider_support.SecureRequest, error.AuthError(a))
 ```
 
 ### `build_refresh_token_request`
@@ -113,7 +129,7 @@ Discover an OIDC provider and build a strategy in one step.
 
 Fetches the discovery document from the issuer's well-known endpoint,
 then constructs a strategy using the discovered configuration.
-The issuer's hostname is used as the provider name.
+The full validated issuer is used as the provider identity namespace.
 
 ```gleam
 pub fn discover(String) -> Result(strategy.Strategy(a), error.AuthError(a))
@@ -164,6 +180,25 @@ Get the issuer identifier for an OIDC configuration.
 pub fn issuer(OidcConfig) -> String
 ```
 
+### `issuer_namespace`
+
+Return the stable account namespace for an OIDC issuer.
+
+This preserves issuer paths and non-default ports. A single trailing slash
+is removed to match discovery's issuer comparison.
+
+```gleam
+pub fn issuer_namespace(OidcConfig) -> String
+```
+
+### `jwks_uri`
+
+Get the provider's JSON Web Key Set endpoint URL.
+
+```gleam
+pub fn jwks_uri(OidcConfig) -> String
+```
+
 ### `new_config`
 
 Construct a validated OIDC configuration.
@@ -180,6 +215,25 @@ pub fn new_config(
   authorization_endpoint: String,
   token_endpoint: String,
   userinfo_endpoint: String,
+  scopes_supported: List(String)
+) -> Result(OidcConfig, error.AuthError(a))
+```
+
+### `new_config_with_jwks`
+
+Construct a validated OIDC configuration with explicit verification data.
+
+Only issuers that advertise RS256 are accepted. The generic strategy pins
+ID-token verification to that algorithm.
+
+```gleam
+pub fn new_config_with_jwks(
+  issuer: String,
+  authorization_endpoint: String,
+  token_endpoint: String,
+  userinfo_endpoint: String,
+  jwks_uri: String,
+  signing_algorithms: List(String),
   scopes_supported: List(String)
 ) -> Result(OidcConfig, error.AuthError(a))
 ```
@@ -216,6 +270,14 @@ pub fn parse_discovery_response(
   String,
   response.Response(String)
 ) -> Result(OidcConfig, error.AuthError(a))
+```
+
+### `parse_jwks_response`
+
+Parse and validate an OIDC JWKS response without performing I/O.
+
+```gleam
+pub fn parse_jwks_response(response.Response(String)) -> Result(oidc.Jwks, error.AuthError(a))
 ```
 
 ### `parse_refresh_token_response`
@@ -269,6 +331,14 @@ Get the scopes supported by an OIDC configuration.
 pub fn scopes_supported(OidcConfig) -> List(String)
 ```
 
+### `signing_algorithms`
+
+Get the provider's advertised ID-token signing algorithms.
+
+```gleam
+pub fn signing_algorithms(OidcConfig) -> List(String)
+```
+
 ### `strategy_from_config`
 
 Build a `Strategy` from a discovered `OidcConfig`.
@@ -284,6 +354,22 @@ The `provider_name` is used as the strategy's provider identifier.
 pub fn strategy_from_config(
   OidcConfig,
   String
+) -> strategy.Strategy(a)
+```
+
+### `strategy_from_config_with_sender`
+
+Build a strategy with a caller-supplied secure-request sender.
+
+This supports deterministic callback tests and applications that wrap
+Vestibule's secure transport. The sender must preserve the security
+properties documented by `provider_support.SecureRequest`.
+
+```gleam
+pub fn strategy_from_config_with_sender(
+  OidcConfig,
+  String,
+  fn(provider_support.SecureRequest) -> Result(response.Response(String), error.AuthError(a))
 ) -> strategy.Strategy(a)
 ```
 

@@ -147,11 +147,10 @@ pub fn create_authorization_request(
 ///
 /// **Caller responsibilities:** This function checks that the callback
 /// state matches `expected_state`, but does not enforce single-use or
-/// expiration. Callers should delete the stored state after a successful
-/// call to prevent replay attacks. The wisp middleware's `uset.take`
-/// provides one-time-use semantics automatically. For time-based
-/// expiration, check the timestamp you stored alongside the state
-/// before calling this function.
+/// expiration. Callers must atomically consume the stored flow before
+/// calling this function, including when token exchange fails. The Wisp
+/// and Mist middleware do this automatically. For time-based expiration,
+/// check the stored deadline before consuming the flow.
 pub fn handle_callback(
   strategy: Strategy(e),
   config config: ClientConfig,
@@ -242,6 +241,8 @@ pub fn handle_callback(
   }
   use _ <- result.try(validate_result)
 
+  use _ <- result.try(validate_callback_issuer(strategy, parameters))
+
   // Check for provider errors before requiring code
   let provider_check = check_provider_error(parameters)
   case provider_check {
@@ -310,6 +311,12 @@ pub fn handle_callback(
       )
   }
   use code <- result.try(code_result)
+
+  use _ <- result.try(case string.trim(code), string.trim(code_verifier) {
+    "", _ -> Error(error.missing_callback_param("code"))
+    _, "" -> Error(error.code_exchange(reason: "PKCE verifier is required"))
+    _, _ -> Ok(Nil)
+  })
 
   // Exchange code for credentials and provider-specific artifacts, passing the PKCE verifier
   let exchange_result =
@@ -521,6 +528,34 @@ fn failure_level(auth_error: AuthError(e)) -> logger.Level {
   }
 }
 
+fn validate_callback_issuer(
+  strategy: Strategy(e),
+  parameters: Dict(String, String),
+) -> Result(Nil, AuthError(e)) {
+  case strategy.callback_issuer(strategy) {
+    option.None -> Ok(Nil)
+    option.Some(expected) ->
+      case dict.get(parameters, "iss") {
+        Ok(received) if received == expected && expected != "" -> Ok(Nil)
+        Ok(_) | Error(_) -> {
+          logger.emit(
+            logger.new(
+              level: logger.Warning,
+              event: "vestibule.callback.failure",
+              phase: "callback",
+              outcome: "failure",
+              provider: option.Some(strategy.provider(strategy)),
+              fields: [logger.field("error_category", "issuer_mismatch")],
+            ),
+          )
+          Error(error.code_exchange(
+            reason: "Authorization response issuer is missing or does not match",
+          ))
+        }
+      }
+  }
+}
+
 /// Check callback parameters for a provider error response.
 fn check_provider_error(
   parameters: Dict(String, String),
@@ -617,8 +652,9 @@ fn extract_id_token(
 
 /// Decode a JWT payload (no signature check) and read its `nonce` claim.
 ///
-/// The id_token arrives over the TLS-protected token endpoint, so the payload
-/// is decoded without verifying the signature solely to compare the `nonce`.
+/// The provider strategy must verify the signature and identity claims before
+/// returning the exchange result. This check only binds that token to the
+/// stored flow; decoding a nonce does not authenticate a token.
 fn read_nonce_claim(id_token: String) -> Result(String, AuthError(e)) {
   use payload <- result.try(decode_jwt_payload(id_token))
   let decoder = {

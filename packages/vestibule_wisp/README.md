@@ -56,12 +56,13 @@ Then pass that store to the request and callback phases:
 ```gleam
 case wisp.path_segments(request), request.method {
   ["auth", provider], http.Get ->
-    vestibule_wisp.request_phase(
+    vestibule_wisp.request_phase_for_client(
       request,
       registry,
       provider,
       store,
       authorize_options: config.authorize_options(),
+      client_key: direct_peer_identity,
     )
 
   ["auth", provider, "callback"], http.Get
@@ -125,13 +126,14 @@ let development_options =
   vestibule_wisp.default_options()
   |> vestibule_wisp.with_cookie_security(vestibule_wisp.AllowInsecure)
 
-vestibule_wisp.request_phase_with_options(
+vestibule_wisp.request_phase_for_client_with_options(
   request,
   registry,
   provider,
   store,
   authorize_options: config.authorize_options(),
   middleware_options: options,
+  client_key: direct_peer_identity,
 )
 vestibule_wisp.callback_phase_with_options(
   request,
@@ -151,7 +153,8 @@ is `CookieAbsent` (no cookie was sent — ordinary user behaviour) or
 `CookieSignatureInvalid` (a cookie was sent that this secret key base did not
 sign — possible tampering, or a secret rotation). If the cookie is valid but
 the stored state is missing, expired, or already used, it returns
-`SessionUnavailable`.
+`SessionUnavailable`. Requests with duplicate session-cookie names are rejected
+as invalid instead of choosing one by header order.
 
 ## Callback error handling
 
@@ -163,6 +166,13 @@ the stored state is missing, expired, or already used, it returns
   generated Wisp responses.
 - `callback_phase_auth_result` returns `Result(Auth, CallbackError(e))`; use
   this for structured/custom error handling.
+
+`callback_phase` expires the in-flight cookie after a successful callback or
+terminal failure. With either Result variant, expire the cookie on the final
+response with `expire_session_cookie(response, request, options)` after success;
+terminal error responses from `callback_phase_result` are already expired.
+Malformed or wrong-state callbacks keep the cookie because their stored flow
+remains valid.
 
 ```gleam
 case vestibule_wisp.callback_phase_auth_result(
@@ -188,18 +198,22 @@ provider-controlled error descriptions are not reflected to users. Use
 `callback_phase_auth_result` or `callback_phase_auth_result_with_options` when
 the application needs structured error details for logging or custom rendering.
 
-Malformed provider responses and missing `state` or `code` parameters are
+Malformed query encoding is rejected before a POST body is parsed, so a valid
+body cannot hide ambiguous query input. Malformed provider responses and
+missing `state` or `code` parameters are
 reported through `AuthFailed`. `InvalidCallbackParams` is returned when callback
 parameters cannot be extracted from the request, such as malformed POST form
 data.
 
 ## POST callbacks
 
-`GET` callbacks read query parameters. `POST` callbacks read
-`application/x-www-form-urlencoded` body parameters and merge them over query
-parameters, so body values take precedence. If a POST body cannot be read,
-decoded as UTF-8, or parsed as form data, callback handling returns
-`InvalidCallbackParams` instead of falling back to query parameters.
+`GET` callbacks read query parameters. `POST` callbacks read at most 64 KiB of
+`application/x-www-form-urlencoded` body parameters alongside query
+parameters. Repeated parameter names are rejected, including identical values
+and names present once in the query and once in the body. The signed session
+cookie is verified before a POST body is read. If a body is too large, cannot
+be read, decoded as UTF-8, or parsed as form data, callback handling returns
+`InvalidCallbackParams` without falling back to query parameters.
 
 ## State store
 
@@ -214,9 +228,35 @@ stores through the module functions.
   application startup and simple examples.
 - `retrieve` consumes state exactly once.
 - Expired sessions are treated as missing and removed from the store.
-- A store holds at most 100 000 live sessions by default
-  (`create_with_capacity` to change it); once full, `request_phase` fails
-  with a generic error until sessions are consumed or expire. Rate-limit
-  `/auth/*` upstream if that bound is not enough for you.
+- A store holds at most 4,096 live sessions and eight live sessions per client
+  by default. Use `create_with_limits` to change both limits.
+- The request helpers without a client identity fail closed with 429. Wisp does
+  not expose the direct socket peer, so applications must call
+  `request_phase_for_client` or `request_phase_for_client_with_options` with a
+  stable direct-peer identifier.
+- `request_phase_with_shared_bucket` and
+  `request_phase_with_shared_bucket_and_options` are explicit compatibility
+  opt-ins. Any eight anonymous starts can fill that bucket, so use them only
+  behind an upstream rate limit.
+  Do not use `Forwarded` or `X-Forwarded-For` unless a trusted proxy removes
+  client-supplied values and validates the complete proxy chain.
+- Admission and insertion are atomic. A rejected request returns 429 and stores
+  no state; existing callbacks remain usable.
 - The same store can be shared with `vestibule_mist`; a single ETS owner
   process is shared across all transports.
+
+## Deployment limits
+
+Vestibule bounds callback bodies to 64 KiB, state lifetime to 600 seconds,
+one client to eight live flows, and one store to 4,096 live flows by default.
+The application or edge proxy must also limit request rate and concurrent
+connections for `/auth/*`, cap request headers, enforce read timeouts, and
+rate-limit the callback route. These upstream limits must use the direct peer
+or a validated trusted-proxy identity. Vestibule does not trust forwarded
+headers.
+
+Run `just test-pkg vestibule_wisp` for the repeatable admission, cookie replay,
+duplicate-cookie, SameSite, and 64 KiB boundary checks.
+When Chromium, OpenSSL, and Python's `websocket-client` are installed, run
+`python test/browser_cookie_matrix.py` from the repository root for the real
+browser fixation, SameSite POST, and cookie-expiry matrix.

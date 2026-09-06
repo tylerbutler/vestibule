@@ -4,7 +4,7 @@ description: "Google OAuth 2.0 / OIDC strategy."
 nav:
   group: Reference
   groupOrder: 20
-  order: 27
+  order: 28
   label: "vestibule_google"
 toc:
   - href: "#functions"
@@ -38,6 +38,14 @@ pub fn build_authorization_code_request(
 ) -> Result(request.Request(String), error.AuthError(a))
 ```
 
+### `build_jwks_request`
+
+Build Google's OIDC JWKS request without sending it.
+
+```gleam
+pub fn build_jwks_request() -> Result(request.Request(String), error.AuthError(a))
+```
+
 ### `build_refresh_token_request`
 
 Build Google's refresh-token request without sending it.
@@ -63,6 +71,14 @@ Parse Google's authorization-code HTTP response without performing I/O.
 
 ```gleam
 pub fn parse_authorization_code_response(response.Response(String)) -> Result(strategy.ExchangeResult, error.AuthError(a))
+```
+
+### `parse_jwks_response`
+
+Parse Google's OIDC JWKS response without performing I/O.
+
+```gleam
+pub fn parse_jwks_response(response.Response(String)) -> Result(oidc.Jwks, error.AuthError(a))
 ```
 
 ### `parse_refresh_token_response`
@@ -114,7 +130,7 @@ pub fn parse_user_response_with_hosted_domain(String) -> Result(#(String, user_i
 Create a Google authentication strategy.
 
 This strategy does not enforce a Google Workspace hosted domain. If the
-userinfo response includes an `hd` claim it is surfaced under the `"hd"`
+verified ID token includes an `hd` claim it is surfaced under the `"hd"`
 key of `UserResult`'s `extra` dict, but no domain restriction is applied.
 To restrict sign-in to a single Workspace domain, use
 `strategy_for_hosted_domain`.
@@ -127,19 +143,40 @@ pub fn strategy() -> strategy.Strategy(a)
 
 Create a Google strategy that enforces a Workspace hosted domain.
 
-Authentication fails unless Google's userinfo response carries an `hd`
+Authentication fails unless Google's verified ID token carries an `hd`
 (hosted-domain) claim exactly matching `hosted_domain`. A missing or
 mismatched `hd` yields `error.user_info`. The validated domain is
 surfaced under the `"hd"` key of `UserResult`'s `extra` dict.
 
 `hosted_domain` is also added to the authorization URL as an account-picker
 hint, but that hint is advisory only — enforcement happens server-side when
-the userinfo response is validated. Setting `hd` via
+the ID token is verified. Setting `hd` via
 `config.authorize_options() |> config.with_extra_params([#("hd", ...)])` is purely a UI hint and must not
 be relied on for authorization.
 
 ```gleam
 pub fn strategy_for_hosted_domain(String) -> strategy.Strategy(a)
+```
+
+### `strategy_for_hosted_domain_with_sender`
+
+Create a hosted-domain Google strategy with a custom HTTP sender.
+
+```gleam
+pub fn strategy_for_hosted_domain_with_sender(
+  String,
+  fn(request.Request(String)) -> Result(response.Response(String), a)
+) -> strategy.Strategy(b)
+```
+
+### `strategy_with_sender`
+
+Create a Google strategy with a custom HTTP sender.
+
+This is useful for deterministic callback testing.
+
+```gleam
+pub fn strategy_with_sender(fn(request.Request(String)) -> Result(response.Response(String), a)) -> strategy.Strategy(b)
 ```
 
 ### `validate_hosted_domain`

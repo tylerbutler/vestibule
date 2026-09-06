@@ -4,7 +4,7 @@ description: "Microsoft Identity Platform (v2.0) strategy."
 nav:
   group: Reference
   groupOrder: 20
-  order: 33
+  order: 34
   label: "vestibule_microsoft"
 toc:
   - href: "#functions"
@@ -54,6 +54,14 @@ pub fn build_authorization_code_request(
 ) -> Result(request.Request(String), error.AuthError(a))
 ```
 
+### `build_jwks_request`
+
+Build Microsoft's OpenID Connect JWKS request without sending it.
+
+```gleam
+pub fn build_jwks_request() -> Result(request.Request(String), error.AuthError(a))
+```
+
 ### `build_refresh_token_request`
 
 Build a Microsoft refresh-token request without sending it.
@@ -76,23 +84,20 @@ Build the Microsoft Graph `/me` request without sending it.
 pub fn build_user_info_request(credential.Credentials) -> Result(request.Request(String), error.AuthError(a))
 ```
 
-### `id_token_tenant`
-
-Extract the `tid` (tenant id) claim from a Microsoft ID token's payload.
-
-Decodes the JWT payload segment (base64url) and reads the `tid` claim. Does
-not verify the JWT signature — see `verify_tenant` for the trust rationale.
-
-```gleam
-pub fn id_token_tenant(String) -> Result(String, error.AuthError(a))
-```
-
 ### `parse_authorization_code_response`
 
 Parse Microsoft's authorization-code HTTP response without performing I/O.
 
 ```gleam
 pub fn parse_authorization_code_response(response.Response(String)) -> Result(strategy.ExchangeResult, error.AuthError(a))
+```
+
+### `parse_jwks_response`
+
+Parse Microsoft's OpenID Connect JWKS response without performing I/O.
+
+```gleam
+pub fn parse_jwks_response(response.Response(String)) -> Result(oidc.Jwks, error.AuthError(a))
 ```
 
 ### `parse_refresh_token_response`
@@ -133,10 +138,9 @@ Create a Microsoft authentication strategy using the `/common` authority.
 
 **Security warning:** `/common` accepts personal Microsoft accounts and
 work/school accounts from any Microsoft Entra tenant that can consent to the
-app, and this strategy performs **no** tenant validation. Use it only for
-explicitly multi-tenant apps. For single-organization apps, use
-`strategy_for_tenant` so logins are restricted to one tenant and the tenant
-is verified against the ID token.
+app. It verifies the token's tenant but allows any valid tenant. Use it only
+for explicitly multi-tenant apps. For single-organization apps, use
+`strategy_for_tenant`.
 
 ```gleam
 pub fn strategy() -> strategy.Strategy(a)
@@ -163,23 +167,39 @@ values cannot be matched and would reject otherwise-valid logins.
 pub fn strategy_for_tenant(String) -> strategy.Strategy(a)
 ```
 
-### `verify_tenant`
+### `strategy_for_tenant_with_sender`
 
-Verify that a Microsoft OpenID Connect ID token was issued by the expected
-tenant.
-
-Reads the `tid` (tenant id) claim from the ID token payload and compares it,
-case-insensitively, against `expected_tenant`. Returns the token's `tid` on
-success, or an `AuthError` when the claim is missing, malformed, or belongs
-to a different tenant.
-
-The ID token is delivered to the client over the back-channel directly from
-Microsoft's token endpoint over TLS, so its payload is trusted without a
-separate JWKS signature check (OpenID Connect Core 1.0, section 3.1.3.7).
+Create a tenant-locked Microsoft strategy with a custom HTTP sender.
 
 ```gleam
-pub fn verify_tenant(
-  expected_tenant: String,
-  id_token: String
-) -> Result(String, error.AuthError(a))
+pub fn strategy_for_tenant_with_sender(
+  String,
+  fn(request.Request(String)) -> Result(response.Response(String), a)
+) -> strategy.Strategy(b)
+```
+
+### `strategy_with_sender`
+
+Create a multi-tenant Microsoft strategy with a custom HTTP sender.
+
+```gleam
+pub fn strategy_with_sender(fn(request.Request(String)) -> Result(response.Response(String), a)) -> strategy.Strategy(b)
+```
+
+### `verify_id_token`
+
+Verify a Microsoft v2 ID token and return its stable object and tenant IDs.
+
+Signature, RS256 algorithm, issuer, audience, time claims, `tid`, and `oid`
+are required. For a tenant-locked strategy, `tid` must match the configured
+tenant. Multi-tenant verification uses the untrusted `tid` only to select
+the expected issuer, then requires the same value from the verified token.
+
+```gleam
+pub fn verify_id_token(
+  String,
+  oidc.Jwks,
+  String,
+  option.Option(String)
+) -> Result(#(String, String), error.AuthError(a))
 ```
