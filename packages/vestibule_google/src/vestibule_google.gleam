@@ -537,7 +537,7 @@ fn fetch_google_jwks() -> Result(oidc.Jwks, AuthError(e)) {
   |> result.replace_error(error.network(
     reason: "Failed to connect to Google JWKS endpoint",
   ))
-  |> result.then(parse_jwks_response)
+  |> result.try(parse_jwks_response)
 }
 
 fn verify_google_id_token(
@@ -545,13 +545,15 @@ fn verify_google_id_token(
   jwks: oidc.Jwks,
   client_id: String,
 ) -> Result(oidc.VerifiedIdToken, AuthError(e)) {
-  case oidc.verify_rs256(
-    token: id_token,
-    using: jwks,
-    issuer: "https://accounts.google.com",
-    audience: client_id,
-    expected_nonce: None,
-  ) {
+  case
+    oidc.verify_rs256(
+      token: id_token,
+      using: jwks,
+      issuer: "https://accounts.google.com",
+      audience: client_id,
+      expected_nonce: None,
+    )
+  {
     Error(oidc.InvalidIssuer) ->
       oidc.verify_rs256(
         token: id_token,
@@ -610,16 +612,10 @@ fn require_google_scopes(
   let scopes = credential.scopes(oauth_credentials)
   let has_email =
     list.contains(scopes, "email")
-    || list.contains(
-      scopes,
-      "https://www.googleapis.com/auth/userinfo.email",
-    )
+    || list.contains(scopes, "https://www.googleapis.com/auth/userinfo.email")
   let has_profile =
     list.contains(scopes, "profile")
-    || list.contains(
-      scopes,
-      "https://www.googleapis.com/auth/userinfo.profile",
-    )
+    || list.contains(scopes, "https://www.googleapis.com/auth/userinfo.profile")
   case list.contains(scopes, "openid") && has_email && has_profile {
     True -> Ok(Nil)
     False ->

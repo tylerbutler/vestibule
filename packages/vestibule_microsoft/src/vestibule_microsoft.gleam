@@ -46,8 +46,7 @@ import vestibule/provider_support
 import vestibule/strategy.{type Strategy, type UserResult}
 import vestibule/user_info.{type UserInfo}
 
-const microsoft_jwks_url =
-  "https://login.microsoftonline.com/common/discovery/v2.0/keys"
+const microsoft_jwks_url = "https://login.microsoftonline.com/common/discovery/v2.0/keys"
 
 /// Create a Microsoft authentication strategy using the `/common` authority.
 ///
@@ -471,15 +470,15 @@ fn do_fetch_user(
   use #(user_id, user_information) <- result.try(parse_user_info_response(
     user_info_response,
   ))
-  use _ <- result.try(case
-    string.lowercase(user_id) == string.lowercase(verified_object_id)
-  {
-    True -> Ok(Nil)
-    False ->
-      Error(error.user_info(
-        reason: "Microsoft Graph identity does not match the verified ID token",
-      ))
-  })
+  use _ <- result.try(
+    case string.lowercase(user_id) == string.lowercase(verified_object_id) {
+      True -> Ok(Nil)
+      False ->
+        Error(error.user_info(
+          reason: "Microsoft Graph identity does not match the verified ID token",
+        ))
+    },
+  )
   Ok(strategy.user_result(
     uid: verified_object_id,
     info: user_information,
@@ -518,17 +517,19 @@ fn verify_microsoft_exchange(
     oidc.string_claim(verified, "oid")
     |> result.map_error(oidc_auth_error),
   )
-  use _ <- result.try(case
-    string.trim(verified_tenant),
-    string.trim(object_id),
-    string.lowercase(verified_tenant) == tenant_for_issuer
-  {
-    "", _, _ | _, "", _ | _, _, False ->
-      Error(error.user_info(
-        reason: "Microsoft ID token identity claims are invalid",
-      ))
-    _, _, True -> Ok(Nil)
-  })
+  use _ <- result.try(
+    case
+      string.trim(verified_tenant),
+      string.trim(object_id),
+      string.lowercase(verified_tenant) == tenant_for_issuer
+    {
+      "", _, _ | _, "", _ | _, _, False ->
+        Error(error.user_info(
+          reason: "Microsoft ID token identity claims are invalid",
+        ))
+      _, _, True -> Ok(Nil)
+    },
+  )
   use _ <- result.try(case expected_tenant {
     Some(tenant_id) ->
       case string.lowercase(tenant_id) == string.lowercase(verified_tenant) {
@@ -569,7 +570,7 @@ fn fetch_microsoft_jwks() -> Result(oidc.Jwks, AuthError(e)) {
   |> result.replace_error(error.network(
     reason: "Failed to connect to Microsoft JWKS endpoint",
   ))
-  |> result.then(parse_jwks_response)
+  |> result.try(parse_jwks_response)
 }
 
 // Used only to select the tenant-specific issuer before signature validation.
