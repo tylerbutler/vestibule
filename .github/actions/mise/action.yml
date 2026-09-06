@@ -6,6 +6,9 @@ runs:
   steps:
     - name: Install tools
       uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # ratchet:jdx/mise-action@v4
+      env:
+        # Keep asdf aliases from adding tools absent from the mise lock.
+        MISE_OVERRIDE_TOOL_VERSIONS_FILENAMES: ""
       with:
         version: "2026.8.3"
         sha256: "66585ac496c10bf6fbf13272e3e550c1813aed0e1cb780b9bb73c1751de49289"

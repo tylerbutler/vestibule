@@ -36,6 +36,11 @@ archives because the backend did not supply checksums. Gleam and Trellis expose
 GitHub artifact attestations; the lock records verification where mise verified
 it on the review host. A checksum mismatch fails installation.
 
+CI excludes `.tool-versions` from mise discovery. That file remains available
+for asdf users, but its `just` and `rebar` aliases differ from the locked mise
+backend names. For a local locked install, use
+`MISE_OVERRIDE_TOOL_VERSIONS_FILENAMES= mise install --locked`.
+
 Upstream Just and Trellis releases are not immutable. Their locked checksums
 prevent silent replacement, but availability still depends on the upstream
 release assets. GitHub attestations establish build provenance only where the
