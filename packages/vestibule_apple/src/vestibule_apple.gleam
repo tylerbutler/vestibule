@@ -113,19 +113,30 @@ pub fn initialize_named(
 /// ID tokens are verified against Apple's published JWKS keys with
 /// claim validation for issuer, audience, and expiration.
 pub fn strategy(apple: AppleCache) -> Strategy(e) {
+  strategy_with_sender(apple, httpc.send)
+}
+
+/// Create an Apple strategy with a custom HTTP sender.
+pub fn strategy_with_sender(
+  apple: AppleCache,
+  send: fn(request.Request(String)) ->
+    Result(response.Response(String), send_error),
+) -> Strategy(e) {
   strategy.new(
     provider: "apple",
     default_scopes: ["name", "email"],
     authorize_url: do_authorize_url,
     exchange_code: fn(client_config, code, code_verifier) {
-      do_exchange_code(client_config, code, code_verifier)
+      do_exchange_code(client_config, code, code_verifier, send)
     },
     fetch_user: fn(client_config, exchange) {
-      do_fetch_user(apple, client_config, exchange)
+      do_fetch_user(apple, client_config, exchange, send)
     },
   )
   |> strategy.with_nonce()
-  |> strategy.with_refresh(do_refresh_token)
+  |> strategy.with_refresh(fn(client_config, refresh_token) {
+    do_refresh_token(client_config, refresh_token, send)
+  })
 }
 
 /// Parse Apple token response JSON.
@@ -454,6 +465,8 @@ fn do_exchange_code(
   client_config: ClientConfig,
   code: String,
   code_verifier: Option(String),
+  send: fn(request.Request(String)) ->
+    Result(response.Response(String), send_error),
 ) -> Result(ExchangeResult, AuthError(e)) {
   use token_http_request <- result.try(build_authorization_code_request(
     client_config,
@@ -469,7 +482,7 @@ fn do_exchange_code(
     fields: [logger.field("endpoint", "token")],
   )
   |> logger.emit()
-  case httpc.send(token_http_request) {
+  case send(token_http_request) {
     Ok(response) -> parse_authorization_code_response(response)
     Error(_) -> {
       logger.new(
@@ -492,6 +505,8 @@ fn do_exchange_code(
 fn do_refresh_token(
   client_config: ClientConfig,
   refresh_token: String,
+  send: fn(request.Request(String)) ->
+    Result(response.Response(String), send_error),
 ) -> Result(credential.Credentials, AuthError(e)) {
   use refresh_request <- result.try(build_refresh_token_request(
     client_config,
@@ -507,7 +522,7 @@ fn do_refresh_token(
     fields: [logger.field("endpoint", "refresh")],
   )
   |> logger.emit()
-  case httpc.send(refresh_request) {
+  case send(refresh_request) {
     Ok(response) -> parse_refresh_token_response(response)
     Error(_) -> {
       logger.new(
@@ -531,6 +546,8 @@ fn do_fetch_user(
   apple: AppleCache,
   client_config: ClientConfig,
   exchange: ExchangeResult,
+  send: fn(request.Request(String)) ->
+    Result(response.Response(String), send_error),
 ) -> Result(UserResult, AuthError(e)) {
   // Apple has no userinfo endpoint. User info comes from the id_token JWT
   // returned as an exchange artifact.
@@ -546,12 +563,15 @@ fn do_fetch_user(
       error.user_info(reason: "Apple ID token artifact is not a string")
     }),
   )
-  use keys <- result.try(jwks.get_keys(apple.jwks))
+  use keys <- result.try(jwks.get_keys_with_sender(apple.jwks, send))
   let client_id = config.client_id(client_config)
   use #(user_id, user_information) <- result.try(
     case verify_id_token_raw(jwt: id_token, keys: keys, client_id: client_id) {
       Error(jwt.NoMatchingKey) -> {
-        use refreshed_keys <- result.try(jwks.refresh_keys(apple.jwks))
+        use refreshed_keys <- result.try(jwks.refresh_keys_with_sender(
+          apple.jwks,
+          send,
+        ))
         verify_id_token_raw(
           jwt: id_token,
           keys: refreshed_keys,

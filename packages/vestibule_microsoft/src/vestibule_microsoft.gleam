@@ -52,12 +52,19 @@ const microsoft_jwks_url = "https://login.microsoftonline.com/common/discovery/v
 ///
 /// **Security warning:** `/common` accepts personal Microsoft accounts and
 /// work/school accounts from any Microsoft Entra tenant that can consent to the
-/// app, and this strategy performs **no** tenant validation. Use it only for
-/// explicitly multi-tenant apps. For single-organization apps, use
-/// `strategy_for_tenant` so logins are restricted to one tenant and the tenant
-/// is verified against the ID token.
+/// app. It verifies the token's tenant but allows any valid tenant. Use it only
+/// for explicitly multi-tenant apps. For single-organization apps, use
+/// `strategy_for_tenant`.
 pub fn strategy() -> Strategy(e) {
-  build_strategy("common", None)
+  strategy_with_sender(httpc.send)
+}
+
+/// Create a multi-tenant Microsoft strategy with a custom HTTP sender.
+pub fn strategy_with_sender(
+  send: fn(request.Request(String)) ->
+    Result(response.Response(String), send_error),
+) -> Strategy(e) {
+  build_strategy("common", None, send)
 }
 
 /// Create a Microsoft authentication strategy locked to a single tenant.
@@ -75,12 +82,23 @@ pub fn strategy() -> Strategy(e) {
 /// `contoso.onmicrosoft.com`): the `tid` claim is always a GUID, so domain
 /// values cannot be matched and would reject otherwise-valid logins.
 pub fn strategy_for_tenant(tenant_id: String) -> Strategy(e) {
-  build_strategy(tenant_id, Some(tenant_id))
+  strategy_for_tenant_with_sender(tenant_id, httpc.send)
+}
+
+/// Create a tenant-locked Microsoft strategy with a custom HTTP sender.
+pub fn strategy_for_tenant_with_sender(
+  tenant_id: String,
+  send: fn(request.Request(String)) ->
+    Result(response.Response(String), send_error),
+) -> Strategy(e) {
+  build_strategy(tenant_id, Some(tenant_id), send)
 }
 
 fn build_strategy(
   authority: String,
   expected_tenant: Option(String),
+  send: fn(request.Request(String)) ->
+    Result(response.Response(String), send_error),
 ) -> Strategy(e) {
   strategy.new(
     provider: "microsoft",
@@ -89,15 +107,21 @@ fn build_strategy(
       do_authorize_url(authority, client_configuration, options, scopes, state)
     },
     exchange_code: fn(client_configuration, code, code_verifier) {
-      do_exchange_code(authority, client_configuration, code, code_verifier)
+      do_exchange_code(
+        authority,
+        client_configuration,
+        code,
+        code_verifier,
+        send,
+      )
     },
     fetch_user: fn(client_configuration, exchange) {
-      do_fetch_user(expected_tenant, client_configuration, exchange)
+      do_fetch_user(expected_tenant, client_configuration, exchange, send)
     },
   )
   |> strategy.with_nonce()
   |> strategy.with_refresh(fn(client_configuration, refresh_token) {
-    do_refresh_token(authority, client_configuration, refresh_token)
+    do_refresh_token(authority, client_configuration, refresh_token, send)
   })
 }
 
@@ -331,6 +355,8 @@ fn do_exchange_code(
   client_configuration: ClientConfig,
   code: String,
   code_verifier: Option(String),
+  send: fn(request.Request(String)) ->
+    Result(response.Response(String), send_error),
 ) -> Result(strategy.ExchangeResult, AuthError(e)) {
   use token_http_request <- result.try(build_authorization_code_request(
     authority,
@@ -347,7 +373,7 @@ fn do_exchange_code(
     fields: [logger.field("endpoint", "token")],
   )
   |> logger.emit()
-  case httpc.send(token_http_request) {
+  case send(token_http_request) {
     Ok(response) -> parse_authorization_code_response(response)
     Error(_) -> {
       logger.new(
@@ -410,6 +436,8 @@ fn do_refresh_token(
   authority: String,
   client_configuration: ClientConfig,
   refresh_token: String,
+  send: fn(request.Request(String)) ->
+    Result(response.Response(String), send_error),
 ) -> Result(Credentials, AuthError(e)) {
   use refresh_http_request <- result.try(build_refresh_token_request(
     authority,
@@ -426,7 +454,7 @@ fn do_refresh_token(
     fields: [logger.field("endpoint", "refresh")],
   )
   |> logger.emit()
-  case httpc.send(refresh_http_request) {
+  case send(refresh_http_request) {
     Ok(response) -> parse_refresh_token_response(response)
     Error(_) -> {
       logger.new(
@@ -452,17 +480,20 @@ fn do_fetch_user(
   expected_tenant: Option(String),
   client_configuration: ClientConfig,
   exchange: strategy.ExchangeResult,
+  send: fn(request.Request(String)) ->
+    Result(response.Response(String), send_error),
 ) -> Result(UserResult, AuthError(e)) {
   use verified_object_id <- result.try(verify_microsoft_exchange(
     expected_tenant,
     client_configuration,
     exchange,
+    send,
   ))
   use user_info_request <- result.try(
     build_user_info_request(strategy.exchange_credentials(exchange)),
   )
   use user_info_response <- result.try(
-    httpc.send(user_info_request)
+    send(user_info_request)
     |> result.replace_error(error.network(
       reason: "Failed to connect to Microsoft Graph",
     )),
@@ -490,13 +521,36 @@ fn verify_microsoft_exchange(
   expected_tenant: Option(String),
   client_configuration: ClientConfig,
   exchange: strategy.ExchangeResult,
+  send: fn(request.Request(String)) ->
+    Result(response.Response(String), send_error),
 ) -> Result(String, AuthError(e)) {
   use id_token <- result.try(exchange_id_token(exchange))
+  use jwks <- result.try(fetch_microsoft_jwks(send))
+  use #(object_id, _) <- result.try(verify_id_token(
+    id_token,
+    jwks,
+    config.client_id(client_configuration),
+    expected_tenant,
+  ))
+  Ok(object_id)
+}
+
+/// Verify a Microsoft v2 ID token and return its stable object and tenant IDs.
+///
+/// Signature, RS256 algorithm, issuer, audience, time claims, `tid`, and `oid`
+/// are required. For a tenant-locked strategy, `tid` must match the configured
+/// tenant. Multi-tenant verification uses the untrusted `tid` only to select
+/// the expected issuer, then requires the same value from the verified token.
+pub fn verify_id_token(
+  id_token: String,
+  jwks: oidc.Jwks,
+  client_id: String,
+  expected_tenant: Option(String),
+) -> Result(#(String, String), AuthError(e)) {
   use tenant_for_issuer <- result.try(case expected_tenant {
     Some(tenant_id) -> Ok(string.lowercase(tenant_id))
     None -> untrusted_id_token_tenant(id_token) |> result.map(string.lowercase)
   })
-  use jwks <- result.try(fetch_microsoft_jwks())
   use verified <- result.try(
     oidc.verify_rs256(
       token: id_token,
@@ -504,19 +558,25 @@ fn verify_microsoft_exchange(
       issuer: "https://login.microsoftonline.com/"
         <> tenant_for_issuer
         <> "/v2.0",
-      audience: config.client_id(client_configuration),
+      audience: client_id,
       expected_nonce: None,
     )
     |> result.map_error(oidc_auth_error),
   )
-  use verified_tenant <- result.try(
-    oidc.string_claim(verified, "tid")
-    |> result.map_error(oidc_auth_error),
-  )
-  use object_id <- result.try(
-    oidc.string_claim(verified, "oid")
-    |> result.map_error(oidc_auth_error),
-  )
+  use verified_tenant <- result.try(case oidc.tenant_id(verified) {
+    Some(tenant_id) -> Ok(tenant_id)
+    None ->
+      Error(error.user_info(
+        reason: "Microsoft ID token is missing the tenant ID",
+      ))
+  })
+  use object_id <- result.try(case oidc.object_id(verified) {
+    Some(object_id) -> Ok(object_id)
+    None ->
+      Error(error.user_info(
+        reason: "Microsoft ID token is missing the object ID",
+      ))
+  })
   use _ <- result.try(
     case
       string.trim(verified_tenant),
@@ -541,7 +601,7 @@ fn verify_microsoft_exchange(
       }
     None -> Ok(Nil)
   })
-  Ok(object_id)
+  Ok(#(object_id, verified_tenant))
 }
 
 fn exchange_id_token(
@@ -564,13 +624,18 @@ fn exchange_id_token(
   }
 }
 
-fn fetch_microsoft_jwks() -> Result(oidc.Jwks, AuthError(e)) {
+fn fetch_microsoft_jwks(
+  send: fn(request.Request(String)) ->
+    Result(response.Response(String), send_error),
+) -> Result(oidc.Jwks, AuthError(e)) {
   use http_request <- result.try(build_jwks_request())
-  httpc.send(http_request)
-  |> result.replace_error(error.network(
-    reason: "Failed to connect to Microsoft JWKS endpoint",
-  ))
-  |> result.try(parse_jwks_response)
+  use http_response <- result.try(
+    send(http_request)
+    |> result.replace_error(error.network(
+      reason: "Failed to connect to Microsoft JWKS endpoint",
+    )),
+  )
+  parse_jwks_response(http_response)
 }
 
 // Used only to select the tenant-specific issuer before signature validation.

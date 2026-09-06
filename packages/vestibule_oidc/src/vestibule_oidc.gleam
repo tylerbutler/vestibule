@@ -55,6 +55,8 @@ pub opaque type OidcConfig {
     jwks_uri: String,
     /// ID-token signing algorithms advertised by the issuer.
     signing_algorithms: List(String),
+    /// Whether authorization responses include the RFC 9207 `iss` parameter.
+    authorization_response_issuer_supported: Bool,
     /// Scopes supported by this provider.
     scopes_supported: List(String),
   )
@@ -124,6 +126,7 @@ pub fn new_config_with_jwks(
     userinfo_endpoint: userinfo_endpoint,
     jwks_uri: jwks_uri,
     signing_algorithms: signing_algorithms,
+    authorization_response_issuer_supported: False,
     scopes_supported: scopes_supported,
   ))
 }
@@ -156,6 +159,11 @@ pub fn jwks_uri(config: OidcConfig) -> String {
 /// Get the provider's advertised ID-token signing algorithms.
 pub fn signing_algorithms(config: OidcConfig) -> List(String) {
   config.signing_algorithms
+}
+
+/// Whether discovery says authorization responses include an issuer parameter.
+pub fn authorization_response_issuer_supported(config: OidcConfig) -> Bool {
+  config.authorization_response_issuer_supported
 }
 
 /// Get the scopes supported by an OIDC configuration.
@@ -280,6 +288,11 @@ pub fn parse_discovery_document(
       "id_token_signing_alg_values_supported",
       decode.list(decode.string),
     )
+    use authorization_response_issuer_supported <- decode.optional_field(
+      "authorization_response_iss_parameter_supported",
+      False,
+      decode.bool,
+    )
     use scopes_supported <- decode.optional_field(
       "scopes_supported",
       [],
@@ -292,6 +305,7 @@ pub fn parse_discovery_document(
       userinfo_endpoint,
       jwks_uri,
       signing_algorithms,
+      authorization_response_issuer_supported,
       scopes_supported,
     ))
   }
@@ -303,6 +317,7 @@ pub fn parse_discovery_document(
       userinfo_endpoint,
       jwks_uri,
       signing_algorithms,
+      authorization_response_issuer_supported,
       scopes_supported,
     )) ->
       new_config_with_jwks(
@@ -314,6 +329,12 @@ pub fn parse_discovery_document(
         signing_algorithms: signing_algorithms,
         scopes_supported: scopes_supported,
       )
+      |> result.map(fn(config) {
+        OidcConfig(
+          ..config,
+          authorization_response_issuer_supported: authorization_response_issuer_supported,
+        )
+      })
     Error(parse_error) ->
       Error(error.config(
         reason: "Failed to parse OIDC discovery document: "
@@ -353,15 +374,20 @@ pub fn strategy_from_config_with_sender(
     Result(response.Response(String), AuthError(e)),
 ) -> Strategy(e) {
   let scopes = filter_default_scopes(oidc_config.scopes_supported)
-  strategy.new(
-    provider: provider_name,
-    default_scopes: scopes,
-    authorize_url: build_authorize_url_fn(oidc_config.authorization_endpoint),
-    exchange_code: build_exchange_code_fn(oidc_config, send),
-    fetch_user: build_fetch_user_fn(oidc_config, send),
-  )
-  |> strategy.with_nonce()
-  |> strategy.with_refresh(build_refresh_token_fn(oidc_config, send))
+  let oidc_strategy =
+    strategy.new(
+      provider: provider_name,
+      default_scopes: scopes,
+      authorize_url: build_authorize_url_fn(oidc_config.authorization_endpoint),
+      exchange_code: build_exchange_code_fn(oidc_config, send),
+      fetch_user: build_fetch_user_fn(oidc_config, send),
+    )
+    |> strategy.with_nonce()
+    |> strategy.with_refresh(build_refresh_token_fn(oidc_config, send))
+  case oidc_config.authorization_response_issuer_supported {
+    True -> strategy.with_callback_issuer(oidc_strategy, oidc_config.issuer)
+    False -> oidc_strategy
+  }
 }
 
 /// Discover an OIDC provider and build a strategy in one step.

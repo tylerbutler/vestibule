@@ -37,37 +37,60 @@ const google_jwks_url = "https://www.googleapis.com/oauth2/v3/certs"
 /// Create a Google authentication strategy.
 ///
 /// This strategy does not enforce a Google Workspace hosted domain. If the
-/// userinfo response includes an `hd` claim it is surfaced under the `"hd"`
+/// verified ID token includes an `hd` claim it is surfaced under the `"hd"`
 /// key of `UserResult`'s `extra` dict, but no domain restriction is applied.
 /// To restrict sign-in to a single Workspace domain, use
 /// `strategy_for_hosted_domain`.
 pub fn strategy() -> Strategy(e) {
+  strategy_with_sender(httpc.send)
+}
+
+/// Create a Google strategy with a custom HTTP sender.
+///
+/// This is useful for deterministic callback testing.
+pub fn strategy_with_sender(
+  send: fn(request.Request(String)) ->
+    Result(response.Response(String), send_error),
+) -> Strategy(e) {
   strategy.new(
     provider: "google",
     default_scopes: ["openid", "profile", "email"],
     authorize_url: do_authorize_url,
-    exchange_code: do_exchange_code,
+    exchange_code: fn(client_config, code, code_verifier) {
+      do_exchange_code(client_config, code, code_verifier, send)
+    },
     fetch_user: fn(client_config, exchange) {
-      fetch_user_enforcing(client_config, exchange, None)
+      fetch_user_enforcing(client_config, exchange, None, send)
     },
   )
   |> strategy.with_nonce()
-  |> strategy.with_refresh(do_refresh_token)
+  |> strategy.with_refresh(fn(client_config, refresh_token) {
+    do_refresh_token(client_config, refresh_token, send)
+  })
 }
 
 /// Create a Google strategy that enforces a Workspace hosted domain.
 ///
-/// Authentication fails unless Google's userinfo response carries an `hd`
+/// Authentication fails unless Google's verified ID token carries an `hd`
 /// (hosted-domain) claim exactly matching `hosted_domain`. A missing or
 /// mismatched `hd` yields `error.user_info`. The validated domain is
 /// surfaced under the `"hd"` key of `UserResult`'s `extra` dict.
 ///
 /// `hosted_domain` is also added to the authorization URL as an account-picker
 /// hint, but that hint is advisory only — enforcement happens server-side when
-/// the userinfo response is validated. Setting `hd` via
+/// the ID token is verified. Setting `hd` via
 /// `config.authorize_options() |> config.with_extra_params([#("hd", ...)])` is purely a UI hint and must not
 /// be relied on for authorization.
 pub fn strategy_for_hosted_domain(hosted_domain: String) -> Strategy(e) {
+  strategy_for_hosted_domain_with_sender(hosted_domain, httpc.send)
+}
+
+/// Create a hosted-domain Google strategy with a custom HTTP sender.
+pub fn strategy_for_hosted_domain_with_sender(
+  hosted_domain: String,
+  send: fn(request.Request(String)) ->
+    Result(response.Response(String), send_error),
+) -> Strategy(e) {
   strategy.new(
     provider: "google",
     default_scopes: ["openid", "profile", "email"],
@@ -80,13 +103,17 @@ pub fn strategy_for_hosted_domain(hosted_domain: String) -> Strategy(e) {
         Some(hosted_domain),
       )
     },
-    exchange_code: do_exchange_code,
+    exchange_code: fn(client_config, code, code_verifier) {
+      do_exchange_code(client_config, code, code_verifier, send)
+    },
     fetch_user: fn(client_config, exchange) {
-      fetch_user_enforcing(client_config, exchange, Some(hosted_domain))
+      fetch_user_enforcing(client_config, exchange, Some(hosted_domain), send)
     },
   )
   |> strategy.with_nonce()
-  |> strategy.with_refresh(do_refresh_token)
+  |> strategy.with_refresh(fn(client_config, refresh_token) {
+    do_refresh_token(client_config, refresh_token, send)
+  })
 }
 
 /// Parse Google token response JSON.
@@ -423,6 +450,8 @@ fn do_exchange_code(
   client_config: ClientConfig,
   code: String,
   code_verifier: Option(String),
+  send: fn(request.Request(String)) ->
+    Result(response.Response(String), send_error),
 ) -> Result(strategy.ExchangeResult, AuthError(e)) {
   use token_http_request <- result.try(build_authorization_code_request(
     client_config,
@@ -438,7 +467,7 @@ fn do_exchange_code(
     fields: [logger.field("endpoint", "token")],
   )
   |> logger.emit()
-  case httpc.send(token_http_request) {
+  case send(token_http_request) {
     Ok(response) -> parse_authorization_code_response(response)
     Error(_) -> {
       logger.new(
@@ -461,6 +490,8 @@ fn do_exchange_code(
 fn do_refresh_token(
   client_config: ClientConfig,
   refresh_token: String,
+  send: fn(request.Request(String)) ->
+    Result(response.Response(String), send_error),
 ) -> Result(Credentials, AuthError(e)) {
   use refresh_http_request <- result.try(build_refresh_token_request(
     client_config,
@@ -476,7 +507,7 @@ fn do_refresh_token(
     fields: [logger.field("endpoint", "refresh")],
   )
   |> logger.emit()
-  case httpc.send(refresh_http_request) {
+  case send(refresh_http_request) {
     Ok(response) -> parse_refresh_token_response(response)
     Error(_) -> {
       logger.new(
@@ -500,9 +531,11 @@ fn fetch_user_enforcing(
   client_config: ClientConfig,
   exchange: strategy.ExchangeResult,
   required_hosted_domain: Option(String),
+  send: fn(request.Request(String)) ->
+    Result(response.Response(String), send_error),
 ) -> Result(UserResult, AuthError(e)) {
   use id_token <- result.try(exchange_id_token(exchange))
-  use jwks <- result.try(fetch_google_jwks())
+  use jwks <- result.try(fetch_google_jwks(send))
   use verified_id_token <- result.try(verify_google_id_token(
     id_token,
     jwks,
@@ -511,7 +544,7 @@ fn fetch_user_enforcing(
   let oauth_credentials = strategy.exchange_credentials(exchange)
   use user_info_request <- result.try(build_user_info_request(oauth_credentials))
   use user_info_response <- result.try(
-    httpc.send(user_info_request)
+    send(user_info_request)
     |> result.replace_error(error.network(
       reason: "Failed to connect to Google userinfo API",
     )),
@@ -531,13 +564,18 @@ fn fetch_user_enforcing(
   Ok(strategy.user_result(uid: user_id, info: user, extra: extra))
 }
 
-fn fetch_google_jwks() -> Result(oidc.Jwks, AuthError(e)) {
+fn fetch_google_jwks(
+  send: fn(request.Request(String)) ->
+    Result(response.Response(String), send_error),
+) -> Result(oidc.Jwks, AuthError(e)) {
   use http_request <- result.try(build_jwks_request())
-  httpc.send(http_request)
-  |> result.replace_error(error.network(
-    reason: "Failed to connect to Google JWKS endpoint",
-  ))
-  |> result.try(parse_jwks_response)
+  use http_response <- result.try(
+    send(http_request)
+    |> result.replace_error(error.network(
+      reason: "Failed to connect to Google JWKS endpoint",
+    )),
+  )
+  parse_jwks_response(http_response)
 }
 
 fn verify_google_id_token(
@@ -580,10 +618,7 @@ fn validate_google_identity(
         reason: "Google userinfo subject does not match the verified ID token",
       ))
   })
-  use hosted_domain <- result.try(
-    oidc.optional_string_claim(verified_id_token, "hd")
-    |> result.map_error(oidc_auth_error),
-  )
+  let hosted_domain = oidc.hosted_domain(verified_id_token)
   validate_hosted_domain(
     required: required_hosted_domain,
     returned: hosted_domain,
@@ -610,17 +645,11 @@ fn require_google_scopes(
   oauth_credentials: Credentials,
 ) -> Result(Nil, AuthError(e)) {
   let scopes = credential.scopes(oauth_credentials)
-  let has_email =
-    list.contains(scopes, "email")
-    || list.contains(scopes, "https://www.googleapis.com/auth/userinfo.email")
-  let has_profile =
-    list.contains(scopes, "profile")
-    || list.contains(scopes, "https://www.googleapis.com/auth/userinfo.profile")
-  case list.contains(scopes, "openid") && has_email && has_profile {
+  case list.contains(scopes, "openid") {
     True -> Ok(Nil)
     False ->
       Error(error.code_exchange(
-        reason: "Google did not grant the required OpenID profile scopes",
+        reason: "Google did not grant the required openid scope",
       ))
   }
 }

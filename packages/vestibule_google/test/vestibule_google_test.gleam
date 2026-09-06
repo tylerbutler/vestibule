@@ -3,15 +3,21 @@ import gleam/dynamic/decode
 import gleam/http
 import gleam/http/request
 import gleam/http/response
+import gleam/json
 import gleam/option.{None, Some}
 import gleam/string
+import gleam/time/duration
 import gleeunit
+import vestibule
+import vestibule/auth
 import vestibule/config
 import vestibule/credential
 import vestibule/error
 import vestibule/strategy
 import vestibule/user_info
 import vestibule_google
+import vestibule_google/jwt_signing
+import ywt/claim
 
 pub fn main() -> Nil {
   gleeunit.main()
@@ -65,16 +71,12 @@ pub fn parse_token_response_with_refresh_token_test() -> Nil {
   Nil
 }
 
-pub fn parse_token_response_empty_scope_test() -> Nil {
+pub fn parse_token_response_empty_scope_is_rejected_test() -> Nil {
   let body =
     "{\"access_token\":\"ya29.test\",\"expires_in\":3600,\"scope\":\"\",\"token_type\":\"Bearer\"}"
-  let assert Ok(oauth_credentials) = vestibule_google.parse_token_response(body)
-  let _ =
-    credential.scopes(oauth_credentials)
-    |> fn(actual) {
-      assert actual == []
-    }
-  Nil
+  let assert Error(authentication_error) =
+    vestibule_google.parse_token_response(body)
+  assert error.kind(authentication_error) == error.CodeExchangeKind
 }
 
 pub fn parse_token_response_error_test() -> Nil {
@@ -95,7 +97,7 @@ pub fn parse_token_response_error_without_description_test() -> Nil {
     vestibule_google.parse_token_response(body)
   assert error.kind(authentication_error) == error.ProviderKind
   assert error.message(authentication_error)
-    == "Provider error (invalid_grant): Provider rejected the request"
+    == "Provider returned error: invalid_grant — Provider rejected the request"
 }
 
 pub fn parse_user_response_full_test() -> Nil {
@@ -441,4 +443,124 @@ pub fn sans_io_refresh_and_user_info_test() -> Nil {
     vestibule_google.parse_user_info_response(user_response)
   assert user_id == "user-123"
   assert user_info.email(user) == Some("user@example.com")
+}
+
+pub fn jwks_request_and_invalid_response_test() -> Nil {
+  let assert Ok(http_request) = vestibule_google.build_jwks_request()
+  assert http_request.host == "www.googleapis.com"
+  assert http_request.path == "/oauth2/v3/certs"
+  assert request.get_header(http_request, "accept") == Ok("application/json")
+
+  let invalid_response =
+    response.Response(status: 200, headers: [], body: "{\"keys\":[]}")
+  let assert Error(authentication_error) =
+    vestibule_google.parse_jwks_response(invalid_response)
+  assert error.kind(authentication_error) == error.UserInfoKind
+}
+
+pub fn callback_accepts_signed_bound_hosted_domain_identity_test() -> Nil {
+  let assert Ok(auth_result) =
+    google_callback("user-123", "user-123", "corp.example", "nonce", "nonce")
+  assert auth.uid(auth_result) == "user-123"
+}
+
+pub fn callback_rejects_signed_token_userinfo_substitution_test() -> Nil {
+  let assert Error(auth_error) =
+    google_callback("user-123", "victim", "corp.example", "nonce", "nonce")
+  assert error.kind(auth_error) == error.UserInfoKind
+}
+
+pub fn callback_rejects_wrong_signed_hosted_domain_test() -> Nil {
+  let assert Error(auth_error) =
+    google_callback("user-123", "user-123", "evil.example", "nonce", "nonce")
+  assert error.kind(auth_error) == error.UserInfoKind
+}
+
+pub fn callback_rejects_wrong_signed_nonce_test() -> Nil {
+  let assert Error(auth_error) =
+    google_callback("user-123", "user-123", "corp.example", "wrong", "nonce")
+  assert error.kind(auth_error) == error.InvalidNonceKind
+}
+
+fn google_callback(
+  token_subject: String,
+  userinfo_subject: String,
+  hosted_domain: String,
+  token_nonce: String,
+  expected_nonce: String,
+) {
+  let id_token =
+    jwt_signing.encode(
+      [
+        #("sub", json.string(token_subject)),
+        #("hd", json.string(hosted_domain)),
+      ],
+      [
+        claim.issuer("https://accounts.google.com", []),
+        claim.audience("client-id", []),
+        claim.custom(
+          name: "nonce",
+          value: token_nonce,
+          encode: json.string,
+          decoder: decode.string,
+        ),
+        claim.expires_at(
+          max_age: duration.minutes(5),
+          leeway: duration.seconds(0),
+        ),
+      ],
+    )
+  let sender = fn(http_request: request.Request(String)) {
+    case
+      http_request.host,
+      string.ends_with(http_request.path, "/token"),
+      string.ends_with(http_request.path, "/certs"),
+      string.ends_with(http_request.path, "/userinfo")
+    {
+      "oauth2.googleapis.com", True, _, _ ->
+        Ok(response.Response(
+          status: 200,
+          headers: [],
+          body: json.object([
+            #("access_token", json.string("access-token")),
+            #("token_type", json.string("Bearer")),
+            #("scope", json.string("openid email profile")),
+            #("id_token", json.string(id_token)),
+          ])
+            |> json.to_string(),
+        ))
+      "www.googleapis.com", _, True, _ ->
+        Ok(response.Response(status: 200, headers: [], body: jwt_signing.jwks()))
+      "www.googleapis.com", _, _, True ->
+        Ok(response.Response(
+          status: 200,
+          headers: [],
+          body: json.object([
+            #("sub", json.string(userinfo_subject)),
+            #("email", json.string("user@example.com")),
+            #("email_verified", json.bool(True)),
+          ])
+            |> json.to_string(),
+        ))
+      _, _, _, _ -> Error(Nil)
+    }
+  }
+  vestibule.handle_callback(
+    vestibule_google.strategy_for_hosted_domain_with_sender(
+      "corp.example",
+      sender,
+    ),
+    config: config.new(
+      client_id: "client-id",
+      redirect_uri: "https://app.example/callback",
+      auth: config.client_secret_auth("secret"),
+    ),
+    callback_params: dict.from_list([
+      #("state", "state"),
+      #("code", "code"),
+    ]),
+    expected_state: "state",
+    code_verifier: "verifier",
+    expected_nonce: Some(expected_nonce),
+  )
 }

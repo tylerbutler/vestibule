@@ -32,6 +32,10 @@ Discovery now requires `jwks_uri` and
 RS256 ID tokens. It verifies the signature, issuer, audience, `azp`,
 expiration, optional `nbf` and `iat`, and the callback nonce before it accepts
 an identity. The UserInfo `sub` must equal the verified ID-token `sub`.
+When discovery advertises
+`authorization_response_iss_parameter_supported=true`, the strategy also
+requires the callback `iss` parameter to exactly match the discovered issuer
+before token exchange. Providers that do not advertise it remain compatible.
 
 JWKS responses use Vestibule's public HTTPS transport and its 256 KiB response
 limit. The package caches at most 64 issuer key sets for one hour. If a token

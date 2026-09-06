@@ -56,6 +56,38 @@ pub fn callback_rejects_empty_id_token_subject_test() -> Nil {
   assert error.kind(auth_error) == error.UserInfoKind
 }
 
+pub fn discovered_callback_issuer_is_enforced_before_exchange_test() -> Nil {
+  let document =
+    "{\"issuer\":\"https://callback-issuer.example/tenant\",\"authorization_endpoint\":\"https://callback-issuer.example/tenant/authorize\",\"token_endpoint\":\"https://callback-issuer.example/tenant/token\",\"userinfo_endpoint\":\"https://callback-issuer.example/tenant/userinfo\",\"jwks_uri\":\"https://callback-issuer.example/tenant/keys\",\"id_token_signing_alg_values_supported\":[\"RS256\"],\"authorization_response_iss_parameter_supported\":true}"
+  let assert Ok(oidc_config) = vestibule_oidc.parse_discovery_document(document)
+  let oidc_strategy =
+    vestibule_oidc.strategy_from_config(
+      oidc_config,
+      vestibule_oidc.issuer_namespace(oidc_config),
+    )
+  let client_config = client_config()
+  let assert Ok(request) =
+    vestibule.create_authorization_request(
+      oidc_strategy,
+      config: client_config,
+      options: config.authorize_options(),
+    )
+  let assert Error(auth_error) =
+    vestibule.handle_callback(
+      oidc_strategy,
+      config: client_config,
+      callback_params: dict.from_list([
+        #("state", authorization_request.state(request)),
+        #("code", "authorization-code"),
+        #("iss", "https://attacker.example"),
+      ]),
+      expected_state: authorization_request.state(request),
+      code_verifier: authorization_request.code_verifier(request),
+      expected_nonce: authorization_request.nonce(request),
+    )
+  assert error.kind(auth_error) == error.CodeExchangeKind
+}
+
 pub fn callback_refreshes_unknown_kid_once_test() -> Nil {
   reset_counter()
   let issuer = "https://refresh.example/tenant"
@@ -386,6 +418,8 @@ pub fn verifier_exposes_provider_specific_string_claims_test() -> Nil {
         #("sub", json.string("user-123")),
         #("hd", json.string("example.com")),
         #("tid", json.string("tenant-id")),
+        #("oid", json.string("object-id")),
+        #("email_verified", json.bool(True)),
       ],
       claims: [
         claim.issuer("https://claims.example", []),
@@ -407,6 +441,38 @@ pub fn verifier_exposes_provider_specific_string_claims_test() -> Nil {
   assert oidc.string_claim(verified, "tid") == Ok("tenant-id")
   assert oidc.optional_string_claim(verified, "hd") == Ok(Some("example.com"))
   assert oidc.optional_string_claim(verified, "missing") == Ok(None)
+  assert oidc.bool_claim(verified, "email_verified") == Ok(True)
+  assert oidc.optional_bool_claim(verified, "missing") == Ok(None)
+  assert oidc.hosted_domain(verified) == Some("example.com")
+  assert oidc.tenant_id(verified) == Some("tenant-id")
+  assert oidc.object_id(verified) == Some("object-id")
+}
+
+pub fn verifier_rejects_blank_provider_identity_claim_test() -> Nil {
+  let assert Ok(keys) = oidc.parse_jwks(jwt_signing.jwks())
+  let token =
+    jwt_signing.encode(
+      payload: [
+        #("sub", json.string("user-123")),
+        #("tid", json.string("  ")),
+      ],
+      claims: [
+        claim.issuer("https://blank-claim.example", []),
+        claim.audience("client-id", []),
+        claim.expires_at(
+          max_age: duration.minutes(5),
+          leeway: duration.seconds(0),
+        ),
+      ],
+    )
+  assert oidc.verify_rs256(
+      token: token,
+      using: keys,
+      issuer: "https://blank-claim.example",
+      audience: "client-id",
+      expected_nonce: None,
+    )
+    == Error(oidc.InvalidClaim("tid"))
 }
 
 type TokenKind {

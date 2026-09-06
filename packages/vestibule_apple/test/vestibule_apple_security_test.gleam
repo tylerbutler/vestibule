@@ -5,12 +5,18 @@
 //// JWT parsing/claims with a custom FFI backend for crypto verification.
 
 import gleam/crypto
+import gleam/dict
+import gleam/dynamic/decode
 import gleam/http/request
 import gleam/http/response
 import gleam/json as gleam_json
 import gleam/list
 import gleam/option.{None, Some}
+import gleam/string
 import gleam/time/duration
+import vestibule
+import vestibule/auth
+import vestibule/config
 import vestibule/error
 import vestibule/nonce
 import vestibule/user_info
@@ -175,6 +181,85 @@ pub fn verify_id_token_rejects_missing_subject_test() -> Nil {
       client_id: "com.example.app",
     )
   assert error.kind(authentication_error) == error.UserInfoKind
+}
+
+pub fn callback_refreshes_unknown_cached_apple_key_test() -> Nil {
+  let assert Ok(apple) =
+    vestibule_apple.initialize_named("callback_refreshes_unknown_key")
+  let id_token =
+    jwt_signing.encode(
+      [
+        #("sub", gleam_json.string("user-123")),
+        #("email", gleam_json.string("user@example.com")),
+        #("email_verified", gleam_json.bool(True)),
+      ],
+      [
+        claim.issuer("https://appleid.apple.com", []),
+        claim.audience("client-id", []),
+        claim.custom(
+          name: "nonce",
+          value: "nonce",
+          encode: gleam_json.string,
+          decoder: decode.string,
+        ),
+        claim.expires_at(
+          max_age: duration.minutes(5),
+          leeway: duration.seconds(0),
+        ),
+      ],
+      jwt_signing.test_key(),
+    )
+  let assert Error(first_error) =
+    apple_callback(apple, id_token, jwt_signing.other_key_jwks())
+  assert error.kind(first_error) == error.UserInfoKind
+
+  let assert Ok(auth_result) =
+    apple_callback(apple, id_token, jwt_signing.test_key_jwks())
+  assert auth.uid(auth_result) == "user-123"
+}
+
+fn apple_callback(
+  apple: vestibule_apple.AppleCache,
+  id_token: String,
+  jwks_body: String,
+) {
+  let sender = fn(http_request: request.Request(String)) {
+    case
+      http_request.host,
+      string.ends_with(http_request.path, "/auth/token"),
+      string.ends_with(http_request.path, "/auth/keys")
+    {
+      "appleid.apple.com", True, _ ->
+        Ok(response.Response(
+          status: 200,
+          headers: [],
+          body: gleam_json.object([
+            #("access_token", gleam_json.string("access-token")),
+            #("token_type", gleam_json.string("Bearer")),
+            #("id_token", gleam_json.string(id_token)),
+          ])
+            |> gleam_json.to_string(),
+        ))
+      "appleid.apple.com", _, True ->
+        Ok(response.Response(status: 200, headers: [], body: jwks_body))
+      _, _, _ -> Error(Nil)
+    }
+  }
+  vestibule.handle_callback(
+    vestibule_apple.strategy_with_sender(apple, sender),
+    config: config.new(
+      client_id: "client-id",
+      redirect_uri: "https://app.example/callback",
+      auth: config.client_secret_auth("secret"),
+    ),
+    callback_params: dict.from_list([
+      #("state", "state"),
+      #("code", "code"),
+    ]),
+    expected_state: "state",
+    code_verifier: "verifier",
+    expected_nonce: Some("nonce"),
+  )
 }
 
 /// Security: verify_id_token rejects JWT with wrong issuer.

@@ -252,7 +252,7 @@ pub fn new_config_allows_public_https_endpoints_test() -> Nil {
 
 pub fn parse_discovery_document_full_test() -> Nil {
   let json =
-    "{\"issuer\":\"https://accounts.example.com\",\"authorization_endpoint\":\"https://accounts.example.com/authorize\",\"token_endpoint\":\"https://accounts.example.com/token\",\"userinfo_endpoint\":\"https://accounts.example.com/userinfo\",\"jwks_uri\":\"https://accounts.example.com/keys\",\"id_token_signing_alg_values_supported\":[\"RS256\"],\"scopes_supported\":[\"openid\",\"profile\",\"email\",\"address\"]}"
+    "{\"issuer\":\"https://accounts.example.com\",\"authorization_endpoint\":\"https://accounts.example.com/authorize\",\"token_endpoint\":\"https://accounts.example.com/token\",\"userinfo_endpoint\":\"https://accounts.example.com/userinfo\",\"jwks_uri\":\"https://accounts.example.com/keys\",\"id_token_signing_alg_values_supported\":[\"RS256\"],\"authorization_response_iss_parameter_supported\":true,\"scopes_supported\":[\"openid\",\"profile\",\"email\",\"address\"]}"
   let result = vestibule_oidc.parse_discovery_document(json)
   let assert Ok(config) = result
   vestibule_oidc.issuer(config)
@@ -273,10 +273,26 @@ pub fn parse_discovery_document_full_test() -> Nil {
   }
   assert vestibule_oidc.jwks_uri(config) == "https://accounts.example.com/keys"
   assert vestibule_oidc.signing_algorithms(config) == ["RS256"]
+  assert vestibule_oidc.authorization_response_issuer_supported(config)
   vestibule_oidc.scopes_supported(config)
   |> fn(actual) {
     assert actual == ["openid", "profile", "email", "address"]
   }
+}
+
+pub fn discovered_callback_issuer_support_configures_strategy_test() -> Nil {
+  let json =
+    "{\"issuer\":\"https://issuer.example.com/tenant\",\"authorization_endpoint\":\"https://issuer.example.com/tenant/authorize\",\"token_endpoint\":\"https://issuer.example.com/tenant/token\",\"userinfo_endpoint\":\"https://issuer.example.com/tenant/userinfo\",\"jwks_uri\":\"https://issuer.example.com/tenant/keys\",\"id_token_signing_alg_values_supported\":[\"RS256\"],\"authorization_response_iss_parameter_supported\":true}"
+  let assert Ok(oidc_config) = vestibule_oidc.parse_discovery_document(json)
+  let oidc_strategy = vestibule_oidc.strategy_from_config(oidc_config, "issuer")
+  assert strategy.callback_issuer(oidc_strategy)
+    == Some("https://issuer.example.com/tenant")
+}
+
+pub fn callback_issuer_validation_is_opt_in_test() -> Nil {
+  let oidc_strategy =
+    vestibule_oidc.strategy_from_config(example_config(), "issuer")
+  assert strategy.callback_issuer(oidc_strategy) == None
 }
 
 pub fn parse_discovery_document_without_scopes_test() -> Nil {

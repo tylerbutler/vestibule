@@ -42,6 +42,9 @@ pub opaque type VerifiedIdToken {
     audiences: List(String),
     authorized_party: Option(String),
     nonce: Option(String),
+    hosted_domain: Option(String),
+    tenant_id: Option(String),
+    object_id: Option(String),
     payload: dict.Dict(String, Dynamic),
   )
 }
@@ -141,6 +144,7 @@ pub fn verify_rs256(
     verify: verify,
     resolve: resolve,
   ))
+  use verified <- result.try(populate_provider_claims(verified))
   use _ <- result.try(validate_verified_claims(verified, audience))
   Ok(verified)
 }
@@ -163,6 +167,21 @@ pub fn authorized_party(token: VerifiedIdToken) -> Option(String) {
 /// Return the verified nonce.
 pub fn nonce(token: VerifiedIdToken) -> Option(String) {
   token.nonce
+}
+
+/// Return Google's verified hosted-domain claim, when present.
+pub fn hosted_domain(token: VerifiedIdToken) -> Option(String) {
+  token.hosted_domain
+}
+
+/// Return Microsoft's verified tenant identifier claim, when present.
+pub fn tenant_id(token: VerifiedIdToken) -> Option(String) {
+  token.tenant_id
+}
+
+/// Return Microsoft's verified object identifier claim, when present.
+pub fn object_id(token: VerifiedIdToken) -> Option(String) {
+  token.object_id
 }
 
 /// Return an optional string claim from the verified payload.
@@ -188,6 +207,30 @@ pub fn string_claim(
   name: String,
 ) -> Result(String, VerificationError) {
   use value <- result.try(optional_string_claim(token, name))
+  value
+  |> option.to_result(MissingClaim(name))
+}
+
+/// Return an optional boolean claim from the verified payload.
+pub fn optional_bool_claim(
+  token: VerifiedIdToken,
+  name: String,
+) -> Result(Option(Bool), VerificationError) {
+  case dict.get(token.payload, name) {
+    Error(_) -> Ok(None)
+    Ok(value) ->
+      decode.run(value, decode.bool)
+      |> result.map(Some)
+      |> result.map_error(fn(_) { InvalidClaim(name) })
+  }
+}
+
+/// Return a required boolean claim from the verified payload.
+pub fn bool_claim(
+  token: VerifiedIdToken,
+  name: String,
+) -> Result(Bool, VerificationError) {
+  use value <- result.try(optional_bool_claim(token, name))
   value
   |> option.to_result(MissingClaim(name))
 }
@@ -374,9 +417,43 @@ fn verified_token_decoder() -> Decoder(VerifiedIdToken) {
       audiences: audiences,
       authorized_party: authorized_party,
       nonce: nonce,
+      hosted_domain: None,
+      tenant_id: None,
+      object_id: None,
       payload: payload,
     ))
   })
+}
+
+fn populate_provider_claims(
+  token: VerifiedIdToken,
+) -> Result(VerifiedIdToken, VerificationError) {
+  use hosted_domain <- result.try(optional_nonempty_string_claim(token, "hd"))
+  use tenant_id <- result.try(optional_nonempty_string_claim(token, "tid"))
+  use object_id <- result.try(optional_nonempty_string_claim(token, "oid"))
+  Ok(
+    VerifiedIdToken(
+      ..token,
+      hosted_domain: hosted_domain,
+      tenant_id: tenant_id,
+      object_id: object_id,
+    ),
+  )
+}
+
+fn optional_nonempty_string_claim(
+  token: VerifiedIdToken,
+  name: String,
+) -> Result(Option(String), VerificationError) {
+  use value <- result.try(optional_string_claim(token, name))
+  case value {
+    Some(value) ->
+      case string.trim(value) {
+        "" -> Error(InvalidClaim(name))
+        _ -> Ok(Some(value))
+      }
+    None -> Ok(None)
+  }
 }
 
 fn validate_verified_claims(
