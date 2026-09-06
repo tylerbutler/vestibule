@@ -3,6 +3,7 @@ import gleam/dynamic
 import gleam/option.{None}
 import gleam/string
 import gleeunit
+import vestibule
 import vestibule/config
 import vestibule/credential
 import vestibule/error
@@ -110,6 +111,31 @@ pub fn metadata_issuer_is_bound_to_callback_test() -> Nil {
     == option.Some("https://auth.example.com/")
 }
 
+pub fn metadata_callback_missing_issuer_stops_before_token_request_test() -> Nil {
+  let assert Error(auth_error) =
+    metadata_callback(
+      dict.from_list([
+        #("state", "state"),
+        #("code", "honest-code"),
+      ]),
+      None,
+    )
+  assert error.kind(auth_error) == error.CodeExchangeKind
+}
+
+pub fn metadata_callback_wrong_issuer_stops_before_token_request_test() -> Nil {
+  let assert Error(auth_error) =
+    metadata_callback(
+      dict.from_list([
+        #("state", "state"),
+        #("code", "honest-code"),
+        #("iss", "https://honest.example/"),
+      ]),
+      option.Some(False),
+    )
+  assert error.kind(auth_error) == error.CodeExchangeKind
+}
+
 pub fn legacy_discovery_does_not_require_callback_issuer_test() -> Nil {
   let indieauth_strategy =
     vestibule_indieauth.strategy(test_endpoints(), "https://me.example.com/")
@@ -132,6 +158,37 @@ fn test_client_config() -> config.ClientConfig {
     client_id: "https://app.example.com/",
     redirect_uri: "https://app.example.com/callback",
     auth: config.public_client(),
+  )
+}
+
+fn metadata_callback(
+  callback_params: dict.Dict(String, String),
+  response_issuer_flag: option.Option(Bool),
+) {
+  let flag = case response_issuer_flag {
+    option.Some(value) ->
+      ",\"authorization_response_iss_parameter_supported\":"
+      <> case value {
+        True -> "true"
+        False -> "false"
+      }
+    None -> ""
+  }
+  let assert Ok(endpoints) =
+    discovery.parse_metadata(
+      "{\"authorization_endpoint\":\"https://attacker.example/authorize\","
+      <> "\"token_endpoint\":\"https://attacker.example/token\","
+      <> "\"issuer\":\"https://attacker.example/\""
+      <> flag
+      <> "}",
+    )
+  vestibule.handle_callback(
+    vestibule_indieauth.strategy(endpoints, "https://me.example.com/"),
+    config: test_client_config(),
+    callback_params: callback_params,
+    expected_state: "state",
+    code_verifier: "pkce-verifier",
+    expected_nonce: None,
   )
 }
 

@@ -4,7 +4,7 @@ import gleam/http
 import gleam/http/request
 import gleam/http/response
 import gleam/json
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import gleam/string
 import gleam/time/duration
 import gleeunit
@@ -460,56 +460,192 @@ pub fn jwks_request_and_invalid_response_test() -> Nil {
 
 pub fn callback_accepts_signed_bound_hosted_domain_identity_test() -> Nil {
   let assert Ok(auth_result) =
-    google_callback("user-123", "user-123", "corp.example", "nonce", "nonce")
+    google_callback("user-123", "corp.example", "nonce", "nonce")
   assert auth.uid(auth_result) == "user-123"
 }
 
 pub fn callback_rejects_signed_token_userinfo_substitution_test() -> Nil {
   let assert Error(auth_error) =
-    google_callback("user-123", "victim", "corp.example", "nonce", "nonce")
+    google_callback("victim", "corp.example", "nonce", "nonce")
   assert error.kind(auth_error) == error.UserInfoKind
 }
 
 pub fn callback_rejects_wrong_signed_hosted_domain_test() -> Nil {
   let assert Error(auth_error) =
-    google_callback("user-123", "user-123", "evil.example", "nonce", "nonce")
+    google_callback("user-123", "evil.example", "nonce", "nonce")
   assert error.kind(auth_error) == error.UserInfoKind
 }
 
 pub fn callback_rejects_wrong_signed_nonce_test() -> Nil {
   let assert Error(auth_error) =
-    google_callback("user-123", "user-123", "corp.example", "wrong", "nonce")
+    google_callback("user-123", "corp.example", "wrong", "nonce")
   assert error.kind(auth_error) == error.InvalidNonceKind
 }
 
+pub fn callback_rejects_tampered_rs256_signature_before_userinfo_test() -> Nil {
+  let id_token =
+    google_token(
+      "https://accounts.google.com",
+      "client-id",
+      Some("corp.example"),
+      "nonce",
+      duration.minutes(5),
+    )
+    |> jwt_signing.tamper_signature
+  let assert Error(_) =
+    run_google_callback(
+      Some(id_token),
+      "user-123",
+      Some("corp.example"),
+      "nonce",
+      False,
+    )
+  Nil
+}
+
+pub fn callback_rejects_missing_id_token_before_userinfo_test() -> Nil {
+  let assert Error(_) =
+    run_google_callback(None, "user-123", Some("corp.example"), "nonce", False)
+  Nil
+}
+
+pub fn callback_rejects_wrong_id_token_issuer_before_userinfo_test() -> Nil {
+  let id_token =
+    google_token(
+      "https://evil.example",
+      "client-id",
+      Some("corp.example"),
+      "nonce",
+      duration.minutes(5),
+    )
+  let assert Error(_) =
+    run_google_callback(
+      Some(id_token),
+      "user-123",
+      Some("corp.example"),
+      "nonce",
+      False,
+    )
+  Nil
+}
+
+pub fn callback_rejects_wrong_id_token_audience_before_userinfo_test() -> Nil {
+  let id_token =
+    google_token(
+      "https://accounts.google.com",
+      "other-client",
+      Some("corp.example"),
+      "nonce",
+      duration.minutes(5),
+    )
+  let assert Error(_) =
+    run_google_callback(
+      Some(id_token),
+      "user-123",
+      Some("corp.example"),
+      "nonce",
+      False,
+    )
+  Nil
+}
+
+pub fn callback_rejects_expired_id_token_before_userinfo_test() -> Nil {
+  let id_token =
+    google_token(
+      "https://accounts.google.com",
+      "client-id",
+      Some("corp.example"),
+      "nonce",
+      duration.seconds(-120),
+    )
+  let assert Error(_) =
+    run_google_callback(
+      Some(id_token),
+      "user-123",
+      Some("corp.example"),
+      "nonce",
+      False,
+    )
+  Nil
+}
+
+pub fn callback_rejects_missing_signed_hd_even_when_userinfo_allows_domain_test() -> Nil {
+  let id_token =
+    google_token(
+      "https://accounts.google.com",
+      "client-id",
+      None,
+      "nonce",
+      duration.minutes(5),
+    )
+  let assert Error(auth_error) =
+    run_google_callback(
+      Some(id_token),
+      "user-123",
+      Some("corp.example"),
+      "nonce",
+      True,
+    )
+  assert error.kind(auth_error) == error.UserInfoKind
+}
+
 fn google_callback(
-  token_subject: String,
   userinfo_subject: String,
   hosted_domain: String,
   token_nonce: String,
   expected_nonce: String,
 ) {
   let id_token =
-    jwt_signing.encode(
-      [
-        #("sub", json.string(token_subject)),
-        #("hd", json.string(hosted_domain)),
-      ],
-      [
-        claim.issuer("https://accounts.google.com", []),
-        claim.audience("client-id", []),
-        claim.custom(
-          name: "nonce",
-          value: token_nonce,
-          encode: json.string,
-          decoder: decode.string,
-        ),
-        claim.expires_at(
-          max_age: duration.minutes(5),
-          leeway: duration.seconds(0),
-        ),
-      ],
+    google_token(
+      "https://accounts.google.com",
+      "client-id",
+      Some(hosted_domain),
+      token_nonce,
+      duration.minutes(5),
     )
+  run_google_callback(
+    Some(id_token),
+    userinfo_subject,
+    None,
+    expected_nonce,
+    True,
+  )
+}
+
+fn google_token(
+  issuer: String,
+  audience: String,
+  hosted_domain: Option(String),
+  nonce: String,
+  max_age: duration.Duration,
+) -> String {
+  let payload = case hosted_domain {
+    Some(domain) -> [
+      #("sub", json.string("user-123")),
+      #("hd", json.string(domain)),
+    ]
+    None -> [#("sub", json.string("user-123"))]
+  }
+  jwt_signing.encode(payload, [
+    claim.issuer(issuer, []),
+    claim.audience(audience, []),
+    claim.custom(
+      name: "nonce",
+      value: nonce,
+      encode: json.string,
+      decoder: decode.string,
+    ),
+    claim.expires_at(max_age: max_age, leeway: duration.seconds(0)),
+  ])
+}
+
+fn run_google_callback(
+  id_token: Option(String),
+  userinfo_subject: String,
+  userinfo_hosted_domain: Option(String),
+  expected_nonce: String,
+  allow_userinfo: Bool,
+) {
   let sender = fn(http_request: request.Request(String)) {
     case
       http_request.host,
@@ -517,31 +653,44 @@ fn google_callback(
       string.ends_with(http_request.path, "/certs"),
       string.ends_with(http_request.path, "/userinfo")
     {
-      "oauth2.googleapis.com", True, _, _ ->
+      "oauth2.googleapis.com", True, _, _ -> {
+        let fields = [
+          #("access_token", json.string("access-token")),
+          #("token_type", json.string("Bearer")),
+          #("scope", json.string("openid email profile")),
+        ]
+        let fields = case id_token {
+          Some(token) -> [#("id_token", json.string(token)), ..fields]
+          None -> fields
+        }
         Ok(response.Response(
           status: 200,
           headers: [],
-          body: json.object([
-            #("access_token", json.string("access-token")),
-            #("token_type", json.string("Bearer")),
-            #("scope", json.string("openid email profile")),
-            #("id_token", json.string(id_token)),
-          ])
-            |> json.to_string(),
+          body: json.object(fields) |> json.to_string(),
         ))
+      }
       "www.googleapis.com", _, True, _ ->
         Ok(response.Response(status: 200, headers: [], body: jwt_signing.jwks()))
-      "www.googleapis.com", _, _, True ->
+      "www.googleapis.com", _, _, True -> {
+        case allow_userinfo {
+          False -> panic as "invalid Google ID token reached userinfo"
+          True -> Nil
+        }
+        let fields = [
+          #("sub", json.string(userinfo_subject)),
+          #("email", json.string("user@example.com")),
+          #("email_verified", json.bool(True)),
+        ]
+        let fields = case userinfo_hosted_domain {
+          Some(domain) -> [#("hd", json.string(domain)), ..fields]
+          None -> fields
+        }
         Ok(response.Response(
           status: 200,
           headers: [],
-          body: json.object([
-            #("sub", json.string(userinfo_subject)),
-            #("email", json.string("user@example.com")),
-            #("email_verified", json.bool(True)),
-          ])
-            |> json.to_string(),
+          body: json.object(fields) |> json.to_string(),
         ))
+      }
       _, _, _, _ -> Error(Nil)
     }
   }

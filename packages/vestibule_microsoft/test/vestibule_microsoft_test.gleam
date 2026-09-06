@@ -568,6 +568,67 @@ pub fn callback_rejects_wrong_signed_nonce_test() -> Nil {
   assert error.kind(auth_error) == error.InvalidNonceKind
 }
 
+pub fn callback_rejects_tampered_rs256_signature_before_graph_test() -> Nil {
+  let id_token =
+    microsoft_token(
+      "https://login.microsoftonline.com/trusted/v2.0",
+      "client-id",
+      "trusted",
+      "object-id",
+      "nonce",
+      duration.minutes(5),
+    )
+    |> jwt_signing.tamper_signature
+  let assert Error(_) =
+    run_microsoft_callback(id_token, "object-id", "nonce", False, False)
+  Nil
+}
+
+pub fn callback_rejects_signed_token_missing_tenant_id_test() -> Nil {
+  let id_token =
+    microsoft_token_with_identity(
+      "https://login.microsoftonline.com/trusted/v2.0",
+      "client-id",
+      None,
+      Some("object-id"),
+      "nonce",
+      duration.minutes(5),
+    )
+  let assert Error(_) =
+    run_microsoft_callback(id_token, "object-id", "nonce", False, False)
+  Nil
+}
+
+pub fn callback_rejects_signed_token_missing_object_id_test() -> Nil {
+  let id_token =
+    microsoft_token_with_identity(
+      "https://login.microsoftonline.com/trusted/v2.0",
+      "client-id",
+      Some("trusted"),
+      None,
+      "nonce",
+      duration.minutes(5),
+    )
+  let assert Error(_) =
+    run_microsoft_callback(id_token, "object-id", "nonce", False, False)
+  Nil
+}
+
+pub fn common_callback_accepts_signed_tenant_and_graph_identity_test() -> Nil {
+  let id_token =
+    microsoft_token(
+      "https://login.microsoftonline.com/other/v2.0",
+      "client-id",
+      "other",
+      "object-id",
+      "nonce",
+      duration.minutes(5),
+    )
+  let assert Ok(auth_result) =
+    run_microsoft_callback(id_token, "object-id", "nonce", True, True)
+  assert auth.uid(auth_result) == "object-id"
+}
+
 fn assert_verified_token_rejected(
   id_token: String,
   expected_tenant: Option(String),
@@ -590,24 +651,44 @@ fn microsoft_token(
   nonce: String,
   max_age: duration.Duration,
 ) -> String {
-  jwt_signing.encode(
-    [
-      #("sub", json.string("user-123")),
-      #("tid", json.string(tenant)),
-      #("oid", json.string(object_id)),
-    ],
-    [
-      claim.issuer(issuer, []),
-      claim.audience(audience, []),
-      claim.custom(
-        name: "nonce",
-        value: nonce,
-        encode: json.string,
-        decoder: decode.string,
-      ),
-      claim.expires_at(max_age: max_age, leeway: duration.seconds(0)),
-    ],
+  microsoft_token_with_identity(
+    issuer,
+    audience,
+    Some(tenant),
+    Some(object_id),
+    nonce,
+    max_age,
   )
+}
+
+fn microsoft_token_with_identity(
+  issuer: String,
+  audience: String,
+  tenant: Option(String),
+  object_id: Option(String),
+  nonce: String,
+  max_age: duration.Duration,
+) -> String {
+  let payload = [#("sub", json.string("user-123"))]
+  let payload = case tenant {
+    Some(value) -> [#("tid", json.string(value)), ..payload]
+    None -> payload
+  }
+  let payload = case object_id {
+    Some(value) -> [#("oid", json.string(value)), ..payload]
+    None -> payload
+  }
+  jwt_signing.encode(payload, [
+    claim.issuer(issuer, []),
+    claim.audience(audience, []),
+    claim.custom(
+      name: "nonce",
+      value: nonce,
+      encode: json.string,
+      decoder: decode.string,
+    ),
+    claim.expires_at(max_age: max_age, leeway: duration.seconds(0)),
+  ])
 }
 
 fn microsoft_callback(
@@ -626,6 +707,16 @@ fn microsoft_callback(
       token_nonce,
       duration.minutes(5),
     )
+  run_microsoft_callback(id_token, graph_object_id, expected_nonce, False, True)
+}
+
+fn run_microsoft_callback(
+  id_token: String,
+  graph_object_id: String,
+  expected_nonce: String,
+  common_authority: Bool,
+  allow_graph: Bool,
+) {
   let sender = fn(http_request: request.Request(String)) {
     case
       http_request.host,
@@ -646,7 +737,11 @@ fn microsoft_callback(
         ))
       "login.microsoftonline.com", False, "/common/discovery/v2.0/keys" ->
         Ok(response.Response(status: 200, headers: [], body: jwt_signing.jwks()))
-      "graph.microsoft.com", False, "/v1.0/me" ->
+      "graph.microsoft.com", False, "/v1.0/me" -> {
+        case allow_graph {
+          False -> panic as "invalid Microsoft ID token reached Graph"
+          True -> Nil
+        }
         Ok(response.Response(
           status: 200,
           headers: [],
@@ -657,11 +752,17 @@ fn microsoft_callback(
           ])
             |> json.to_string(),
         ))
+      }
       _, _, _ -> Error(Nil)
     }
   }
+  let microsoft_strategy = case common_authority {
+    True -> vestibule_microsoft.strategy_with_sender(sender)
+    False ->
+      vestibule_microsoft.strategy_for_tenant_with_sender("trusted", sender)
+  }
   vestibule.handle_callback(
-    vestibule_microsoft.strategy_for_tenant_with_sender("trusted", sender),
+    microsoft_strategy,
     config: config.new(
       client_id: "client-id",
       redirect_uri: "https://app.example/callback",

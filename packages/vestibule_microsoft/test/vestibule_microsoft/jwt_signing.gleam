@@ -1,4 +1,5 @@
 import gleam/json
+import gleam/string
 import ywt/claim.{type Claim}
 import ywt/internal/jwt
 import ywt/sign_key.{type SignKey}
@@ -22,6 +23,20 @@ pub fn encode(
 
 pub fn jwks() -> String {
   public_jwks
+}
+
+pub fn tamper_signature(token: String) -> String {
+  let assert [header, payload, signature] = string.split(token, on: ".")
+  let replacement = case string.starts_with(signature, "A") {
+    True -> "B"
+    False -> "A"
+  }
+  header
+  <> "."
+  <> payload
+  <> "."
+  <> replacement
+  <> string.drop_start(signature, 1)
 }
 
 @external(erlang, "vestibule_microsoft_test_jwt_ffi", "sign")

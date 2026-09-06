@@ -260,11 +260,11 @@ pub fn request_phase(
 ) -> Response(ResponseData) {
   request_phase_for_direct_client(
     http_request,
-    registry,
-    provider,
-    store,
-    authorize_options,
-    options,
+    registry: registry,
+    provider: provider,
+    store: store,
+    authorize_options: authorize_options,
+    options: options,
   )
 }
 
@@ -283,11 +283,11 @@ pub fn request_phase_with_shared_bucket(
 ) -> Response(ResponseData) {
   request_phase_for_client(
     http_request,
-    registry,
-    provider,
-    store,
-    authorize_options,
-    options,
+    registry: registry,
+    provider: provider,
+    store: store,
+    authorize_options: authorize_options,
+    options: options,
     client_key: "shared",
   )
 }
@@ -465,14 +465,14 @@ pub fn request_phase_for_direct_client(
     Ok(client_key) ->
       request_phase_for_client(
         http_request,
-        registry,
-        provider,
-        store,
-        authorize_options,
-        options,
+        registry: registry,
+        provider: provider,
+        store: store,
+        authorize_options: authorize_options,
+        options: options,
         client_key: client_key,
       )
-    Error(_) -> too_many_requests_response()
+    Error(Nil) -> too_many_requests_response()
   }
 }
 
@@ -730,7 +730,13 @@ fn callback_cookie_is_terminal(
             Ok(_) | Error(state_store.SessionProviderMismatch) -> False
             Error(state_store.SessionMissing) -> True
           }
-        Error(_) -> True
+        Error(MissingOrInvalidSessionCookie(CookieAbsent))
+        | Error(MissingOrInvalidSessionCookie(CookieSignatureInvalid))
+        | Error(UnknownProvider(_))
+        | Error(SessionUnavailable)
+        | Error(SessionProviderMismatch)
+        | Error(InvalidCallbackParams(_))
+        | Error(AuthFailed(_)) -> True
       }
   }
 }

@@ -278,11 +278,11 @@ pub fn request_phase_with_shared_bucket(
 ) -> Response {
   request_phase_with_shared_bucket_and_options(
     http_request,
-    registry,
-    provider,
-    state_store,
-    authorize_options,
-    default_options(),
+    registry: registry,
+    provider: provider,
+    state_store: state_store,
+    authorize_options: authorize_options,
+    middleware_options: default_options(),
   )
 }
 
@@ -752,7 +752,13 @@ fn callback_cookie_is_terminal(
             Ok(_) | Error(state_store.SessionProviderMismatch) -> False
             Error(state_store.SessionMissing) -> True
           }
-        Error(_) -> True
+        Error(MissingOrInvalidSessionCookie(CookieAbsent))
+        | Error(MissingOrInvalidSessionCookie(CookieSignatureInvalid))
+        | Error(UnknownProvider(_))
+        | Error(SessionUnavailable)
+        | Error(SessionProviderMismatch)
+        | Error(InvalidCallbackParams(_))
+        | Error(AuthFailed(_)) -> True
       }
   }
 }
@@ -862,9 +868,9 @@ fn declared_body_too_large(http_request: Request) -> Bool {
     Ok(value) ->
       case int.parse(value) {
         Ok(size) -> size > 65_536
-        Error(_) -> False
+        Error(Nil) -> False
       }
-    Error(_) -> False
+    Error(Nil) -> False
   }
 }
 

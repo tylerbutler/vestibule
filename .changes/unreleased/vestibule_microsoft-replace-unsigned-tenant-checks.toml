@@ -1,0 +1,3 @@
+package = "vestibule_microsoft"
+kind = "Security"
+body = "Replace unsigned tenant checks with signed ID-token validation and Graph identity binding."
