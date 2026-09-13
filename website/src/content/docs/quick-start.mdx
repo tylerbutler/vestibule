@@ -26,6 +26,7 @@ searchTerms:
 ---
 
 import CodeBlock from "../../components/CodeBlock.astro";
+import SelectedQuickStart from "../../components/SelectedQuickStart.astro";
 import {
   callbackFailureCode,
   coreCode,
@@ -33,6 +34,8 @@ import {
   middlewareInstallCode,
   wispCode,
 } from "../../data/doc-snippets";
+
+<SelectedQuickStart />
 
 <section id="middleware-path" className="quick-paths" aria-label="Recommended quick start path">
   <div className="primary-path">
@@ -209,7 +212,9 @@ import {
     <li>Non-local redirect URIs must use HTTPS.</li>
     <li>Store state and PKCE verifier values on the server for a short time.</li>
     <li>Remove client secrets, authorization codes, and PKCE verifiers from logs and error reports.</li>
+    {/*
     <li>Bearer tokens must be redacted from logs and error reports.</li>
+    */}
     <li>A cookie-secret change invalidates OAuth callbacks that are in progress.</li>
   </ul>
 </section>

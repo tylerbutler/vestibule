@@ -14,24 +14,32 @@ const nameForPackage = (slug: string, fallback: string) =>
 const supportedProviders = [
   {
     name: "GitHub",
+    slug: "github",
+    note: "Fastest fit for developer-focused demos",
     packageName: nameForPackage("github", "vestibule_github"),
     href: hrefForPackage("github"),
     path: "packages/vestibule_github"
   },
   {
     name: "Google",
+    slug: "google",
+    note: "Google and Google Workspace accounts",
     packageName: nameForPackage("google", "vestibule_google"),
     href: hrefForPackage("google"),
     path: "packages/vestibule_google"
   },
   {
     name: "Microsoft",
+    slug: "microsoft",
+    note: "Personal, work, and school accounts",
     packageName: nameForPackage("microsoft", "vestibule_microsoft"),
     href: hrefForPackage("microsoft"),
     path: "packages/vestibule_microsoft"
   },
   {
     name: "Apple",
+    slug: "apple",
+    note: "Requires HTTPS and a client-secret JWT",
     packageName: nameForPackage("apple", "vestibule_apple"),
     href: hrefForPackage("apple"),
     path: "packages/vestibule_apple"
@@ -41,7 +49,7 @@ const routeOptions = [
   {
     value: "wisp",
     label: "Wisp",
-    note: "Use middleware routes",
+    note: "Recommended for Wisp apps",
     packageName: "vestibule_wisp",
     path: "packages/vestibule_wisp",
     href: "/docs/quick-start#middleware-path"
@@ -103,36 +111,38 @@ const installBlocks = routeOptions.flatMap((route) =>
       </p>
       <div class="hero-actions">
         <a class="button primary" href="#get-started">Build your install block</a>
-        <a class="button secondary" href="/docs/quick-start">Read the quick start</a>
       </div>
     </div>
-    <div class="hero-threshold" aria-label="The sign-in path through Vestibule">
-      <p class="threshold-cap">Identity provider</p>
-      <ol class="hero-flow" aria-label="OAuth flow checkpoints">
-        <li>
-          <span class="flow-marker" aria-hidden="true">1</span>
-          <span class="flow-copy">
-            <strong>Request</strong>
-            <span>URL, state, PKCE verifier</span>
-          </span>
-        </li>
-        <li>
-          <span class="flow-marker" aria-hidden="true">2</span>
-          <span class="flow-copy">
-            <strong>Store</strong>
-            <span>Bind transient callback data</span>
-          </span>
-        </li>
-        <li>
-          <span class="flow-marker" aria-hidden="true">3</span>
-          <span class="flow-copy">
-            <strong>Callback</strong>
-            <span>Validate and normalize user info</span>
-          </span>
-        </li>
-      </ol>
-      <p class="threshold-cap threshold-cap-app">Signed-in session in your app</p>
-    </div>
+    <details class="hero-threshold-disclosure">
+      <summary>See how the callback flow works</summary>
+      <div class="hero-threshold" aria-label="The sign-in path through Vestibule">
+        <p class="threshold-cap">Identity provider</p>
+        <ol class="hero-flow" aria-label="OAuth flow checkpoints">
+          <li>
+            <span class="flow-marker" aria-hidden="true">1</span>
+            <span class="flow-copy">
+              <strong>Request</strong>
+              <span>URL, state, PKCE verifier</span>
+            </span>
+          </li>
+          <li>
+            <span class="flow-marker" aria-hidden="true">2</span>
+            <span class="flow-copy">
+              <strong>Store</strong>
+              <span>Bind transient callback data</span>
+            </span>
+          </li>
+          <li>
+            <span class="flow-marker" aria-hidden="true">3</span>
+            <span class="flow-copy">
+              <strong>Callback</strong>
+              <span>Validate and normalize user info</span>
+            </span>
+          </li>
+        </ol>
+        <p class="threshold-cap threshold-cap-app">Signed-in session in your app</p>
+      </div>
+    </details>
   </section>
 
   <section id="get-started" class="setup-guide" aria-labelledby="setup-heading">
@@ -188,6 +198,10 @@ const installBlocks = routeOptions.flatMap((route) =>
           <span class="setup-legend-step">Step 2 of 3</span>
           <span class="setup-legend-copy" data-setup-focus tabindex="-1">Which provider should users sign in with?</span>
         </legend>
+        <p class="setup-help">
+          Pick the account type your demo audience already uses. Apple requires
+          the most provider setup.
+        </p>
         <div class="setup-options">
           {supportedProviders.map((provider, index) => (
             <label class="setup-option">
@@ -197,15 +211,19 @@ const installBlocks = routeOptions.flatMap((route) =>
                 value={provider.packageName}
                 checked={index === 0}
                 data-label={provider.name}
+                data-slug={provider.slug}
                 data-href={provider.href}
               />
               <span>
                 <strong>{provider.name}</strong>
-                <small>{provider.packageName}</small>
+                <small>{provider.note}</small>
               </span>
             </label>
           ))}
         </div>
+        <a class="text-link" href="/docs/packages#provider-strategies">
+          Compare provider behavior
+        </a>
         <div class="setup-actions">
           <button class="button secondary" type="button" data-setup-back="server">Back</button>
           <button class="button primary" type="button" data-setup-next="result">
@@ -339,7 +357,10 @@ const installBlocks = routeOptions.flatMap((route) =>
 
         if (title) title.textContent = `${server.dataset.label} + ${provider.dataset.label}`;
         if (continueLink instanceof HTMLAnchorElement) {
-          continueLink.href = server.dataset.href;
+          const hash = server.value === "core" ? "core-path" : "selected-path";
+          continueLink.href =
+            `/docs/quick-start?server=${encodeURIComponent(server.value)}` +
+            `&provider=${encodeURIComponent(provider.dataset.slug || "")}#${hash}`;
           continueLink.textContent = `Continue with ${server.dataset.label}`;
         }
         if (providerLink instanceof HTMLAnchorElement) {
@@ -367,7 +388,28 @@ const installBlocks = routeOptions.flatMap((route) =>
       });
 
       builder.hidden = false;
-      showPanel("server", false);
+      const params = new URLSearchParams(window.location.search);
+      const serverValue = params.get("server");
+      const providerSlug = params.get("provider");
+      const serverInput = serverValue
+        ? builder.querySelector(`input[name="server"][value="${CSS.escape(serverValue)}"]`)
+        : null;
+      const providerInput = providerSlug
+        ? Array.from(builder.querySelectorAll('input[name="provider"]'))
+            .find((input) => input.dataset.slug === providerSlug)
+        : null;
+
+      if (
+        serverInput instanceof HTMLInputElement &&
+        providerInput instanceof HTMLInputElement
+      ) {
+        serverInput.checked = true;
+        providerInput.checked = true;
+        updateResult();
+        showPanel("result", false);
+      } else {
+        showPanel("server", false);
+      }
     })();
   </script>
 </DocsLayout>
