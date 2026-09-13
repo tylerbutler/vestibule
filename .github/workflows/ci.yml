@@ -14,12 +14,13 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  HEXPM_READ_API_KEY: ${{ secrets.HEXPM_API_KEY }}
+
 jobs:
   dependencies:
     name: Dependencies
     runs-on: ubuntu-latest
-    env:
-      HEXPM_READ_API_KEY: ${{ secrets.HEXPM_API_KEY }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
       - name: Setup environment
