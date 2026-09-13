@@ -9,9 +9,15 @@ on:
   pull_request:
     branches: [main]
   workflow_call:
+    secrets:
+      HEXPM_API_KEY:
+        required: false
 
 permissions:
   contents: read
+
+env:
+  HEXPM_READ_API_KEY: ${{ secrets.HEXPM_API_KEY }}
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
