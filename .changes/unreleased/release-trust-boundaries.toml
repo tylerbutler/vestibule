@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Security"
+body = "Bound releases to the reviewed commit that passed CI and separated untrusted pull-request work from release credentials and trusted caches."

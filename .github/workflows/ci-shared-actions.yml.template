@@ -11,15 +11,20 @@ on:
     branches: [main]
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
     name: Test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
 
       - name: Setup environment
-        uses: tylerbutler/actions/setup-gleam@v1
+        uses: tylerbutler/actions/setup-gleam@ee7def5950abcf0a519add705a95719ab345c05e
 
       - name: Check formatting
         run: just format-check
@@ -37,10 +42,12 @@ jobs:
     runs-on: ubuntu-latest
     name: Docs
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
 
       - name: Setup environment
-        uses: tylerbutler/actions/setup-gleam@v1
+        uses: tylerbutler/actions/setup-gleam@ee7def5950abcf0a519add705a95719ab345c05e
 
       - name: Build documentation
         run: just docs
