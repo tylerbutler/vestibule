@@ -12,11 +12,11 @@
     "preview": "astro preview"
   },
   "devDependencies": {
-    "@astrojs/mdx": "^7.0.0",
+    "@astrojs/mdx": "^7.0.8",
     "@fontsource-variable/figtree": "^5.3.0",
     "@fontsource/commit-mono": "^5.3.0",
-    "astro": "^7.0.3",
-    "astro-expressive-code": "^0.44.1",
+    "astro": "^7.3.1",
+    "astro-expressive-code": "^0.44.2",
     "typescript": "^6.0.3"
   }
 }

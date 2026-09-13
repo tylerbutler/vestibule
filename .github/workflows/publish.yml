@@ -11,44 +11,114 @@ name: Release
 # `HEXPM_API_KEY: ${{ secrets.HEXPM_API_KEY }}`, and restore the lockfile refresh
 # described further down.
 #
-# Tags as record: the release PR merging is what cuts a release. `trellis`
+# Tags as record: successful CI for the reviewed release merge cuts a release. `trellis`
 # walks the dependency graph itself, so no workflow here needs to know which
 # packages exist, and every step is idempotent — a partial failure is fixed by
 # re-running this workflow.
 on:
-  pull_request:
-    types: [closed]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
+    inputs:
+      release_sha:
+        description: "Full reviewed release merge commit SHA to retry"
+        required: true
+        type: string
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+  pull-requests: read
 
 jobs:
+  gate:
+    name: Bind reviewed release commit
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.path == '.github/workflows/ci.yml' &&
+       github.event.workflow_run.head_repository.full_name == github.repository) ||
+      (github.event_name == 'workflow_dispatch' &&
+       github.ref == 'refs/heads/main')
+    outputs:
+      release-sha: ${{ steps.release.outputs.sha }}
+      eligible: ${{ steps.release.outputs.eligible }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+
+      - name: Verify release merge
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          WORKFLOW_SHA: ${{ github.event.workflow_run.head_sha }}
+          DISPATCH_SHA: ${{ inputs.release_sha }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          if [ "$EVENT_NAME" = "workflow_run" ]; then
+            sha="$WORKFLOW_SHA"
+          else
+            sha="$DISPATCH_SHA"
+          fi
+          if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::release_sha must be a full lowercase commit SHA"
+            exit 1
+          fi
+          eligible=$(gh api "repos/$REPOSITORY/commits/$sha/pulls" |
+            python3 scripts/release_gate.py pr --sha "$sha" --repository "$REPOSITORY")
+          if [ "$eligible" != "true" ]; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "sha=$sha" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            ci_valid=$(gh api --method GET "repos/$REPOSITORY/actions/workflows/ci.yml/runs" \
+              -f head_sha="$sha" -f branch=main -f event=push -f status=completed -f per_page=100 |
+              python3 scripts/release_gate.py ci --sha "$sha" --repository "$REPOSITORY")
+            if [ "$ci_valid" != "true" ]; then
+              echo "::error::latest trusted CI push run did not pass for $sha"
+              exit 1
+            fi
+          fi
+          echo "eligible=true" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
   release:
     name: Tag and release
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.pull_request.merged == true &&
-       github.event.pull_request.head.ref == 'release/pending')
+    needs: gate
+    if: needs.gate.outputs.eligible == 'true'
     runs-on: ubuntu-latest
+    environment: release
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
+        with:
+          ref: ${{ needs.gate.outputs.release-sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup environment
+        uses: ./.github/actions/setup
+
+      - name: Verify checked out commit
+        env:
+          RELEASE_SHA: ${{ needs.gate.outputs.release-sha }}
+        run: test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+
       - name: Generate app token
         id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # ratchet:actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
-        with:
-          ref: main
-          fetch-depth: 0
-          token: ${{ steps.app-token.outputs.token }}
-
-      - name: Setup environment
-        uses: ./.github/actions/setup
+          permission-contents: write
 
       # Record the release as tags: one immutable {name}-v{version} per
       # releasable package, each carrying a GitHub Release bodied from the
