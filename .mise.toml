@@ -1,9 +1,13 @@
 [tools]
+erlang = "27.2.1"
+"github:erlang/rebar3" = "3.24.0"
+gleam = "1.18.1"
 "github:tylerbutler/trellis" = "0.11.2"
-just = "latest"
+"github:casey/just" = "1.38.0"
 
 [settings]
-legacy_version_file = true
+legacy_version_file = false
+lockfile = true
 
 [env]
 LC_ALL = "en_US.UTF-8"
