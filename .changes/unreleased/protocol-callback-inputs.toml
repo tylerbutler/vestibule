@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Security"
+body = "Reject empty authorization codes and missing PKCE verifiers before token exchange. Allow strategies to require an exact authorization-response issuer match. Add callback regression coverage for code injection, replay, mixed error responses, and exact redirect URI binding."
