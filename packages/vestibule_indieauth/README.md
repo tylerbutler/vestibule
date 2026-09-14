@@ -40,7 +40,7 @@ let client_config =
   config.new(
     client_id: "https://myapp.example.com/",
     redirect_uri: "https://myapp.example.com/auth/indieauth/callback",
-    auth: config.PublicClient,
+    auth: config.public_client(),
   )
 let options =
   config.authorize_options()
@@ -87,6 +87,9 @@ let assert Ok(auth) =
    - HTTP `Link` headers with `rel="authorization_endpoint"`
    - HTML `<link>` tags with `rel="authorization_endpoint"`
 3. **Authorization** — Standard OAuth 2.0 authorization code flow with PKCE
+   Metadata discovery requires an issuer, and the callback `iss` must exactly
+   match it before any token request is sent. Legacy link-relation discovery
+   remains compatible with servers that do not publish metadata.
 4. **Token exchange** — Code is exchanged at the discovered token endpoint;
    the response includes the user's canonical URL (`me`) and optional profile info
 5. **Profile URL confirmation** — The `me` returned by the token endpoint is the
@@ -97,7 +100,7 @@ let assert Ok(auth) =
 
 ## Key Differences from Other Providers
 
-- **No client secret** — IndieAuth clients are public; use `config.PublicClient`
+- **No client secret** — IndieAuth clients are public; use `config.public_client()`
 - **client_id is your app's URL** — Not an opaque ID from a developer console
 - **User identity is a URL** — `auth.uid(auth)` returns the user's confirmed
   canonical URL, which may differ from the URL they typed (for example, a shared

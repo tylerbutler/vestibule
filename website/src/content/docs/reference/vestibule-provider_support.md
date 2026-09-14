@@ -4,7 +4,7 @@ description: "Stable helpers for OAuth provider implementations."
 nav:
   group: Reference
   groupOrder: 20
-  order: 18
+  order: 19
   label: "vestibule/provider_support"
 toc:
   - href: "#types"
@@ -102,8 +102,8 @@ pub fn build_json_request_with_auth(
 
 Check that an HTTP response has a 2xx status code.
 Returns the response body on success, or an AuthError of kind `HttpKind` on
-failure. The error's summary carries the first 120 characters of the
-response body, so it may contain provider response content.
+failure. Response bodies are not copied into public errors because providers
+can echo submitted credentials or tokens.
 
 ```gleam
 pub fn check_response_status(response.Response(String)) -> Result(String, error.AuthError(a))

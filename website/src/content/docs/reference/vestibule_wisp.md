@@ -4,7 +4,7 @@ description: "Wisp middleware that wires a `Registry` of `Strategy` values into 
 nav:
   group: Reference
   groupOrder: 20
-  order: 37
+  order: 38
   label: "vestibule_wisp"
 toc:
   - href: "#types"
@@ -39,6 +39,7 @@ pub type CallbackError(a) {
   UnknownProvider(provider: String)
   MissingOrInvalidSessionCookie(reason: SessionCookieError)
   SessionUnavailable
+  SessionProviderMismatch
   InvalidCallbackParams(reason: CallbackParamsError)
   AuthFailed(error.AuthError(a))
 }
@@ -59,6 +60,10 @@ invalid; `reason` says which.
 
 The session state was not found, expired, or already used.
 
+##### `SessionProviderMismatch`
+
+The signed session belongs to another registered provider.
+
 ##### `InvalidCallbackParams(reason: CallbackParamsError)`
 
 Callback parameters could not be extracted from the request; `reason`
@@ -74,13 +79,19 @@ Why callback parameters could not be extracted from a POST callback body.
 
 ```gleam
 pub type CallbackParamsError {
+  QueryNotFormEncoded
   BodyReadFailed
   BodyNotUtf8
   BodyNotFormEncoded
+  DuplicateParameter(name: String)
 }
 ```
 
 #### Constructors
+
+##### `QueryNotFormEncoded`
+
+The callback query string was not valid form/query encoding.
 
 ##### `BodyReadFailed`
 
@@ -93,6 +104,11 @@ The request body was not valid UTF-8.
 ##### `BodyNotFormEncoded`
 
 The request body was not valid form/query encoding.
+
+##### `DuplicateParameter(name: String)`
+
+A callback parameter name occurred more than once, including once in
+the query and once in a POST body.
 
 ### `CookieSameSite`
 
@@ -202,6 +218,21 @@ payload, a malformed token, or a different secret key base.
 
 ## Functions
 
+### `callback_parameters_from_pairs`
+
+Convert parsed callback pairs to a dictionary, rejecting duplicate names.
+
+This is also useful for adapters that extract a Wisp request before calling
+Vestibule. Pass query and body pairs separately; a name present in both is
+a duplicate.
+
+```gleam
+pub fn callback_parameters_from_pairs(
+  List(#(String, String)),
+  List(#(String, String))
+) -> Result(dict.Dict(String, String), CallbackError(a))
+```
+
 ### `callback_phase`
 
 Phase 2: Handle the OAuth callback and return the Auth result
@@ -209,8 +240,8 @@ to the provided callback function.
 
 Supports both GET callbacks (query parameters) and POST callbacks
 (form-encoded body), as required by providers like Apple that use
-`response_mode=form_post`. For POST requests, form body parameters
-take precedence over query parameters.
+`response_mode=form_post`. Repeated parameter names are rejected, including
+names present in both the query and POST body.
 
 On success, calls `on_success` with the Auth result.
 On error, returns an HTML error page.
@@ -350,6 +381,22 @@ every request except plain HTTP on localhost — so these defaults meet the
 pub fn default_options() -> Options
 ```
 
+### `expire_session_cookie`
+
+Expire the in-flight OAuth session cookie on a response.
+
+`callback_phase` does this automatically after success or a terminal
+failure. Call this when using a Result callback variant and constructing
+the final response yourself.
+
+```gleam
+pub fn expire_session_cookie(
+  response.Response(wisp.Body),
+  request.Request(internal.Connection),
+  Options
+) -> response.Response(wisp.Body)
+```
+
 ### `is_host_bound_cookie_name`
 
 Returns `True` when `name` is host-bound (uses the `__Host-` prefix).
@@ -365,6 +412,14 @@ names from other sources.
 pub fn is_host_bound_cookie_name(String) -> Bool
 ```
 
+### `parse_callback_query`
+
+Parse a callback query without silently replacing malformed input.
+
+```gleam
+pub fn parse_callback_query(option.Option(String)) -> Result(List(#(String, String)), CallbackError(a))
+```
+
 ### `request_phase`
 
 Phase 1: Redirect user to the OAuth provider.
@@ -374,6 +429,10 @@ with PKCE parameters, stores the CSRF state and code verifier in the
 state store, sets a signed session cookie, and returns a redirect response.
 
 Returns 404 if the provider is not registered.
+
+Wisp does not expose the direct socket peer. This compatibility entry point
+therefore fails closed with 429. Use `request_phase_for_client`, or make a
+deliberate shared-bucket choice with `request_phase_with_shared_bucket`.
 
 ```gleam
 pub fn request_phase(
@@ -385,13 +444,82 @@ pub fn request_phase(
 ) -> response.Response(wisp.Body)
 ```
 
+### `request_phase_for_client`
+
+Start authorization with default options and a stable identifier for the
+direct client. See `request_phase_for_client_with_options`.
+
+```gleam
+pub fn request_phase_for_client(
+  request.Request(internal.Connection),
+  registry: registry.Registry(a),
+  provider: String,
+  state_store: state_store.StateStore,
+  authorize_options: config.AuthorizeOptions,
+  client_key: String
+) -> response.Response(wisp.Body)
+```
+
+### `request_phase_for_client_with_options`
+
+Start authorization with a stable identifier for the direct client.
+
+Obtain this value from the server connection or a trusted edge that
+enforces its own rate limit. Do not pass `Forwarded` or `X-Forwarded-For`
+directly: clients can forge those headers unless the application first
+validates and removes untrusted hops.
+
+```gleam
+pub fn request_phase_for_client_with_options(
+  request.Request(internal.Connection),
+  registry: registry.Registry(a),
+  provider: String,
+  state_store: state_store.StateStore,
+  authorize_options: config.AuthorizeOptions,
+  middleware_options: Options,
+  client_key: String
+) -> response.Response(wisp.Body)
+```
+
 ### `request_phase_with_options`
 
 Phase 1: Redirect user to the OAuth provider using custom middleware
-options.
+options. Fails closed until the caller supplies an admission identity.
 
 ```gleam
 pub fn request_phase_with_options(
+  request.Request(internal.Connection),
+  registry: registry.Registry(a),
+  provider: String,
+  state_store: state_store.StateStore,
+  authorize_options: config.AuthorizeOptions,
+  middleware_options: Options
+) -> response.Response(wisp.Body)
+```
+
+### `request_phase_with_shared_bucket`
+
+Start authorization using one shared admission bucket.
+
+This lets any eight concurrent anonymous starts deny new starts, so prefer
+`request_phase_for_client`. Use this only behind an upstream rate limit.
+
+```gleam
+pub fn request_phase_with_shared_bucket(
+  request.Request(internal.Connection),
+  registry: registry.Registry(a),
+  provider: String,
+  state_store: state_store.StateStore,
+  authorize_options: config.AuthorizeOptions
+) -> response.Response(wisp.Body)
+```
+
+### `request_phase_with_shared_bucket_and_options`
+
+Start authorization using custom options and one shared admission bucket.
+
+```gleam
+pub fn request_phase_with_shared_bucket_and_options(
   request.Request(internal.Connection),
   registry: registry.Registry(a),
   provider: String,

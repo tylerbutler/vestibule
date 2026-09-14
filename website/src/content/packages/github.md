@@ -27,7 +27,7 @@ code: |
     config.new(
       client_id: "github-client-id",
       redirect_uri: "http://localhost:8000/auth/github/callback",
-      auth: config.ClientSecret("github-client-secret"),
+      auth: config.client_secret_auth("github-client-secret"),
     )
 notes:
   - GitHub can omit the public email address from /user. The strategy then tries the /user/emails endpoint.

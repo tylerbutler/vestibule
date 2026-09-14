@@ -1,0 +1,3 @@
+package = "vestibule_microsoft"
+kind = "Breaking"
+body = "Remove unsigned verify_tenant and id_token_tenant helpers. Migrate to verify_id_token with trusted Microsoft JWKS, client ID, and expected tenant; authorize only the verified tenant and object IDs."

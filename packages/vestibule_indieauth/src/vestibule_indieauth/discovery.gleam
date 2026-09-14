@@ -198,11 +198,7 @@ pub fn parse_metadata(
       decode.string,
     )
     use token_endpoint <- decode.field("token_endpoint", decode.string)
-    use issuer <- decode.optional_field(
-      "issuer",
-      None,
-      decode.optional(decode.string),
-    )
+    use issuer <- decode.field("issuer", decode.string)
     use userinfo_endpoint <- decode.optional_field(
       "userinfo_endpoint",
       None,
@@ -211,7 +207,7 @@ pub fn parse_metadata(
     decode.success(DiscoveredEndpoints(
       authorization_endpoint: authorization_endpoint,
       token_endpoint: token_endpoint,
-      issuer: issuer,
+      issuer: Some(issuer),
       userinfo_endpoint: userinfo_endpoint,
     ))
   }

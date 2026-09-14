@@ -139,7 +139,7 @@ pub fn finish_callback_rejects_session_started_for_another_provider_test() -> Ni
     session_id: session_id,
   )
   |> fn(actual) {
-    assert actual == Error(transport_flow.CallbackSessionUnavailable)
+    assert actual == Error(transport_flow.CallbackSessionProviderMismatch)
   }
 
   // The rejected attempt must not have burned the legitimate in-flight login.

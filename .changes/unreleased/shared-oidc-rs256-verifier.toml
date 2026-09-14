@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Security"
+body = "Add a reusable RS256 OIDC ID-token verifier with issuer, audience, azp, time, nonce, and subject validation."

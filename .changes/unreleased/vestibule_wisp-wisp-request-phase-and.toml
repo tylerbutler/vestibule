@@ -1,0 +1,3 @@
+package = "vestibule_wisp"
+kind = "Breaking"
+body = "Wisp request_phase and request_phase_with_options reject requests without an admission identity. Migrate to request_phase_for_client variants with a trusted client identity, or explicitly opt into request_phase_with_shared_bucket variants."
