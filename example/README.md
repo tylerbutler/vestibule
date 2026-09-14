@@ -8,6 +8,9 @@ Google providers.
 > It is intended for demos and prototypes that need real OAuth flows — do not
 > use it in production.
 
+See the [example threat model](../docs/example-threat-model.md) for the exact
+security boundaries and deliberate omissions.
+
 ## Prerequisites
 
 - Gleam 1.14+
@@ -64,7 +67,11 @@ setup complexity that distracts from the multi-provider example.
 | `GOOGLE_CLIENT_ID` | No | — | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | No | — | Google OAuth client secret |
 | `PORT` | No | 8000 | HTTP server port |
-| `SECRET_KEY_BASE` | No | Development fallback | Secret for signing cookies |
+| `SECRET_KEY_BASE` | No | Random per process | Secret for signing cookies |
 
-If `SECRET_KEY_BASE` is not set, the example uses a fixed development fallback.
-Set a real secret before deploying anything beyond local testing.
+If `SECRET_KEY_BASE` is not set, the example generates a fresh cryptographic
+key at startup. Restarting the server then invalidates any in-flight OAuth flow
+cookies. The server explicitly binds to localhost and uses an HTTP-compatible
+cookie only for this local flow. Set a unique persistent secret and redesign the
+deployment, session, and proxy configuration before exposing a derivative
+application.

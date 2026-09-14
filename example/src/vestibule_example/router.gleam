@@ -14,6 +14,15 @@ pub type Context(e) {
 
 /// Route incoming requests.
 pub fn handle_request(request: Request, context: Context(e)) -> Response {
+  handle_request_for_client(request, context, client_key: "unidentified")
+}
+
+/// Route incoming requests using a trusted direct-client admission key.
+pub fn handle_request_for_client(
+  request: Request,
+  context: Context(e),
+  client_key client_key: String,
+) -> Response {
   use <- wisp.log_request(request)
 
   case wisp.path_segments(request), request.method {
@@ -22,24 +31,27 @@ pub fn handle_request(request: Request, context: Context(e)) -> Response {
 
     // Phase 1: Redirect to provider
     ["auth", provider], http.Get ->
-      vestibule_wisp.request_phase(
+      vestibule_wisp.request_phase_for_client_with_options(
         request,
         registry: context.registry,
         provider: provider,
         state_store: context.state_store,
         authorize_options: config.authorize_options(),
+        middleware_options: local_http_options(),
+        client_key: client_key,
       )
 
     // Phase 2: Handle callback (GET for most providers, POST for Apple form_post)
     ["auth", provider, "callback"], http.Get
     | ["auth", provider, "callback"], http.Post
     ->
-      vestibule_wisp.callback_phase(
+      vestibule_wisp.callback_phase_with_options(
         request,
         registry: context.registry,
         provider: provider,
         state_store: context.state_store,
         on_success: fn(authentication) { page.success(authentication) },
+        options: local_http_options(),
       )
 
     // Everything else
@@ -55,4 +67,9 @@ pub fn handle_request(request: Request, context: Context(e)) -> Response {
     | _, http.Other(_)
     -> wisp.not_found()
   }
+}
+
+fn local_http_options() -> vestibule_wisp.Options {
+  vestibule_wisp.default_options()
+  |> vestibule_wisp.with_cookie_security(vestibule_wisp.AllowInsecure)
 }
