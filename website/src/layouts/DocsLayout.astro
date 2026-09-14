@@ -152,7 +152,10 @@ const moduleLabel = (subTitle: string, label: string) =>
           aria-pressed="false"
           data-theme-toggle
         >
-          <span aria-hidden="true" data-theme-icon>◐</span>
+          <svg class="theme-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="8.25" fill="none" stroke="currentColor" stroke-width="1.75" />
+            <path d="M12 3.75a8.25 8.25 0 0 0 0 16.5Z" fill="currentColor" />
+          </svg>
           <span data-theme-label>Theme</span>
         </button>
       </div>
@@ -162,8 +165,11 @@ const moduleLabel = (subTitle: string, label: string) =>
       <aside class="sidebar" aria-label="Documentation navigation">
         <nav>
           {navGroups.map((group) => (
-            <section class="nav-group" aria-label={group.title}>
-              <p class="nav-group-title" aria-hidden="true">{group.title}</p>
+            <details
+              class="nav-group nav-section"
+              open={group.title === "Start" || group === currentGroup}
+            >
+              <summary class="nav-group-title">{group.title}</summary>
               <ul>
                 {groupNavEntries(group).map((entry) =>
                   entry.kind === "link" ? (
@@ -190,7 +196,7 @@ const moduleLabel = (subTitle: string, label: string) =>
                   )
                 )}
               </ul>
-            </section>
+            </details>
           ))}
         </nav>
       </aside>
@@ -200,8 +206,11 @@ const moduleLabel = (subTitle: string, label: string) =>
           <summary>Docs menu{currentLink ? `: ${currentLink.label}` : ""}</summary>
           <nav aria-label="Mobile documentation navigation">
             {navGroups.map((group) => (
-              <section class="nav-group" aria-label={group.title}>
-                <p class="nav-group-title" aria-hidden="true">{group.title}</p>
+              <details
+                class="nav-group nav-section"
+                open={group.title === "Start" || group === currentGroup}
+              >
+                <summary class="nav-group-title">{group.title}</summary>
                 <ul>
                   {groupNavEntries(group).map((entry) =>
                     entry.kind === "link" ? (
@@ -228,7 +237,7 @@ const moduleLabel = (subTitle: string, label: string) =>
                     )
                   )}
                 </ul>
-              </section>
+              </details>
             ))}
           </nav>
         </details>
@@ -355,9 +364,7 @@ const moduleLabel = (subTitle: string, label: string) =>
             );
             button.setAttribute("aria-pressed", String(darkModeOn));
             const label = button.querySelector("[data-theme-label]");
-            const icon = button.querySelector("[data-theme-icon]");
             if (label) label.textContent = `Theme: ${theme}`;
-            if (icon) icon.textContent = darkModeOn ? "●" : "○";
           }
         };
 

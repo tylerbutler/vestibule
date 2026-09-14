@@ -1,0 +1,138 @@
+---
+import CodeBlock from "./CodeBlock.astro";
+
+const gitSource = `git = "https://github.com/tylerbutler/vestibule.git", ref = "v0"`;
+const dependencyLine = (name: string, path = "") =>
+  `${name} = { ${gitSource}${path ? `, path = "${path}"` : ""} }`;
+
+const routes = [
+  {
+    value: "wisp",
+    label: "Wisp",
+    packageName: "vestibule_wisp",
+    path: "packages/vestibule_wisp",
+    href: "/docs/packages/wisp",
+    action: "Open the Wisp route example"
+  },
+  {
+    value: "mist",
+    label: "Mist",
+    packageName: "vestibule_mist",
+    path: "packages/vestibule_mist",
+    href: "/docs/packages/mist",
+    action: "Open the Mist route example"
+  },
+  {
+    value: "core",
+    label: "custom router",
+    packageName: "",
+    path: "",
+    href: "#core-path",
+    action: "Open the core route example"
+  }
+];
+
+const providers = [
+  {
+    value: "github",
+    label: "GitHub",
+    packageName: "vestibule_github",
+    path: "packages/vestibule_github",
+    href: "/docs/packages/github"
+  },
+  {
+    value: "google",
+    label: "Google",
+    packageName: "vestibule_google",
+    path: "packages/vestibule_google",
+    href: "/docs/packages/google"
+  },
+  {
+    value: "microsoft",
+    label: "Microsoft",
+    packageName: "vestibule_microsoft",
+    path: "packages/vestibule_microsoft",
+    href: "/docs/packages/microsoft"
+  },
+  {
+    value: "apple",
+    label: "Apple",
+    packageName: "vestibule_apple",
+    path: "packages/vestibule_apple",
+    href: "/docs/packages/apple"
+  }
+];
+
+const selections = routes.flatMap((route) =>
+  providers.map((provider) => ({
+    key: `${route.value}:${provider.value}`,
+    route,
+    provider,
+    code: [
+      "[dependencies]",
+      dependencyLine("vestibule"),
+      dependencyLine(provider.packageName, provider.path),
+      ...(route.packageName ? [dependencyLine(route.packageName, route.path)] : [])
+    ].join("\n")
+  }))
+);
+---
+
+<section id="selected-path" class="selected-path" data-selected-path hidden>
+  {
+    selections.map(({ key, route, provider, code }) => (
+      <div
+        class="selected-path-content"
+        data-selected-config={key}
+        data-server={route.value}
+        data-provider={provider.value}
+        hidden
+      >
+        <p class="path-label">Your selected path</p>
+        <h2>{route.label} + {provider.label}</h2>
+        <p>
+          Start with this dependency block, then use the matching route and
+          provider guides. Your selection stays in the URL so you can return
+          to it or change it.
+        </p>
+        <CodeBlock code={code} lang="toml" />
+        <div class="selected-path-actions">
+          <a class="button primary" href={route.href}>{route.action}</a>
+          <a class="button secondary" href={provider.href}>Set up {provider.label}</a>
+          <a
+            class="text-link"
+            href={`/?server=${route.value}&provider=${provider.value}#get-started`}
+          >
+            Change choices
+          </a>
+        </div>
+      </div>
+    ))
+  }
+</section>
+
+<script is:inline>
+  document.addEventListener("DOMContentLoaded", () => {
+    const container = document.querySelector("[data-selected-path]");
+    if (!(container instanceof HTMLElement)) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const server = params.get("server");
+    const provider = params.get("provider");
+    if (!server || !provider) return;
+
+    const selected = Array.from(
+      container.querySelectorAll("[data-selected-config]")
+    ).find((item) => item.getAttribute("data-selected-config") === `${server}:${provider}`);
+
+    if (!(selected instanceof HTMLElement)) return;
+
+    selected.hidden = false;
+    container.hidden = false;
+
+    if (server === "core") {
+      const corePath = document.querySelector("#core-path");
+      if (corePath instanceof HTMLDetailsElement) corePath.open = true;
+    }
+  }, { once: true });
+</script>

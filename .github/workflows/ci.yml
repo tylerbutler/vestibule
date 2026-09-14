@@ -9,6 +9,9 @@ on:
   pull_request:
     branches: [main]
   workflow_call:
+    secrets:
+      HEXPM_API_KEY:
+        required: false
 
 permissions:
   contents: read
@@ -40,10 +43,19 @@ jobs:
       - name: Setup environment
         id: setup
         uses: ./.github/actions/setup
-      # Warm the shared dependency cache before the fan-out jobs start. Running
-      # serially lets later packages reuse downloads from earlier packages and
-      # avoids a burst of concurrent requests from one runner.
-      - run: trellis run deps --serial
+      # Warm the shared dependency cache before the fan-out jobs start. Pace
+      # package resolution to stay below the Hex API rate limit.
+      - name: Download dependencies
+        shell: bash
+        env:
+          HEXPM_READ_API_KEY: ${{ github.event_name != 'pull_request' && secrets.HEXPM_API_KEY || '' }}
+        run: |
+          set -euo pipefail
+          mapfile -t packages < <(trellis list --json | jq -r '.packages[].name')
+          for package in "${packages[@]}"; do
+            trellis run deps "$package"
+            sleep 10
+          done
       # Pull-request caches are never saved. GitHub permits PR jobs to restore
       # the base branch cache, but caches created for a PR merge ref cannot be
       # restored by main or release jobs.
