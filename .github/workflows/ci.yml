@@ -9,6 +9,9 @@ on:
   pull_request:
     branches: [main]
   workflow_call:
+    secrets:
+      HEXPM_API_KEY:
+        required: false
 
 permissions:
   contents: read
@@ -41,9 +44,11 @@ jobs:
         id: setup
         uses: ./.github/actions/setup
       # Warm the shared dependency cache before the fan-out jobs start. Pace
-      # package downloads to avoid Hex API rate limits.
+      # package downloads to stay below the Hex API rate limit.
       - name: Download dependencies
         shell: bash
+        env:
+          HEXPM_READ_API_KEY: ${{ github.event_name != 'pull_request' && secrets.HEXPM_API_KEY || '' }}
         run: |
           set -euo pipefail
           mapfile -t packages < <(trellis list --json | jq -r '.packages[].name')
