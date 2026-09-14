@@ -1,0 +1,3 @@
+package = "vestibule_mist"
+kind = "Security"
+body = "Use the direct socket peer for default admission, require explicit shared-bucket opt-in, reject malformed or duplicate callback parameters and duplicate session cookies, verify cookies before reading POST bodies, preserve other-provider flows, and expire completed in-flight cookies."
