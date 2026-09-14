@@ -7,27 +7,27 @@ This document records the CI trust model and the dependency review performed on
 
 | Workflow | Trigger | Trust and credentials |
 | --- | --- | --- |
-| `ci.yml` | `pull_request` | Untrusted fork or same-repository content. The token has `contents: read`, checkout credentials are not persisted, and the job cannot save dependency caches. Same-repository pull requests receive the read-only Hex API key; GitHub withholds it from fork pull requests. |
-| `ci.yml` | `push` to `main` | Repository content on `main`. The token has `contents: read`, and all jobs receive the read-only Hex API key. This is the only trigger that can save the Gleam dependency cache. |
-| `ci.yml` | `workflow_call` | Trust is set by the caller. The called workflow requests only `contents: read`, receives the optional read-only Hex API key from its caller, and cannot save the dependency cache. |
+| `ci.yml` | `pull_request` | Untrusted fork or same-repository content. The token has `contents: read`, checkout credentials are not persisted, no repository secret is provided, and the job cannot save dependency caches. |
+| `ci.yml` | `push` to `main` | Repository content on `main`. The token has `contents: read`, and the dependency download receives the read-only Hex API key. This is the only trigger that can save the Gleam dependency cache. |
+| `ci.yml` | `workflow_call` | Trust is set by the caller. The called workflow requests only `contents: read`; its dependency download receives the optional read-only Hex API key from its caller, and it cannot save the dependency cache. |
 | `pr.yml` | `pull_request` | Untrusted content. The token has `contents: read`; the workflow does not comment on the PR or persist checkout credentials. Event text is passed through environment variables, not inserted into shell source. |
 | `release.yml` | `push` to `main` | Intended for reviewed `main` content. Tools and the release plan run before the GitHub App token is created. The token is passed only to `trellis release pr`. |
 | `publish.yml` | successful `workflow_run` for CI on `main` | The gate uses the successful CI commit SHA and requires it to belong to a merged `release/pending` PR. The release job checks out that SHA, verifies `HEAD`, and only then creates the GitHub App token. |
 | `publish.yml` | `workflow_dispatch` | A retry path. It requires a full commit SHA, the same merged release-PR association, all seven CI checks on that SHA, and the `release` environment. |
 
-No workflow uses `pull_request_target` or downloads another workflow's artifact.
-CI passes only the read-only Hex API key to same-repository pull-request code.
-The dependency cache contains downloaded Gleam packages only. Pull requests can
-restore a base-branch cache, but only a trusted `push` job can save a cache that
-`main` or a release can restore.
+No workflow uses `pull_request_target`, downloads another workflow's artifact,
+or passes a secret to pull-request code. The dependency cache contains
+downloaded Gleam packages only. Pull requests can restore a base-branch cache,
+but only a trusted `push` job can save a cache that `main` or a release can
+restore.
 
 ## Executable inputs
 
 All active third-party actions and committed workflow templates use full,
 verified upstream commit SHAs. `scripts/check_ci_security.py` enforces full SHA
 pins, read-only `GITHUB_TOKEN` permissions, non-persisted checkout credentials,
-safe expression handling, locked tools, the single read-only Hex credential,
-trusted cache saves, and release-SHA binding.
+safe expression handling, locked tools, secret-free pull-request CI, scoped Hex
+credentials, trusted cache saves, and release-SHA binding.
 
 The repository installs mise `2026.8.3` with the SHA-256 published in its signed
 checksum list. `.mise.toml` pins Erlang, Rebar3, Gleam, Just, and Trellis.

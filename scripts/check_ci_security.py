@@ -98,12 +98,17 @@ def check_release_binding(failures: list[str]) -> None:
             fail(f"scripts/release_gate.py: missing release validation marker {marker!r}", failures)
 
     ci = (WORKFLOWS / "ci.yml").read_text()
-    if not re.search(
-        r"^env:\n  HEXPM_READ_API_KEY: \$\{\{ secrets\.HEXPM_API_KEY \}\}$",
-        ci,
-        re.MULTILINE,
-    ):
-        fail(".github/workflows/ci.yml: Hex read key must apply to all jobs", failures)
+    if re.search(r"^env:\n(?:  [^\n]+\n)*?  HEXPM_READ_API_KEY:", ci, re.MULTILINE):
+        fail(".github/workflows/ci.yml: pull-request CI must not receive workflow-level secrets", failures)
+    trusted_dependency_download = (
+        "      - name: Download dependencies\n"
+        "        shell: bash\n"
+        "        env:\n"
+        "          HEXPM_READ_API_KEY: "
+        "${{ github.event_name != 'pull_request' && secrets.HEXPM_API_KEY || '' }}"
+    )
+    if trusted_dependency_download not in ci:
+        fail(".github/workflows/ci.yml: Hex read key must be limited to trusted dependency downloads", failures)
     if set(re.findall(r"secrets\.([A-Z0-9_]+)", ci)) != {"HEXPM_API_KEY"}:
         fail(".github/workflows/ci.yml: only the Hex read key is allowed", failures)
     if "if: github.event_name == 'push'" not in ci:

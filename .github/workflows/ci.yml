@@ -16,9 +16,6 @@ on:
 permissions:
   contents: read
 
-env:
-  HEXPM_READ_API_KEY: ${{ secrets.HEXPM_API_KEY }}
-
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -50,6 +47,8 @@ jobs:
       # package resolution to stay below the Hex API rate limit.
       - name: Download dependencies
         shell: bash
+        env:
+          HEXPM_READ_API_KEY: ${{ github.event_name != 'pull_request' && secrets.HEXPM_API_KEY || '' }}
         run: |
           set -euo pipefail
           mapfile -t packages < <(trellis list --json | jq -r '.packages[].name')

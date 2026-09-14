@@ -112,7 +112,7 @@ const selections = routes.flatMap((route) =>
 </section>
 
 <script is:inline>
-  (() => {
+  document.addEventListener("DOMContentLoaded", () => {
     const container = document.querySelector("[data-selected-path]");
     if (!(container instanceof HTMLElement)) return;
 
@@ -134,5 +134,5 @@ const selections = routes.flatMap((route) =>
       const corePath = document.querySelector("#core-path");
       if (corePath instanceof HTMLDetailsElement) corePath.open = true;
     }
-  })();
+  }, { once: true });
 </script>
