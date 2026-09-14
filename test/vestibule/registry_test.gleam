@@ -24,7 +24,7 @@ fn test_strategy(name: String) -> Strategy(e) {
 fn test_config() -> config.ClientConfig {
   config.new(
     client_id: "client_id",
-    auth: config.ClientSecret("client_secret"),
+    auth: config.client_secret_auth("client_secret"),
     redirect_uri: "https://example.com/callback",
   )
 }
@@ -89,13 +89,13 @@ pub fn register_duplicate_does_not_replace_trusted_entry_test() -> Nil {
   let trusted_config =
     config.new(
       client_id: "trusted_id",
-      auth: config.ClientSecret("trusted_secret"),
+      auth: config.client_secret_auth("trusted_secret"),
       redirect_uri: "https://example.com/callback",
     )
   let attacker_config =
     config.new(
       client_id: "attacker_id",
-      auth: config.ClientSecret("attacker_secret"),
+      auth: config.client_secret_auth("attacker_secret"),
       redirect_uri: "https://evil.example/callback",
     )
 
@@ -124,13 +124,13 @@ pub fn register_or_replace_overwrites_existing_test() -> Nil {
   let first_config =
     config.new(
       client_id: "first_id",
-      auth: config.ClientSecret("first_secret"),
+      auth: config.client_secret_auth("first_secret"),
       redirect_uri: "https://example.com/callback",
     )
   let second_config =
     config.new(
       client_id: "second_id",
-      auth: config.ClientSecret("second_secret"),
+      auth: config.client_secret_auth("second_secret"),
       redirect_uri: "https://example.com/callback",
     )
 

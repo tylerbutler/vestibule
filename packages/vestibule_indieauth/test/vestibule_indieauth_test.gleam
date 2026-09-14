@@ -30,7 +30,7 @@ pub fn authorize_url_includes_extra_params_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "http://localhost/callback",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
     )
   let assert Ok(options) =
     config.authorize_options()
@@ -65,7 +65,7 @@ pub fn authorize_url_rejects_me_extra_param_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "http://localhost/callback",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
     )
   let assert Ok(options) =
     config.authorize_options()
@@ -111,7 +111,7 @@ fn test_client_config() -> config.ClientConfig {
   config.new(
     client_id: "https://app.example.com/",
     redirect_uri: "https://app.example.com/callback",
-    auth: config.PublicClient,
+    auth: config.public_client(),
   )
 }
 

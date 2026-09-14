@@ -120,7 +120,7 @@ pub fn strategy_for_tenant_authorize_url_uses_tenant_endpoint_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "http://localhost/callback",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
     )
   let assert Ok(authorize_url) =
     strategy.build_authorize_url(
@@ -170,7 +170,7 @@ pub fn common_strategy_authorize_url_uses_common_endpoint_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "http://localhost/callback",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
     )
   let assert Ok(authorize_url) =
     strategy.build_authorize_url(
@@ -199,7 +199,7 @@ pub fn custom_scopes_add_openid_for_nonce_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "http://localhost/callback",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
     )
   let assert Ok(authorize_url) =
     strategy.build_authorize_url(
@@ -388,7 +388,7 @@ pub fn authorize_url_invalid_redirect_uri_returns_error_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "not a uri",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
     )
   let _ =
     strategy.build_authorize_url(
@@ -411,7 +411,7 @@ pub fn authorize_url_includes_extra_parameters_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "http://localhost/callback",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
     )
   let assert Ok(options) =
     config.authorize_options()
@@ -437,7 +437,7 @@ pub fn sans_io_token_request_and_response_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "https://app.example.com/callback",
-      auth: config.ClientSecret("client-secret"),
+      auth: config.client_secret_auth("client-secret"),
     )
   let assert Ok(http_request) =
     vestibule_microsoft.build_authorization_code_request(
@@ -484,7 +484,7 @@ pub fn sans_io_refresh_and_user_info_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "https://app.example.com/callback",
-      auth: config.ClientSecret("client-secret"),
+      auth: config.client_secret_auth("client-secret"),
     )
   let assert Ok(refresh_request) =
     vestibule_microsoft.build_refresh_token_request(
