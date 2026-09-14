@@ -72,11 +72,10 @@ missing claim, or mismatch all fail with an AuthError of kind
 
 **Caller responsibilities:** This function checks that the callback
 state matches `expected_state`, but does not enforce single-use or
-expiration. Callers should delete the stored state after a successful
-call to prevent replay attacks. The wisp middleware's `uset.take`
-provides one-time-use semantics automatically. For time-based
-expiration, check the timestamp you stored alongside the state
-before calling this function.
+expiration. Callers must atomically consume the stored flow before
+calling this function, including when token exchange fails. The Wisp
+and Mist middleware do this automatically. For time-based expiration,
+check the stored deadline before consuming the flow.
 
 ```gleam
 pub fn handle_callback(
