@@ -29,15 +29,15 @@ Vestibule packages are not published on Hex. Follow the [installation guide](/do
 
 | Package | Version | Modules | Description |
 |---|---:|---:|---|
-| `vestibule` | `0.0.0` | 13 | Demo-ready OAuth sign-in for Gleam. Real auth flows for demos and prototypes — not audited, not for production. |
-| `vestibule_apple` | `0.0.0` | 3 | Apple Sign In strategy for vestibule (demo-ready — not audited, not for production) |
-| `vestibule_github` | `0.0.0` | 1 | GitHub OAuth strategy for vestibule (demo-ready — not audited, not for production) |
-| `vestibule_google` | `0.0.0` | 1 | Google OAuth strategy for vestibule (demo-ready — not audited, not for production) |
-| `vestibule_indieauth` | `0.0.0` | 5 | IndieAuth strategy for vestibule — decentralized identity via OAuth 2.0 (demo-ready — not audited, not for production) |
-| `vestibule_microsoft` | `0.0.0` | 1 | Microsoft OAuth strategy for vestibule (demo-ready — not audited, not for production) |
-| `vestibule_mist` | `0.0.0` | 2 | Mist middleware for vestibule OAuth authentication (demo-ready — not audited, not for production) |
-| `vestibule_oidc` | `0.0.0` | 1 | OpenID Connect discovery for vestibule — auto-configure strategies from an issuer URL (demo-ready — not audited, not for production) |
-| `vestibule_wisp` | `0.0.0` | 1 | Wisp middleware for vestibule OAuth authentication (demo-ready — not audited, not for production) |
+| `vestibule` | `0.1.0` | 14 | Demo-ready OAuth sign-in for Gleam. Real auth flows for demos and prototypes — not audited, not for production. |
+| `vestibule_apple` | `0.0.1` | 3 | Apple Sign In strategy for vestibule (demo-ready — not audited, not for production) |
+| `vestibule_github` | `0.1.0` | 1 | GitHub OAuth strategy for vestibule (demo-ready — not audited, not for production) |
+| `vestibule_google` | `0.0.1` | 1 | Google OAuth strategy for vestibule (demo-ready — not audited, not for production) |
+| `vestibule_indieauth` | `0.0.1` | 5 | IndieAuth strategy for vestibule — decentralized identity via OAuth 2.0 (demo-ready — not audited, not for production) |
+| `vestibule_microsoft` | `0.0.1` | 1 | Microsoft OAuth strategy for vestibule (demo-ready — not audited, not for production) |
+| `vestibule_mist` | `0.1.0` | 2 | Mist middleware for vestibule OAuth authentication (demo-ready — not audited, not for production) |
+| `vestibule_oidc` | `0.0.1` | 1 | OpenID Connect discovery for vestibule — auto-configure strategies from an issuer URL (demo-ready — not audited, not for production) |
+| `vestibule_wisp` | `0.1.0` | 1 | Wisp middleware for vestibule OAuth authentication (demo-ready — not audited, not for production) |
 
 ## Modules
 
@@ -51,6 +51,7 @@ Vestibule packages are not published on Hex. Follow the [installation guide](/do
 | `vestibule` | [`vestibule/error`](/docs/reference/vestibule-error) | Authentication error types. |
 | `vestibule` | [`vestibule/logger`](/docs/reference/vestibule-logger) | Reference for vestibule/logger. |
 | `vestibule` | [`vestibule/nonce`](/docs/reference/vestibule-nonce) | OIDC `nonce` generation and constant-time validation. A fresh 256-bit base64url nonce is minted for every OIDC authorization request, sent as the `nonce` authorize-request parameter, and echoed back by the provider in the signed `id_token`. On callback the value read from the id_token is compared against the stored value to bind the token to this browser session, preventing id_token replay/injection. |
+| `vestibule` | [`vestibule/oidc`](/docs/reference/vestibule-oidc) | Shared OpenID Connect ID-token verification. |
 | `vestibule` | [`vestibule/provider_support`](/docs/reference/vestibule-provider_support) | Stable helpers for OAuth provider implementations. |
 | `vestibule` | [`vestibule/registry`](/docs/reference/vestibule-registry) | In-memory registry that maps provider names ("google", "apple", ...) to `Strategy` values. Used by the middleware to dispatch incoming authorize/callback requests to the right provider. |
 | `vestibule` | [`vestibule/state_store`](/docs/reference/vestibule-state_store) | Single-use storage for in-flight OAuth flow state (CSRF `state` and PKCE `code_verifier`). Entries are deleted on first read to prevent replay. |
