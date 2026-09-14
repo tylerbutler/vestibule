@@ -1,5 +1,5 @@
 -module(vestibule_public_http_transport).
--export([request/11]).
+-export([request/11, request_with_cacerts/12, tls_options/1]).
 
 -define(MAX_HEADER_BYTES, 65536).
 -define(READ_CHUNK_BYTES, 8192).
@@ -17,8 +17,76 @@ request(
     BodyLimit,
     Timeout
 ) ->
+    request_with_trust(
+        Method,
+        Headers,
+        Body,
+        Scheme,
+        Host,
+        Port,
+        Path,
+        Query,
+        Address,
+        BodyLimit,
+        Timeout,
+        system
+    ).
+
+%% Internal test seam: request/11 always uses the system trust store.
+request_with_cacerts(
+    Method,
+    Headers,
+    Body,
+    Scheme,
+    Host,
+    Port,
+    Path,
+    Query,
+    Address,
+    BodyLimit,
+    Timeout,
+    Cacerts
+) when is_list(Cacerts) ->
+    request_with_trust(
+        Method,
+        Headers,
+        Body,
+        Scheme,
+        Host,
+        Port,
+        Path,
+        Query,
+        Address,
+        BodyLimit,
+        Timeout,
+        {cacerts, Cacerts}
+    ).
+
+request_with_trust(
+    Method,
+    Headers,
+    Body,
+    Scheme,
+    Host,
+    Port,
+    Path,
+    Query,
+    Address,
+    BodyLimit,
+    Timeout,
+    Trust
+) ->
     Deadline = erlang:monotonic_time(millisecond) + Timeout,
-    case connect(Scheme, Host, Address, effective_port(Scheme, Port), Deadline) of
+    case
+        connect(
+            Scheme,
+            Host,
+            Address,
+            effective_port(Scheme, Port),
+            Deadline,
+            Trust
+        )
+    of
         {ok, Socket} ->
             try
                 case send_request(
@@ -40,26 +108,26 @@ request(
             {error, {transport, Reason}}
     end.
 
-connect(http, _Host, Address, Port, Deadline) ->
+connect(http, _Host, Address, Port, Deadline, _Trust) ->
     case remaining(Deadline) of
         {ok, Timeout} ->
             connect_tcp(Address, Port, Timeout);
         {error, Reason} ->
             {error, Reason}
     end;
-connect(https, Host, Address, Port, Deadline) ->
+connect(https, Host, Address, Port, Deadline, Trust) ->
     case application:ensure_all_started(ssl) of
         {ok, _Started} ->
             case remaining(Deadline) of
                 {ok, Timeout} ->
-                    connect_tls(Host, Address, Port, Timeout);
+                    connect_tls(Host, Address, Port, Timeout, Trust);
                 {error, Reason} ->
                     {error, Reason}
             end;
         {error, Reason} ->
             {error, format_error(ssl_start, Reason)}
     end;
-connect(_, _Host, _Address, _Port, _Deadline) ->
+connect(_, _Host, _Address, _Port, _Deadline, _Trust) ->
     {error, <<"Unsupported HTTP scheme">>}.
 
 connect_tcp(Address, Port, Timeout) ->
@@ -82,7 +150,7 @@ connect_tcp(Address, Port, Timeout) ->
         {error, Reason} -> {error, format_error(connect, Reason)}
     end.
 
-connect_tls(Host, Address, Port, Timeout) ->
+connect_tls(Host, Address, Port, Timeout, Trust) ->
     TlsOptions = [
         binary,
         address_family(Address),
@@ -91,7 +159,7 @@ connect_tls(Host, Address, Port, Timeout) ->
         {packet_size, ?MAX_HEADER_BYTES},
         {buffer, ?READ_CHUNK_BYTES},
         {recbuf, ?READ_CHUNK_BYTES}
-        | tls_options(Host)
+        | tls_options(Host, Trust)
     ],
     case ssl:connect(Address, Port, TlsOptions, Timeout) of
         {ok, Socket} -> {ok, {tls, Socket}};
@@ -330,56 +398,73 @@ read_response_body(
         true ->
             {ok, <<>>, Headers};
         false ->
-            case transfer_encoding(Headers) of
-                chunked ->
-                    read_chunked_body(
+            case response_coding(Headers) of
+                identity ->
+                    read_framed_body(
                         Socket,
+                        Headers,
                         Limit,
                         Deadline,
-                        HeaderBytes,
-                        [],
-                        0,
-                        Headers
+                        HeaderBytes
                     );
                 unsupported ->
                     {error,
                         {response_error,
-                            <<"Unsupported HTTP response transfer-encoding">>}};
-                none ->
-                    case content_length(Headers) of
-                        {ok, Length} when Length > Limit ->
-                            response_too_large(content_length_error(Limit, Length));
-                        {ok, Length} ->
-                            case set_packet(Socket, raw) of
-                                ok ->
-                                    read_fixed_body(
-                                        Socket,
-                                        Length,
-                                        Deadline,
-                                        [],
-                                        Headers
-                                    );
-                                {error, Reason} ->
-                                    {error, {transport, Reason}}
-                            end;
-                        none ->
-                            case set_packet(Socket, raw) of
-                                ok ->
-                                    read_close_delimited_body(
-                                        Socket,
-                                        Limit,
-                                        Deadline,
-                                        [],
-                                        0,
-                                        Headers
-                                    );
-                                {error, Reason} ->
-                                    {error, {transport, Reason}}
-                            end;
-                        {error, Reason} ->
-                            {error, {response_error, Reason}}
-                    end
+                            <<"Unsupported HTTP response content-encoding">>}}
             end
+    end.
+
+read_framed_body(Socket, Headers, Limit, Deadline, HeaderBytes) ->
+    case {transfer_encoding(Headers), content_length(Headers)} of
+        {chunked, none} ->
+            read_chunked_body(
+                Socket,
+                Limit,
+                Deadline,
+                HeaderBytes,
+                [],
+                0,
+                Headers
+            );
+        {chunked, _} ->
+            {error,
+                {response_error,
+                    <<"HTTP response has both Transfer-Encoding and Content-Length">>}};
+        {unsupported, _} ->
+            {error,
+                {response_error,
+                    <<"Unsupported HTTP response transfer-encoding">>}};
+        {none, {ok, Length}} when Length > Limit ->
+            response_too_large(content_length_error(Limit, Length));
+        {none, {ok, Length}} ->
+            case set_packet(Socket, raw) of
+                ok ->
+                    read_fixed_body(
+                        Socket,
+                        Length,
+                        Deadline,
+                        [],
+                        Headers
+                    );
+                {error, Reason} ->
+                    {error, {transport, Reason}}
+            end;
+        {none, none} ->
+            case set_packet(Socket, raw) of
+                ok ->
+                    read_close_delimited_body(
+                        Socket,
+                        Limit,
+                        Deadline,
+                        [],
+                        0,
+                        Headers
+                    );
+                {error, Reason} ->
+                    {error, {transport, Reason}}
+            end;
+        {none, {error, Reason}} ->
+            {error, {response_error, Reason}}
     end.
 
 response_has_no_body(head, _Status) -> true;
@@ -389,26 +474,31 @@ response_has_no_body(_, _) -> false.
 
 transfer_encoding(Headers) ->
     Values = header_values(Headers, <<"transfer-encoding">>),
-    case Values of
-        [] ->
-            none;
-        _ ->
-            Tokens = lists:append([
-                [
-                    string:lowercase(trim_ows(Token))
-                 || Token <- binary:split(Value, <<",">>, [global])
-                ]
-             || Value <- Values
-            ]),
-            case Tokens of
-                [] -> unsupported;
-                _ ->
-                    case lists:last(Tokens) of
-                        <<"chunked">> -> chunked;
-                        _ -> unsupported
-                    end
+    Tokens = coding_tokens(Values),
+    case Tokens of
+        [] -> none;
+        [<<"chunked">>] -> chunked;
+        _ -> unsupported
+    end.
+
+response_coding(Headers) ->
+    case coding_tokens(header_values(Headers, <<"content-encoding">>)) of
+        [] -> identity;
+        Tokens ->
+            case lists:all(fun(Token) -> Token =:= <<"identity">> end, Tokens) of
+                true -> identity;
+                false -> unsupported
             end
     end.
+
+coding_tokens(Values) ->
+    lists:append([
+        [
+            string:lowercase(trim_ows(Token))
+         || Token <- binary:split(Value, <<",">>, [global])
+        ]
+     || Value <- Values
+    ]).
 
 content_length(Headers) ->
     Values0 = header_values(Headers, <<"content-length">>),
@@ -720,8 +810,11 @@ address_family(Address) when tuple_size(Address) =:= 8 -> inet6;
 address_family(_Address) -> inet.
 
 tls_options(Host) ->
+    tls_options(Host, system).
+
+tls_options(Host, Trust) ->
     NormalizedHost = strip_trailing_dot(strip_brackets(Host)),
-    Base = httpc:ssl_verify_host_options(true),
+    Base = trust_options(Trust),
     case host_is_ip_literal(NormalizedHost) of
         true -> Base;
         false ->
@@ -730,6 +823,16 @@ tls_options(Host) ->
                 | Base
             ]
     end.
+
+trust_options(system) ->
+    httpc:ssl_verify_host_options(true);
+trust_options({cacerts, Cacerts}) ->
+    lists:keystore(
+        cacerts,
+        1,
+        httpc:ssl_verify_host_options(true),
+        {cacerts, Cacerts}
+    ).
 
 host_is_ip_literal(Host) ->
     case inet:parse_address(binary_to_list(strip_brackets(Host))) of
