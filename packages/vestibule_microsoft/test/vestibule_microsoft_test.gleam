@@ -5,6 +5,7 @@ import gleam/http
 import gleam/http/request
 import gleam/http/response
 import gleam/json
+import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
 import gleam/time/duration
@@ -150,23 +151,23 @@ pub fn strategy_for_tenant_authorize_url_uses_tenant_endpoint_test() -> Nil {
   Nil
 }
 
-pub fn strategy_for_tenant_default_scopes_include_openid_test() -> Nil {
+pub fn strategy_for_tenant_default_scopes_include_identity_scopes_test() -> Nil {
   let microsoft_strategy =
     vestibule_microsoft.strategy_for_tenant("my-tenant-id")
   let _ =
     strategy.default_scopes(microsoft_strategy)
     |> fn(actual) {
-      assert actual == ["openid", "User.Read"]
+      assert actual == ["openid", "profile", "User.Read"]
     }
   Nil
 }
 
-pub fn common_strategy_default_scopes_include_openid_test() -> Nil {
+pub fn common_strategy_default_scopes_include_identity_scopes_test() -> Nil {
   let microsoft_strategy = vestibule_microsoft.strategy()
   let _ =
     strategy.default_scopes(microsoft_strategy)
     |> fn(actual) {
-      assert actual == ["openid", "User.Read"]
+      assert actual == ["openid", "profile", "User.Read"]
     }
   Nil
 }
@@ -200,7 +201,7 @@ pub fn common_strategy_authorize_url_uses_common_endpoint_test() -> Nil {
   Nil
 }
 
-pub fn custom_scopes_add_openid_for_nonce_test() -> Nil {
+pub fn custom_scopes_include_identity_scopes_once_test() -> Nil {
   let microsoft_strategy = vestibule_microsoft.strategy()
   let client_configuration =
     config.new(
@@ -213,19 +214,12 @@ pub fn custom_scopes_add_openid_for_nonce_test() -> Nil {
       microsoft_strategy,
       config: client_configuration,
       options: config.authorize_options(),
-      scopes: ["User.Read"],
+      scopes: ["profile", "User.Read", "openid", "profile", "openid"],
       state: "state",
     )
-  let _ =
-    { string.contains(authorize_url, "openid") }
-    |> fn(actual) {
-      assert actual
-    }
-  let _ =
-    { string.contains(authorize_url, "User.Read") }
-    |> fn(actual) {
-      assert actual
-    }
+  assert occurrence_count(authorize_url, "openid") == 1
+  assert occurrence_count(authorize_url, "profile") == 1
+  assert string.contains(authorize_url, "User.Read")
   Nil
 }
 
@@ -629,6 +623,48 @@ pub fn common_callback_accepts_signed_tenant_and_graph_identity_test() -> Nil {
   assert auth.uid(auth_result) == "object-id"
 }
 
+pub fn common_callback_accepts_consumer_cid_and_preserves_graph_uid_test() -> Nil {
+  let id_token =
+    microsoft_token(
+      "https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0",
+      "client-id",
+      "9188040d-6c67-4c5b-b112-36a304b66dad",
+      "00000000-0000-0000-0123-456789abcdef",
+      "nonce",
+      duration.minutes(5),
+    )
+  let assert Ok(auth_result) =
+    run_microsoft_callback(id_token, "0123456789ABCDEF", "nonce", True, True)
+  assert auth.uid(auth_result) == "0123456789ABCDEF"
+}
+
+pub fn common_callback_rejects_mismatched_consumer_cid_test() -> Nil {
+  let id_token =
+    microsoft_token(
+      "https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0",
+      "client-id",
+      "9188040d-6c67-4c5b-b112-36a304b66dad",
+      "00000000-0000-0000-0123-456789abcdef",
+      "nonce",
+      duration.minutes(5),
+    )
+  let assert Error(auth_error) =
+    run_microsoft_callback(id_token, "fedcba9876543210", "nonce", True, True)
+  assert error.kind(auth_error) == error.UserInfoKind
+}
+
+pub fn tenant_callback_rejects_consumer_cid_equivalence_test() -> Nil {
+  let assert Error(auth_error) =
+    microsoft_callback(
+      "trusted",
+      "00000000-0000-0000-0123-456789abcdef",
+      "0123456789abcdef",
+      "nonce",
+      "nonce",
+    )
+  assert error.kind(auth_error) == error.UserInfoKind
+}
+
 fn assert_verified_token_rejected(
   id_token: String,
   expected_tenant: Option(String),
@@ -641,6 +677,13 @@ fn assert_verified_token_rejected(
       expected_tenant,
     )
   assert error.kind(auth_error) == error.UserInfoKind
+}
+
+fn occurrence_count(value: String, substring: String) -> Int {
+  value
+  |> string.split(on: substring)
+  |> list.length
+  |> fn(parts) { parts - 1 }
 }
 
 fn microsoft_token(

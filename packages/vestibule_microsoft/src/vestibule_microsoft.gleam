@@ -1,6 +1,6 @@
 //// Microsoft Identity Platform (v2.0) strategy.
 ////
-//// Requests `openid User.Read` by default. Tokens are exchanged against
+//// Requests `openid profile User.Read` by default. Tokens are exchanged against
 //// `/oauth2/v2.0/token`; user info comes from Microsoft Graph `/me`.
 ////
 //// ## Tenant isolation
@@ -17,7 +17,6 @@
 //// authentication when the token was issued by a different tenant.
 
 import gleam/bit_array
-import gleam/bool
 import gleam/dict
 import gleam/dynamic
 import gleam/dynamic/decode
@@ -47,6 +46,8 @@ import vestibule/strategy.{type Strategy, type UserResult}
 import vestibule/user_info.{type UserInfo}
 
 const microsoft_jwks_url = "https://login.microsoftonline.com/common/discovery/v2.0/keys"
+
+const microsoft_consumer_tenant_id = "9188040d-6c67-4c5b-b112-36a304b66dad"
 
 /// Create a Microsoft authentication strategy using the `/common` authority.
 ///
@@ -102,7 +103,7 @@ fn build_strategy(
 ) -> Strategy(e) {
   strategy.new(
     provider: "microsoft",
-    default_scopes: ["openid", "User.Read"],
+    default_scopes: ["openid", "profile", "User.Read"],
     authorize_url: fn(client_configuration, options, scopes, state) {
       do_authorize_url(authority, client_configuration, options, scopes, state)
     },
@@ -328,7 +329,7 @@ fn do_authorize_url(
       secret: "",
       site: site,
     )
-  let scopes = scopes_with_openid(scopes)
+  let scopes = scopes_with_identity(scopes)
   let authorize_url =
     authorize_uri.build(
       client,
@@ -345,9 +346,10 @@ fn do_authorize_url(
   Ok(authorize_url)
 }
 
-fn scopes_with_openid(scopes: List(String)) -> List(String) {
-  use <- bool.guard(when: list.contains(scopes, "openid"), return: scopes)
-  ["openid", ..scopes]
+fn scopes_with_identity(scopes: List(String)) -> List(String) {
+  let custom_scopes =
+    list.filter(scopes, fn(scope) { scope != "openid" && scope != "profile" })
+  ["openid", "profile", ..custom_scopes]
 }
 
 fn do_exchange_code(
@@ -483,12 +485,14 @@ fn do_fetch_user(
   send: fn(request.Request(String)) ->
     Result(response.Response(String), send_error),
 ) -> Result(UserResult, AuthError(e)) {
-  use verified_object_id <- result.try(verify_microsoft_exchange(
-    expected_tenant,
-    client_configuration,
-    exchange,
-    send,
-  ))
+  use #(verified_object_id, verified_tenant) <- result.try(
+    verify_microsoft_exchange(
+      expected_tenant,
+      client_configuration,
+      exchange,
+      send,
+    ),
+  )
   use user_info_request <- result.try(
     build_user_info_request(strategy.exchange_credentials(exchange)),
   )
@@ -502,7 +506,9 @@ fn do_fetch_user(
     user_info_response,
   ))
   use _ <- result.try(
-    case string.lowercase(user_id) == string.lowercase(verified_object_id) {
+    case
+      microsoft_identities_match(verified_tenant, user_id, verified_object_id)
+    {
       True -> Ok(Nil)
       False ->
         Error(error.user_info(
@@ -511,7 +517,7 @@ fn do_fetch_user(
     },
   )
   Ok(strategy.user_result(
-    uid: verified_object_id,
+    uid: user_id,
     info: user_information,
     extra: dict.new(),
   ))
@@ -523,16 +529,50 @@ fn verify_microsoft_exchange(
   exchange: strategy.ExchangeResult,
   send: fn(request.Request(String)) ->
     Result(response.Response(String), send_error),
-) -> Result(String, AuthError(e)) {
+) -> Result(#(String, String), AuthError(e)) {
   use id_token <- result.try(exchange_id_token(exchange))
   use jwks <- result.try(fetch_microsoft_jwks(send))
-  use #(object_id, _) <- result.try(verify_id_token(
+  verify_id_token(
     id_token,
     jwks,
     config.client_id(client_configuration),
     expected_tenant,
-  ))
-  Ok(object_id)
+  )
+}
+
+fn microsoft_identities_match(
+  verified_tenant: String,
+  graph_user_id: String,
+  verified_object_id: String,
+) -> Bool {
+  let graph_user_id = string.lowercase(graph_user_id)
+  let verified_object_id = string.lowercase(verified_object_id)
+  case graph_user_id == verified_object_id {
+    True -> True
+    False ->
+      case string.lowercase(verified_tenant) == microsoft_consumer_tenant_id {
+        False -> False
+        True ->
+          consumer_cid_as_object_id(graph_user_id) == Some(verified_object_id)
+      }
+  }
+}
+
+fn consumer_cid_as_object_id(cid: String) -> Option(String) {
+  let is_hex =
+    cid
+    |> string.to_graphemes
+    |> list.all(fn(character) { string.contains("0123456789abcdef", character) })
+  case string.length(cid) == 16 && is_hex {
+    False -> None
+    True ->
+      Some(
+        "00000000-0000-0000-"
+        <> string.slice(cid, 0, 4)
+        <> "-"
+        <> string.slice(cid, 4, 12),
+      )
+  }
 }
 
 /// Verify a Microsoft v2 ID token and return its stable object and tenant IDs.
