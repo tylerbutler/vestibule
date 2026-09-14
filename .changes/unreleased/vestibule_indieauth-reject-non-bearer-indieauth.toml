@@ -1,0 +1,3 @@
+package = "vestibule_indieauth"
+kind = "Security"
+body = "Validate IndieAuth token types and document callback identity bindings."

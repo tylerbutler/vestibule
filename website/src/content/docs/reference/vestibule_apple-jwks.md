@@ -4,7 +4,7 @@ description: "Apple JWKS (JSON Web Key Set) fetching and caching."
 nav:
   group: Reference
   groupOrder: 20
-  order: 24
+  order: 25
   label: "vestibule_apple/jwks"
 toc:
   - href: "#types"
@@ -76,6 +76,17 @@ Falls back to fetching from Apple's JWKS endpoint.
 pub fn get_keys(JwksCache) -> Result(List(verify_key.VerifyKey), error.AuthError(a))
 ```
 
+### `get_keys_with_sender`
+
+Get cached keys or fetch them with a custom HTTP sender.
+
+```gleam
+pub fn get_keys_with_sender(
+  JwksCache,
+  fn(request.Request(String)) -> Result(response.Response(String), a)
+) -> Result(List(verify_key.VerifyKey), error.AuthError(b))
+```
+
 ### `initialize`
 
 Initialize the JWKS cache. Call once per VM at application startup.
@@ -115,4 +126,15 @@ Force refresh the cached keys from Apple's endpoint.
 
 ```gleam
 pub fn refresh_keys(JwksCache) -> Result(List(verify_key.VerifyKey), error.AuthError(a))
+```
+
+### `refresh_keys_with_sender`
+
+Refresh cached keys with a custom HTTP sender.
+
+```gleam
+pub fn refresh_keys_with_sender(
+  JwksCache,
+  fn(request.Request(String)) -> Result(response.Response(String), a)
+) -> Result(List(verify_key.VerifyKey), error.AuthError(b))
 ```
