@@ -54,7 +54,7 @@ jobs:
           mapfile -t packages < <(trellis list --json | jq -r '.packages[].name')
           for package in "${packages[@]}"; do
             trellis run deps "$package"
-            sleep 3
+            sleep 10
           done
       # Pull-request caches are never saved. GitHub permits PR jobs to restore
       # the base branch cache, but caches created for a PR merge ref cannot be
