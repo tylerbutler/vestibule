@@ -236,7 +236,7 @@ fn test_config() -> config.ClientConfig {
   config.new(
     client_id: "client-id",
     redirect_uri: "http://localhost:8000/auth/test/callback",
-    auth: config.ClientSecret("client-secret"),
+    auth: config.client_secret_auth("client-secret"),
   )
 }
 

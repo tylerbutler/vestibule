@@ -809,7 +809,7 @@ fn run_microsoft_callback(
     config: config.new(
       client_id: "client-id",
       redirect_uri: "https://app.example/callback",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
     ),
     callback_params: dict.from_list([
       #("state", "state"),

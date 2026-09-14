@@ -208,7 +208,7 @@ pub fn authorize_url_requires_form_post_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "https://app.example.com/callback",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
     )
   let assert Ok(url) =
     strategy.build_authorize_url(
