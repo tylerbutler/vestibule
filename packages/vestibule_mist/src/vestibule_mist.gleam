@@ -112,6 +112,8 @@ pub type CallbackError(e) {
   MissingOrInvalidSessionCookie(reason: SessionCookieError)
   /// The session state was not found, expired, or already used.
   SessionUnavailable
+  /// The signed session belongs to another registered provider.
+  SessionProviderMismatch
   /// Callback parameters could not be extracted from the request; `reason`
   /// says why.
   InvalidCallbackParameters(reason: CallbackParametersError)
@@ -136,6 +138,8 @@ pub type SessionCookieError {
 
 /// Why callback parameters could not be extracted from a POST callback body.
 pub type CallbackParametersError {
+  /// The callback query string was not valid form/query encoding.
+  QueryNotFormEncoded
   /// The request body could not be read (e.g. larger than the 64 KiB limit,
   /// or a transport failure).
   BodyReadFailed
@@ -143,6 +147,9 @@ pub type CallbackParametersError {
   BodyNotUtf8
   /// The request body was not valid form/query encoding.
   BodyNotFormEncoded
+  /// A callback parameter name occurred more than once, including once in
+  /// the query and once in a POST body.
+  DuplicateParameter(name: String)
 }
 
 /// Prefix that makes a cookie host-bound under the `__Host-` cookie name rule.
@@ -242,18 +249,63 @@ pub fn cookie_security(options: Options) -> CookieSecurity {
 /// Returns 404 if the provider is not registered, or a generic 400 HTML error
 /// if URL generation or state persistence fails.
 ///
-/// The request is not inspected at all — everything the response needs comes
-/// from `options` and the registry. It is still taken as an argument so this
-/// function has the same shape as `callback_phase` and its `vestibule_wisp`
-/// counterpart, and so a future change can read request metadata without
-/// breaking callers. Hence it is generic over the body type.
+/// The direct socket peer address is the admission key. Forwarded headers are
+/// not trusted.
 pub fn request_phase(
+  http_request: Request(Connection),
+  registry registry: Registry(e),
+  provider provider: String,
+  store store: StateStore,
+  authorize_options authorize_options: AuthorizeOptions,
+  options options: Options,
+) -> Response(ResponseData) {
+  request_phase_for_direct_client(
+    http_request,
+    registry: registry,
+    provider: provider,
+    store: store,
+    authorize_options: authorize_options,
+    options: options,
+  )
+}
+
+/// Start authorization using one shared admission bucket.
+///
+/// This lets any eight concurrent anonymous starts deny new starts, so prefer
+/// `request_phase` or `request_phase_for_client`. Use this only behind an
+/// upstream rate limit.
+pub fn request_phase_with_shared_bucket(
+  http_request: Request(body),
+  registry registry: Registry(e),
+  provider provider: String,
+  store store: StateStore,
+  authorize_options authorize_options: AuthorizeOptions,
+  options options: Options,
+) -> Response(ResponseData) {
+  request_phase_for_client(
+    http_request,
+    registry: registry,
+    provider: provider,
+    store: store,
+    authorize_options: authorize_options,
+    options: options,
+    client_key: "shared",
+  )
+}
+
+/// Start authorization with a stable identifier for the direct client.
+///
+/// Use the socket peer address, or an identifier supplied by a trusted edge
+/// that also rate-limits requests. Do not use forwarded headers without
+/// validating the proxy chain.
+pub fn request_phase_for_client(
   _http_request: Request(body),
   registry registry: Registry(e),
   provider provider: String,
   store store: StateStore,
   authorize_options authorize_options: AuthorizeOptions,
   options options: Options,
+  client_key client_key: String,
 ) -> Response(ResponseData) {
   logger.emit(
     logger.new(
@@ -272,10 +324,11 @@ pub fn request_phase(
     ),
   )
   case
-    transport_flow.start_authorization(
+    transport_flow.start_authorization_for_client(
       registry,
       provider: provider,
       store: store,
+      client_key: client_key,
       ttl: options.session_ttl,
       options: authorize_options,
     )
@@ -315,6 +368,23 @@ pub fn request_phase(
       )
       generic_error_response()
     }
+    Error(transport_flow.StoreFailed(state_store.ClientLimitReached))
+    | Error(transport_flow.StoreFailed(state_store.StoreFull)) -> {
+      logger.emit(
+        logger.new(
+          level: logger.Warning,
+          event: "vestibule.adapter.request.rejected",
+          phase: "request",
+          outcome: "failure",
+          provider: option.Some(provider),
+          fields: [
+            logger.field("transport", "mist"),
+            logger.field("error_category", "admission_limit"),
+          ],
+        ),
+      )
+      too_many_requests_response()
+    }
     Error(transport_flow.StoreFailed(_)) -> {
       logger.emit(
         logger.new(
@@ -347,19 +417,63 @@ pub fn request_phase(
           payload: session_id,
           secret_key_base: options.secret_key_base,
         )
-      let attributes =
-        cookie.Attributes(
-          max_age: option.Some(session_ttl.to_seconds(options.session_ttl)),
-          domain: option.None,
-          path: option.Some("/"),
-          secure: secure_attribute(options.cookie_security)
-            || options.same_site == CrossSite,
-          http_only: True,
-          same_site: option.Some(same_site_policy(options.same_site)),
-        )
       redirect(url)
-      |> response.set_cookie(cookie_name(options), token, attributes)
+      |> response.set_cookie(
+        cookie_name(options),
+        token,
+        session_cookie_attributes(options),
+      )
     }
+  }
+}
+
+fn session_cookie_attributes(options: Options) -> cookie.Attributes {
+  cookie.Attributes(
+    max_age: option.Some(session_ttl.to_seconds(options.session_ttl)),
+    domain: option.None,
+    path: option.Some("/"),
+    secure: secure_attribute(options.cookie_security)
+      || options.same_site == CrossSite,
+    http_only: True,
+    same_site: option.Some(same_site_policy(options.same_site)),
+  )
+}
+
+/// Return a stable admission key from the direct socket peer address.
+///
+/// Use this with `request_phase_for_client`. The port is intentionally
+/// excluded so reconnecting cannot bypass the per-client limit.
+pub fn direct_client_key(
+  http_request: Request(Connection),
+) -> Result(String, Nil) {
+  mist.get_connection_info(http_request.body)
+  |> result.map(fn(info) { mist.ip_address_to_string(info.ip_address) })
+}
+
+/// Start authorization using the direct socket peer as the admission key.
+///
+/// If Mist cannot read the peer address, this fails closed with 429 and does
+/// not create state.
+pub fn request_phase_for_direct_client(
+  http_request: Request(Connection),
+  registry registry: Registry(e),
+  provider provider: String,
+  store store: StateStore,
+  authorize_options authorize_options: AuthorizeOptions,
+  options options: Options,
+) -> Response(ResponseData) {
+  case direct_client_key(http_request) {
+    Ok(client_key) ->
+      request_phase_for_client(
+        http_request,
+        registry: registry,
+        provider: provider,
+        store: store,
+        authorize_options: authorize_options,
+        options: options,
+        client_key: client_key,
+      )
+    Error(Nil) -> too_many_requests_response()
   }
 }
 
@@ -368,8 +482,8 @@ pub fn request_phase(
 ///
 /// Supports both GET callbacks (query parameters) and POST callbacks
 /// (form-encoded body), as required by providers like Apple that use
-/// `response_mode=form_post`. For POST requests, form body parameters take
-/// precedence over query parameters.
+/// `response_mode=form_post`. Repeated parameter names are rejected, including
+/// names present in both the query and POST body.
 ///
 /// On success, calls `on_success` with the `Auth`. On error, returns a
 /// generic HTML error page. Returns 404 if the provider is not registered.
@@ -381,7 +495,7 @@ pub fn callback_phase(
   options options: Options,
   on_success on_success: fn(Auth) -> Response(ResponseData),
 ) -> Response(ResponseData) {
-  case
+  let outcome =
     callback_phase_auth_result(
       http_request,
       registry: registry,
@@ -389,9 +503,15 @@ pub fn callback_phase(
       store: store,
       options: options,
     )
-  {
+  let response = case outcome {
     Ok(auth) -> on_success(auth)
     Error(callback_error) -> callback_error_response(callback_error)
+  }
+  case
+    callback_cookie_is_terminal(outcome, http_request, provider, store, options)
+  {
+    True -> expire_session_cookie(response, options)
+    False -> response
   }
 }
 
@@ -407,7 +527,7 @@ pub fn callback_phase_result(
   store store: StateStore,
   options options: Options,
 ) -> Result(Auth, Response(ResponseData)) {
-  case
+  let outcome =
     callback_phase_auth_result(
       http_request,
       registry: registry,
@@ -415,9 +535,23 @@ pub fn callback_phase_result(
       store: store,
       options: options,
     )
-  {
+  case outcome {
     Ok(auth) -> Ok(auth)
-    Error(callback_error) -> Error(callback_error_response(callback_error))
+    Error(callback_error) -> {
+      let response = callback_error_response(callback_error)
+      case
+        callback_cookie_is_terminal(
+          outcome,
+          http_request,
+          provider,
+          store,
+          options,
+        )
+      {
+        True -> Error(expire_session_cookie(response, options))
+        False -> Error(response)
+      }
+    }
   }
 }
 
@@ -447,21 +581,40 @@ pub fn callback_phase_auth_result(
       fields: [logger.field("transport", "mist")],
     ),
   )
-  case get_callback_parameters(http_request) {
-    Error(callback_error) -> {
-      log_callback_error(provider, callback_error)
-      Error(callback_error)
-    }
-    Ok(callback_parameters) ->
-      do_callback_phase_auth_result_with_parameters(
-        http_request,
-        parameters: callback_parameters,
-        registry: registry,
-        provider: provider,
-        store: store,
-        options: options,
-      )
+  let outcome = {
+    use strategy_config <- result.try(
+      transport_flow.ensure_callback_provider(registry, provider)
+      |> result.map_error(to_callback_error),
+    )
+    use session_id <- result.try(get_signed_cookie(
+      http_request,
+      cookie_name(options),
+      options.secret_key_base,
+    ))
+    use callback_parameters <- result.try(get_callback_parameters(http_request))
+    transport_flow.finish_callback(
+      strategy_config,
+      store: store,
+      parameters: callback_parameters,
+      session_id: session_id,
+    )
+    |> result.map_error(to_callback_error)
   }
+  case outcome {
+    Ok(_) ->
+      logger.emit(
+        logger.new(
+          level: logger.Info,
+          event: "vestibule.adapter.callback.success",
+          phase: "callback",
+          outcome: "success",
+          provider: option.Some(provider),
+          fields: [logger.field("transport", "mist")],
+        ),
+      )
+    Error(callback_error) -> log_callback_error(provider, callback_error)
+  }
+  outcome
 }
 
 /// Phase 2 with pre-extracted callback parameters.
@@ -543,32 +696,87 @@ fn do_callback_phase_auth_result_with_parameters(
   outcome
 }
 
+/// Expire the in-flight OAuth session cookie on a response.
+///
+/// `callback_phase` does this automatically after success or a terminal
+/// failure. Call this when using a Result callback variant and constructing
+/// the final response yourself.
+pub fn expire_session_cookie(
+  response: Response(body),
+  options: Options,
+) -> Response(body) {
+  response.expire_cookie(
+    response,
+    cookie_name(options),
+    session_cookie_attributes(options),
+  )
+}
+
+fn callback_cookie_is_terminal(
+  outcome: Result(Auth, CallbackError(e)),
+  http_request: Request(body),
+  provider: String,
+  store: StateStore,
+  options: Options,
+) -> Bool {
+  case outcome {
+    Ok(_) | Error(SessionUnavailable) -> True
+    Error(MissingOrInvalidSessionCookie(CookieSignatureInvalid)) -> True
+    Error(UnknownProvider(_))
+    | Error(MissingOrInvalidSessionCookie(CookieAbsent))
+    | Error(SessionProviderMismatch)
+    | Error(InvalidCallbackParameters(_)) -> False
+    Error(AuthFailed(_)) ->
+      case
+        get_signed_cookie(
+          http_request,
+          cookie_name(options),
+          options.secret_key_base,
+        )
+      {
+        Ok(session_id) ->
+          case
+            state_store.peek_with_error(store, session_id, provider: provider)
+          {
+            Ok(_) | Error(state_store.SessionProviderMismatch) -> False
+            Error(state_store.SessionMissing) -> True
+          }
+        Error(MissingOrInvalidSessionCookie(CookieAbsent))
+        | Error(MissingOrInvalidSessionCookie(CookieSignatureInvalid))
+        | Error(UnknownProvider(_))
+        | Error(SessionUnavailable)
+        | Error(SessionProviderMismatch)
+        | Error(InvalidCallbackParameters(_))
+        | Error(AuthFailed(_)) -> True
+      }
+  }
+}
+
 fn get_signed_cookie(
   http_request: Request(body),
   cookie_name: String,
   secret_key_base: BitArray,
 ) -> Result(String, CallbackError(e)) {
   let cookies = request.get_cookies(http_request)
-  case list.key_find(cookies, cookie_name) {
-    Error(Nil) -> Error(MissingOrInvalidSessionCookie(CookieAbsent))
-    Ok(token) ->
+  let matching = list.filter(cookies, fn(cookie) { cookie.0 == cookie_name })
+  case matching {
+    [] -> Error(MissingOrInvalidSessionCookie(CookieAbsent))
+    [#(_, token)] ->
       signed_cookie.verify(token: token, secret_key_base: secret_key_base)
       |> result.map_error(fn(_) {
         MissingOrInvalidSessionCookie(CookieSignatureInvalid)
       })
+    _ -> Error(MissingOrInvalidSessionCookie(CookieSignatureInvalid))
   }
 }
 
 /// Extract callback parameters from either query string (GET) or
-/// form-encoded body (POST). For POST requests, body parameters are merged
-/// over query parameters so body values take precedence.
+/// form-encoded body (POST). Repeated names fail closed before conversion to
+/// a dictionary.
 fn get_callback_parameters(
   http_request: Request(Connection),
 ) -> Result(dict.Dict(String, String), CallbackError(e)) {
-  let query_parameters = case http_request.query {
-    option.Some(query) -> uri.parse_query(query) |> result.unwrap([])
-    option.None -> []
-  }
+  use query_parameters <- result.try(parse_callback_query(http_request.query))
   case http_request.method {
     http.Post -> {
       use request_with_body <- result.try(
@@ -583,10 +791,7 @@ fn get_callback_parameters(
         uri.parse_query(body_string)
         |> result.replace_error(InvalidCallbackParameters(BodyNotFormEncoded)),
       )
-      Ok(dict.merge(
-        dict.from_list(query_parameters),
-        dict.from_list(body_parameters),
-      ))
+      callback_parameters_from_pairs(query_parameters, body_parameters)
     }
     http.Get
     | http.Head
@@ -596,8 +801,35 @@ fn get_callback_parameters(
     | http.Connect
     | http.Options
     | http.Patch
-    | http.Other(_) -> Ok(dict.from_list(query_parameters))
+    | http.Other(_) -> callback_parameters_from_pairs(query_parameters, [])
   }
+}
+
+/// Parse a callback query without silently replacing malformed input.
+pub fn parse_callback_query(
+  query: option.Option(String),
+) -> Result(List(#(String, String)), CallbackError(e)) {
+  case query {
+    option.Some(value) ->
+      uri.parse_query(value)
+      |> result.replace_error(InvalidCallbackParameters(QueryNotFormEncoded))
+    option.None -> Ok([])
+  }
+}
+
+/// Convert parsed callback pairs to a dictionary, rejecting duplicate names.
+///
+/// Use this when callback parameters are extracted outside
+/// `callback_phase_auth_result`; converting to a dictionary first would hide
+/// duplicate OAuth parameters.
+pub fn callback_parameters_from_pairs(
+  query: List(#(String, String)),
+  body: List(#(String, String)),
+) -> Result(dict.Dict(String, String), CallbackError(e)) {
+  transport_flow.callback_parameters(query, body)
+  |> result.map_error(fn(name) {
+    InvalidCallbackParameters(DuplicateParameter(name))
+  })
 }
 
 fn same_site_policy(same_site: CookieSameSite) -> cookie.SameSitePolicy {
@@ -621,6 +853,7 @@ fn to_callback_error(
     transport_flow.CallbackUnknownProvider(provider) ->
       UnknownProvider(provider)
     transport_flow.CallbackSessionUnavailable -> SessionUnavailable
+    transport_flow.CallbackSessionProviderMismatch -> SessionProviderMismatch
     transport_flow.CallbackAuthFailed(authentication_error) ->
       AuthFailed(authentication_error)
   }
@@ -636,6 +869,7 @@ fn log_callback_error(
     MissingOrInvalidSessionCookie(CookieSignatureInvalid) ->
       "session_cookie_signature_invalid"
     SessionUnavailable -> "session_unavailable"
+    SessionProviderMismatch -> "provider_mismatch"
     InvalidCallbackParameters(_) -> "invalid_callback_params"
     AuthFailed(authentication_error) ->
       logger.auth_error_category(authentication_error)
@@ -662,6 +896,7 @@ fn callback_error_response(
     UnknownProvider(_) -> not_found_response()
     MissingOrInvalidSessionCookie(_) -> generic_error_response()
     SessionUnavailable -> generic_error_response()
+    SessionProviderMismatch -> generic_error_response()
     InvalidCallbackParameters(_) -> generic_error_response()
     AuthFailed(_) -> generic_error_response()
   }
@@ -677,6 +912,12 @@ fn not_found_response() -> Response(ResponseData) {
   response.new(404)
   |> response.set_header("content-type", "text/plain; charset=utf-8")
   |> response.set_body(mist.Bytes(bytes_tree.from_string("Not Found")))
+}
+
+fn too_many_requests_response() -> Response(ResponseData) {
+  response.new(429)
+  |> response.set_header("content-type", "text/plain; charset=utf-8")
+  |> response.set_body(mist.Bytes(bytes_tree.from_string("Too Many Requests")))
 }
 
 fn generic_error_response() -> Response(ResponseData) {
