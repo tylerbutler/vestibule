@@ -202,6 +202,25 @@ pub fn authorize_url_invalid_redirect_uri_returns_error_test() -> Nil {
   Nil
 }
 
+pub fn authorize_url_requires_form_post_test() -> Nil {
+  let apple_strategy = vestibule_apple.strategy(test_apple_cache("form_post"))
+  let client_config =
+    config.new(
+      client_id: "client-id",
+      redirect_uri: "https://app.example.com/callback",
+      auth: config.ClientSecret("secret"),
+    )
+  let assert Ok(url) =
+    strategy.build_authorize_url(
+      apple_strategy,
+      config: client_config,
+      options: config.authorize_options(),
+      scopes: ["name", "email"],
+      state: "state",
+    )
+  assert string.contains(url, "response_mode=form_post")
+}
+
 pub fn sans_io_token_request_and_response_test() -> Nil {
   let client_config =
     config.new(

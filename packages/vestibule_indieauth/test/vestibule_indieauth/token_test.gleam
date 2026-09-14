@@ -140,6 +140,18 @@ pub fn parse_token_response_error_no_description_test() -> Nil {
   Nil
 }
 
+pub fn parse_token_response_rejects_non_bearer_token_test() -> Nil {
+  let json =
+    "{
+    \"access_token\": \"abc123\",
+    \"token_type\": \"mac\",
+    \"scope\": \"profile\",
+    \"me\": \"https://user.example.net/\"
+  }"
+  let assert Error(authentication_error) = token.parse_token_response(json)
+  assert error.kind(authentication_error) == error.CodeExchangeKind
+}
+
 pub fn parse_token_response_invalid_json_test() -> Nil {
   let _ =
     token.parse_token_response("not json at all")

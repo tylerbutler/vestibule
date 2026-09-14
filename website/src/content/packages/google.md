@@ -27,7 +27,7 @@ code: |
     config.new(
       client_id: "google-client-id",
       redirect_uri: "http://localhost:8000/auth/google/callback",
-      auth: config.ClientSecret("google-client-secret"),
+      auth: config.client_secret_auth("google-client-secret"),
     )
 
   let workspace_strategy =

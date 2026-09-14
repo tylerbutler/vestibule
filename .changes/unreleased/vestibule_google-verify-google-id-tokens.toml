@@ -1,0 +1,3 @@
+package = "vestibule_google"
+kind = "Security"
+body = "Verify Google ID tokens and bind hosted-domain and profile identity claims."

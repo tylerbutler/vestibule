@@ -66,7 +66,7 @@ let client_config =
   config.new(
     client_id: "https://myapp.com/",
     redirect_uri: "https://myapp.com/callback",
-    auth: config.PublicClient,
+    auth: config.public_client(),
   )
 let options = config.authorize_options()
 let assert Ok(authorization_request) =

@@ -1,0 +1,3 @@
+package = "vestibule_github"
+kind = "Security"
+body = "Validate token type, granted email scope, and the primary verified email during GitHub sign-in."
