@@ -33,7 +33,7 @@ pub fn start_authorization_threads_custom_options_to_strategy_test() -> Nil {
   let client_config =
     config.new(
       client_id: "client_id",
-      auth: config.ClientSecret("client_secret"),
+      auth: config.client_secret_auth("client_secret"),
       redirect_uri: "https://example.com/callback",
     )
   let assert Ok(provider_registry) =
@@ -100,7 +100,7 @@ pub fn finish_callback_rejects_session_started_for_another_provider_test() -> Ni
   let client_config =
     config.new(
       client_id: "client_id",
-      auth: config.ClientSecret("client_secret"),
+      auth: config.client_secret_auth("client_secret"),
       redirect_uri: "https://example.com/callback",
     )
   let assert Ok(provider_registry) =
