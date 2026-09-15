@@ -7,12 +7,14 @@
 //// for single-use storage of in-flight flow state.
 
 import gleam/bit_array
+import gleam/bool
 import gleam/crypto
 import gleam/dict
 import gleam/http
 import gleam/http/cookie
 import gleam/http/request
 import gleam/http/response
+import gleam/int
 import gleam/list
 import gleam/option
 import gleam/result
@@ -93,6 +95,8 @@ pub type CallbackError(e) {
   MissingOrInvalidSessionCookie(reason: SessionCookieError)
   /// The session state was not found, expired, or already used.
   SessionUnavailable
+  /// The signed session belongs to another registered provider.
+  SessionProviderMismatch
   /// Callback parameters could not be extracted from the request; `reason`
   /// says why.
   InvalidCallbackParams(reason: CallbackParamsError)
@@ -117,12 +121,17 @@ pub type SessionCookieError {
 
 /// Why callback parameters could not be extracted from a POST callback body.
 pub type CallbackParamsError {
+  /// The callback query string was not valid form/query encoding.
+  QueryNotFormEncoded
   /// The request body could not be read.
   BodyReadFailed
   /// The request body was not valid UTF-8.
   BodyNotUtf8
   /// The request body was not valid form/query encoding.
   BodyNotFormEncoded
+  /// A callback parameter name occurred more than once, including once in
+  /// the query and once in a POST body.
+  DuplicateParameter(name: String)
 }
 
 /// Default middleware options.
@@ -229,14 +238,45 @@ pub fn is_host_bound_cookie_name(name: String) -> Bool {
 /// state store, sets a signed session cookie, and returns a redirect response.
 ///
 /// Returns 404 if the provider is not registered.
+///
+/// Wisp does not expose the direct socket peer. This compatibility entry point
+/// therefore fails closed with 429. Use `request_phase_for_client`, or make a
+/// deliberate shared-bucket choice with `request_phase_with_shared_bucket`.
 pub fn request_phase(
+  _http_request: Request,
+  registry _registry: Registry(e),
+  provider _provider: String,
+  state_store _state_store: StateStore,
+  authorize_options _authorize_options: AuthorizeOptions,
+) -> Response {
+  wisp.html_response("Admission identity required", 429)
+}
+
+/// Phase 1: Redirect user to the OAuth provider using custom middleware
+/// options. Fails closed until the caller supplies an admission identity.
+pub fn request_phase_with_options(
+  _http_request: Request,
+  registry _registry: Registry(e),
+  provider _provider: String,
+  state_store _state_store: StateStore,
+  authorize_options _authorize_options: AuthorizeOptions,
+  middleware_options _middleware_options: Options,
+) -> Response {
+  wisp.html_response("Admission identity required", 429)
+}
+
+/// Start authorization using one shared admission bucket.
+///
+/// This lets any eight concurrent anonymous starts deny new starts, so prefer
+/// `request_phase_for_client`. Use this only behind an upstream rate limit.
+pub fn request_phase_with_shared_bucket(
   http_request: Request,
   registry registry: Registry(e),
   provider provider: String,
   state_store state_store: StateStore,
   authorize_options authorize_options: AuthorizeOptions,
 ) -> Response {
-  request_phase_with_options(
+  request_phase_with_shared_bucket_and_options(
     http_request,
     registry: registry,
     provider: provider,
@@ -246,15 +286,61 @@ pub fn request_phase(
   )
 }
 
-/// Phase 1: Redirect user to the OAuth provider using custom middleware
-/// options.
-pub fn request_phase_with_options(
+/// Start authorization using custom options and one shared admission bucket.
+pub fn request_phase_with_shared_bucket_and_options(
   http_request: Request,
   registry registry: Registry(e),
   provider provider: String,
   state_store state_store: StateStore,
   authorize_options authorize_options: AuthorizeOptions,
   middleware_options middleware_options: Options,
+) -> Response {
+  request_phase_for_client_with_options(
+    http_request,
+    registry: registry,
+    provider: provider,
+    state_store: state_store,
+    authorize_options: authorize_options,
+    middleware_options: middleware_options,
+    client_key: "shared",
+  )
+}
+
+/// Start authorization with default options and a stable identifier for the
+/// direct client. See `request_phase_for_client_with_options`.
+pub fn request_phase_for_client(
+  http_request: Request,
+  registry registry: Registry(e),
+  provider provider: String,
+  state_store state_store: StateStore,
+  authorize_options authorize_options: AuthorizeOptions,
+  client_key client_key: String,
+) -> Response {
+  request_phase_for_client_with_options(
+    http_request,
+    registry: registry,
+    provider: provider,
+    state_store: state_store,
+    authorize_options: authorize_options,
+    middleware_options: default_options(),
+    client_key: client_key,
+  )
+}
+
+/// Start authorization with a stable identifier for the direct client.
+///
+/// Obtain this value from the server connection or a trusted edge that
+/// enforces its own rate limit. Do not pass `Forwarded` or `X-Forwarded-For`
+/// directly: clients can forge those headers unless the application first
+/// validates and removes untrusted hops.
+pub fn request_phase_for_client_with_options(
+  http_request: Request,
+  registry registry: Registry(e),
+  provider provider: String,
+  state_store state_store: StateStore,
+  authorize_options authorize_options: AuthorizeOptions,
+  middleware_options middleware_options: Options,
+  client_key client_key: String,
 ) -> Response {
   logger.emit(
     logger.new(
@@ -273,10 +359,11 @@ pub fn request_phase_with_options(
     ),
   )
   case
-    transport_flow.start_authorization(
+    transport_flow.start_authorization_for_client(
       registry,
       provider: provider,
       store: state_store,
+      client_key: client_key,
       ttl_seconds: session_ttl_seconds(middleware_options),
       options: authorize_options,
     )
@@ -316,6 +403,23 @@ pub fn request_phase_with_options(
       )
       generic_error_response()
     }
+    Error(transport_flow.StoreFailed(state_store.ClientLimitReached))
+    | Error(transport_flow.StoreFailed(state_store.StoreFull)) -> {
+      logger.emit(
+        logger.new(
+          level: logger.Warning,
+          event: "vestibule.adapter.request.rejected",
+          phase: "request",
+          outcome: "failure",
+          provider: option.Some(provider),
+          fields: [
+            logger.field("transport", "wisp"),
+            logger.field("error_category", "admission_limit"),
+          ],
+        ),
+      )
+      wisp.html_response("Too Many Requests", 429)
+    }
     Error(transport_flow.StoreFailed(_)) -> {
       logger.emit(
         logger.new(
@@ -354,8 +458,8 @@ pub fn request_phase_with_options(
 ///
 /// Supports both GET callbacks (query parameters) and POST callbacks
 /// (form-encoded body), as required by providers like Apple that use
-/// `response_mode=form_post`. For POST requests, form body parameters
-/// take precedence over query parameters.
+/// `response_mode=form_post`. Repeated parameter names are rejected, including
+/// names present in both the query and POST body.
 ///
 /// On success, calls `on_success` with the Auth result.
 /// On error, returns an HTML error page.
@@ -386,7 +490,7 @@ pub fn callback_phase_with_options(
   on_success on_success: fn(Auth) -> Response,
   options options: Options,
 ) -> Response {
-  case
+  let outcome =
     callback_phase_auth_result_with_options(
       http_request,
       registry: registry,
@@ -394,9 +498,21 @@ pub fn callback_phase_with_options(
       state_store: state_store,
       options: options,
     )
-  {
+  let response = case outcome {
     Ok(auth) -> on_success(auth)
     Error(callback_error) -> callback_error_response(callback_error)
+  }
+  case
+    callback_cookie_is_terminal(
+      outcome,
+      http_request,
+      provider,
+      state_store,
+      options,
+    )
+  {
+    True -> expire_session_cookie(response, http_request, options)
+    False -> response
   }
 }
 
@@ -432,7 +548,7 @@ pub fn callback_phase_result_with_options(
   state_store state_store: StateStore,
   options options: Options,
 ) -> Result(Auth, Response) {
-  case
+  let outcome =
     callback_phase_auth_result_with_options(
       http_request,
       registry: registry,
@@ -440,9 +556,23 @@ pub fn callback_phase_result_with_options(
       state_store: state_store,
       options: options,
     )
-  {
+  case outcome {
     Ok(auth) -> Ok(auth)
-    Error(callback_error) -> Error(callback_error_response(callback_error))
+    Error(callback_error) -> {
+      let response = callback_error_response(callback_error)
+      case
+        callback_cookie_is_terminal(
+          outcome,
+          http_request,
+          provider,
+          state_store,
+          options,
+        )
+      {
+        True -> Error(expire_session_cookie(response, http_request, options))
+        False -> Error(response)
+      }
+    }
   }
 }
 
@@ -495,12 +625,12 @@ pub fn callback_phase_auth_result_with_options(
       |> result.map_error(to_callback_error),
     )
 
-    use callback_params <- result.try(get_callback_params(http_request))
-
     use session_id <- result.try(get_signed_cookie(
       http_request,
       cookie_name(options),
     ))
+
+    use callback_params <- result.try(get_callback_params(http_request))
 
     transport_flow.finish_callback(
       strategy_config,
@@ -563,6 +693,76 @@ fn set_session_cookie(
   }
 }
 
+/// Expire the in-flight OAuth session cookie on a response.
+///
+/// `callback_phase` does this automatically after success or a terminal
+/// failure. Call this when using a Result callback variant and constructing
+/// the final response yourself.
+pub fn expire_session_cookie(
+  response: Response,
+  http_request: Request,
+  options: Options,
+) -> Response {
+  case options.same_site {
+    Lax ->
+      wisp.set_cookie(
+        response,
+        http_request,
+        cookie_name(options),
+        "",
+        wisp.Signed,
+        0,
+      )
+    CrossSite -> {
+      let attributes =
+        cookie.Attributes(
+          ..cookie.defaults(http.Https),
+          max_age: option.Some(0),
+          same_site: option.Some(cookie.None),
+        )
+      response.set_cookie(response, cookie_name(options), "", attributes)
+    }
+  }
+}
+
+fn callback_cookie_is_terminal(
+  outcome: Result(Auth, CallbackError(e)),
+  http_request: Request,
+  provider: String,
+  state_store: StateStore,
+  options: Options,
+) -> Bool {
+  case outcome {
+    Ok(_) | Error(SessionUnavailable) -> True
+    Error(MissingOrInvalidSessionCookie(CookieSignatureInvalid)) -> True
+    Error(UnknownProvider(_))
+    | Error(MissingOrInvalidSessionCookie(CookieAbsent))
+    | Error(SessionProviderMismatch)
+    | Error(InvalidCallbackParams(_)) -> False
+    Error(AuthFailed(_)) ->
+      case get_signed_cookie(http_request, cookie_name(options)) {
+        Ok(session_id) ->
+          case
+            state_store.peek_with_error(
+              state_store,
+              session_id,
+              provider: provider,
+            )
+          {
+            Ok(_) | Error(state_store.SessionProviderMismatch) -> False
+            Error(state_store.SessionMissing) -> True
+          }
+        Error(MissingOrInvalidSessionCookie(CookieAbsent))
+        | Error(MissingOrInvalidSessionCookie(CookieSignatureInvalid))
+        | Error(UnknownProvider(_))
+        | Error(SessionUnavailable)
+        | Error(SessionProviderMismatch)
+        | Error(InvalidCallbackParams(_))
+        | Error(AuthFailed(_)) -> True
+      }
+  }
+}
+
 /// Read and verify the signed session cookie, distinguishing "no cookie was
 /// sent" from "a cookie was sent but did not verify".
 ///
@@ -574,25 +774,42 @@ fn get_signed_cookie(
   http_request: Request,
   cookie_name: String,
 ) -> Result(String, CallbackError(e)) {
-  case wisp.get_cookie(http_request, cookie_name, wisp.Signed) {
-    Ok(session_id) -> Ok(session_id)
-    Error(Nil) ->
-      case list.key_find(request.get_cookies(http_request), cookie_name) {
-        Error(Nil) -> Error(MissingOrInvalidSessionCookie(CookieAbsent))
-        Ok(_) -> Error(MissingOrInvalidSessionCookie(CookieSignatureInvalid))
-      }
+  let matching =
+    request.get_cookies(http_request)
+    |> list.filter(fn(cookie) { cookie.0 == cookie_name })
+  case matching {
+    [] -> Error(MissingOrInvalidSessionCookie(CookieAbsent))
+    [#(_, _)] ->
+      wisp.get_cookie(http_request, cookie_name, wisp.Signed)
+      |> result.map_error(fn(_) {
+        MissingOrInvalidSessionCookie(CookieSignatureInvalid)
+      })
+    _ -> Error(MissingOrInvalidSessionCookie(CookieSignatureInvalid))
   }
 }
 
 /// Extract callback parameters from either query string (GET) or
-/// form-encoded body (POST). For POST requests, body parameters
-/// are merged over query parameters so they take precedence.
+/// form-encoded body (POST). Repeated names fail closed before conversion to
+/// a dictionary.
 fn get_callback_params(
   http_request: Request,
 ) -> Result(dict.Dict(String, String), CallbackError(e)) {
-  let query_parameters = wisp.get_query(http_request)
+  use query_parameters <- result.try(parse_callback_query(http_request.query))
   case http_request.method {
     http.Post -> {
+      let http_request =
+        wisp.set_max_body_size(
+          http_request,
+          int.min(wisp.get_max_body_size(http_request), 65_536),
+        )
+        |> wisp.set_read_chunk_size(int.min(
+          wisp.get_read_chunk_size(http_request),
+          8192,
+        ))
+      use <- bool.guard(
+        when: declared_body_too_large(http_request),
+        return: Error(InvalidCallbackParams(BodyReadFailed)),
+      )
       use body_bit_array <- result.try(
         wisp.read_body_bits(http_request)
         |> result.replace_error(InvalidCallbackParams(BodyReadFailed)),
@@ -605,11 +822,7 @@ fn get_callback_params(
         uri.parse_query(body_string)
         |> result.replace_error(InvalidCallbackParams(BodyNotFormEncoded)),
       )
-      // Merge: body parameters take precedence over query parameters.
-      Ok(dict.merge(
-        dict.from_list(query_parameters),
-        dict.from_list(body_parameters),
-      ))
+      callback_parameters_from_pairs(query_parameters, body_parameters)
     }
     http.Get
     | http.Head
@@ -619,7 +832,45 @@ fn get_callback_params(
     | http.Connect
     | http.Options
     | http.Patch
-    | http.Other(_) -> Ok(dict.from_list(query_parameters))
+    | http.Other(_) -> callback_parameters_from_pairs(query_parameters, [])
+  }
+}
+
+/// Parse a callback query without silently replacing malformed input.
+pub fn parse_callback_query(
+  query: option.Option(String),
+) -> Result(List(#(String, String)), CallbackError(e)) {
+  case query {
+    option.Some(value) ->
+      uri.parse_query(value)
+      |> result.replace_error(InvalidCallbackParams(QueryNotFormEncoded))
+    option.None -> Ok([])
+  }
+}
+
+/// Convert parsed callback pairs to a dictionary, rejecting duplicate names.
+///
+/// This is also useful for adapters that extract a Wisp request before calling
+/// Vestibule. Pass query and body pairs separately; a name present in both is
+/// a duplicate.
+pub fn callback_parameters_from_pairs(
+  query: List(#(String, String)),
+  body: List(#(String, String)),
+) -> Result(dict.Dict(String, String), CallbackError(e)) {
+  transport_flow.callback_parameters(query, body)
+  |> result.map_error(fn(name) {
+    InvalidCallbackParams(DuplicateParameter(name))
+  })
+}
+
+fn declared_body_too_large(http_request: Request) -> Bool {
+  case request.get_header(http_request, "content-length") {
+    Ok(value) ->
+      case int.parse(value) {
+        Ok(size) -> size > 65_536
+        Error(Nil) -> False
+      }
+    Error(Nil) -> False
   }
 }
 
@@ -630,6 +881,7 @@ fn to_callback_error(
     transport_flow.CallbackUnknownProvider(provider) ->
       UnknownProvider(provider)
     transport_flow.CallbackSessionUnavailable -> SessionUnavailable
+    transport_flow.CallbackSessionProviderMismatch -> SessionProviderMismatch
     transport_flow.CallbackAuthFailed(authentication_error) ->
       AuthFailed(authentication_error)
   }
@@ -645,6 +897,7 @@ fn log_callback_error(
     MissingOrInvalidSessionCookie(CookieSignatureInvalid) ->
       "session_cookie_signature_invalid"
     SessionUnavailable -> "session_unavailable"
+    SessionProviderMismatch -> "provider_mismatch"
     InvalidCallbackParams(_) -> "invalid_callback_params"
     AuthFailed(authentication_error) ->
       logger.auth_error_category(authentication_error)
@@ -676,6 +929,7 @@ fn callback_error_response(callback_error: CallbackError(e)) -> Response {
     UnknownProvider(_) -> wisp.not_found()
     MissingOrInvalidSessionCookie(_) -> generic_error_response()
     SessionUnavailable -> generic_error_response()
+    SessionProviderMismatch -> generic_error_response()
     InvalidCallbackParams(_) -> generic_error_response()
     AuthFailed(_) -> generic_error_response()
   }
