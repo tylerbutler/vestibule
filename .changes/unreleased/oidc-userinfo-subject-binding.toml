@@ -1,0 +1,3 @@
+package = "vestibule_oidc"
+kind = "Security"
+body = "Bind UserInfo subjects to the subject in the verified OIDC ID token."
