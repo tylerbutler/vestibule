@@ -44,7 +44,7 @@ jobs:
         id: setup
         uses: ./.github/actions/setup
       # Warm the shared dependency cache before the fan-out jobs start. Pace
-      # package resolution to stay below the Hex API rate limit.
+      # package resolution and retry once if a shared runner hits Hex's limit.
       - name: Download dependencies
         shell: bash
         env:
@@ -53,7 +53,10 @@ jobs:
           set -euo pipefail
           mapfile -t packages < <(trellis list --json | jq -r '.packages[].name')
           for package in "${packages[@]}"; do
-            trellis run deps "$package"
+            trellis run deps "$package" || {
+              sleep 60
+              trellis run deps "$package"
+            }
             sleep 10
           done
       # Pull-request caches are never saved. GitHub permits PR jobs to restore
