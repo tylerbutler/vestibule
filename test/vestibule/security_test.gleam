@@ -449,7 +449,11 @@ pub fn refresh_response_handles_error_without_description_test() -> Nil {
       body,
       provider_support.OptionalScope(" "),
     )
-    == Error(error.provider(code: "invalid_grant", description: "", uri: None))
+    == Error(error.provider(
+      code: "invalid_grant",
+      description: "Provider rejected the request",
+      uri: None,
+    ))
 }
 
 /// Security: refresh response with extremely long token should not crash.

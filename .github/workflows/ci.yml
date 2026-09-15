@@ -44,7 +44,7 @@ jobs:
         id: setup
         uses: ./.github/actions/setup
       # Warm the shared dependency cache before the fan-out jobs start. Pace
-      # package resolution to stay below the Hex API rate limit.
+      # package downloads to stay below the Hex API rate limit.
       - name: Download dependencies
         shell: bash
         env:
