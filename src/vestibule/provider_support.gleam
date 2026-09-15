@@ -46,8 +46,8 @@ pub type SecureResponseLimit {
 
 /// Check that an HTTP response has a 2xx status code.
 /// Returns the response body on success, or an AuthError of kind `HttpKind` on
-/// failure. The error's summary carries the first 120 characters of the
-/// response body, so it may contain provider response content.
+/// failure. Response bodies are not copied into public errors because providers
+/// can echo submitted credentials or tokens.
 pub fn check_response_status(
   response: Response(String),
 ) -> Result(String, AuthError(e)) {
@@ -55,7 +55,7 @@ pub fn check_response_status(
     when: response.status < 200 || response.status >= 300,
     return: Error(error.http(
       status: response.status,
-      summary: safe_error_body(response.body),
+      summary: "Provider returned a non-success HTTP response",
     )),
   )
   Ok(response.body)
@@ -106,11 +106,6 @@ pub fn check_response_status_for_endpoint(
   }
 }
 
-fn safe_error_body(body: String) -> String {
-  use <- bool.guard(when: string.length(body) <= 120, return: body)
-  string.slice(body, 0, 120)
-}
-
 /// Validate that a URL uses HTTPS.
 /// HTTP is allowed for localhost and 127.0.0.1 (development use).
 /// Returns Ok(Nil) if valid, or an AuthError of kind `ConfigKind` describing
@@ -122,21 +117,19 @@ pub fn require_https(url: String) -> Result(Nil, AuthError(e)) {
         option.Some("https") ->
           case parsed.host {
             option.Some("") | option.None ->
-              Error(error.config(reason: "URL must include a host: " <> url))
+              Error(error.config(reason: "URL must include a host"))
             option.Some(_) -> Ok(Nil)
           }
         option.Some("http") ->
           case parsed.host {
             option.Some("localhost") | option.Some("127.0.0.1") -> Ok(Nil)
             option.Some(_) | option.None ->
-              Error(error.config(
-                reason: "HTTPS required for endpoint URL: " <> url,
-              ))
+              Error(error.config(reason: "HTTPS required for endpoint URL"))
           }
         option.Some(_) | option.None ->
-          Error(error.config(reason: "HTTPS required for endpoint URL: " <> url))
+          Error(error.config(reason: "HTTPS required for endpoint URL"))
       }
-    Error(_) -> Error(error.config(reason: "Invalid URL: " <> url))
+    Error(_) -> Error(error.config(reason: "Invalid URL"))
   }
 }
 
@@ -158,9 +151,9 @@ pub fn require_public_https(url: String) -> Result(Nil, AuthError(e)) {
       case parsed.scheme {
         option.Some("https") -> require_public_host(url)
         option.Some(_) | option.None ->
-          Error(error.config(reason: "HTTPS required for endpoint URL: " <> url))
+          Error(error.config(reason: "HTTPS required for endpoint URL"))
       }
-    Error(_) -> Error(error.config(reason: "Invalid URL: " <> url))
+    Error(_) -> Error(error.config(reason: "Invalid URL"))
   }
 }
 
@@ -176,9 +169,9 @@ pub fn require_public_https_format(url: String) -> Result(Nil, AuthError(e)) {
       case parsed.scheme {
         option.Some("https") -> require_public_host_format(url)
         option.Some(_) | option.None ->
-          Error(error.config(reason: "HTTPS required for endpoint URL: " <> url))
+          Error(error.config(reason: "HTTPS required for endpoint URL"))
       }
-    Error(_) -> Error(error.config(reason: "Invalid URL: " <> url))
+    Error(_) -> Error(error.config(reason: "Invalid URL"))
   }
 }
 
@@ -189,18 +182,18 @@ pub fn require_public_host_format(url: String) -> Result(Nil, AuthError(e)) {
     Ok(parsed) ->
       case parsed.host {
         option.Some("") | option.None ->
-          Error(error.config(reason: "URL must include a host: " <> url))
+          Error(error.config(reason: "URL must include a host"))
         option.Some(host) -> {
           use _ <- result.try(
             public_http.validate_host_format(host)
             |> result.map_error(fn(reason) {
-              error.config(reason: reason <> " (URL: " <> url <> ")")
+              error.config(reason: safe_host_error(reason))
             }),
           )
           Ok(Nil)
         }
       }
-    Error(_) -> Error(error.config(reason: "Invalid URL: " <> url))
+    Error(_) -> Error(error.config(reason: "Invalid URL"))
   }
 }
 
@@ -223,18 +216,30 @@ pub fn require_public_host(url: String) -> Result(Nil, AuthError(e)) {
     Ok(parsed) ->
       case parsed.host {
         option.Some("") | option.None ->
-          Error(error.config(reason: "URL must include a host: " <> url))
+          Error(error.config(reason: "URL must include a host"))
         option.Some(host) -> {
           use _ <- result.try(
             public_http.validate_host(host)
             |> result.map_error(fn(reason) {
-              error.config(reason: reason <> " (URL: " <> url <> ")")
+              error.config(reason: safe_host_error(reason))
             }),
           )
           Ok(Nil)
         }
       }
-    Error(_) -> Error(error.config(reason: "Invalid URL: " <> url))
+    Error(_) -> Error(error.config(reason: "Invalid URL"))
+  }
+}
+
+fn safe_host_error(reason: String) -> String {
+  case
+    string.starts_with(reason, "Could not resolve host"),
+    string.contains(reason, "not publicly routable")
+    || string.contains(reason, "non-public address")
+  {
+    True, _ -> "Could not resolve host"
+    False, True -> "Host is not publicly routable"
+    False, False -> "Endpoint URL host validation failed"
   }
 }
 
@@ -317,18 +322,12 @@ pub fn send_public(
   secure_request: SecureRequest,
 ) -> Result(Response(String), AuthError(e)) {
   let SecureRequest(http_request, response_limit) = secure_request
-  let url =
-    http_request
-    |> request.to_uri
-    |> uri.to_string
   case public_http.send(http_request, response_limit_bytes(response_limit)) {
     Ok(http_response) -> Ok(http_response)
     Error(public_http.UnsafeTarget(reason)) ->
-      Error(error.config(reason: reason))
-    Error(public_http.NetworkFailure(reason)) ->
-      Error(error.network(
-        reason: "Failed to connect to " <> url <> ": " <> reason,
-      ))
+      Error(error.config(reason: safe_host_error(reason)))
+    Error(public_http.NetworkFailure(_)) ->
+      Error(error.network(reason: "Failed to connect to endpoint"))
   }
 }
 
@@ -349,15 +348,13 @@ fn response_limit_bytes(response_limit: SecureResponseLimit) -> Int {
 pub fn build_json_request_with_auth(
   url: String,
   auth_header: String,
-  provider_name: String,
+  _provider_name: String,
 ) -> Result(request.Request(String), AuthError(e)) {
   use _ <- result.try(require_https(url))
   use http_request <- result.try(
     request.to(url)
     |> result.map_error(fn(_) {
-      error.config(
-        reason: "Invalid " <> provider_name <> " endpoint URL: " <> url,
-      )
+      error.config(reason: "Invalid provider endpoint URL")
     }),
   )
   let http_request =
@@ -460,8 +457,8 @@ pub fn check_token_error(body: String) -> Result(String, AuthError(e)) {
     decode.success(#(error_code, description, error_uri))
   }
   case json.parse(body, error_decoder) {
-    Ok(#(code, description, uri)) ->
-      Error(error.provider(code: code, description: description, uri: uri))
+    Ok(#(code, _, _)) ->
+      Error(error.provider(code: code, description: "", uri: option.None))
     Error(_) -> Ok(body)
   }
 }
@@ -475,21 +472,15 @@ pub fn parse_redirect_uri(
 ) -> Result(uri.Uri, AuthError(e)) {
   use parsed <- result.try(
     uri.parse(redirect_uri)
-    |> result.map_error(fn(_) {
-      error.config(reason: "Invalid redirect URI: " <> redirect_uri)
-    }),
+    |> result.map_error(fn(_) { error.config(reason: "Invalid redirect URI") }),
   )
   let https_error =
-    Error(error.config(
-      reason: "Redirect URI must use HTTPS (except localhost): " <> redirect_uri,
-    ))
+    Error(error.config(reason: "Redirect URI must use HTTPS (except localhost)"))
   case parsed.scheme {
     option.Some("https") ->
       case parsed.host {
         option.Some("") | option.None ->
-          Error(error.config(
-            reason: "Redirect URI must include a host: " <> redirect_uri,
-          ))
+          Error(error.config(reason: "Redirect URI must include a host"))
         option.Some(_) -> Ok(parsed)
       }
     option.Some("http") ->
@@ -563,7 +554,11 @@ fn parse_oauth_token_success(
   }
 
   case json.parse(body, decoder) {
-    Ok(credentials) -> Ok(credentials)
+    Ok(credentials) ->
+      case string.lowercase(credential.token_type(credentials)) {
+        "bearer" -> Ok(credentials)
+        _ -> Error(error.code_exchange(reason: "Unsupported token type"))
+      }
     Error(decode_error) ->
       Error(error.decode(
         context: "token response",
