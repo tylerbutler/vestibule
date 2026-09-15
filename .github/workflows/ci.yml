@@ -59,6 +59,16 @@ jobs:
             }
             sleep 10
           done
+      - name: Share dependencies with downstream jobs
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # ratchet:actions/upload-artifact@v6
+        with:
+          name: gleam-dependencies
+          path: |
+            build/packages
+            packages/*/build/packages
+            example/build/packages
+          compression-level: 0
+          retention-days: 1
       # Pull-request caches are never saved. GitHub permits PR jobs to restore
       # the base branch cache, but caches created for a PR merge ref cannot be
       # restored by main or release jobs.
@@ -94,6 +104,10 @@ jobs:
           persist-credentials: false
       - name: Setup environment
         uses: ./.github/actions/setup
+      - name: Restore downloaded dependencies
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # ratchet:actions/download-artifact@v7
+        with:
+          name: gleam-dependencies
       - run: trellis run check
 
   lint:
@@ -106,6 +120,10 @@ jobs:
           persist-credentials: false
       - name: Setup environment
         uses: ./.github/actions/setup
+      - name: Restore downloaded dependencies
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # ratchet:actions/download-artifact@v7
+        with:
+          name: gleam-dependencies
       - run: trellis run lint
 
   build:
@@ -118,6 +136,10 @@ jobs:
           persist-credentials: false
       - name: Setup environment
         uses: ./.github/actions/setup
+      - name: Restore downloaded dependencies
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # ratchet:actions/download-artifact@v7
+        with:
+          name: gleam-dependencies
       - run: trellis run build --strict
 
   test:
@@ -130,6 +152,10 @@ jobs:
           persist-credentials: false
       - name: Setup environment
         uses: ./.github/actions/setup
+      - name: Restore downloaded dependencies
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # ratchet:actions/download-artifact@v7
+        with:
+          name: gleam-dependencies
       - run: trellis run test
 
   docs:
@@ -142,4 +168,8 @@ jobs:
           persist-credentials: false
       - name: Setup environment
         uses: ./.github/actions/setup
+      - name: Restore downloaded dependencies
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # ratchet:actions/download-artifact@v7
+        with:
+          name: gleam-dependencies
       - run: trellis run docs
