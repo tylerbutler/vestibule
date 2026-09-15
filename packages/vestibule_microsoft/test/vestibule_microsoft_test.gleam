@@ -4,14 +4,23 @@ import gleam/dynamic/decode
 import gleam/http
 import gleam/http/request
 import gleam/http/response
-import gleam/option.{None, Some}
+import gleam/json
+import gleam/list
+import gleam/option.{type Option, None, Some}
 import gleam/string
+import gleam/time/duration
 import gleeunit
+import vestibule
+import vestibule/auth
 import vestibule/config
 import vestibule/credential
+import vestibule/error
+import vestibule/oidc
 import vestibule/strategy
 import vestibule/user_info
 import vestibule_microsoft
+import vestibule_microsoft/jwt_signing
+import ywt/claim
 
 pub fn main() -> Nil {
   gleeunit.main()
@@ -25,92 +34,91 @@ fn fake_id_token(payload_json: String) -> String {
   header <> "." <> payload <> ".sig"
 }
 
-pub fn verify_tenant_match_test() -> Nil {
+fn test_jwks() -> oidc.Jwks {
+  let assert Ok(keys) = oidc.parse_jwks(jwt_signing.jwks())
+  keys
+}
+
+pub fn forged_tenant_token_is_rejected_test() -> Nil {
   let token =
-    fake_id_token("{\"tid\":\"72f988bf-86f1-41af-91ab-2d7cd011db47\"}")
-  let _ =
-    vestibule_microsoft.verify_tenant(
-      expected_tenant: "72f988bf-86f1-41af-91ab-2d7cd011db47",
-      id_token: token,
+    fake_id_token(
+      "{\"iss\":\"https://login.microsoftonline.com/trusted/v2.0\",\"aud\":\"client-id\",\"exp\":4102444800,\"sub\":\"user\",\"tid\":\"trusted\",\"oid\":\"object-id\"}",
     )
-    |> fn(result) {
-      let assert Ok(value) = result
-      value
-    }
-    |> fn(actual) {
-      assert actual == "72f988bf-86f1-41af-91ab-2d7cd011db47"
-    }
-  Nil
+  let assert Error(authentication_error) =
+    vestibule_microsoft.verify_id_token(
+      token,
+      test_jwks(),
+      "client-id",
+      Some("trusted"),
+    )
+  assert error.kind(authentication_error) == error.UserInfoKind
 }
 
-pub fn verify_tenant_case_insensitive_test() -> Nil {
-  let token =
-    fake_id_token("{\"tid\":\"72F988BF-86F1-41AF-91AB-2D7CD011DB47\"}")
-  let _ =
-    vestibule_microsoft.verify_tenant(
-      expected_tenant: "72f988bf-86f1-41af-91ab-2d7cd011db47",
-      id_token: token,
-    )
-    |> fn(result) {
-      let assert Ok(value) = result
-      value
-    }
-  Nil
+pub fn expired_signed_tenant_token_is_rejected_test() -> Nil {
+  assert_verified_token_rejected(
+    microsoft_token(
+      "https://login.microsoftonline.com/trusted/v2.0",
+      "client-id",
+      "trusted",
+      "object-id",
+      "nonce",
+      duration.seconds(-120),
+    ),
+    Some("trusted"),
+  )
 }
 
-pub fn verify_tenant_mismatch_rejected_test() -> Nil {
-  let token = fake_id_token("{\"tid\":\"other-tenant-guid\"}")
-  let _ =
-    vestibule_microsoft.verify_tenant(
-      expected_tenant: "expected-tenant-guid",
-      id_token: token,
-    )
-    |> fn(result) {
-      let assert Error(value) = result
-      value
-    }
-  Nil
+pub fn wrong_audience_signed_tenant_token_is_rejected_test() -> Nil {
+  assert_verified_token_rejected(
+    microsoft_token(
+      "https://login.microsoftonline.com/trusted/v2.0",
+      "other-client",
+      "trusted",
+      "object-id",
+      "nonce",
+      duration.minutes(5),
+    ),
+    Some("trusted"),
+  )
 }
 
-pub fn verify_tenant_missing_tid_rejected_test() -> Nil {
-  let token = fake_id_token("{\"sub\":\"abc\"}")
-  let _ =
-    vestibule_microsoft.verify_tenant(
-      expected_tenant: "expected-tenant-guid",
-      id_token: token,
-    )
-    |> fn(result) {
-      let assert Error(value) = result
-      value
-    }
-  Nil
+pub fn wrong_issuer_signed_tenant_token_is_rejected_test() -> Nil {
+  assert_verified_token_rejected(
+    microsoft_token(
+      "https://evil.example",
+      "client-id",
+      "trusted",
+      "object-id",
+      "nonce",
+      duration.minutes(5),
+    ),
+    Some("trusted"),
+  )
 }
 
-pub fn verify_tenant_malformed_token_rejected_test() -> Nil {
-  let _ =
-    vestibule_microsoft.verify_tenant(
-      expected_tenant: "expected-tenant-guid",
-      id_token: "not-a-jwt",
-    )
-    |> fn(result) {
-      let assert Error(value) = result
-      value
-    }
-  Nil
+pub fn wrong_signed_tenant_is_rejected_test() -> Nil {
+  assert_verified_token_rejected(
+    microsoft_token(
+      "https://login.microsoftonline.com/other/v2.0",
+      "client-id",
+      "other",
+      "object-id",
+      "nonce",
+      duration.minutes(5),
+    ),
+    Some("trusted"),
+  )
 }
 
-pub fn id_token_tenant_extracts_tid_test() -> Nil {
-  let token = fake_id_token("{\"tid\":\"abc-123\",\"sub\":\"u1\"}")
-  let _ =
-    vestibule_microsoft.id_token_tenant(token)
-    |> fn(result) {
-      let assert Ok(value) = result
-      value
-    }
-    |> fn(actual) {
-      assert actual == "abc-123"
-    }
-  Nil
+pub fn malformed_tenant_token_is_rejected_test() -> Nil {
+  let assert Error(authentication_error) =
+    vestibule_microsoft.verify_id_token(
+      "not-a-jwt",
+      test_jwks(),
+      "client-id",
+      Some("trusted"),
+    )
+  assert error.kind(authentication_error) == error.UserInfoKind
 }
 
 pub fn strategy_for_tenant_authorize_url_uses_tenant_endpoint_test() -> Nil {
@@ -143,23 +151,23 @@ pub fn strategy_for_tenant_authorize_url_uses_tenant_endpoint_test() -> Nil {
   Nil
 }
 
-pub fn strategy_for_tenant_default_scopes_include_openid_test() -> Nil {
+pub fn strategy_for_tenant_default_scopes_include_identity_scopes_test() -> Nil {
   let microsoft_strategy =
     vestibule_microsoft.strategy_for_tenant("my-tenant-id")
   let _ =
     strategy.default_scopes(microsoft_strategy)
     |> fn(actual) {
-      assert actual == ["openid", "User.Read"]
+      assert actual == ["openid", "profile", "User.Read"]
     }
   Nil
 }
 
-pub fn common_strategy_default_scopes_include_openid_test() -> Nil {
+pub fn common_strategy_default_scopes_include_identity_scopes_test() -> Nil {
   let microsoft_strategy = vestibule_microsoft.strategy()
   let _ =
     strategy.default_scopes(microsoft_strategy)
     |> fn(actual) {
-      assert actual == ["openid", "User.Read"]
+      assert actual == ["openid", "profile", "User.Read"]
     }
   Nil
 }
@@ -193,7 +201,7 @@ pub fn common_strategy_authorize_url_uses_common_endpoint_test() -> Nil {
   Nil
 }
 
-pub fn custom_scopes_add_openid_for_nonce_test() -> Nil {
+pub fn custom_scopes_include_identity_scopes_once_test() -> Nil {
   let microsoft_strategy = vestibule_microsoft.strategy()
   let client_configuration =
     config.new(
@@ -206,19 +214,12 @@ pub fn custom_scopes_add_openid_for_nonce_test() -> Nil {
       microsoft_strategy,
       config: client_configuration,
       options: config.authorize_options(),
-      scopes: ["User.Read"],
+      scopes: ["profile", "User.Read", "openid", "profile", "openid"],
       state: "state",
     )
-  let _ =
-    { string.contains(authorize_url, "openid") }
-    |> fn(actual) {
-      assert actual
-    }
-  let _ =
-    { string.contains(authorize_url, "User.Read") }
-    |> fn(actual) {
-      assert actual
-    }
+  assert occurrence_count(authorize_url, "openid") == 1
+  assert occurrence_count(authorize_url, "profile") == 1
+  assert string.contains(authorize_url, "User.Read")
   Nil
 }
 
@@ -471,11 +472,7 @@ pub fn sans_io_token_request_and_response_test() -> Nil {
   let assert Ok(id_token_artifact) =
     dict.get(strategy.exchange_artifacts(exchange), "id_token")
   let assert Ok(parsed_id_token) = decode.run(id_token_artifact, decode.string)
-  let assert Ok(_) =
-    vestibule_microsoft.verify_tenant(
-      expected_tenant: "tenant-id",
-      id_token: parsed_id_token,
-    )
+  assert parsed_id_token == id_token
   Nil
 }
 
@@ -526,4 +523,300 @@ pub fn sans_io_refresh_and_user_info_test() -> Nil {
   let assert Ok(#(user_id, _)) =
     vestibule_microsoft.parse_user_info_response(user_response)
   assert user_id == "user-123"
+}
+
+pub fn jwks_request_and_invalid_response_test() -> Nil {
+  let assert Ok(http_request) = vestibule_microsoft.build_jwks_request()
+  assert http_request.host == "login.microsoftonline.com"
+  assert http_request.path == "/common/discovery/v2.0/keys"
+  assert request.get_header(http_request, "accept") == Ok("application/json")
+
+  let invalid_response =
+    response.Response(status: 200, headers: [], body: "{\"keys\":[]}")
+  let assert Error(authentication_error) =
+    vestibule_microsoft.parse_jwks_response(invalid_response)
+  assert error.kind(authentication_error) == error.UserInfoKind
+}
+
+pub fn callback_accepts_signed_tenant_and_graph_identity_test() -> Nil {
+  let assert Ok(auth_result) =
+    microsoft_callback("trusted", "object-id", "object-id", "nonce", "nonce")
+  assert auth.uid(auth_result) == "object-id"
+}
+
+pub fn callback_rejects_graph_identity_substitution_test() -> Nil {
+  let assert Error(auth_error) =
+    microsoft_callback("trusted", "object-id", "victim", "nonce", "nonce")
+  assert error.kind(auth_error) == error.UserInfoKind
+}
+
+pub fn callback_rejects_wrong_signed_tenant_test() -> Nil {
+  let assert Error(auth_error) =
+    microsoft_callback("other", "object-id", "object-id", "nonce", "nonce")
+  assert error.kind(auth_error) == error.UserInfoKind
+}
+
+pub fn callback_rejects_wrong_signed_nonce_test() -> Nil {
+  let assert Error(auth_error) =
+    microsoft_callback("trusted", "object-id", "object-id", "wrong", "nonce")
+  assert error.kind(auth_error) == error.InvalidNonceKind
+}
+
+pub fn callback_rejects_tampered_rs256_signature_before_graph_test() -> Nil {
+  let id_token =
+    microsoft_token(
+      "https://login.microsoftonline.com/trusted/v2.0",
+      "client-id",
+      "trusted",
+      "object-id",
+      "nonce",
+      duration.minutes(5),
+    )
+    |> jwt_signing.tamper_signature
+  let assert Error(_) =
+    run_microsoft_callback(id_token, "object-id", "nonce", False, False)
+  Nil
+}
+
+pub fn callback_rejects_signed_token_missing_tenant_id_test() -> Nil {
+  let id_token =
+    microsoft_token_with_identity(
+      "https://login.microsoftonline.com/trusted/v2.0",
+      "client-id",
+      None,
+      Some("object-id"),
+      "nonce",
+      duration.minutes(5),
+    )
+  let assert Error(_) =
+    run_microsoft_callback(id_token, "object-id", "nonce", False, False)
+  Nil
+}
+
+pub fn callback_rejects_signed_token_missing_object_id_test() -> Nil {
+  let id_token =
+    microsoft_token_with_identity(
+      "https://login.microsoftonline.com/trusted/v2.0",
+      "client-id",
+      Some("trusted"),
+      None,
+      "nonce",
+      duration.minutes(5),
+    )
+  let assert Error(_) =
+    run_microsoft_callback(id_token, "object-id", "nonce", False, False)
+  Nil
+}
+
+pub fn common_callback_accepts_signed_tenant_and_graph_identity_test() -> Nil {
+  let id_token =
+    microsoft_token(
+      "https://login.microsoftonline.com/other/v2.0",
+      "client-id",
+      "other",
+      "object-id",
+      "nonce",
+      duration.minutes(5),
+    )
+  let assert Ok(auth_result) =
+    run_microsoft_callback(id_token, "object-id", "nonce", True, True)
+  assert auth.uid(auth_result) == "object-id"
+}
+
+pub fn common_callback_accepts_consumer_cid_and_preserves_graph_uid_test() -> Nil {
+  let id_token =
+    microsoft_token(
+      "https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0",
+      "client-id",
+      "9188040d-6c67-4c5b-b112-36a304b66dad",
+      "00000000-0000-0000-0123-456789abcdef",
+      "nonce",
+      duration.minutes(5),
+    )
+  let assert Ok(auth_result) =
+    run_microsoft_callback(id_token, "0123456789ABCDEF", "nonce", True, True)
+  assert auth.uid(auth_result) == "0123456789ABCDEF"
+}
+
+pub fn common_callback_rejects_mismatched_consumer_cid_test() -> Nil {
+  let id_token =
+    microsoft_token(
+      "https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0",
+      "client-id",
+      "9188040d-6c67-4c5b-b112-36a304b66dad",
+      "00000000-0000-0000-0123-456789abcdef",
+      "nonce",
+      duration.minutes(5),
+    )
+  let assert Error(auth_error) =
+    run_microsoft_callback(id_token, "fedcba9876543210", "nonce", True, True)
+  assert error.kind(auth_error) == error.UserInfoKind
+}
+
+pub fn tenant_callback_rejects_consumer_cid_equivalence_test() -> Nil {
+  let assert Error(auth_error) =
+    microsoft_callback(
+      "trusted",
+      "00000000-0000-0000-0123-456789abcdef",
+      "0123456789abcdef",
+      "nonce",
+      "nonce",
+    )
+  assert error.kind(auth_error) == error.UserInfoKind
+}
+
+fn assert_verified_token_rejected(
+  id_token: String,
+  expected_tenant: Option(String),
+) -> Nil {
+  let assert Error(auth_error) =
+    vestibule_microsoft.verify_id_token(
+      id_token,
+      test_jwks(),
+      "client-id",
+      expected_tenant,
+    )
+  assert error.kind(auth_error) == error.UserInfoKind
+}
+
+fn occurrence_count(value: String, substring: String) -> Int {
+  value
+  |> string.split(on: substring)
+  |> list.length
+  |> fn(parts) { parts - 1 }
+}
+
+fn microsoft_token(
+  issuer: String,
+  audience: String,
+  tenant: String,
+  object_id: String,
+  nonce: String,
+  max_age: duration.Duration,
+) -> String {
+  microsoft_token_with_identity(
+    issuer,
+    audience,
+    Some(tenant),
+    Some(object_id),
+    nonce,
+    max_age,
+  )
+}
+
+fn microsoft_token_with_identity(
+  issuer: String,
+  audience: String,
+  tenant: Option(String),
+  object_id: Option(String),
+  nonce: String,
+  max_age: duration.Duration,
+) -> String {
+  let payload = [#("sub", json.string("user-123"))]
+  let payload = case tenant {
+    Some(value) -> [#("tid", json.string(value)), ..payload]
+    None -> payload
+  }
+  let payload = case object_id {
+    Some(value) -> [#("oid", json.string(value)), ..payload]
+    None -> payload
+  }
+  jwt_signing.encode(payload, [
+    claim.issuer(issuer, []),
+    claim.audience(audience, []),
+    claim.custom(
+      name: "nonce",
+      value: nonce,
+      encode: json.string,
+      decoder: decode.string,
+    ),
+    claim.expires_at(max_age: max_age, leeway: duration.seconds(0)),
+  ])
+}
+
+fn microsoft_callback(
+  tenant: String,
+  token_object_id: String,
+  graph_object_id: String,
+  token_nonce: String,
+  expected_nonce: String,
+) {
+  let id_token =
+    microsoft_token(
+      "https://login.microsoftonline.com/" <> tenant <> "/v2.0",
+      "client-id",
+      tenant,
+      token_object_id,
+      token_nonce,
+      duration.minutes(5),
+    )
+  run_microsoft_callback(id_token, graph_object_id, expected_nonce, False, True)
+}
+
+fn run_microsoft_callback(
+  id_token: String,
+  graph_object_id: String,
+  expected_nonce: String,
+  common_authority: Bool,
+  allow_graph: Bool,
+) {
+  let sender = fn(http_request: request.Request(String)) {
+    case
+      http_request.host,
+      string.ends_with(http_request.path, "/token"),
+      http_request.path
+    {
+      "login.microsoftonline.com", True, _ ->
+        Ok(response.Response(
+          status: 200,
+          headers: [],
+          body: json.object([
+            #("access_token", json.string("access-token")),
+            #("token_type", json.string("Bearer")),
+            #("scope", json.string("openid User.Read")),
+            #("id_token", json.string(id_token)),
+          ])
+            |> json.to_string(),
+        ))
+      "login.microsoftonline.com", False, "/common/discovery/v2.0/keys" ->
+        Ok(response.Response(status: 200, headers: [], body: jwt_signing.jwks()))
+      "graph.microsoft.com", False, "/v1.0/me" -> {
+        case allow_graph {
+          False -> panic as "invalid Microsoft ID token reached Graph"
+          True -> Nil
+        }
+        Ok(response.Response(
+          status: 200,
+          headers: [],
+          body: json.object([
+            #("id", json.string(graph_object_id)),
+            #("displayName", json.string("User")),
+            #("userPrincipalName", json.string("user@example.com")),
+          ])
+            |> json.to_string(),
+        ))
+      }
+      _, _, _ -> Error(Nil)
+    }
+  }
+  let microsoft_strategy = case common_authority {
+    True -> vestibule_microsoft.strategy_with_sender(sender)
+    False ->
+      vestibule_microsoft.strategy_for_tenant_with_sender("trusted", sender)
+  }
+  vestibule.handle_callback(
+    microsoft_strategy,
+    config: config.new(
+      client_id: "client-id",
+      redirect_uri: "https://app.example/callback",
+      auth: config.ClientSecret("secret"),
+    ),
+    callback_params: dict.from_list([
+      #("state", "state"),
+      #("code", "code"),
+    ]),
+    expected_state: "state",
+    code_verifier: "verifier",
+    expected_nonce: Some(expected_nonce),
+  )
 }

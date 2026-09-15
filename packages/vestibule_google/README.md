@@ -24,7 +24,7 @@ let client_config =
   config.new(
     client_id: "google-client-id",
     redirect_uri: "http://localhost:8000/auth/google/callback",
-    auth: config.ClientSecret("google-client-secret"),
+    auth: config.client_secret_auth("google-client-secret"),
   )
 ```
 
@@ -46,14 +46,14 @@ To actually restrict sign-in to a single Workspace domain, use
 let strategy = vestibule_google.strategy_for_hosted_domain("corp.example")
 ```
 
-This validates Google's `hd` (hosted-domain) claim from the userinfo response.
+This verifies Google's signed ID token and validates its `hd` (hosted-domain)
+claim.
 Authentication fails with a `UserInfoKind` `AuthError` (see `error.kind`) when
 the claim is missing
 (e.g. a consumer `gmail.com` account) or does not match `"corp.example"`. The
 validated domain is surfaced under the `"hd"` key of `UserResult`'s `extra`
 dict. The domain is also added to the authorization URL as an account-picker
-hint, but enforcement always happens server-side when the userinfo response is
-validated.
+hint, but enforcement always happens server-side after ID-token verification.
 
 ## Default scopes
 
