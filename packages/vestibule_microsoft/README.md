@@ -24,7 +24,7 @@ let client_config =
   config.new(
     client_id: "microsoft-client-id",
     redirect_uri: "http://localhost:8000/auth/microsoft/callback",
-    auth: config.ClientSecret("microsoft-client-secret"),
+    auth: config.client_secret_auth("microsoft-client-secret"),
   )
 ```
 
@@ -33,9 +33,9 @@ The strategy uses Microsoft Graph `/me` for profile data and keeps
 
 ## Default scopes
 
-`openid User.Read`. Request different Microsoft permissions per request with
-`config.with_scopes` on `AuthorizeOptions`; `openid` is still included for nonce
-validation.
+`openid profile User.Read`. Request different Microsoft permissions per request
+with `config.with_scopes` on `AuthorizeOptions`; `openid` and `profile` are
+still included for nonce and identity validation.
 
 ## Azure portal setup
 
@@ -51,9 +51,10 @@ validation.
 4. After creation, copy the **Application (client) ID**.
 5. **Certificates & secrets → New client secret** → copy the secret
    `Value` (not the ID). It is shown once.
-6. **API permissions**: the default `openid` plus `User.Read` (delegated)
-   scopes are enough for nonce validation and the built-in Graph `/me` parsing;
-   click **Grant admin consent** if your tenant requires it.
+6. **API permissions**: the default `openid`, `profile`, and `User.Read`
+   (delegated) scopes are enough for nonce and identity validation and the
+   built-in Graph `/me` parsing; click **Grant admin consent** if your tenant
+   requires it.
 
 ## Tenant behavior
 
@@ -86,17 +87,18 @@ This:
 - targets the tenant-specific authority endpoints
   (`https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/...`), so Microsoft
   only issues tokens for that tenant; and
-- requests the `openid` scope and verifies that the `tid` (tenant id) claim in
-  the returned ID token equals the configured tenant (case-insensitive), failing
-  authentication when the ID token is missing or was issued by a different
-  tenant.
+- requests the `openid` and `profile` scopes, verifies the ID token signature, RS256
+  algorithm, issuer, audience, lifetime, `tid`, and `oid`, then requires
+  Microsoft Graph `/me.id` to match the verified `oid`.
 
 Pass the tenant **GUID** rather than a verified domain
 (e.g. `contoso.onmicrosoft.com`): the `tid` claim is always a GUID, so domain
 values cannot be matched and would reject otherwise-valid logins.
 
-If you need lower-level control, `verify_tenant(expected_tenant, id_token)` and
-`id_token_tenant(id_token)` expose the tenant-claim checks directly.
+For lower-level integrations, parse Microsoft JWKS with
+`parse_jwks_response`, then call `verify_id_token`. It returns `oid` and `tid`
+only after cryptographic and claim validation. No public helper accepts an
+unsigned tenant claim as verified evidence.
 
 
 ## Extra authorization parameters

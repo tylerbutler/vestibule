@@ -241,7 +241,14 @@ fn parse_token_success(body: String) -> Result(Credentials, AuthError(e)) {
     ))
   }
   case json.parse(body, decoder) {
-    Ok(oauth_credentials) -> Ok(oauth_credentials)
+    Ok(oauth_credentials) ->
+      case string.lowercase(credential.token_type(oauth_credentials)) {
+        "bearer" -> Ok(oauth_credentials)
+        _ ->
+          Error(error.code_exchange(
+            reason: "IndieAuth token response must use the Bearer token type",
+          ))
+      }
     Error(parse_error) ->
       Error(error.code_exchange(
         reason: "Failed to parse IndieAuth token response: "

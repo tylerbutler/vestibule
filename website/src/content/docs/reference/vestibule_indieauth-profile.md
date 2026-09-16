@@ -4,7 +4,7 @@ description: "Profile URL confirmation for the IndieAuth callback phase."
 nav:
   group: Reference
   groupOrder: 20
-  order: 30
+  order: 31
   label: "vestibule_indieauth/profile"
 toc:
   - href: "#functions"
