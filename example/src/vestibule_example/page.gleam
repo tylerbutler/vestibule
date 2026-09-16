@@ -1,6 +1,7 @@
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
+import gleam/uri
 import houdini
 import wisp
 
@@ -13,10 +14,12 @@ pub fn landing(providers: List(String)) -> wisp.Response {
   let buttons =
     providers
     |> list.map(fn(provider) {
+      let provider_label = provider |> capitalize |> houdini.escape
+      let provider_path = provider |> uri.percent_encode |> houdini.escape
       "<a href=\"/auth/"
-      <> provider
+      <> provider_path
       <> "\"\n     style=\"display: inline-block; padding: 12px 24px; background: #24292e; color: white; text-decoration: none; border-radius: 6px; font-size: 16px; margin: 8px;\">\n    Sign in with "
-      <> capitalize(provider)
+      <> provider_label
       <> "\n  </a>"
     })
     |> string.join("\n  ")
@@ -24,7 +27,8 @@ pub fn landing(providers: List(String)) -> wisp.Response {
 <head><title>Vestibule Demo</title></head>
 <body style=\"font-family: system-ui, sans-serif; max-width: 600px; margin: 80px auto; text-align: center;\">
   <h1>Vestibule Demo</h1>
-  <p>OAuth2 authentication library for Gleam</p>
+  <p>OAuth2 sign-in for Gleam demos and prototypes.</p>
+  <p><strong>Not security-audited. Do not use this example in production.</strong></p>
   " <> buttons <> "
 </body>
 </html>", 200)
@@ -63,6 +67,7 @@ pub fn success(authentication: Auth) -> wisp.Response {
 <head><title>Authenticated — Vestibule Demo</title></head>
 <body style=\"font-family: system-ui, sans-serif; max-width: 600px; margin: 80px auto;\">
   <h1>Authenticated!</h1>
+  <p><strong>Demo result only. No application login session was created.</strong></p>
   " <> image_html <> "
   <table style=\"margin: 20px 0; border-collapse: collapse;\">
     <tr><td style=\"padding: 8px; font-weight: bold;\">Provider</td><td style=\"padding: 8px;\">" <> provider <> "</td></tr>
