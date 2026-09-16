@@ -1,5 +1,6 @@
 import gleam/list
 import gleam/option.{None, Some}
+import gleam/string
 import vestibule/error
 import vestibule/logger
 
@@ -57,13 +58,54 @@ pub fn redaction_guard_rejects_sensitive_field_names_test() -> Nil {
       logger.field("access_token", "secret-access-token"),
       logger.field("refresh_token", "secret-refresh-token"),
       logger.field("id_token", "secret-id-token"),
+      logger.field("client_assertion", "secret-client-assertion"),
       logger.field("code_verifier", "secret-verifier"),
+      logger.field("state", "secret-state"),
+      logger.field("nonce", "secret-nonce"),
       logger.field("session_id", "secret-session"),
       logger.field("status", "500"),
     ])
     == [
       #("provider", "github"),
       #("status", "500"),
+    ]
+}
+
+pub fn redaction_guard_rejects_sensitive_aliases_test() -> Nil {
+  assert logger.safe_fields([
+      logger.field("client-assertion", "secret"),
+      logger.field("clientAssertion", "secret"),
+      logger.field("oauth_state", "secret"),
+      logger.field("oauth-state", "secret"),
+      logger.field("oidc_nonce", "secret"),
+      logger.field("oidcNonce", "secret"),
+      logger.field("request_count", "2"),
+    ])
+    == [#("request_count", "2")]
+}
+
+pub fn event_inspection_does_not_include_sensitive_caller_fields_test() -> Nil {
+  let secret = "CLIENT-ASSERTION-SECRET-7f3a"
+  let event =
+    logger.new(
+      level: logger.Info,
+      event: "vestibule.token.start",
+      phase: "token",
+      outcome: "start",
+      provider: Some("test"),
+      fields: [
+        logger.field("clientAssertion", secret),
+        logger.field("nonce", secret),
+      ],
+    )
+
+  assert !string.contains(string.inspect(event), secret)
+  assert logger.fields(event)
+    == [
+      #("event", "vestibule.token.start"),
+      #("phase", "token"),
+      #("outcome", "start"),
+      #("provider", "test"),
     ]
 }
 

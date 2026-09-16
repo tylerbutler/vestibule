@@ -1,5 +1,6 @@
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/result
 import vestibule/config
 import vestibule/error.{type AuthError}
 
@@ -11,8 +12,9 @@ pub fn authorization_code(
   redirect_uri redirect_uri: String,
   code_verifier code_verifier: Option(String),
 ) -> Result(List(#(String, String)), AuthError(e)) {
-  let authentication_parameters =
-    client_authentication_parameters(client_config)
+  use authentication_parameters <- result.try(client_authentication_parameters(
+    client_config,
+  ))
   let base_parameters =
     [
       #("grant_type", "authorization_code"),
@@ -33,25 +35,32 @@ pub fn refresh(
   client_config: config.ClientConfig,
   refresh_token refresh_token: String,
 ) -> Result(List(#(String, String)), AuthError(e)) {
-  Ok(
-    [
-      #("grant_type", "refresh_token"),
-      #("refresh_token", refresh_token),
-      #("client_id", config.client_id(client_config)),
-    ]
-    |> list.append(client_authentication_parameters(client_config)),
-  )
+  use authentication_parameters <- result.try(client_authentication_parameters(
+    client_config,
+  ))
+  Ok([
+    #("grant_type", "refresh_token"),
+    #("refresh_token", refresh_token),
+    #("client_id", config.client_id(client_config)),
+    ..authentication_parameters
+  ])
 }
 
 pub fn client_authentication_parameters(
   client_config: config.ClientConfig,
-) -> List(#(String, String)) {
-  case config.client_auth(client_config) {
-    config.ClientSecret(secret) -> [#("client_secret", secret)]
-    config.PublicClient -> []
-    config.ClientAssertion(assertion) -> [
-      #("client_assertion_type", client_assertion_type),
-      #("client_assertion", assertion),
-    ]
+) -> Result(List(#(String, String)), AuthError(e)) {
+  case config.client_auth_kind(config.client_auth(client_config)) {
+    config.ClientSecretAuth -> {
+      use secret <- result.try(config.client_secret(client_config))
+      Ok([#("client_secret", secret)])
+    }
+    config.PublicClientAuth -> Ok([])
+    config.ClientAssertionAuth -> {
+      use assertion <- result.try(config.client_assertion(client_config))
+      Ok([
+        #("client_assertion_type", client_assertion_type),
+        #("client_assertion", assertion),
+      ])
+    }
   }
 }

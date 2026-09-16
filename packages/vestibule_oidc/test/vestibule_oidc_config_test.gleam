@@ -821,7 +821,7 @@ pub fn strategy_from_config_authorize_url_test() -> Nil {
     config.new(
       client_id: "my-client-id",
       redirect_uri: "http://localhost/callback",
-      auth: config.ClientSecret("my-secret"),
+      auth: config.client_secret_auth("my-secret"),
     )
   let result =
     strategy.build_authorize_url(
@@ -874,7 +874,7 @@ pub fn strategy_from_config_authorize_url_with_extra_params_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "http://localhost/cb",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
     )
   let assert Ok(options) =
     config.authorize_options()
@@ -908,7 +908,7 @@ pub fn strategy_from_config_invalid_redirect_uri_returns_error_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "not a uri",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
     )
   let _ =
     strategy.build_authorize_url(
@@ -930,7 +930,7 @@ pub fn token_request_includes_client_secret_when_configured_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "https://app.example.com/callback",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth("secret"),
     )
 
   token_request.authorization_code(
@@ -968,7 +968,7 @@ pub fn token_request_omits_client_secret_for_public_client_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "https://app.example.com/callback",
-      auth: config.PublicClient,
+      auth: config.public_client(),
     )
 
   token_request.authorization_code(
@@ -1003,7 +1003,7 @@ pub fn token_request_includes_client_assertion_without_secret_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "https://app.example.com/callback",
-      auth: config.ClientAssertion("assertion-jwt"),
+      auth: config.client_assertion_auth("assertion-jwt"),
     )
 
   token_request.authorization_code(
@@ -1049,7 +1049,7 @@ pub fn sans_io_provider_requests_and_responses_test() -> Nil {
     config.new(
       client_id: "client-id",
       redirect_uri: "https://app.example.com/callback",
-      auth: config.ClientAssertion("assertion-jwt"),
+      auth: config.client_assertion_auth("assertion-jwt"),
     )
   let assert Ok(token_http_request) =
     vestibule_oidc.build_authorization_code_request(

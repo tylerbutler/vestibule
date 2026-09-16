@@ -591,7 +591,7 @@ fn client_config() -> config.ClientConfig {
   config.new(
     client_id: "client-id",
     redirect_uri: "https://app.example/callback",
-    auth: config.ClientSecret("client-secret"),
+    auth: config.client_secret_auth("client-secret"),
   )
 }
 

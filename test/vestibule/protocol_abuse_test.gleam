@@ -23,7 +23,7 @@ const redirect_uri = "https://app.example/callback?x=%2f&y=%2F"
 fn client_config() -> config.ClientConfig {
   config.new(
     client_id: "protocol-client",
-    auth: config.PublicClient,
+    auth: config.public_client(),
     redirect_uri: redirect_uri,
   )
 }
@@ -228,7 +228,7 @@ pub fn changed_redirect_uri_cannot_exchange_authorization_code_test() -> Nil {
   let altered_config =
     config.new(
       client_id: "protocol-client",
-      auth: config.PublicClient,
+      auth: config.public_client(),
       redirect_uri: "https://app.example/callback?x=%2F&y=%2F",
     )
   let assert Error(failure) =

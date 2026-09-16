@@ -2,6 +2,7 @@ import gleam/bool
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/string
 import vestibule/error.{type AuthError}
 
 pub type Level {
@@ -90,8 +91,15 @@ pub fn auth_error_category(auth_error: AuthError(e)) -> String {
 pub fn safe_fields(fields: List(#(String, String))) -> List(#(String, String)) {
   list.filter(fields, fn(field) {
     let #(key, _) = field
-    !list.contains(sensitive_field_names, key)
+    !list.contains(sensitive_field_names, normalize_field_name(key))
   })
+}
+
+fn normalize_field_name(name: String) -> String {
+  name
+  |> string.lowercase()
+  |> string.replace("_", "")
+  |> string.replace("-", "")
 }
 
 fn level_name(level: Level) -> String {
@@ -106,18 +114,23 @@ fn level_name(level: Level) -> String {
 const reserved_field_names = ["event", "phase", "outcome", "provider"]
 
 const sensitive_field_names = [
-  "access_token",
-  "refresh_token",
-  "id_token",
-  "client_secret",
-  "authorization_code",
-  "code_verifier",
-  "callback_params",
-  "session_id",
+  "accesstoken",
+  "refreshtoken",
+  "idtoken",
+  "clientsecret",
+  "clientassertion",
+  "authorizationcode",
+  "codeverifier",
+  "state",
+  "oauthstate",
+  "nonce",
+  "oidcnonce",
+  "callbackparams",
+  "sessionid",
   "cookie",
-  "cookie_value",
-  "response_body",
-  "signed_payload",
+  "cookievalue",
+  "responsebody",
+  "signedpayload",
 ]
 
 @external(erlang, "vestibule_logger_ffi", "log")

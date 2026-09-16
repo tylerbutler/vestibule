@@ -793,7 +793,7 @@ fn test_config() -> config.ClientConfig {
   config.new(
     client_id: "client_id",
     redirect_uri: "https://example.com/callback",
-    auth: config.ClientSecret("client_secret"),
+    auth: config.client_secret_auth("client_secret"),
   )
 }
 

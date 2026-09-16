@@ -36,11 +36,23 @@ pub type AuthorizeOptions
 
 OAuth client authentication method.
 
+Opaque so client credentials cannot appear in inspected configuration or
+registry terms. Construct values with `public_client`,
+`client_secret_auth`, or `client_assertion_auth`.
+
 ```gleam
-pub type ClientAuth {
-  PublicClient
-  ClientSecret(String)
-  ClientAssertion(String)
+pub type ClientAuth
+```
+
+### `ClientAuthKind`
+
+The non-sensitive kind of client authentication.
+
+```gleam
+pub type ClientAuthKind {
+  PublicClientAuth
+  ClientSecretAuth
+  ClientAssertionAuth
 }
 ```
 
@@ -62,12 +74,39 @@ Create empty per-authorization request options.
 pub fn authorize_options() -> AuthorizeOptions
 ```
 
+### `client_assertion`
+
+Return a client assertion when the authentication method provides one.
+
+Call this only while constructing the token endpoint request.
+
+```gleam
+pub fn client_assertion(ClientConfig) -> Result(String, error.AuthError(a))
+```
+
+### `client_assertion_auth`
+
+Configure client-assertion authentication.
+
+```gleam
+pub fn client_assertion_auth(String) -> ClientAuth
+```
+
 ### `client_auth`
 
 Return the configured OAuth client authentication method.
 
 ```gleam
 pub fn client_auth(ClientConfig) -> ClientAuth
+```
+
+### `client_auth_kind`
+
+Return the configured client authentication kind without exposing its
+credential.
+
+```gleam
+pub fn client_auth_kind(ClientAuth) -> ClientAuthKind
 ```
 
 ### `client_id`
@@ -82,8 +121,18 @@ pub fn client_id(ClientConfig) -> String
 
 Return a client secret value when the authentication method provides one.
 
+Call this only while constructing the token endpoint request.
+
 ```gleam
 pub fn client_secret(ClientConfig) -> Result(String, error.AuthError(a))
+```
+
+### `client_secret_auth`
+
+Configure client-secret authentication.
+
+```gleam
+pub fn client_secret_auth(String) -> ClientAuth
 ```
 
 ### `extra_params`
@@ -104,6 +153,14 @@ pub fn new(
   redirect_uri: String,
   auth: ClientAuth
 ) -> ClientConfig
+```
+
+### `public_client`
+
+Configure a public client that has no client credential.
+
+```gleam
+pub fn public_client() -> ClientAuth
 ```
 
 ### `redirect_uri`
