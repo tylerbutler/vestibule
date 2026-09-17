@@ -2,73 +2,49 @@
 
 -export([get/2, put/2]).
 
--define(SERVER, vestibule_oidc_jwks_cache).
+-define(TABLE, vestibule_oidc_jwks_cache).
 -define(MAX_ENTRIES, 64).
 
 get(Key, TtlSeconds) ->
-    call({get, Key, TtlSeconds}).
+    ensure_table(),
+    Now = erlang:monotonic_time(second),
+    case ets:lookup(?TABLE, Key) of
+        [{Key, InsertedAt, Value}] when Now - InsertedAt =< TtlSeconds ->
+            {ok, Value};
+        [{Key, InsertedAt, Value}] ->
+            ets:delete_object(?TABLE, {Key, InsertedAt, Value}),
+            {error, nil};
+        [] ->
+            {error, nil}
+    end.
 
 put(Key, Value) ->
-    call({put, Key, Value}),
+    ensure_table(),
+    ets:insert(?TABLE, {Key, erlang:monotonic_time(second), Value}),
+    evict_if_needed(),
     nil.
 
-call(Request) ->
-    Server = ensure_server(),
-    Reference = make_ref(),
-    Server ! {call, self(), Reference, Request},
-    receive
-        {Reference, Reply} -> Reply
-    after 5000 ->
-        case Request of
-            {get, _, _} -> {error, nil};
-            {put, _, _} -> nil
-        end
-    end.
-
-ensure_server() ->
-    case whereis(?SERVER) of
+ensure_table() ->
+    case ets:whereis(?TABLE) of
         undefined ->
-            Candidate = spawn(fun() -> loop(#{} ) end),
-            case catch register(?SERVER, Candidate) of
-                true -> Candidate;
-                _ ->
-                    exit(Candidate, kill),
-                    whereis(?SERVER)
+            try
+                ets:new(?TABLE, [named_table, set, public,
+                                 {heir, whereis(init), nil},
+                                 {read_concurrency, true},
+                                 {write_concurrency, true}]),
+                ok
+            catch
+                error:badarg -> ok
             end;
-        Server ->
-            Server
+        _ ->
+            ok
     end.
 
-loop(Cache) ->
-    receive
-        {call, Caller, Reference, {get, Key, TtlSeconds}} ->
-            Now = erlang:monotonic_time(second),
-            case maps:find(Key, Cache) of
-                {ok, {InsertedAt, Value}} when Now - InsertedAt =< TtlSeconds ->
-                    Caller ! {Reference, {ok, Value}},
-                    loop(Cache);
-                {ok, _Expired} ->
-                    Caller ! {Reference, {error, nil}},
-                    loop(maps:remove(Key, Cache));
-                error ->
-                    Caller ! {Reference, {error, nil}},
-                    loop(Cache)
-            end;
-        {call, Caller, Reference, {put, Key, Value}} ->
-            Now = erlang:monotonic_time(second),
-            Updated = maps:put(Key, {Now, Value}, Cache),
-            Bounded = evict_if_needed(Updated),
-            Caller ! {Reference, nil},
-            loop(Bounded)
+evict_if_needed() ->
+    case ets:info(?TABLE, size) > ?MAX_ENTRIES of
+        true ->
+            % ponytail: arbitrary eviction; add LRU only if misses matter.
+            ets:delete(?TABLE, ets:first(?TABLE));
+        false ->
+            true
     end.
-
-evict_if_needed(Cache) when map_size(Cache) =< ?MAX_ENTRIES ->
-    Cache;
-evict_if_needed(Cache) ->
-    [{OldestKey, _} | _] =
-        lists:sort(
-          fun({_KeyA, {TimeA, _}}, {_KeyB, {TimeB, _}}) ->
-                  TimeA =< TimeB
-          end,
-          maps:to_list(Cache)),
-    maps:remove(OldestKey, Cache).

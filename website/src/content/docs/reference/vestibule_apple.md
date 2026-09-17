@@ -4,7 +4,7 @@ description: "Apple Sign In strategy for vestibule."
 nav:
   group: Reference
   groupOrder: 20
-  order: 23
+  order: 24
   label: "vestibule_apple"
 toc:
   - href: "#types"

@@ -397,15 +397,7 @@ pub fn strategy_from_config_with_sender(
 /// The full validated issuer is used as the provider identity namespace.
 pub fn discover(issuer_url: String) -> Result(Strategy(e), AuthError(e)) {
   use oidc_config <- result.try(fetch_configuration(issuer_url))
-  Ok(strategy_from_config(oidc_config, issuer_namespace(oidc_config)))
-}
-
-/// Return the stable account namespace for an OIDC issuer.
-///
-/// This preserves issuer paths and non-default ports. A single trailing slash
-/// is removed to match discovery's issuer comparison.
-pub fn issuer_namespace(oidc_config: OidcConfig) -> String {
-  oidc_config.issuer
+  Ok(strategy_from_config(oidc_config, issuer(oidc_config)))
 }
 
 /// Filter scopes to only include the standard OIDC scopes that the provider supports.

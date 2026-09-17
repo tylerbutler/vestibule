@@ -4,7 +4,7 @@ description: "Google OAuth 2.0 / OIDC strategy."
 nav:
   group: Reference
   groupOrder: 20
-  order: 27
+  order: 28
   label: "vestibule_google"
 toc:
   - href: "#functions"

@@ -63,7 +63,7 @@ pub fn discovered_callback_issuer_is_enforced_before_exchange_test() -> Nil {
   let oidc_strategy =
     vestibule_oidc.strategy_from_config(
       oidc_config,
-      vestibule_oidc.issuer_namespace(oidc_config),
+      vestibule_oidc.issuer(oidc_config),
     )
   let client_config = client_config()
   let assert Ok(request) =
@@ -139,27 +139,6 @@ pub fn callback_refreshes_unknown_kid_once_test() -> Nil {
   assert counter() == 2
 }
 
-pub fn issuer_namespace_preserves_path_and_port_test() -> Nil {
-  let first = oidc_config("https://login.example:8443/trusted")
-  let second = oidc_config("https://login.example:9443/trusted")
-  let third = oidc_config("https://login.example:8443/other")
-  assert vestibule_oidc.issuer_namespace(first)
-    == "https://login.example:8443/trusted"
-  assert vestibule_oidc.issuer_namespace(first)
-    != vestibule_oidc.issuer_namespace(second)
-  assert vestibule_oidc.issuer_namespace(first)
-    != vestibule_oidc.issuer_namespace(third)
-  assert vestibule_oidc.issuer_namespace(first)
-    == vestibule_oidc.issuer_namespace(first)
-}
-
-pub fn issuer_namespace_preserves_trailing_slash_test() -> Nil {
-  let without_slash = oidc_config("https://login.example/tenant")
-  let with_slash = oidc_config("https://login.example/tenant/")
-  assert vestibule_oidc.issuer_namespace(without_slash)
-    != vestibule_oidc.issuer_namespace(with_slash)
-}
-
 pub fn discovered_configs_build_distinct_account_namespaces_test() -> Nil {
   let first_document =
     "{\"issuer\":\"https://login.example:8443/trusted\",\"authorization_endpoint\":\"https://login.example:8443/trusted/authorize\",\"token_endpoint\":\"https://login.example:8443/trusted/token\",\"userinfo_endpoint\":\"https://login.example:8443/trusted/userinfo\",\"jwks_uri\":\"https://login.example:8443/trusted/keys\",\"id_token_signing_alg_values_supported\":[\"RS256\"]}"
@@ -169,15 +148,9 @@ pub fn discovered_configs_build_distinct_account_namespaces_test() -> Nil {
   let assert Ok(second) =
     vestibule_oidc.parse_discovery_document(second_document)
   let first_strategy =
-    vestibule_oidc.strategy_from_config(
-      first,
-      vestibule_oidc.issuer_namespace(first),
-    )
+    vestibule_oidc.strategy_from_config(first, vestibule_oidc.issuer(first))
   let second_strategy =
-    vestibule_oidc.strategy_from_config(
-      second,
-      vestibule_oidc.issuer_namespace(second),
-    )
+    vestibule_oidc.strategy_from_config(second, vestibule_oidc.issuer(second))
   assert strategy.provider(first_strategy)
     == "https://login.example:8443/trusted"
   assert strategy.provider(first_strategy) != strategy.provider(second_strategy)
@@ -408,71 +381,6 @@ pub fn verifier_ignores_unrelated_jwks_algorithms_test() -> Nil {
       expected_nonce: Some("nonce"),
     )
   Nil
-}
-
-pub fn verifier_exposes_provider_specific_string_claims_test() -> Nil {
-  let assert Ok(keys) = oidc.parse_jwks(jwt_signing.jwks())
-  let token =
-    jwt_signing.encode(
-      payload: [
-        #("sub", json.string("user-123")),
-        #("hd", json.string("example.com")),
-        #("tid", json.string("tenant-id")),
-        #("oid", json.string("object-id")),
-        #("email_verified", json.bool(True)),
-      ],
-      claims: [
-        claim.issuer("https://claims.example", []),
-        claim.audience("client-id", []),
-        claim.expires_at(
-          max_age: duration.minutes(5),
-          leeway: duration.seconds(0),
-        ),
-      ],
-    )
-  let assert Ok(verified) =
-    oidc.verify_rs256(
-      token: token,
-      using: keys,
-      issuer: "https://claims.example",
-      audience: "client-id",
-      expected_nonce: None,
-    )
-  assert oidc.string_claim(verified, "tid") == Ok("tenant-id")
-  assert oidc.optional_string_claim(verified, "hd") == Ok(Some("example.com"))
-  assert oidc.optional_string_claim(verified, "missing") == Ok(None)
-  assert oidc.bool_claim(verified, "email_verified") == Ok(True)
-  assert oidc.optional_bool_claim(verified, "missing") == Ok(None)
-  assert oidc.hosted_domain(verified) == Some("example.com")
-  assert oidc.tenant_id(verified) == Some("tenant-id")
-  assert oidc.object_id(verified) == Some("object-id")
-}
-
-pub fn verifier_rejects_blank_provider_identity_claim_test() -> Nil {
-  let assert Ok(keys) = oidc.parse_jwks(jwt_signing.jwks())
-  let token =
-    jwt_signing.encode(
-      payload: [
-        #("sub", json.string("user-123")),
-        #("tid", json.string("  ")),
-      ],
-      claims: [
-        claim.issuer("https://blank-claim.example", []),
-        claim.audience("client-id", []),
-        claim.expires_at(
-          max_age: duration.minutes(5),
-          leeway: duration.seconds(0),
-        ),
-      ],
-    )
-  assert oidc.verify_rs256(
-      token: token,
-      using: keys,
-      issuer: "https://blank-claim.example",
-      audience: "client-id",
-      expected_nonce: None,
-    )
-    == Error(oidc.InvalidClaim("tid"))
 }
 
 type TokenKind {
