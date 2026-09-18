@@ -92,6 +92,7 @@ pub fn callback_refreshes_unknown_kid_once_test() -> Nil {
   reset_counter()
   let issuer = "https://refresh.example/tenant"
   let oidc_config = oidc_config(issuer)
+  cache_jwks(issuer, jwt_signing.wrong_jwks())
   let client_config = client_config()
   let initial_strategy =
     vestibule_oidc.strategy_from_config(oidc_config, issuer)
@@ -112,11 +113,8 @@ pub fn callback_refreshes_unknown_kid_once_test() -> Nil {
     {
       True, _, _ -> Ok(http_response(token_response(token)))
       _, True, _ -> {
-        let call = increment_counter()
-        case call {
-          1 -> Ok(http_response(jwt_signing.wrong_jwks()))
-          _ -> Ok(http_response(jwt_signing.jwks()))
-        }
+        increment_counter()
+        Ok(http_response(jwt_signing.jwks()))
       }
       _, _, True -> Ok(http_response("{\"sub\":\"user-123\"}"))
       _, _, _ -> Error(error.network(reason: "Unexpected OIDC test endpoint"))
@@ -136,7 +134,60 @@ pub fn callback_refreshes_unknown_kid_once_test() -> Nil {
       code_verifier: authorization_request.code_verifier(request),
       expected_nonce: Some(nonce),
     )
-  assert counter() == 2
+  assert counter() == 1
+}
+
+pub fn callback_refreshes_cached_keys_for_token_without_kid_test() -> Nil {
+  reset_counter()
+  let issuer = "https://refresh-without-kid.example/tenant"
+  let oidc_config = oidc_config(issuer)
+  cache_jwks(issuer, jwt_signing.wrong_jwks())
+  let client_config = client_config()
+  let initial_strategy =
+    vestibule_oidc.strategy_from_config(oidc_config, issuer)
+  let assert Ok(request) =
+    vestibule.create_authorization_request(
+      initial_strategy,
+      config: client_config,
+      options: config.authorize_options(),
+    )
+  let assert Some(nonce) = authorization_request.nonce(request)
+  let token = signed_token_without_kid(issuer, "client-id", nonce, "user-123")
+  let sender = fn(http_request) {
+    let path = provider_support.secure_request_uri(http_request).path
+    case
+      string.ends_with(path, "/token"),
+      string.ends_with(path, "/keys"),
+      string.ends_with(path, "/userinfo")
+    {
+      True, _, _ -> Ok(http_response(token_response(token)))
+      _, True, _ -> {
+        increment_counter()
+        Ok(http_response(jwt_signing.jwks()))
+      }
+      _, _, True -> Ok(http_response("{\"sub\":\"user-123\"}"))
+      _, _, _ -> Error(error.network(reason: "Unexpected OIDC test endpoint"))
+    }
+  }
+  let oidc_strategy =
+    vestibule_oidc.strategy_from_config_with_sender(oidc_config, issuer, sender)
+  let assert Ok(_) =
+    vestibule.handle_callback(
+      oidc_strategy,
+      config: client_config,
+      callback_params: dict.from_list([
+        #("state", authorization_request.state(request)),
+        #("code", "authorization-code"),
+      ]),
+      expected_state: authorization_request.state(request),
+      code_verifier: authorization_request.code_verifier(request),
+      expected_nonce: Some(nonce),
+    )
+  assert counter() == 1
+}
+
+pub fn concurrent_callbacks_claim_one_jwks_refresh_test() -> Nil {
+  assert concurrent_refresh_claim_count("concurrent-refresh", 20) == 1
 }
 
 pub fn discovered_configs_build_distinct_account_namespaces_test() -> Nil {
@@ -481,6 +532,31 @@ fn signed_token(
   ])
 }
 
+fn signed_token_without_kid(
+  issuer: String,
+  audience: String,
+  nonce: String,
+  subject: String,
+) -> String {
+  jwt_signing.encode_without_kid(
+    payload: [#("sub", json.string(subject))],
+    claims: [
+      claim.issuer(issuer, []),
+      claim.audience(audience, []),
+      claim.custom(
+        name: "nonce",
+        value: nonce,
+        encode: json.string,
+        decoder: decode.string,
+      ),
+      claim.expires_at(
+        max_age: duration.minutes(5),
+        leeway: duration.seconds(0),
+      ),
+    ],
+  )
+}
+
 fn oidc_config(issuer: String) -> vestibule_oidc.OidcConfig {
   let assert Ok(oidc_config) =
     vestibule_oidc.new_config_with_jwks(
@@ -516,6 +592,14 @@ fn http_response(body: String) -> response.Response(String) {
   response.Response(status: 200, headers: [], body: body)
 }
 
+fn cache_jwks(issuer: String, body: String) -> Nil {
+  let assert Ok(keys) = oidc.parse_jwks(body)
+  cache_put(issuer <> "\n" <> issuer <> "/keys", keys)
+}
+
+@external(erlang, "vestibule_oidc_cache_ffi", "put")
+fn cache_put(key: String, keys: oidc.Jwks) -> Nil
+
 @external(erlang, "vestibule_oidc_test_ffi", "reset_counter")
 fn reset_counter() -> Nil
 
@@ -524,3 +608,6 @@ fn increment_counter() -> Int
 
 @external(erlang, "vestibule_oidc_test_ffi", "counter")
 fn counter() -> Int
+
+@external(erlang, "vestibule_oidc_test_ffi", "concurrent_refresh_claim_count")
+fn concurrent_refresh_claim_count(key: String, workers: Int) -> Int

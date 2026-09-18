@@ -1,6 +1,10 @@
 -module(vestibule_oidc_test_ffi).
 
--export([sign/2, reset_counter/0, increment_counter/0, counter/0]).
+-export([sign/2,
+         reset_counter/0,
+         increment_counter/0,
+         counter/0,
+         concurrent_refresh_claim_count/2]).
 
 -include_lib("public_key/include/public_key.hrl").
 -include_lib("ywt_core/include/ywt@sign_key_SignRsaSimple.hrl").
@@ -75,3 +79,29 @@ increment_counter() ->
 
 counter() ->
     persistent_term:get({?MODULE, counter}, 0).
+
+concurrent_refresh_claim_count(Key, Workers) ->
+    vestibule_oidc_cache_ffi:release_refresh(Key),
+    Parent = self(),
+    Ref = make_ref(),
+    Pids = [spawn(fun() ->
+                      receive
+                          {Ref, go} ->
+                              Claimed =
+                                  vestibule_oidc_cache_ffi:claim_refresh(Key, 60),
+                              Parent ! {Ref, Claimed}
+                      end
+                  end)
+            || _ <- lists:seq(1, Workers)],
+    lists:foreach(fun(Pid) -> Pid ! {Ref, go} end, Pids),
+    count_claims(Ref, Workers, 0).
+
+count_claims(_Ref, 0, Claims) ->
+    Claims;
+count_claims(Ref, Remaining, Claims) ->
+    receive
+        {Ref, true} ->
+            count_claims(Ref, Remaining - 1, Claims + 1);
+        {Ref, false} ->
+            count_claims(Ref, Remaining - 1, Claims)
+    end.
