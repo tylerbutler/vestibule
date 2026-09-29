@@ -77,26 +77,26 @@ pub fn parse_jwks(body: String) -> Result(Jwks, VerificationError) {
     use keys <- decode.field("keys", decode.list(jwk_decoder()))
     decode.success(keys)
   }
-  case json.parse(body, decoder) {
-    Ok(raw_keys) ->
-      case list.length(raw_keys) <= 16 {
-        False -> Error(InvalidJwks)
-        True -> {
-          let eligible_keys = list.filter(raw_keys, is_eligible_jwk)
-          case eligible_keys {
-            [] -> Error(InvalidJwks)
-            [_, ..] -> {
-              use Nil <- result.try(validate_key_ids(eligible_keys))
-              use keys <- result.try(
-                list.try_map(eligible_keys, parse_jwk)
-                |> result.replace_error(InvalidJwks),
-              )
-              Ok(Jwks(keys))
-            }
-          }
+  use raw_keys <- result.try(
+    json.parse(body, decoder)
+    |> result.replace_error(InvalidJwks),
+  )
+  case list.length(raw_keys) <= 16 {
+    False -> Error(InvalidJwks)
+    True -> {
+      let eligible_keys = list.filter(raw_keys, is_eligible_jwk)
+      case eligible_keys {
+        [] -> Error(InvalidJwks)
+        [_, ..] -> {
+          use Nil <- result.try(validate_key_ids(eligible_keys))
+          use keys <- result.try(
+            list.try_map(eligible_keys, parse_jwk)
+            |> result.replace_error(InvalidJwks),
+          )
+          Ok(Jwks(keys))
         }
       }
-    Error(_) -> Error(InvalidJwks)
+    }
   }
 }
 
