@@ -2,6 +2,7 @@ import gleam/dict
 import gleam/dynamic/decode
 import gleam/http/response
 import gleam/json
+import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import gleam/time/duration
@@ -188,6 +189,67 @@ pub fn callback_refreshes_cached_keys_for_token_without_kid_test() -> Nil {
 
 pub fn concurrent_callbacks_claim_one_jwks_refresh_test() -> Nil {
   assert concurrent_refresh_claim_count("concurrent-refresh", 20) == 1
+}
+
+pub fn concurrent_callbacks_wait_for_single_jwks_refresh_test() -> Nil {
+  reset_counter()
+  let issuer = "https://concurrent-refresh.example/tenant"
+  let oidc_config = oidc_config(issuer)
+  cache_jwks(issuer, jwt_signing.wrong_jwks())
+  let client_config = client_config()
+  let initial_strategy =
+    vestibule_oidc.strategy_from_config(oidc_config, issuer)
+  let assert Ok(request) =
+    vestibule.create_authorization_request(
+      initial_strategy,
+      config: client_config,
+      options: config.authorize_options(),
+    )
+  let assert Some(nonce) = authorization_request.nonce(request)
+  let token = signed_token(issuer, "client-id", nonce, "user-123")
+  let sender = fn(http_request) {
+    let path = provider_support.secure_request_uri(http_request).path
+    case
+      string.ends_with(path, "/token"),
+      string.ends_with(path, "/keys"),
+      string.ends_with(path, "/userinfo")
+    {
+      True, _, _ -> Ok(http_response(token_response(token)))
+      _, True, _ -> {
+        increment_counter()
+        sleep(50)
+        Ok(http_response(jwt_signing.jwks()))
+      }
+      _, _, True -> Ok(http_response("{\"sub\":\"user-123\"}"))
+      _, _, _ -> Error(error.network(reason: "Unexpected OIDC test endpoint"))
+    }
+  }
+  let oidc_strategy =
+    vestibule_oidc.strategy_from_config_with_sender(oidc_config, issuer, sender)
+  let results =
+    run_concurrently(
+      fn() {
+        vestibule.handle_callback(
+          oidc_strategy,
+          config: client_config,
+          callback_params: dict.from_list([
+            #("state", authorization_request.state(request)),
+            #("code", "authorization-code"),
+          ]),
+          expected_state: authorization_request.state(request),
+          code_verifier: authorization_request.code_verifier(request),
+          expected_nonce: Some(nonce),
+        )
+      },
+      20,
+    )
+  assert list.all(results, fn(callback_result) {
+    case callback_result {
+      Ok(_) -> True
+      Error(_) -> False
+    }
+  })
+  assert counter() == 1
 }
 
 pub fn discovered_configs_build_distinct_account_namespaces_test() -> Nil {
@@ -611,3 +673,9 @@ fn counter() -> Int
 
 @external(erlang, "vestibule_oidc_test_ffi", "concurrent_refresh_claim_count")
 fn concurrent_refresh_claim_count(key: String, workers: Int) -> Int
+
+@external(erlang, "vestibule_oidc_test_ffi", "sleep")
+fn sleep(milliseconds: Int) -> Nil
+
+@external(erlang, "vestibule_oidc_test_ffi", "run_concurrently")
+fn run_concurrently(callback: fn() -> a, workers: Int) -> List(a)

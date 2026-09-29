@@ -799,6 +799,8 @@ const jwks_cache_ttl_seconds = 3600
 
 const jwks_refresh_cooldown_seconds = 60
 
+const jwks_refresh_wait_milliseconds = 35_000
+
 fn verify_exchange_id_token(
   oidc_config: OidcConfig,
   client_config: config.ClientConfig,
@@ -864,16 +866,19 @@ fn retry_with_refreshed_jwks(
   case cache_claim_refresh(cache_key, jwks_refresh_cooldown_seconds) {
     True ->
       case fetch_jwks(oidc_config, send) {
-        Ok(refreshed) ->
+        Ok(refreshed) -> {
+          cache_complete_refresh(cache_key)
           verify_id_token(id_token, refreshed, oidc_config, client_config)
           |> result.map(oidc.subject)
           |> result.map_error(verification_auth_error)
+        }
         Error(fetch_error) -> {
           cache_release_refresh(cache_key)
           Error(fetch_error)
         }
       }
     False -> {
+      cache_await_refresh(cache_key, jwks_refresh_wait_milliseconds)
       let keys =
         cache_get(cache_key, jwks_cache_ttl_seconds)
         |> result.unwrap(stale_keys)
@@ -929,3 +934,9 @@ fn cache_claim_refresh(key: String, cooldown_seconds: Int) -> Bool
 
 @external(erlang, "vestibule_oidc_cache_ffi", "release_refresh")
 fn cache_release_refresh(key: String) -> Nil
+
+@external(erlang, "vestibule_oidc_cache_ffi", "complete_refresh")
+fn cache_complete_refresh(key: String) -> Nil
+
+@external(erlang, "vestibule_oidc_cache_ffi", "await_refresh")
+fn cache_await_refresh(key: String, timeout_milliseconds: Int) -> Nil
