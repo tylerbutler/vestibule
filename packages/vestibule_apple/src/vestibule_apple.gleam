@@ -8,10 +8,8 @@
 ////   form data. The vestibule core handles extracting callback parameters, so
 ////   this strategy just adds the parameter to the authorization URL.
 //// - **Client secret is a JWT**: Apple requires the client_secret to be a signed
-////   JWT. Until this strategy supports a dedicated client assertion mode, the
-////   caller generates this JWT and provides it with
+////   JWT. Build it with `build_client_secret`, then provide it as
 ////   `config.client_secret_auth(jwt)`.
-////   This strategy passes it through to the token endpoint.
 //// - **User info only on first auth**: Apple only sends the full user object
 ////   (with name) on the first authorization. Subsequent authorizations only
 ////   include `sub` and `email` in the ID token.
@@ -30,14 +28,17 @@
 //// let strategy = vestibule_apple.strategy(apple)
 //// ```
 
+import gleam/bit_array
 import gleam/dict
 import gleam/dynamic
 import gleam/dynamic/decode
 import gleam/json
+import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import gleam/time/duration
+import gleam/time/timestamp
 import gleam/uri
 
 import gleam/http/request
@@ -60,6 +61,63 @@ import vestibule_apple/jwks.{type JwksCache}
 import vestibule_apple/jwt
 import ywt/claim
 import ywt/verify_key.{type VerifyKey}
+
+const max_client_secret_ttl_seconds = 15_777_000
+
+/// Errors returned when building an Apple client-secret JWT.
+pub type ClientSecretError {
+  InvalidTeamId
+  InvalidClientId
+  InvalidKeyId
+  InvalidPrivateKey
+  InvalidTtl
+}
+
+/// Build the ES256 client-secret JWT required by Apple.
+///
+/// `team_id` and `key_id` must be 10-character Apple identifiers. `client_id`
+/// must contain only ASCII letters, digits, dots, and hyphens. `p8_pem` must
+/// contain one unencrypted P-256 private key. `ttl` is in seconds and must be
+/// between 1 and Apple's limit of 15,777,000 seconds.
+pub fn build_client_secret(
+  team_id team_id: String,
+  client_id client_id: String,
+  key_id key_id: String,
+  p8_pem p8_pem: String,
+  ttl ttl: Int,
+) -> Result(String, ClientSecretError) {
+  use _ <- result.try(validate_client_secret_input(
+    team_id:,
+    client_id:,
+    key_id:,
+    ttl:,
+  ))
+
+  let #(issued_at, _) =
+    timestamp.system_time()
+    |> timestamp.to_unix_seconds_and_nanoseconds()
+  let header =
+    json.object([
+      #("alg", json.string("ES256")),
+      #("kid", json.string(key_id)),
+    ])
+    |> encode_client_secret_part()
+  let claims =
+    json.object([
+      #("iss", json.string(team_id)),
+      #("iat", json.int(issued_at)),
+      #("exp", json.int(issued_at + ttl)),
+      #("aud", json.string("https://appleid.apple.com")),
+      #("sub", json.string(client_id)),
+    ])
+    |> encode_client_secret_part()
+  let signing_input = header <> "." <> claims
+  use signature <- result.try(
+    sign_es256(bit_array.from_string(signing_input), p8_pem)
+    |> result.map_error(fn(_) { InvalidPrivateKey }),
+  )
+  Ok(signing_input <> "." <> bit_array.base64_url_encode(signature, False))
+}
 
 /// Holds the JWKS cache used for Apple ID token signature verification.
 /// Returned by `initialize()` and required by `strategy()`. Construction and
@@ -103,12 +161,79 @@ pub fn initialize_named(
   }
 }
 
+fn validate_client_secret_input(
+  team_id team_id: String,
+  client_id client_id: String,
+  key_id key_id: String,
+  ttl ttl: Int,
+) -> Result(Nil, ClientSecretError) {
+  case
+    valid_fixed_apple_id(team_id),
+    valid_client_id(client_id),
+    valid_fixed_apple_id(key_id),
+    ttl > 0 && ttl <= max_client_secret_ttl_seconds
+  {
+    False, _, _, _ -> Error(InvalidTeamId)
+    _, False, _, _ -> Error(InvalidClientId)
+    _, _, False, _ -> Error(InvalidKeyId)
+    _, _, _, False -> Error(InvalidTtl)
+    True, True, True, True -> Ok(Nil)
+  }
+}
+
+fn valid_fixed_apple_id(value: String) -> Bool {
+  string.length(value) == 10
+  && value
+  |> string.to_utf_codepoints()
+  |> list.all(is_uppercase_letter_or_digit)
+}
+
+fn valid_client_id(value: String) -> Bool {
+  let length = string.length(value)
+  length > 0
+  && length <= 255
+  && !string.starts_with(value, ".")
+  && !string.starts_with(value, "-")
+  && !string.ends_with(value, ".")
+  && !string.ends_with(value, "-")
+  && value
+  |> string.to_utf_codepoints()
+  |> list.all(fn(codepoint) {
+    let value = string.utf_codepoint_to_int(codepoint)
+    is_ascii_letter_or_digit(value) || value == 45 || value == 46
+  })
+}
+
+fn is_uppercase_letter_or_digit(codepoint: UtfCodepoint) -> Bool {
+  let value = string.utf_codepoint_to_int(codepoint)
+  value >= 65 && value <= 90 || value >= 48 && value <= 57
+}
+
+fn is_ascii_letter_or_digit(value: Int) -> Bool {
+  value >= 65
+  && value <= 90
+  || value >= 97
+  && value <= 122
+  || value >= 48
+  && value <= 57
+}
+
+fn encode_client_secret_part(value: json.Json) -> String {
+  value
+  |> json.to_string()
+  |> bit_array.from_string()
+  |> bit_array.base64_url_encode(False)
+}
+
+@external(erlang, "vestibule_apple_jwt_ffi", "sign_es256")
+fn sign_es256(message: BitArray, p8_pem: String) -> Result(BitArray, Nil)
+
 /// Create an Apple Sign In authentication strategy.
 ///
 /// Requires the cache handle from `initialize()`. Apple requires
 /// `response_mode=form_post` for the authorization URL, which is added
-/// automatically. The `config.client_secret_auth(jwt)` value must contain a
-/// signed JWT generated by the caller (see Apple's documentation).
+/// automatically. The `config.client_secret_auth(jwt)` value must be a signed JWT
+/// from `build_client_secret` or an equivalent signer.
 ///
 /// ID tokens are verified against Apple's published JWKS keys with
 /// claim validation for issuer, audience, and expiration.
