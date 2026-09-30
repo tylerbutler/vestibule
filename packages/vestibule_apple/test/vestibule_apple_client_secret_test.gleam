@@ -7,7 +7,7 @@ import vestibule_apple
 import vestibule_apple/jwt_signing
 
 pub fn build_client_secret_round_trips_es256_test() -> Nil {
-  let private_key = jwt_signing.generate_es256_private_key()
+  let #(private_key, public_key) = jwt_signing.generate_es256_key_pair()
   let assert Ok(token) =
     vestibule_apple.build_client_secret(
       team_id: "TEAMID1234",
@@ -40,11 +40,11 @@ pub fn build_client_secret_round_trips_es256_test() -> Nil {
   expires_at - issued_at |> should.equal(3600)
   audience |> should.equal("https://appleid.apple.com")
   subject |> should.equal("com.example.demo")
-  jwt_signing.verify_es256(token, private_key) |> should.be_true()
+  jwt_signing.verify_es256(token, public_key) |> should.be_true()
 }
 
 pub fn build_client_secret_rejects_invalid_inputs_test() -> Nil {
-  let private_key = jwt_signing.generate_es256_private_key()
+  let #(private_key, _) = jwt_signing.generate_es256_key_pair()
 
   build("short", "com.example.demo", "KEYID12345", private_key, 3600)
   |> should.equal(Error(vestibule_apple.InvalidTeamId))

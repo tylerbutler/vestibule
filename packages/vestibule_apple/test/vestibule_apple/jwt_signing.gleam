@@ -49,13 +49,13 @@ pub fn test_key_jwks() -> String {
   public_jwks
 }
 
-/// Generate a PKCS#8 P-256 private key for client-secret tests.
-pub fn generate_es256_private_key() -> String {
-  do_generate_es256_private_key()
+/// Generate a P-256 private key and its public verification key.
+pub fn generate_es256_key_pair() -> #(String, BitArray) {
+  do_generate_es256_key_pair()
 }
 
-/// Verify an ES256 token with the P-256 private key that created it.
-pub fn verify_es256(token: String, private_key: String) -> Bool {
+/// Verify an ES256 token with a P-256 public key.
+pub fn verify_es256(token: String, public_key: BitArray) -> Bool {
   case string.split(token, on: ".") {
     [header, payload, signature] ->
       case bit_array.base64_url_decode(signature) {
@@ -63,7 +63,7 @@ pub fn verify_es256(token: String, private_key: String) -> Bool {
           do_verify_es256(
             bit_array.from_string(header <> "." <> payload),
             signature,
-            private_key,
+            public_key,
           )
         Error(_) -> False
       }
@@ -98,12 +98,12 @@ fn sign_bits(message: BitArray, key: SignKey) -> BitArray {
 @external(erlang, "vestibule_apple_jwt_ffi", "sign")
 fn do_sign(message: BitArray, key: SignKey) -> BitArray
 
-@external(erlang, "vestibule_apple_jwt_ffi", "generate_es256_private_key")
-fn do_generate_es256_private_key() -> String
+@external(erlang, "vestibule_apple_jwt_ffi", "generate_es256_key_pair")
+fn do_generate_es256_key_pair() -> #(String, BitArray)
 
 @external(erlang, "vestibule_apple_jwt_ffi", "verify_es256")
 fn do_verify_es256(
   message: BitArray,
   signature: BitArray,
-  private_key: String,
+  public_key: BitArray,
 ) -> Bool
