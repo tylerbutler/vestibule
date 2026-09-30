@@ -75,6 +75,14 @@ pub const maximum_seconds: Int
 
 ## Functions
 
+### `default`
+
+The default lifetime for an OAuth flow session.
+
+```gleam
+pub fn default() -> SessionTtl
+```
+
 ### `from_duration`
 
 Construct a session TTL from a duration.

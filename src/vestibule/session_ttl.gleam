@@ -8,6 +8,11 @@ import gleam/time/duration
 /// The longest permitted session TTL, in seconds.
 pub const maximum_seconds = 3600
 
+/// The default lifetime for an OAuth flow session.
+pub fn default() -> SessionTtl {
+  SessionTtl(600)
+}
+
 /// A validated session lifetime.
 pub opaque type SessionTtl {
   SessionTtl(seconds: Int)
