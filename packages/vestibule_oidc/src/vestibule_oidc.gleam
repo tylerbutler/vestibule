@@ -402,8 +402,7 @@ pub fn discover(issuer_url: String) -> Result(Strategy(e), AuthError(e)) {
 
 /// Return the stable account namespace for an OIDC issuer.
 ///
-/// This preserves issuer paths and non-default ports. A single trailing slash
-/// is removed to match discovery's issuer comparison.
+/// This preserves issuer paths, non-default ports, and trailing slashes.
 pub fn issuer_namespace(oidc_config: OidcConfig) -> String {
   oidc_config.issuer
 }
