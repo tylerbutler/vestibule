@@ -3,7 +3,7 @@
 -export([verify/3,
          sign/2,
          sign_es256/2,
-         generate_es256_private_key/0,
+generate_es256_key_pair/0,
          verify_es256/3]).
 
 -include_lib("public_key/include/public_key.hrl").
@@ -108,18 +108,22 @@ sign_es256(Message, Pem) when is_binary(Message), is_binary(Pem) ->
         _:_ -> {error, nil}
     end.
 
-%% Test support for a round-trip through the same P-256 PEM path used by Apple.
-generate_es256_private_key() ->
+%% Test support for signing through Apple's PEM path and verifying independently.
+generate_es256_key_pair() ->
     PrivateKey = public_key:generate_key({namedCurve, secp256r1}),
     Entry = public_key:pem_entry_encode('PrivateKeyInfo', PrivateKey),
-    public_key:pem_encode([Entry]).
+    {public_key:pem_encode([Entry]), PrivateKey#'ECPrivateKey'.publicKey}.
 
-verify_es256(Message, Signature, Pem)
-  when is_binary(Message), is_binary(Signature), is_binary(Pem) ->
+verify_es256(Message, Signature, PublicKey)
+  when is_binary(Message), is_binary(Signature), is_binary(PublicKey) ->
     try
-        PrivateKey = decode_es256_private_key(Pem),
         DerSignature = ecdsa_jose_to_der(Signature),
-        public_key:verify(Message, sha256, DerSignature, PrivateKey)
+        Parameters = {namedCurve, {1, 2, 840, 10045, 3, 1, 7}},
+        Point = #'ECPoint'{point = PublicKey},
+        public_key:verify(Message,
+                          sha256,
+                          DerSignature,
+                          {Point, Parameters})
     catch
         _:_ -> false
     end.
