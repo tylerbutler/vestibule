@@ -507,7 +507,7 @@ fn callback_result(
   id_subject: String,
   userinfo_subject: String,
   token_kind: TokenKind,
-) {
+) -> Result(auth.Auth, error.AuthError(e)) {
   let issuer = "https://" <> issuer_name <> ".example/tenant"
   let oidc_config = oidc_config(issuer)
   let client_config = client_config()
