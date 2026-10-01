@@ -8,6 +8,7 @@ import gleeunit
 import vestibule/config
 import vestibule/error
 import vestibule/registry
+import vestibule/session_ttl
 import vestibule/state_store
 import vestibule/strategy.{type Strategy}
 import vestibule_mist
@@ -81,7 +82,8 @@ pub fn new_options_uses_default_cookie_contract_test() -> Nil {
   |> fn(actual) {
     assert actual == "__Host-vestibule_session"
   }
-  vestibule_mist.session_ttl_seconds(options)
+  vestibule_mist.session_ttl(options)
+  |> session_ttl.to_seconds
   |> fn(actual) {
     assert actual == 600
   }
@@ -237,6 +239,10 @@ pub fn request_phase_passes_authorize_options_test() -> Nil {
   let assert Ok(authorize_options) =
     config.authorize_options()
     |> config.with_extra_params([#("prompt", "login")])
+  let assert Ok(custom_ttl) = session_ttl.from_seconds(300)
+  let options =
+    test_options()
+    |> vestibule_mist.with_session_ttl(custom_ttl)
 
   let response =
     vestibule_mist.request_phase_with_shared_bucket(
@@ -245,7 +251,7 @@ pub fn request_phase_passes_authorize_options_test() -> Nil {
       "test",
       store,
       authorize_options,
-      test_options(),
+      options,
     )
 
   let assert Ok(location) = find_header(response.headers, "location")
@@ -253,6 +259,8 @@ pub fn request_phase_passes_authorize_options_test() -> Nil {
   |> fn(actual) {
     assert actual
   }
+  let assert Ok(cookie_header) = find_header(response.headers, "set-cookie")
+  assert string.contains(cookie_header, "Max-Age=300")
 }
 
 pub fn request_phase_rejects_client_above_admission_limit_test() -> Nil {

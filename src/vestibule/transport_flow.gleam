@@ -18,6 +18,7 @@ import vestibule/config.{type AuthorizeOptions, type ClientConfig}
 import vestibule/error.{type AuthError}
 import vestibule/logger
 import vestibule/registry.{type Registry}
+import vestibule/session_ttl.{type SessionTtl}
 import vestibule/state
 import vestibule/state_store.{type StateStore, type StateStoreError}
 import vestibule/strategy.{type Strategy}
@@ -66,7 +67,7 @@ pub fn start_authorization(
   provider_registry: Registry(e),
   provider provider: String,
   store store: StateStore,
-  ttl_seconds ttl_seconds: Int,
+  ttl ttl: SessionTtl,
   options options: AuthorizeOptions,
 ) -> Result(#(String, String), RequestFlowError(e)) {
   start_authorization_for_client(
@@ -74,7 +75,7 @@ pub fn start_authorization(
     provider: provider,
     store: store,
     client_key: "unidentified",
-    ttl_seconds: ttl_seconds,
+    ttl: ttl,
     options: options,
   )
 }
@@ -86,7 +87,7 @@ pub fn start_authorization_for_client(
   provider provider: String,
   store store: StateStore,
   client_key client_key: String,
-  ttl_seconds ttl_seconds: Int,
+  ttl ttl: SessionTtl,
   options options: AuthorizeOptions,
 ) -> Result(#(String, String), RequestFlowError(e)) {
   logger.emit(
@@ -123,7 +124,7 @@ pub fn start_authorization_for_client(
           authorization_request_value,
         ),
         nonce: authorization_request.nonce(authorization_request_value),
-        ttl_seconds: ttl_seconds,
+        ttl: ttl,
       )
       |> result.map_error(StoreFailed),
     )
