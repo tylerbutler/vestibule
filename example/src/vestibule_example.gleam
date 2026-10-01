@@ -8,6 +8,7 @@ import gleam/http/response
 import gleam/int
 import gleam/io
 import gleam/result
+import gleam/string
 import mist
 import wisp
 import wisp/wisp_mist
@@ -26,7 +27,14 @@ pub fn main() -> Nil {
     |> result.try(int.parse)
     |> result.unwrap(8000)
   let secret_key_base = case envoy.get("SECRET_KEY_BASE") {
-    Ok(secret) -> secret
+    Ok(secret) ->
+      case string.byte_size(secret) >= 32 {
+        True -> secret
+        False -> {
+          io.println("Error: SECRET_KEY_BASE must contain at least 32 bytes.")
+          panic as "SECRET_KEY_BASE is too short"
+        }
+      }
     Error(Nil) -> {
       io.println(
         "Warning: using an ephemeral SECRET_KEY_BASE; OAuth flow cookies become invalid when the server restarts.",
@@ -132,8 +140,8 @@ pub fn main() -> Nil {
       Error(Nil) ->
         response.new(429)
         |> response.set_body(mist.Bytes(bytes_tree.new()))
-      Ok(info) -> {
-        let client_key = mist.ip_address_to_string(info.ip_address)
+      Ok(connection_info) -> {
+        let client_key = mist.ip_address_to_string(connection_info.ip_address)
         wisp_mist.handler(
           fn(request) {
             router.handle_request_for_client(

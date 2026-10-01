@@ -804,6 +804,10 @@ fn build_refresh_token_fn(
 
 const jwks_cache_ttl_seconds = 3600
 
+const jwks_refresh_cooldown_seconds = 60
+
+const jwks_refresh_wait_milliseconds = 35_000
+
 fn verify_exchange_id_token(
   oidc_config: OidcConfig,
   client_config: config.ClientConfig,
@@ -824,20 +828,71 @@ fn verify_exchange_id_token(
     }),
   )
   let cache_key = oidc_config.issuer <> "\n" <> oidc_config.jwks_uri
-  use keys <- result.try(case cache_get(cache_key, jwks_cache_ttl_seconds) {
-    Ok(keys) -> Ok(keys)
-    Error(_) -> fetch_jwks(oidc_config, send)
-  })
+  use #(keys, from_cache) <- result.try(
+    case cache_get(cache_key, jwks_cache_ttl_seconds) {
+      Ok(keys) -> Ok(#(keys, True))
+      Error(_) ->
+        fetch_jwks(oidc_config, send)
+        |> result.map(fn(keys) { #(keys, False) })
+    },
+  )
   case verify_id_token(id_token, keys, oidc_config, client_config) {
-    Error(oidc.UnknownKey) -> {
-      use refreshed <- result.try(fetch_jwks(oidc_config, send))
-      verify_id_token(id_token, refreshed, oidc_config, client_config)
-      |> result.map(oidc.subject)
-      |> result.map_error(verification_auth_error)
-    }
+    Error(oidc.UnknownKey) if from_cache ->
+      retry_with_refreshed_jwks(
+        id_token,
+        cache_key,
+        oidc_config,
+        client_config,
+        send,
+        keys,
+      )
+    Error(oidc.InvalidSignature) if from_cache ->
+      retry_with_refreshed_jwks(
+        id_token,
+        cache_key,
+        oidc_config,
+        client_config,
+        send,
+        keys,
+      )
     Error(verification_error) ->
       Error(verification_auth_error(verification_error))
     Ok(verified) -> Ok(oidc.subject(verified))
+  }
+}
+
+fn retry_with_refreshed_jwks(
+  id_token: String,
+  cache_key: String,
+  oidc_config: OidcConfig,
+  client_config: config.ClientConfig,
+  send: fn(provider_support.SecureRequest) ->
+    Result(response.Response(String), AuthError(e)),
+  stale_keys: oidc.Jwks,
+) -> Result(String, AuthError(e)) {
+  case cache_claim_refresh(cache_key, jwks_refresh_cooldown_seconds) {
+    True ->
+      case fetch_jwks(oidc_config, send) {
+        Ok(refreshed) -> {
+          cache_complete_refresh(cache_key)
+          verify_id_token(id_token, refreshed, oidc_config, client_config)
+          |> result.map(oidc.subject)
+          |> result.map_error(verification_auth_error)
+        }
+        Error(fetch_error) -> {
+          cache_release_refresh(cache_key)
+          Error(fetch_error)
+        }
+      }
+    False -> {
+      cache_await_refresh(cache_key, jwks_refresh_wait_milliseconds)
+      let keys =
+        cache_get(cache_key, jwks_cache_ttl_seconds)
+        |> result.unwrap(stale_keys)
+      verify_id_token(id_token, keys, oidc_config, client_config)
+      |> result.map(oidc.subject)
+      |> result.map_error(verification_auth_error)
+    }
   }
 }
 
@@ -880,3 +935,15 @@ fn cache_get(key: String, ttl_seconds: Int) -> Result(oidc.Jwks, Nil)
 
 @external(erlang, "vestibule_oidc_cache_ffi", "put")
 fn cache_put(key: String, keys: oidc.Jwks) -> Nil
+
+@external(erlang, "vestibule_oidc_cache_ffi", "claim_refresh")
+fn cache_claim_refresh(key: String, cooldown_seconds: Int) -> Bool
+
+@external(erlang, "vestibule_oidc_cache_ffi", "release_refresh")
+fn cache_release_refresh(key: String) -> Nil
+
+@external(erlang, "vestibule_oidc_cache_ffi", "complete_refresh")
+fn cache_complete_refresh(key: String) -> Nil
+
+@external(erlang, "vestibule_oidc_cache_ffi", "await_refresh")
+fn cache_await_refresh(key: String, timeout_milliseconds: Int) -> Nil

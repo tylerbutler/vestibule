@@ -59,17 +59,19 @@ pub fn user_result_extra(user: UserResult) -> Dict(String, Dynamic) {
 /// provider-specific token response data that may be needed while resolving the
 /// user, such as an OpenID Connect `id_token`.
 ///
-/// Opaque to keep provider-specific artifacts evolution-safe.
+/// Opaque to keep provider-specific artifacts evolution-safe. Artifacts are
+/// held behind a closure so inspect/debug rendering does not expose sensitive
+/// values such as ID tokens. This does not erase them from process memory.
 pub opaque type ExchangeResult {
   ExchangeResult(
     credentials: credential.Credentials,
-    artifacts: fn() -> Dict(String, Dynamic),
+    reveal_artifacts: fn() -> Dict(String, Dynamic),
   )
 }
 
 /// Build an exchange result for providers with no provider-specific artifacts.
 pub fn exchange_result(credentials: credential.Credentials) -> ExchangeResult {
-  ExchangeResult(credentials: credentials, artifacts: fn() { dict.new() })
+  ExchangeResult(credentials: credentials, reveal_artifacts: dict.new)
 }
 
 /// Build an exchange result with provider-specific artifacts.
@@ -77,7 +79,7 @@ pub fn exchange_result_with_artifacts(
   credentials: credential.Credentials,
   artifacts: Dict(String, Dynamic),
 ) -> ExchangeResult {
-  ExchangeResult(credentials: credentials, artifacts: fn() { artifacts })
+  ExchangeResult(credentials: credentials, reveal_artifacts: fn() { artifacts })
 }
 
 /// Return the OAuth credentials produced by the exchange.
@@ -90,7 +92,7 @@ pub fn exchange_credentials(
 /// Return provider-specific artifacts produced by the exchange
 /// (e.g., an OpenID Connect `id_token`).
 pub fn exchange_artifacts(exchange: ExchangeResult) -> Dict(String, Dynamic) {
-  exchange.artifacts()
+  exchange.reveal_artifacts()
 }
 
 /// A strategy is the bundle of provider-specific functions needed to

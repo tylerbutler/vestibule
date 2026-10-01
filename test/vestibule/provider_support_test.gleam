@@ -272,6 +272,17 @@ pub fn check_token_error_drops_provider_description_and_uri_test() -> Nil {
   }
 }
 
+pub fn check_token_error_ignores_malformed_optional_fields_test() -> Nil {
+  assert provider_support.check_token_error(
+      "{\"error\":\"invalid_grant\",\"error_description\":7,\"error_uri\":false}",
+    )
+    == Error(error.provider(
+      code: "invalid_grant",
+      description: "Provider rejected the request",
+      uri: None,
+    ))
+}
+
 pub fn url_validation_errors_do_not_echo_query_secrets_test() -> Nil {
   let secret = "ACCESS-TOKEN-SECRET-7f3a"
   let url = "http://example.com/userinfo?access_token=" <> secret
@@ -526,52 +537,32 @@ pub fn fetch_json_with_auth_rejects_loopback_before_sending_token_test() -> Nil 
 // would treat as public hostnames (verified with `inet:getaddr/2`).
 
 pub fn require_public_https_rejects_shorthand_ipv4_test() -> Nil {
-  let _ =
+  let assert Error(_) =
     provider_support.require_public_https("https://127.1/userinfo")
-    |> fn(result) {
-      let assert Error(value) = result
-      value
-    }
   Nil
 }
 
 pub fn require_public_https_rejects_decimal_ipv4_test() -> Nil {
-  let _ =
+  let assert Error(_) =
     provider_support.require_public_https("https://2130706433/userinfo")
-    |> fn(result) {
-      let assert Error(value) = result
-      value
-    }
   Nil
 }
 
 pub fn require_public_https_rejects_octal_ipv4_test() -> Nil {
-  let _ =
+  let assert Error(_) =
     provider_support.require_public_https("https://0177.0.0.1/userinfo")
-    |> fn(result) {
-      let assert Error(value) = result
-      value
-    }
   Nil
 }
 
 pub fn require_public_https_rejects_trailing_dot_localhost_test() -> Nil {
-  let _ =
+  let assert Error(_) =
     provider_support.require_public_https("https://localhost./userinfo")
-    |> fn(result) {
-      let assert Error(value) = result
-      value
-    }
   Nil
 }
 
 pub fn require_public_https_rejects_ipv4_mapped_ipv6_test() -> Nil {
-  let _ =
+  let assert Error(_) =
     provider_support.require_public_https("https://[::ffff:127.0.0.1]/userinfo")
-    |> fn(result) {
-      let assert Error(value) = result
-      value
-    }
   Nil
 }
 
@@ -770,48 +761,29 @@ pub fn secure_request_rejects_plain_http_test() -> Nil {
 // === require_public_host ===
 
 pub fn require_public_host_accepts_http_public_host_test() -> Nil {
-  provider_support.require_public_host("http://example.com/")
-  |> fn(result) {
-    let assert Ok(value) = result
-    value
-  }
+  let assert Ok(_) = provider_support.require_public_host("http://example.com/")
+  Nil
 }
 
 pub fn require_public_host_accepts_https_public_host_test() -> Nil {
-  provider_support.require_public_host("https://example.com/")
-  |> fn(result) {
-    let assert Ok(value) = result
-    value
-  }
+  let assert Ok(_) =
+    provider_support.require_public_host("https://example.com/")
+  Nil
 }
 
 pub fn require_public_host_rejects_localhost_test() -> Nil {
-  let _ =
+  let assert Error(_) =
     provider_support.require_public_host("http://localhost/")
-    |> fn(result) {
-      let assert Error(value) = result
-      value
-    }
   Nil
 }
 
 pub fn require_public_host_rejects_private_ipv4_test() -> Nil {
-  let _ =
-    provider_support.require_public_host("http://10.0.0.5/")
-    |> fn(result) {
-      let assert Error(value) = result
-      value
-    }
+  let assert Error(_) = provider_support.require_public_host("http://10.0.0.5/")
   Nil
 }
 
 pub fn require_public_host_rejects_missing_host_test() -> Nil {
-  let _ =
-    provider_support.require_public_host("http:///path")
-    |> fn(result) {
-      let assert Error(value) = result
-      value
-    }
+  let assert Error(_) = provider_support.require_public_host("http:///path")
   Nil
 }
 

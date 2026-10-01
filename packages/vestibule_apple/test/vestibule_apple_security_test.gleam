@@ -222,7 +222,7 @@ fn apple_callback(
   apple: vestibule_apple.AppleCache,
   id_token: String,
   jwks_body: String,
-) {
+) -> Result(auth.Auth, error.AuthError(e)) {
   let sender = fn(http_request: request.Request(String)) {
     case
       http_request.host,

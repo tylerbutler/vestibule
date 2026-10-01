@@ -443,21 +443,11 @@ pub fn fetch_json_with_auth(
 /// (GitHub, Google, Microsoft, Apple, OIDC, refresh).
 pub fn check_token_error(body: String) -> Result(String, AuthError(e)) {
   let error_decoder = {
-    use error_code <- decode.field("error", decode.string)
-    use description <- decode.optional_field(
-      "error_description",
-      "",
-      decode.string,
-    )
-    use error_uri <- decode.optional_field(
-      "error_uri",
-      option.None,
-      decode.optional(decode.string),
-    )
-    decode.success(#(error_code, description, error_uri))
+    use code <- decode.field("error", decode.string)
+    decode.success(code)
   }
   case json.parse(body, error_decoder) {
-    Ok(#(code, _, _)) ->
+    Ok(code) ->
       Error(error.provider(code: code, description: "", uri: option.None))
     Error(_) -> Ok(body)
   }
