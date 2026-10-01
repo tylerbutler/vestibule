@@ -9,8 +9,8 @@
 ////   exhaustive `case` expressions in consuming code.
 //// - [`phase`](#phase) returns the coarse [`Phase`](#Phase) the error occurred in.
 //// - [`message`](#message) returns a human-readable summary, safe to log.
-//// - [`provider_error`](#provider_error) returns structured provider error data
-////   (code / description / uri) when the provider returned a standard OAuth error.
+//// - [`provider_error`](#provider_error) returns sanitized provider error data
+////   when the provider returned a standard OAuth error.
 //// - [`http_status`](#http_status) and [`missing_parameter`](#missing_parameter) expose
 ////   the few additional structured fields some errors carry.
 //// - [`custom_payload`](#custom_payload) returns the provider-defined payload
@@ -81,6 +81,10 @@ pub type ErrorKind {
   /// Failed to fetch user info from the provider.
   UserInfoKind
   /// The provider returned a standard OAuth error response.
+  ///
+  /// Known standard error codes are retained. Unknown codes, descriptions, and
+  /// URIs are replaced or discarded because provider-controlled fields can echo
+  /// submitted secrets.
   ProviderKind
   /// The provider returned a non-success HTTP response.
   HttpKind
@@ -100,10 +104,10 @@ pub type ErrorKind {
 
 /// Structured data from a standard OAuth provider error response.
 ///
-/// This deliberately excludes raw response bodies; only the standard
-/// `error`, `error_description`, and `error_uri` fields are exposed.
+/// Provider-controlled descriptions, URIs, and unknown error codes are
+/// discarded so a provider cannot echo submitted secrets into public errors.
 pub opaque type ProviderError {
-  ProviderError(code: String, description: String, uri: Option(String))
+  ProviderError(code: String)
 }
 
 // --- Constructors ---------------------------------------------------------
@@ -136,22 +140,33 @@ pub fn user_info(reason reason: String) -> AuthError(e) {
 /// The provider returned a standard OAuth error response.
 pub fn provider(
   code code: String,
-  description description: String,
-  uri uri: Option(String),
+  description _description: String,
+  uri _uri: Option(String),
 ) -> AuthError(e) {
-  ProviderReturnedError(ProviderError(
-    code: code,
-    description: description,
-    uri: uri,
-  ))
+  ProviderReturnedError(ProviderError(code: safe_provider_error_code(code)))
+}
+
+fn safe_provider_error_code(code: String) -> String {
+  case code {
+    "access_denied"
+    | "invalid_client"
+    | "invalid_grant"
+    | "invalid_request"
+    | "invalid_scope"
+    | "invalid_token"
+    | "server_error"
+    | "temporarily_unavailable"
+    | "unauthorized_client"
+    | "unsupported_grant_type"
+    | "unsupported_response_type" -> code
+    _ -> "provider_error"
+  }
 }
 
 /// The provider returned a non-success HTTP response.
 ///
-/// `summary` should be a short description of the failure. Helpers such as
-/// `provider_support.check_response_status` pass a truncated snippet of the
-/// response body here to aid debugging, so the summary may contain provider
-/// response content — treat it accordingly before surfacing it to end users.
+/// `summary` should be a short description of the failure. Do not include raw
+/// response bodies because providers can echo submitted secrets.
 pub fn http(status status: Int, summary summary: String) -> AuthError(e) {
   HttpError(status, summary)
 }
@@ -227,11 +242,8 @@ pub fn message(auth_error: AuthError(e)) -> String {
       "Missing required callback parameter: " <> name
     CodeExchange(reason) -> "Failed to exchange authorization code: " <> reason
     UserInfo(reason) -> "Failed to fetch user info: " <> reason
-    ProviderReturnedError(ProviderError(
-      code: code,
-      description: description,
-      ..,
-    )) -> "Provider returned error: " <> code <> " — " <> description
+    ProviderReturnedError(ProviderError(code)) ->
+      "Provider returned error: " <> code <> " — Provider rejected the request"
     HttpError(status, summary) ->
       "HTTP " <> int.to_string(status) <> ": " <> summary
     DecodeError(context, reason) ->
@@ -281,8 +293,7 @@ pub fn http_status(auth_error: AuthError(e)) -> Option(Int) {
   }
 }
 
-/// The short HTTP error summary, for `HttpKind` errors. May contain a
-/// truncated snippet of the provider's response body.
+/// The short HTTP error summary, for `HttpKind` errors.
 pub fn http_summary(auth_error: AuthError(e)) -> Option(String) {
   case auth_error {
     HttpError(_, summary) -> Some(summary)
@@ -343,12 +354,13 @@ pub fn provider_code(provider_error: ProviderError) -> String {
   provider_error.code
 }
 
-/// The standard OAuth `error_description`.
-pub fn provider_description(provider_error: ProviderError) -> String {
-  provider_error.description
+/// A fixed, log-safe provider error description.
+pub fn provider_description(_provider_error: ProviderError) -> String {
+  "Provider rejected the request"
 }
 
-/// The standard OAuth `error_uri`, when present.
-pub fn provider_uri(provider_error: ProviderError) -> Option(String) {
-  provider_error.uri
+/// The provider error URI. This is always `None`; provider-controlled URIs are
+/// discarded to avoid echoing secrets.
+pub fn provider_uri(_provider_error: ProviderError) -> Option(String) {
+  None
 }

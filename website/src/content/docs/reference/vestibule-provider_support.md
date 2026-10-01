@@ -4,7 +4,7 @@ description: "Stable helpers for OAuth provider implementations."
 nav:
   group: Reference
   groupOrder: 20
-  order: 18
+  order: 19
   label: "vestibule/provider_support"
 toc:
   - href: "#types"

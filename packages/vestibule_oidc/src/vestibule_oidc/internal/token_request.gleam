@@ -10,6 +10,8 @@ pub fn authorization_code(
   redirect_uri redirect_uri: String,
   code_verifier code_verifier: Option(String),
 ) -> List(#(String, String)) {
+  let authentication_parameters =
+    client_authentication_parameters(client_config)
   let base_parameters =
     [
       #("grant_type", "authorization_code"),
@@ -17,7 +19,7 @@ pub fn authorization_code(
       #("redirect_uri", redirect_uri),
       #("client_id", config.client_id(client_config)),
     ]
-    |> list.append(client_authentication_parameters(client_config))
+    |> list.append(authentication_parameters)
 
   case code_verifier {
     Some(verifier) ->

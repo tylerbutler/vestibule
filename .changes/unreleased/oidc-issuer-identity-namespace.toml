@@ -1,0 +1,3 @@
+package = "vestibule_oidc"
+kind = "Security"
+body = "Preserve the full OIDC issuer, including paths and ports, in account identity keys."

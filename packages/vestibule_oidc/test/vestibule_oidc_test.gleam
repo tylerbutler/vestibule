@@ -23,7 +23,7 @@ pub fn oidc_issuer_mismatch_is_detected_test() -> Nil {
   // The parse_discovery_document doesn't validate issuer -- that's done
   // in fetch_configuration. But we can test the parser handles all fields.
   let json =
-    "{\"issuer\":\"https://evil.example.com\",\"authorization_endpoint\":\"https://evil.example.com/auth\",\"token_endpoint\":\"https://evil.example.com/token\",\"userinfo_endpoint\":\"https://evil.example.com/userinfo\"}"
+    "{\"issuer\":\"https://evil.example.com\",\"authorization_endpoint\":\"https://evil.example.com/auth\",\"token_endpoint\":\"https://evil.example.com/token\",\"userinfo_endpoint\":\"https://evil.example.com/userinfo\",\"jwks_uri\":\"https://evil.example.com/keys\",\"id_token_signing_alg_values_supported\":[\"RS256\"]}"
   // Parser itself accepts it (validation happens at fetch_configuration level)
   let result = vestibule_oidc.parse_discovery_document(json)
   let assert Ok(parsed) = result
