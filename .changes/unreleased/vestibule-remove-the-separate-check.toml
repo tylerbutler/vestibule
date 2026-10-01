@@ -1,3 +1,0 @@
-package = "vestibule"
-kind = "Changed"
-body = "Remove the separate Check and Build CI jobs; keep Test to compile and test all workspace packages. Retain local check and strict build commands and document the CI job set."

@@ -265,6 +265,10 @@ tagged. `trellis doctor` prints the split.
 
 ### Adding Changelog Entries
 
+CI-only changes do not require changelog fragments. This includes workflow
+configuration, dependency-download pacing, and related CI documentation.
+Add fragments for package API or behavior changes included in the same PR.
+
 Changelog entries are TOML fragments in `.changes/unreleased/`, managed by
 [trellis](https://trellis.tylerbutler.com/docs/changelog/). `trellis changelog
 new` is non-interactive, so the package, kind, and body are all arguments:
@@ -295,7 +299,7 @@ Edit fragments, not changelogs.
 ### Release Flow
 
 1. Make changes following the commit message convention
-2. Add a changelog entry for each affected package (`just change ...`)
+2. Add a changelog entry for each affected package (`just change ...`), except for CI-only changes
 3. Push to a feature branch and create a PR
 4. After merge to main, the **Release** workflow runs `trellis release pr`,
    batching every package with pending fragments into a single release PR

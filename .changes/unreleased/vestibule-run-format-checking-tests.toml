@@ -1,3 +1,0 @@
-package = "vestibule"
-kind = "Changed"
-body = "Run format checking, lint, tests, and documentation generation in that order as sequential steps in one CI job, sharing environment setup, dependency restoration, and build artifacts. Run lint only after formatting succeeds."
