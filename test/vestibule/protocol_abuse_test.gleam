@@ -13,6 +13,7 @@ import vestibule/credential
 import vestibule/error
 import vestibule/pkce
 import vestibule/registry
+import vestibule/session_ttl
 import vestibule/state_store
 import vestibule/strategy
 import vestibule/transport_flow
@@ -87,7 +88,7 @@ fn start(store: state_store.StateStore) -> #(String, String, String) {
       providers,
       provider: "protocol",
       store: store,
-      ttl_seconds: 600,
+      ttl: session_ttl.default(),
       options: config.authorize_options(),
     )
   let assert Ok(parsed) = uri.parse(url)
@@ -325,7 +326,7 @@ pub fn nonce_substitution_rejects_callback_and_consumes_flow_test() -> Nil {
       providers,
       provider: "nonce-protocol",
       store: store,
-      ttl_seconds: 600,
+      ttl: session_ttl.default(),
       options: config.authorize_options(),
     )
   let assert Ok(other_flow) =
