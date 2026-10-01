@@ -1,3 +1,21 @@
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("../assets/fonts/geist-mono/GeistMono-Variable.woff2")
+    format("woff2-variations");
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  font-style: italic;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("../assets/fonts/geist-mono/GeistMono-Italic[wght].woff2")
+    format("woff2-variations");
+}
+
 :root {
   --bg: oklch(1 0 0);
   --surface: oklch(0.975 0.006 300);
@@ -34,7 +52,7 @@
   --radius-md: 0.625rem;
   --radius-lg: 0.875rem;
   --font-sans: "Figtree Variable", system-ui, sans-serif;
-  --font-mono: "Commit Mono", ui-monospace, monospace;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
   --text-caption: 0.8125rem;
   --text-label: 0.875rem;
   --text-body: 1rem;
@@ -1001,8 +1019,9 @@ p {
 code {
   font-family: var(--font-mono);
   font-size: var(--text-label);
-  font-feature-settings: "ss01" 1, "ss02" 1;
+  font-feature-settings: "ss01" 1, "ss11" 1;
   font-variant-ligatures: common-ligatures contextual;
+  font-variant-numeric: tabular-nums;
 }
 
 :not(pre) > code {
@@ -1017,10 +1036,12 @@ code {
   margin: 0;
 }
 
-.expressive-code pre {
-  font-family: var(--font-mono);
-  font-feature-settings: "ss01" 1, "ss02" 1;
+/* Expressive Code resets code descendants with `all`; this wins that cascade. */
+.expressive-code.expressive-code pre > code,
+.expressive-code.expressive-code pre > code * {
+  font-feature-settings: "ss01" 1, "ss11" 1;
   font-variant-ligatures: common-ligatures contextual;
+  font-variant-numeric: tabular-nums;
 }
 
 .section-heading {
