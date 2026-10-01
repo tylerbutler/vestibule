@@ -14,7 +14,7 @@ importers:
       '@fontsource-variable/figtree':
         specifier: ^5.3.0
         version: 5.3.0
-      '@fontsource/commit-mono':
+      '@fontsource-variable/geist-mono':
         specifier: ^5.3.0
         version: 5.3.0
       astro:
@@ -444,8 +444,8 @@ packages:
   '@fontsource-variable/figtree@5.3.0':
     resolution: {integrity: sha512-VRVodD7OiG7apQwE8/2fMjaqpY/a0qRJqL5HtYj8CKIVps+9amaFcdfKmDIf7iqYQx6iPLlArVXAfKeIZmVcNQ==}
 
-  '@fontsource/commit-mono@5.3.0':
-    resolution: {integrity: sha512-Bs+zlEWHDgk/cCVWEMJJaA7LbBU3Ixi5Zums+SSwMKdm2N7RJ4P7jCJTwsMHRt5WFiXYB0tu0q9HMfkn0YsLsQ==}
+  '@fontsource-variable/geist-mono@5.3.0':
+    resolution: {integrity: sha512-vBbuwDEo9AkrqADMXOrlAR3DFcJi4/JxeuU43FoiQERnNwsfXNnvxvReZG02cQKmyk4DZkZdBZX3oTDvy2zBAw==}
 
   '@img/colour@1.1.0':
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
@@ -2295,7 +2295,7 @@ snapshots:
 
   '@fontsource-variable/figtree@5.3.0': {}
 
-  '@fontsource/commit-mono@5.3.0': {}
+  '@fontsource-variable/geist-mono@5.3.0': {}
 
   '@img/colour@1.1.0':
     optional: true
