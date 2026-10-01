@@ -254,18 +254,26 @@ pub fn concurrent_callbacks_wait_for_single_jwks_refresh_test() -> Nil {
 
 pub fn discovered_configs_build_distinct_account_namespaces_test() -> Nil {
   let first_document =
-    "{\"issuer\":\"https://login.example:8443/trusted\",\"authorization_endpoint\":\"https://login.example:8443/trusted/authorize\",\"token_endpoint\":\"https://login.example:8443/trusted/token\",\"userinfo_endpoint\":\"https://login.example:8443/trusted/userinfo\",\"jwks_uri\":\"https://login.example:8443/trusted/keys\",\"id_token_signing_alg_values_supported\":[\"RS256\"]}"
+    "{\"issuer\":\"https://login.example:8443/trusted/\",\"authorization_endpoint\":\"https://login.example:8443/trusted/authorize\",\"token_endpoint\":\"https://login.example:8443/trusted/token\",\"userinfo_endpoint\":\"https://login.example:8443/trusted/userinfo\",\"jwks_uri\":\"https://login.example:8443/trusted/keys\",\"id_token_signing_alg_values_supported\":[\"RS256\"]}"
   let second_document =
     "{\"issuer\":\"https://login.example:8443/other\",\"authorization_endpoint\":\"https://login.example:8443/other/authorize\",\"token_endpoint\":\"https://login.example:8443/other/token\",\"userinfo_endpoint\":\"https://login.example:8443/other/userinfo\",\"jwks_uri\":\"https://login.example:8443/other/keys\",\"id_token_signing_alg_values_supported\":[\"RS256\"]}"
   let assert Ok(first) = vestibule_oidc.parse_discovery_document(first_document)
   let assert Ok(second) =
     vestibule_oidc.parse_discovery_document(second_document)
   let first_strategy =
-    vestibule_oidc.strategy_from_config(first, vestibule_oidc.issuer(first))
+    vestibule_oidc.strategy_from_config(
+      first,
+      vestibule_oidc.issuer_namespace(first),
+    )
   let second_strategy =
-    vestibule_oidc.strategy_from_config(second, vestibule_oidc.issuer(second))
+    vestibule_oidc.strategy_from_config(
+      second,
+      vestibule_oidc.issuer_namespace(second),
+    )
+  assert vestibule_oidc.issuer_namespace(first)
+    == "https://login.example:8443/trusted/"
   assert strategy.provider(first_strategy)
-    == "https://login.example:8443/trusted"
+    == "https://login.example:8443/trusted/"
   assert strategy.provider(first_strategy) != strategy.provider(second_strategy)
 }
 

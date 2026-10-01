@@ -164,9 +164,9 @@ pub fn pkce_verifiers_are_unique_test() -> Nil {
 /// Security: different verifiers must produce different challenges.
 /// Ensures the hash function actually incorporates the verifier.
 pub fn pkce_different_verifiers_produce_different_challenges_test() -> Nil {
-  let c1 = pkce.generate_verifier() |> pkce.compute_challenge()
-  let c2 = pkce.generate_verifier() |> pkce.compute_challenge()
-  assert c1 != c2
+  let first_challenge = pkce.generate_verifier() |> pkce.compute_challenge()
+  let second_challenge = pkce.generate_verifier() |> pkce.compute_challenge()
+  assert first_challenge != second_challenge
 }
 
 // ===========================================================================
@@ -203,21 +203,22 @@ pub fn create_authorization_request_produces_fresh_state_and_verifier_test() -> 
       auth: config.client_secret_auth("secret"),
       redirect_uri: "https://localhost/cb",
     )
-  let assert Ok(req1) =
+  let assert Ok(first_request) =
     vestibule.create_authorization_request(
       strategy,
       config: client_config,
       options: config.authorize_options(),
     )
-  let assert Ok(req2) =
+  let assert Ok(second_request) =
     vestibule.create_authorization_request(
       strategy,
       config: client_config,
       options: config.authorize_options(),
     )
-  assert authorization_request.state(req1) != authorization_request.state(req2)
-  assert authorization_request.code_verifier(req1)
-    != authorization_request.code_verifier(req2)
+  assert authorization_request.state(first_request)
+    != authorization_request.state(second_request)
+  assert authorization_request.code_verifier(first_request)
+    != authorization_request.code_verifier(second_request)
 }
 
 // ===========================================================================
