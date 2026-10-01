@@ -131,7 +131,7 @@ pub fn store_with_ttl_stores_retrievable_value_test() -> Nil {
       state: state,
       code_verifier: verifier,
       nonce: None,
-      ttl: ttl(600),
+      ttl: session_ttl.default(),
     )
 
   state_store.consume(table, session_id, provider: "test")
@@ -193,7 +193,7 @@ pub fn expired_sessions_are_removed_by_sweep_not_on_insert_test() -> Nil {
       state: "fresh-state",
       code_verifier: "verifier",
       nonce: None,
-      ttl: ttl(600),
+      ttl: session_ttl.default(),
     )
   count_store_entries(name)
   |> fn(actual) {
