@@ -93,22 +93,6 @@ jobs:
         uses: ./.github/actions/setup
       - run: trellis run format --check
 
-  check:
-    name: Check
-    needs: dependencies
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
-        with:
-          persist-credentials: false
-      - name: Setup environment
-        uses: ./.github/actions/setup
-      - name: Restore downloaded dependencies
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # ratchet:actions/download-artifact@v7
-        with:
-          name: gleam-dependencies
-      - run: trellis run check
-
   lint:
     name: Lint
     needs: dependencies
@@ -124,22 +108,6 @@ jobs:
         with:
           name: gleam-dependencies
       - run: trellis run lint
-
-  build:
-    name: Build
-    needs: dependencies
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
-        with:
-          persist-credentials: false
-      - name: Setup environment
-        uses: ./.github/actions/setup
-      - name: Restore downloaded dependencies
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # ratchet:actions/download-artifact@v7
-        with:
-          name: gleam-dependencies
-      - run: trellis run build --strict
 
   test:
     name: Test

@@ -89,9 +89,13 @@ just format
 ### Before Committing
 
 ```bash
-# Run full CI checks locally
+# Run full local checks
 just pr
 ```
+
+CI runs security-policy, dependency, format, lint, test, and documentation jobs.
+The test job compiles all packages, so CI has no separate check or build job.
+`just pr` retains the separate local check and strict build commands.
 
 ### Before Merging to Main
 
