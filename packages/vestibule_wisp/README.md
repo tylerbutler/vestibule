@@ -112,8 +112,7 @@ cookie survives. Keep the default `SecureOnly` in production.
 
 `Options` is opaque — build it with `default_options` and the `with_*`
 functions, which keep the effective cookie name consistent with the cookie
-security. Use `vestibule_wisp.is_host_bound_cookie_name/1` to check a
-caller-supplied name.
+security.
 
 ```gleam
 let options =

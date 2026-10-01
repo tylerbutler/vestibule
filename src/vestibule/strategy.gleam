@@ -63,13 +63,13 @@ pub fn user_result_extra(user: UserResult) -> Dict(String, Dynamic) {
 pub opaque type ExchangeResult {
   ExchangeResult(
     credentials: credential.Credentials,
-    artifacts: fn() -> Dict(String, Dynamic),
+    artifacts: Dict(String, Dynamic),
   )
 }
 
 /// Build an exchange result for providers with no provider-specific artifacts.
 pub fn exchange_result(credentials: credential.Credentials) -> ExchangeResult {
-  ExchangeResult(credentials: credentials, artifacts: fn() { dict.new() })
+  ExchangeResult(credentials: credentials, artifacts: dict.new())
 }
 
 /// Build an exchange result with provider-specific artifacts.
@@ -77,7 +77,7 @@ pub fn exchange_result_with_artifacts(
   credentials: credential.Credentials,
   artifacts: Dict(String, Dynamic),
 ) -> ExchangeResult {
-  ExchangeResult(credentials: credentials, artifacts: fn() { artifacts })
+  ExchangeResult(credentials: credentials, artifacts: artifacts)
 }
 
 /// Return the OAuth credentials produced by the exchange.
@@ -90,7 +90,7 @@ pub fn exchange_credentials(
 /// Return provider-specific artifacts produced by the exchange
 /// (e.g., an OpenID Connect `id_token`).
 pub fn exchange_artifacts(exchange: ExchangeResult) -> Dict(String, Dynamic) {
-  exchange.artifacts()
+  exchange.artifacts
 }
 
 /// A strategy is the bundle of provider-specific functions needed to
