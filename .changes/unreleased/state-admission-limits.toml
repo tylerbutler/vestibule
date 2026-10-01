@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Security"
+body = "Add atomic per-client and global admission limits to the in-memory OAuth state store, reject expired queued consumes and timed-out inserts, preserve one-time consumption under races, hide stored state, PKCE verifiers, and nonces from ordinary term rendering, and lower the default hard bound."
