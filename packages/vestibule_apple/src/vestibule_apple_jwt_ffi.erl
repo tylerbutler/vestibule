@@ -3,7 +3,7 @@
 -export([verify/3,
          sign/2,
          sign_es256/2,
-generate_es256_key_pair/0,
+         generate_es256_key_pair/0,
          verify_es256/3]).
 
 -include_lib("public_key/include/public_key.hrl").

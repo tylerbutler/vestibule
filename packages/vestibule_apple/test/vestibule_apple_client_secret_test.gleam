@@ -74,7 +74,7 @@ fn build(
   key_id: String,
   private_key: String,
   ttl: Int,
-) {
+) -> Result(String, vestibule_apple.ClientSecretError) {
   vestibule_apple.build_client_secret(
     team_id:,
     client_id:,
