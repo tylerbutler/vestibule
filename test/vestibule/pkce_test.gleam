@@ -1,7 +1,7 @@
 import gleam/string
 import vestibule/pkce
 
-pub fn generate_verifier_produces_43_char_string_test() -> Nil {
+pub fn generate_verifier_produces_43_character_string_test() -> Nil {
   let verifier = pkce.generate_verifier()
   // 32 bytes base64url-encoded without padding = 43 chars
   assert string.length(verifier) == 43

@@ -1,0 +1,3 @@
+package = "vestibule_microsoft"
+kind = "Fixed"
+body = "Return a decoding error for malformed ID token fields instead of treating them as absent."

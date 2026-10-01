@@ -15,7 +15,7 @@ setup:
   - Add the exact redirect URIs for each environment you demo from (HTTPS when not local).
 highlights:
   - user_info.email only returns a value when email_verified is true.
-  - Use config.with_extra_params to request offline access.
+  - Use config.with_extra_parameters to request offline access.
   - strategy_for_hosted_domain validates the hd claim server-side.
   - The hd authorization parameter alone is only an account-picker hint.
 code: |

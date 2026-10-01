@@ -551,7 +551,10 @@ fn build_authorize_url_fn(
         ]
         // Merge any extra parameters from options
         let all_parameters =
-          list.append(parameters, dict.to_list(config.extra_params(options)))
+          list.append(
+            parameters,
+            dict.to_list(config.extra_parameters(options)),
+          )
         let query = uri.query_to_string(all_parameters)
         let full_uri = uri.Uri(..base_uri, query: Some(query))
         Ok(uri.to_string(full_uri))

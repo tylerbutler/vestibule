@@ -1,0 +1,3 @@
+package = "vestibule_mist"
+kind = "Breaking"
+body = "Expand callback parameter helper and error names, use the parameters argument label, and rename minimum_secret_key_base_bytes."

@@ -227,8 +227,8 @@ export const authorizeUrl = `fn do_authorize_url(
     |> authorize_uri.set_state(state)
     |> authorize_uri.to_code_authorization_uri()
     |> uri.to_string()
-    |> provider_support.append_query_params(
-      dict.to_list(config.extra_params(options)),
+    |> provider_support.append_query_parameters(
+      dict.to_list(config.extra_parameters(options)),
     )
 
   Ok(url)

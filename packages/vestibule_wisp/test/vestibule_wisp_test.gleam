@@ -202,7 +202,7 @@ pub fn request_phase_with_options_passes_authorize_options_test() -> Nil {
   let http_request = simulate.request(http.Get, "/auth/test")
   let assert Ok(authorize_options) =
     config.authorize_options()
-    |> config.with_extra_params([#("prompt", "login")])
+    |> config.with_extra_parameters([#("prompt", "login")])
   let assert Ok(custom_ttl) = session_ttl.from_seconds(300)
 
   let response =
@@ -291,7 +291,9 @@ pub fn callback_phase_auth_result_malformed_post_body_returns_invalid_parameters
       store,
     )
   assert result
-    == Error(vestibule_wisp.InvalidCallbackParams(vestibule_wisp.BodyNotUtf8))
+    == Error(vestibule_wisp.InvalidCallbackParameters(
+      vestibule_wisp.BodyNotUtf8,
+    ))
 }
 
 pub fn callback_phase_auth_result_missing_state_does_not_consume_session_test() -> Nil {
@@ -379,7 +381,7 @@ fn authorize_options_strategy() -> Strategy(e) {
     provider: "test",
     default_scopes: [],
     authorize_url: fn(_config, options, _scopes, _state) {
-      case dict.get(config.extra_params(options), "prompt") {
+      case dict.get(config.extra_parameters(options), "prompt") {
         Ok(prompt) -> Ok("https://example.com?prompt=" <> prompt)
         Error(_) -> Ok("https://example.com")
       }
@@ -584,7 +586,7 @@ pub fn cross_site_cookie_is_accepted_by_callback_test() -> Nil {
       panic as "session was not found for the cross-site cookie"
     Ok(_)
     | Error(vestibule_wisp.UnknownProvider(_))
-    | Error(vestibule_wisp.InvalidCallbackParams(_))
+    | Error(vestibule_wisp.InvalidCallbackParameters(_))
     | Error(vestibule_wisp.AuthFailed(_)) -> Nil
   }
 }

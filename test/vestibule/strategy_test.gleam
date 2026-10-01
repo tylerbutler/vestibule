@@ -65,7 +65,7 @@ pub fn append_code_verifier_appends_to_existing_body_test() -> Nil {
     == "grant_type=authorization_code&code_verifier=verifier"
 }
 
-pub fn append_code_verifier_encodes_special_chars_test() -> Nil {
+pub fn append_code_verifier_encodes_special_characters_test() -> Nil {
   let assert Ok(http_request) = request.to("https://example.com/token")
 
   let http_request =

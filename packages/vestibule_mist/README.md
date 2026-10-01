@@ -155,7 +155,7 @@ case vestibule_mist.callback_phase_auth_result(
   Error(vestibule_mist.MissingOrInvalidSessionCookie(reason)) ->
     handle_missing_cookie(reason)
   Error(vestibule_mist.SessionUnavailable) -> handle_expired_session()
-  Error(vestibule_mist.InvalidCallbackParams(reason)) ->
+  Error(vestibule_mist.InvalidCallbackParameters(reason)) ->
     handle_bad_callback(reason)
   Error(vestibule_mist.AuthFailed(auth_error)) ->
     handle_auth_failure(auth_error)
@@ -168,7 +168,7 @@ provider-controlled error descriptions are not reflected to users. Use
 details for logging or custom rendering.
 
 Malformed provider responses and missing `state` or `code` parameters are
-reported through `AuthFailed`. `InvalidCallbackParams` is returned when
+reported through `AuthFailed`. `InvalidCallbackParameters` is returned when
 callback parameters cannot be extracted from the request, such as malformed
 POST form data.
 
@@ -178,7 +178,7 @@ POST form data.
 `application/x-www-form-urlencoded` body parameters (up to 64 KiB) and
 merge them over query parameters, so body values take precedence. If a
 POST body cannot be read, decoded as UTF-8, or parsed as form data,
-callback handling returns `InvalidCallbackParams` instead of falling back
+callback handling returns `InvalidCallbackParameters` instead of falling back
 to query parameters.
 
 ## State store

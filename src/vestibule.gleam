@@ -16,7 +16,6 @@ import gleam/list
 import gleam/option
 import gleam/result
 import gleam/string
-import gleam/uri
 
 import vestibule/auth.{type Auth}
 import vestibule/authorization_request.{type AuthorizationRequest}
@@ -26,6 +25,7 @@ import vestibule/error.{type AuthError}
 import vestibule/logger
 import vestibule/nonce
 import vestibule/pkce
+import vestibule/provider_support
 import vestibule/state
 import vestibule/strategy.{type Strategy}
 
@@ -155,7 +155,7 @@ pub fn create_authorization_request(
 pub fn handle_callback(
   strategy: Strategy(e),
   config config: ClientConfig,
-  callback_params parameters: Dict(String, String),
+  callback_parameters parameters: Dict(String, String),
   expected_state expected_state: String,
   code_verifier code_verifier: String,
   expected_nonce expected_nonce: option.Option(String),
@@ -539,44 +539,19 @@ fn check_provider_error(
 
 /// Append PKCE code_challenge and code_challenge_method to an authorization URL.
 fn append_pkce_parameters(url: String, code_challenge: String) -> String {
-  merge_query(
-    url,
-    uri.query_to_string([
-      #("code_challenge", code_challenge),
-      #("code_challenge_method", "S256"),
-    ]),
-  )
+  provider_support.append_query_parameters(url, [
+    #("code_challenge", code_challenge),
+    #("code_challenge_method", "S256"),
+  ])
 }
 
 /// Append the OIDC `nonce` parameter to an authorization URL when present.
 fn append_nonce_parameter(url: String, nonce: option.Option(String)) -> String {
   case nonce {
     option.Some(value) ->
-      merge_query(url, uri.query_to_string([#("nonce", value)]))
+      provider_support.append_query_parameters(url, [#("nonce", value)])
     option.None -> url
   }
-}
-
-/// Merge an additional query string into a URL, preserving any existing query.
-fn merge_query(url: String, extra: String) -> String {
-  case uri.parse(url) {
-    Ok(parsed) -> {
-      let query = case parsed.query {
-        option.Some(existing) -> existing <> "&" <> extra
-        option.None -> extra
-      }
-      uri.to_string(uri.Uri(..parsed, query: option.Some(query)))
-    }
-    Error(_) -> append_raw_query(url, extra)
-  }
-}
-
-fn append_raw_query(url: String, query: String) -> String {
-  let separator = case string.contains(url, "?") {
-    True -> "&"
-    False -> "?"
-  }
-  url <> separator <> query
 }
 
 /// Validate the OIDC `nonce` claim in the exchange's `id_token` artifact

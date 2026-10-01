@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Breaking"
+body = "Expand abbreviated public API names: extra_parameters, with_extra_parameters, missing_parameter, callback_parameters, append_query_parameters, and maximum_entries."

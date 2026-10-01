@@ -240,7 +240,7 @@ pub fn owner_periodic_sweep_removes_expired_sessions_test() -> Nil {
 pub fn store_rejects_new_sessions_when_full_test() -> Nil {
   let name = "vestibule_capacity_test"
   let assert Ok(table) =
-    state_store.create_with_capacity(name: name, max_entries: 2)
+    state_store.create_with_capacity(name: name, maximum_entries: 2)
   let store = fn(state) {
     state_store.store(
       table,
@@ -270,7 +270,7 @@ pub fn store_rejects_new_sessions_when_full_test() -> Nil {
 pub fn store_reclaims_expired_sessions_before_reporting_full_test() -> Nil {
   let name = "vestibule_capacity_reclaim_test"
   let assert Ok(table) =
-    state_store.create_with_capacity(name: name, max_entries: 1)
+    state_store.create_with_capacity(name: name, maximum_entries: 1)
   let assert Ok(_) =
     state_store.store_with_ttl(
       table,
@@ -297,7 +297,10 @@ pub fn store_reclaims_expired_sessions_before_reporting_full_test() -> Nil {
 }
 
 pub fn create_with_capacity_rejects_non_positive_capacity_test() -> Nil {
-  state_store.create_with_capacity(name: "vestibule_zero_cap", max_entries: 0)
+  state_store.create_with_capacity(
+    name: "vestibule_zero_cap",
+    maximum_entries: 0,
+  )
   |> fn(result) {
     let assert Error(value) = result
     value

@@ -294,8 +294,8 @@ fn do_authorize_url(
     |> authorize_uri.set_state(state)
     |> authorize_uri.to_code_authorization_uri()
     |> uri.to_string()
-    |> provider_support.append_query_params(
-      dict.to_list(config.extra_params(options)),
+    |> provider_support.append_query_parameters(
+      dict.to_list(config.extra_parameters(options)),
     )
   Ok(authorize_url)
 }
@@ -355,13 +355,14 @@ fn parse_exchange_result(
   body: String,
 ) -> Result(strategy.ExchangeResult, AuthError(e)) {
   use oauth_credentials <- result.try(parse_token_response(body))
+  use id_token <- result.try(parse_id_token(body))
   Ok(strategy.exchange_result_with_artifacts(
     oauth_credentials,
-    id_token_artifacts(parse_id_token(body)),
+    id_token_artifacts(id_token),
   ))
 }
 
-fn parse_id_token(body: String) -> Option(String) {
+fn parse_id_token(body: String) -> Result(Option(String), AuthError(e)) {
   let decoder = {
     use id_token <- decode.optional_field(
       "id_token",
@@ -371,8 +372,12 @@ fn parse_id_token(body: String) -> Option(String) {
     decode.success(id_token)
   }
   case json.parse(body, decoder) {
-    Ok(id_token) -> id_token
-    Error(_) -> None
+    Ok(id_token) -> Ok(id_token)
+    Error(parse_error) ->
+      Error(error.decode(
+        context: "Microsoft ID token",
+        reason: string.inspect(parse_error),
+      ))
   }
 }
 

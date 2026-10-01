@@ -237,7 +237,7 @@ pub fn request_phase_passes_authorize_options_test() -> Nil {
     )
   let assert Ok(authorize_options) =
     config.authorize_options()
-    |> config.with_extra_params([#("prompt", "login")])
+    |> config.with_extra_parameters([#("prompt", "login")])
   let assert Ok(custom_ttl) = session_ttl.from_seconds(300)
   let options =
     test_options()
@@ -262,14 +262,14 @@ pub fn request_phase_passes_authorize_options_test() -> Nil {
   assert string.contains(cookie_header, "Max-Age=300")
 }
 
-// === callback_phase_auth_result_with_params ===
+// === callback_phase_auth_result_with_parameters ===
 
 pub fn callback_unknown_provider_test() -> Nil {
   let http_request = request.new()
   let assert Ok(store) =
     state_store.create_named("test_mist_cb_unknown_provider")
 
-  vestibule_mist.callback_phase_auth_result_with_params(
+  vestibule_mist.callback_phase_auth_result_with_parameters(
     http_request,
     dict.from_list([#("state", "s"), #("code", "c")]),
     registry.new(),
@@ -289,7 +289,7 @@ pub fn callback_missing_session_cookie_test() -> Nil {
     registry.new()
     |> registry.register(strategy: test_strategy(), config: test_config())
 
-  vestibule_mist.callback_phase_auth_result_with_params(
+  vestibule_mist.callback_phase_auth_result_with_parameters(
     http_request,
     dict.from_list([#("state", "s"), #("code", "c")]),
     registry,
@@ -318,7 +318,7 @@ pub fn callback_tampered_cookie_reports_invalid_signature_test() -> Nil {
     registry.new()
     |> registry.register(strategy: test_strategy(), config: test_config())
 
-  vestibule_mist.callback_phase_auth_result_with_params(
+  vestibule_mist.callback_phase_auth_result_with_parameters(
     http_request,
     dict.from_list([#("state", "s"), #("code", "c")]),
     registry,
@@ -354,7 +354,7 @@ pub fn callback_wrong_secret_reports_invalid_signature_test() -> Nil {
     registry.new()
     |> registry.register(strategy: test_strategy(), config: test_config())
 
-  vestibule_mist.callback_phase_auth_result_with_params(
+  vestibule_mist.callback_phase_auth_result_with_parameters(
     http_request,
     dict.from_list([#("state", "state"), #("code", "c")]),
     registry,
@@ -390,7 +390,7 @@ pub fn callback_missing_state_does_not_consume_session_test() -> Nil {
     registry.new()
     |> registry.register(strategy: test_strategy(), config: test_config())
 
-  vestibule_mist.callback_phase_auth_result_with_params(
+  vestibule_mist.callback_phase_auth_result_with_parameters(
     http_request,
     dict.from_list([#("code", "c")]),
     registry,
@@ -403,7 +403,7 @@ pub fn callback_missing_state_does_not_consume_session_test() -> Nil {
       == Error(vestibule_mist.AuthFailed(error.missing_callback_param("state")))
   }
 
-  vestibule_mist.callback_phase_auth_result_with_params(
+  vestibule_mist.callback_phase_auth_result_with_parameters(
     http_request,
     dict.from_list([#("state", "state"), #("code", "c")]),
     registry,
@@ -432,7 +432,7 @@ pub fn callback_unknown_session_returns_expired_test() -> Nil {
     registry.new()
     |> registry.register(strategy: test_strategy(), config: test_config())
 
-  vestibule_mist.callback_phase_auth_result_with_params(
+  vestibule_mist.callback_phase_auth_result_with_parameters(
     http_request,
     dict.from_list([#("state", "s"), #("code", "c")]),
     registry,
@@ -468,7 +468,7 @@ pub fn callback_auth_result_preserves_provider_error_details_test() -> Nil {
       config: test_config(),
     )
 
-  vestibule_mist.callback_phase_auth_result_with_params(
+  vestibule_mist.callback_phase_auth_result_with_parameters(
     http_request,
     dict.from_list([#("state", "state"), #("code", "c")]),
     registry,
@@ -508,7 +508,7 @@ pub fn callback_custom_cookie_name_is_honored_test() -> Nil {
     registry.new()
     |> registry.register(strategy: test_strategy(), config: test_config())
 
-  vestibule_mist.callback_phase_auth_result_with_params(
+  vestibule_mist.callback_phase_auth_result_with_parameters(
     http_request,
     dict.from_list([#("state", "state"), #("code", "c")]),
     registry,
@@ -526,7 +526,7 @@ pub fn callback_custom_cookie_name_is_honored_test() -> Nil {
   let custom_options =
     test_options() |> vestibule_mist.with_cookie_name("custom_session")
 
-  vestibule_mist.callback_phase_auth_result_with_params(
+  vestibule_mist.callback_phase_auth_result_with_parameters(
     http_request,
     dict.from_list([#("state", "state"), #("code", "c")]),
     registry,
@@ -594,7 +594,7 @@ fn authorize_options_strategy() -> Strategy(e) {
     provider: "test",
     default_scopes: [],
     authorize_url: fn(_config, options, _scopes, _state) {
-      case dict.get(config.extra_params(options), "prompt") {
+      case dict.get(config.extra_parameters(options), "prompt") {
         Ok(prompt) -> Ok("https://example.com?prompt=" <> prompt)
         Error(_) -> Ok("https://example.com")
       }
