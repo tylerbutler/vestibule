@@ -9,17 +9,14 @@ Ensure you have the following installed:
 | Tool | Version | Purpose |
 |------|---------|---------|
 | Erlang/OTP | 27.2.1+ | BEAM runtime |
-| Gleam | 1.16.0+ | Compiler and tooling |
+| Gleam | 1.18.1+ | Compiler and tooling |
 | just | 1.38.0+ | Task runner |
 
-**Recommended:** Use [mise](https://mise.jdx.dev/) or [asdf](https://asdf-vm.com/) with the provided `.tool-versions` file.
+**Recommended:** Use [mise](https://mise.jdx.dev/) with the provided
+`.mise.toml` and `mise.lock` files.
 
 ```bash
-# With mise
-mise install
-
-# With asdf
-asdf install
+mise install --locked
 ```
 
 ## Getting Started
@@ -136,7 +133,8 @@ just main
 │   └── workflows/                    # CI/CD pipelines
 ├── gleam.toml                        # Package configuration
 ├── justfile                          # Task definitions
-└── .tool-versions                    # Tool version pinning
+├── .mise.toml                        # Tool version configuration
+└── mise.lock                         # Locked tool downloads and checksums
 ```
 
 ## Code Style

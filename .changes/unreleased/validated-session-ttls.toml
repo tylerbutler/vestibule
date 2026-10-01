@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Added"
+body = "Added an opaque session TTL type that validates whole-second values from integers or durations before storage and cookie use."

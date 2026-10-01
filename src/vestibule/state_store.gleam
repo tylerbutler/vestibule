@@ -36,10 +36,9 @@ import gleam/crypto
 import gleam/option.{type Option}
 import gleam/order
 import gleam/result
-import gleam/time/duration
 import gleam/time/timestamp
 
-const default_ttl_seconds = 600
+import vestibule/session_ttl.{type SessionTtl}
 
 /// Default upper bound on live sessions per store. Each entry is a few
 /// hundred bytes, so this caps a store at roughly tens of megabytes.
@@ -140,7 +139,7 @@ pub fn store(
     state: state,
     code_verifier: code_verifier,
     nonce: nonce,
-    ttl_seconds: default_ttl_seconds,
+    ttl: session_ttl.default(),
   )
 }
 
@@ -152,14 +151,14 @@ pub fn store_with_ttl(
   state state: String,
   code_verifier code_verifier: String,
   nonce nonce: Option(String),
-  ttl_seconds ttl_seconds: Int,
+  ttl ttl: SessionTtl,
 ) -> Result(String, StateStoreError) {
   let session_id =
     crypto.strong_random_bytes(16)
     |> bit_array.base64_url_encode(False)
   let expires_at =
     timestamp.system_time()
-    |> timestamp.add(duration.seconds(ttl_seconds))
+    |> timestamp.add(session_ttl.to_duration(ttl))
 
   case
     insert(

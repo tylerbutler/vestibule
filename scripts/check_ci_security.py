@@ -55,10 +55,6 @@ def check_tools(failures: list[str]) -> None:
         if version == "latest" or not re.fullmatch(r"\d+\.\d+\.\d+", version):
             fail(f".mise.toml: {tool} must use an exact version", failures)
 
-    for number, line in enumerate((ROOT / ".tool-versions").read_text().splitlines(), 1):
-        if line and not re.fullmatch(r"\S+ \d+\.\d+\.\d+", line):
-            fail(f".tool-versions:{number}: tool must use an exact version", failures)
-
     lock = tomllib.loads((ROOT / "mise.lock").read_text())
     for tool, entries in lock["tools"].items():
         for entry in entries:
@@ -72,10 +68,6 @@ def check_tools(failures: list[str]) -> None:
         fail(".github/actions/mise/action.yml: mise binary version is not pinned", failures)
     if not re.search(r'sha256:\s*"[0-9a-f]{64}"', action):
         fail(".github/actions/mise/action.yml: mise binary checksum is not pinned", failures)
-    if 'MISE_OVERRIDE_TOOL_VERSIONS_FILENAMES: ""' not in action:
-        fail(".github/actions/mise/action.yml: locked CI must exclude .tool-versions aliases", failures)
-
-
 def check_release_binding(failures: list[str]) -> None:
     publish = (WORKFLOWS / "publish.yml").read_text()
     required = (
