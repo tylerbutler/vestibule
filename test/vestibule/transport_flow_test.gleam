@@ -6,6 +6,7 @@ import vestibule/config
 import vestibule/credential
 import vestibule/error
 import vestibule/registry
+import vestibule/session_ttl
 import vestibule/state_store
 import vestibule/strategy
 import vestibule/transport_flow
@@ -50,7 +51,7 @@ pub fn start_authorization_threads_custom_options_to_strategy_test() -> Nil {
       provider_registry,
       provider: "custom",
       store: store,
-      ttl_seconds: 600,
+      ttl: session_ttl.default(),
       options: options,
     )
 
@@ -122,7 +123,7 @@ pub fn finish_callback_rejects_session_started_for_another_provider_test() -> Ni
       provider_registry,
       provider: "alpha",
       store: store,
-      ttl_seconds: 600,
+      ttl: session_ttl.default(),
       options: config.authorize_options(),
     )
   let assert Ok(#(state, _verifier, _nonce)) =

@@ -27,6 +27,7 @@ import vestibule/config.{type AuthorizeOptions}
 import vestibule/error
 import vestibule/logger
 import vestibule/registry.{type Registry}
+import vestibule/session_ttl.{type SessionTtl}
 import vestibule/state_store.{type StateStore}
 import vestibule/transport_flow
 
@@ -66,7 +67,7 @@ pub type CookieSameSite {
 /// Middleware configuration options.
 ///
 /// Construct with `default_options` and customize with `with_cookie_name`,
-/// `with_session_ttl_seconds`, `with_cookie_security`, and `with_same_site`. The type is opaque
+/// `with_session_ttl`, `with_cookie_security`, and `with_same_site`. The type is opaque
 /// so the effective cookie name always matches the cookie security: host-bound
 /// (`__Host-` prefixed) under `SecureOnly`, unprefixed under `AllowInsecure`
 /// (browsers reject `__Host-` cookies that are not `Secure`). A host-bound
@@ -80,7 +81,7 @@ pub opaque type Options {
     // Base cookie name without the `__Host-` prefix; the effective name is
     // produced by the `cookie_name` accessor from `cookie_security`.
     cookie_name: String,
-    session_ttl_seconds: Int,
+    session_ttl: SessionTtl,
     cookie_security: CookieSecurity,
     same_site: CookieSameSite,
   )
@@ -150,7 +151,7 @@ pub type CallbackParamsError {
 pub fn default_options() -> Options {
   Options(
     cookie_name: default_cookie_base_name,
-    session_ttl_seconds: 600,
+    session_ttl: session_ttl.default(),
     cookie_security: SecureOnly,
     same_site: Lax,
   )
@@ -177,8 +178,8 @@ pub fn with_cookie_name(options: Options, name: String) -> Options {
 
 /// Set how long an in-flight authorization flow (and its session cookie)
 /// stays valid.
-pub fn with_session_ttl_seconds(options: Options, seconds: Int) -> Options {
-  Options(..options, session_ttl_seconds: seconds)
+pub fn with_session_ttl(options: Options, ttl: SessionTtl) -> Options {
+  Options(..options, session_ttl: ttl)
 }
 
 /// Set whether the session cookie requires HTTPS. See `CookieSecurity`.
@@ -209,9 +210,9 @@ pub fn cookie_name(options: Options) -> String {
   }
 }
 
-/// The session TTL in seconds for these options.
-pub fn session_ttl_seconds(options: Options) -> Int {
-  options.session_ttl_seconds
+/// The validated session TTL for these options.
+pub fn session_ttl(options: Options) -> SessionTtl {
+  options.session_ttl
 }
 
 /// The cookie security for these options.
@@ -352,7 +353,7 @@ pub fn request_phase_for_client_with_options(
       provider: provider,
       store: state_store,
       client_key: client_key,
-      ttl_seconds: session_ttl_seconds(middleware_options),
+      ttl: session_ttl(middleware_options),
       options: authorize_options,
     )
   {
@@ -665,7 +666,7 @@ fn set_session_cookie(
         cookie_name(options),
         session_id,
         wisp.Signed,
-        session_ttl_seconds(options),
+        session_ttl.to_seconds(options.session_ttl),
       )
     CrossSite -> {
       let value =
@@ -673,7 +674,7 @@ fn set_session_cookie(
       let attributes =
         cookie.Attributes(
           ..cookie.defaults(http.Https),
-          max_age: option.Some(session_ttl_seconds(options)),
+          max_age: option.Some(session_ttl.to_seconds(options.session_ttl)),
           same_site: option.Some(cookie.None),
         )
       response.set_cookie(response, cookie_name(options), value, attributes)

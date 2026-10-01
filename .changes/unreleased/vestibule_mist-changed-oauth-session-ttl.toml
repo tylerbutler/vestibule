@@ -1,0 +1,3 @@
+package = "vestibule_mist"
+kind = "Breaking"
+body = "Changed OAuth session TTL options to accept validated vestibule SessionTtl values."
