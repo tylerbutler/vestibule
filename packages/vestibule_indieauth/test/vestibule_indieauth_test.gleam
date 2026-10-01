@@ -4,6 +4,7 @@ import gleam/option.{None}
 import gleam/string
 import gleeunit
 import vestibule
+import vestibule/auth
 import vestibule/config
 import vestibule/credential
 import vestibule/error
@@ -164,7 +165,7 @@ fn test_client_config() -> config.ClientConfig {
 fn metadata_callback(
   callback_params: dict.Dict(String, String),
   response_issuer_flag: option.Option(Bool),
-) {
+) -> Result(auth.Auth, error.AuthError(e)) {
   let flag = case response_issuer_flag {
     option.Some(value) ->
       ",\"authorization_response_iss_parameter_supported\":"
