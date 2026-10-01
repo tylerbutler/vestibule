@@ -40,6 +40,9 @@ pub opaque type VerifiedIdToken {
     audiences: List(String),
     authorized_party: Option(String),
     nonce: Option(String),
+    hosted_domain: Option(String),
+    tenant_id: Option(String),
+    object_id: Option(String),
   )
 }
 
@@ -166,6 +169,21 @@ pub fn authorized_party(token: VerifiedIdToken) -> Option(String) {
 /// Return the verified nonce.
 pub fn nonce(token: VerifiedIdToken) -> Option(String) {
   token.nonce
+}
+
+/// Return the verified Google Workspace hosted domain.
+pub fn hosted_domain(token: VerifiedIdToken) -> Option(String) {
+  token.hosted_domain
+}
+
+/// Return the verified Microsoft tenant ID.
+pub fn tenant_id(token: VerifiedIdToken) -> Option(String) {
+  token.tenant_id
+}
+
+/// Return the verified Microsoft object ID.
+pub fn object_id(token: VerifiedIdToken) -> Option(String) {
+  token.object_id
 }
 
 /// Return a short token-free description suitable for an authentication error.
@@ -349,11 +367,29 @@ fn verified_token_decoder() -> Decoder(VerifiedIdToken) {
     None,
     decode.optional(decode.string),
   )
+  use hosted_domain <- decode.optional_field(
+    "hd",
+    None,
+    decode.optional(decode.string),
+  )
+  use tenant_id <- decode.optional_field(
+    "tid",
+    None,
+    decode.optional(decode.string),
+  )
+  use object_id <- decode.optional_field(
+    "oid",
+    None,
+    decode.optional(decode.string),
+  )
   decode.success(VerifiedIdToken(
     subject: subject,
     audiences: audiences,
     authorized_party: authorized_party,
     nonce: nonce,
+    hosted_domain: hosted_domain,
+    tenant_id: tenant_id,
+    object_id: object_id,
   ))
 }
 

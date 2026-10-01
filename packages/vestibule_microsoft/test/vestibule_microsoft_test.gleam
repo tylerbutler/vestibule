@@ -779,7 +779,7 @@ fn microsoft_callback(
   graph_object_id: String,
   token_nonce: String,
   expected_nonce: String,
-) {
+) -> Result(auth.Auth, error.AuthError(e)) {
   let id_token =
     microsoft_token(
       "https://login.microsoftonline.com/" <> tenant <> "/v2.0",
@@ -798,7 +798,7 @@ fn run_microsoft_callback(
   expected_nonce: String,
   common_authority: Bool,
   allow_graph: Bool,
-) {
+) -> Result(auth.Auth, error.AuthError(e)) {
   let sender = fn(http_request: request.Request(String)) {
     case
       http_request.host,

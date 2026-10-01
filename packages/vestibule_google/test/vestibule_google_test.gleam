@@ -594,7 +594,7 @@ fn google_callback(
   hosted_domain: String,
   token_nonce: String,
   expected_nonce: String,
-) {
+) -> Result(auth.Auth, error.AuthError(e)) {
   let id_token =
     google_token(
       "https://accounts.google.com",
@@ -645,7 +645,7 @@ fn run_google_callback(
   userinfo_hosted_domain: Option(String),
   expected_nonce: String,
   allow_userinfo: Bool,
-) {
+) -> Result(auth.Auth, error.AuthError(e)) {
   let sender = fn(http_request: request.Request(String)) {
     case
       http_request.host,
