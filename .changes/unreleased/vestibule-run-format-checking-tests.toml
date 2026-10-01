@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Changed"
+body = "Run format checking, tests, and documentation generation as sequential steps in one CI job, sharing environment setup, dependency restoration, and build artifacts. Keep lint in its separate job."

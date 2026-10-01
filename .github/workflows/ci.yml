@@ -1,8 +1,7 @@
 name: CI
 
-# One job per task. `trellis run` fans each task across every workspace package
-# graph-parallel, so no job needs a package matrix — or a list of packages to
-# build one from.
+# Format, test, and docs share setup and build artifacts in one job.
+# `trellis run` fans each task across workspace packages graph-parallel.
 on:
   push:
     branches: [main]
@@ -81,18 +80,6 @@ jobs:
             example/build/packages
             ~/.cache/gleam
           key: ${{ steps.setup.outputs.cache-key }}
-  format:
-    name: Format
-    runs-on: ubuntu-latest
-    needs: dependencies
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
-        with:
-          persist-credentials: false
-      - name: Setup environment
-        uses: ./.github/actions/setup
-      - run: trellis run format --check
-
   lint:
     name: Lint
     needs: dependencies
@@ -110,7 +97,7 @@ jobs:
       - run: trellis run lint
 
   test:
-    name: Test
+    name: Format, Test, and Docs
     needs: dependencies
     runs-on: ubuntu-latest
     steps:
@@ -123,20 +110,9 @@ jobs:
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # ratchet:actions/download-artifact@v7
         with:
           name: gleam-dependencies
-      - run: trellis run test
-
-  docs:
-    name: Docs
-    needs: dependencies
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
-        with:
-          persist-credentials: false
-      - name: Setup environment
-        uses: ./.github/actions/setup
-      - name: Restore downloaded dependencies
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # ratchet:actions/download-artifact@v7
-        with:
-          name: gleam-dependencies
-      - run: trellis run docs
+      - name: Check formatting
+        run: trellis run format --check
+      - name: Run tests
+        run: trellis run test
+      - name: Build documentation
+        run: trellis run docs

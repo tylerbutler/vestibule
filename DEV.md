@@ -93,8 +93,10 @@ just format
 just pr
 ```
 
-CI runs security-policy, dependency, format, lint, test, and documentation jobs.
-The test job compiles all packages, so CI has no separate check or build job.
+CI runs security-policy, dependency, lint, and combined format/test/docs jobs.
+The combined job checks formatting, runs tests, and builds documentation in order
+with one environment setup and dependency restore. Tests compile all packages,
+so CI has no separate check or build job.
 `just pr` retains the separate local check and strict build commands.
 
 ### Before Merging to Main
