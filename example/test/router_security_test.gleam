@@ -203,7 +203,7 @@ fn success_strategy() -> Strategy(Nil) {
       )
     },
     fetch_user: fn(_config, _exchange) {
-      let info =
+      let user_information =
         user_info.new()
         |> user_info.with_name(option.Some("<img src=x onerror=alert(1)>"))
         |> user_info.with_email(option.Some("<script>alert(2)</script>"))
@@ -213,7 +213,7 @@ fn success_strategy() -> Strategy(Nil) {
         ))
       Ok(strategy.user_result(
         uid: "<svg onload=alert(5)>",
-        info: info,
+        info: user_information,
         extra: dict.new(),
       ))
     },
