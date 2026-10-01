@@ -71,7 +71,7 @@ setup complexity that distracts from the multi-provider example.
 
 If `SECRET_KEY_BASE` is not set, the example generates a fresh cryptographic
 key at startup. Restarting the server then invalidates any in-flight OAuth flow
-cookies. The server explicitly binds to localhost and uses an HTTP-compatible
-cookie only for this local flow. Set a unique persistent secret and redesign the
-deployment, session, and proxy configuration before exposing a derivative
-application.
+cookies. A configured value must contain at least 32 bytes of unpredictable
+data. The server explicitly binds to localhost and uses an HTTP-compatible
+cookie only for this local flow. Redesign the deployment, session, and proxy
+configuration before exposing a derivative application.
