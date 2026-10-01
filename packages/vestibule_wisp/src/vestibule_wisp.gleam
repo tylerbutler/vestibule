@@ -220,18 +220,6 @@ pub fn cookie_security(options: Options) -> CookieSecurity {
   options.cookie_security
 }
 
-/// Returns `True` when `name` is host-bound (uses the `__Host-` prefix).
-///
-/// Host-bound cookie names resist cookie tossing / session fixation from
-/// sibling subdomains: browsers only accept a `__Host-` cookie when it is set
-/// with `Secure`, `Path=/`, and no `Domain` attribute, so a sibling subdomain
-/// cannot overwrite it with a `Domain=.example.com` cookie of the same name.
-/// `Options` enforces the prefix for its own cookie name; use this to check
-/// names from other sources.
-pub fn is_host_bound_cookie_name(name: String) -> Bool {
-  string.starts_with(name, host_cookie_prefix)
-}
-
 /// Phase 1: Redirect user to the OAuth provider.
 ///
 /// Looks up the provider in the registry, generates an authorization URL
