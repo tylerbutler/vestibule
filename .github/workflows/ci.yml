@@ -1,6 +1,6 @@
 name: CI
 
-# Format, test, and docs share setup and build artifacts in one job.
+# Format, lint, test, and docs share setup and build artifacts in one job.
 # `trellis run` fans each task across workspace packages graph-parallel.
 on:
   push:
@@ -80,24 +80,8 @@ jobs:
             example/build/packages
             ~/.cache/gleam
           key: ${{ steps.setup.outputs.cache-key }}
-  lint:
-    name: Lint
-    needs: dependencies
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
-        with:
-          persist-credentials: false
-      - name: Setup environment
-        uses: ./.github/actions/setup
-      - name: Restore downloaded dependencies
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # ratchet:actions/download-artifact@v7
-        with:
-          name: gleam-dependencies
-      - run: trellis run lint
-
   test:
-    name: Format, Test, and Docs
+    name: Format, Lint, Test, and Docs
     needs: dependencies
     runs-on: ubuntu-latest
     steps:
@@ -112,6 +96,8 @@ jobs:
           name: gleam-dependencies
       - name: Check formatting
         run: trellis run format --check
+      - name: Lint
+        run: trellis run lint
       - name: Run tests
         run: trellis run test
       - name: Build documentation
