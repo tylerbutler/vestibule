@@ -139,7 +139,7 @@ Use `mise install --locked` to install the pinned local toolchain.
 
 ### Release Flow
 1. Push commits with conventional commit messages
-2. Add changelog entries with `just change <package> <kind> "What changed"`
+2. Add changelog entries with `just change <package> <kind> "What changed"`; skip CI-only changes
 3. `trellis release pr` batches all packages with pending fragments into a single release PR
 4. Release PR bumps each package's `gleam.toml` version, regenerates per-package `CHANGELOG.md`, and patches the locked workspace versions in every `manifest.toml`
 5. Merge PR → `trellis tag create --github-release` records the release as tags and GitHub Releases; nothing goes to Hex
@@ -189,6 +189,7 @@ engine is native — no second binary in CI:
 - Per-package version sections stored in `.changes/<package>/v*.md`; each `CHANGELOG.md` is **generated** by reassembling them
 - Each package has its own `CHANGELOG.md` (root for vestibule, `packages/<pkg>/CHANGELOG.md` for sub-packages)
 - Add an entry with `just change <package> <kind> "What changed"` (`trellis changelog new` under the hood — non-interactive)
+- CI-only changes, including workflow configuration, dependency-download pacing, and related CI documentation, do not require fragments. Package API or behavior changes in the same PR still require entries.
 - `just changelog-preview` (`trellis version plan`) shows the bumps the pending fragments imply
 - Packages that path-depend on a bumped package are bumped too, with a generated `Dependencies` entry
 - The `example` app is a workspace member but is excluded from releases via `exclude."@release"`; every package, including all providers, is versioned and released

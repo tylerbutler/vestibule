@@ -432,9 +432,9 @@ fn do_authorize_url(
   let url = url <> "&response_mode=form_post"
   // Append any extra parameters from options
   let url =
-    provider_support.append_query_params(
+    provider_support.append_query_parameters(
       url,
-      dict.to_list(config.extra_params(options)),
+      dict.to_list(config.extra_parameters(options)),
     )
   Ok(url)
 }

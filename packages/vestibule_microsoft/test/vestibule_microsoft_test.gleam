@@ -9,6 +9,7 @@ import gleam/string
 import gleeunit
 import vestibule/config
 import vestibule/credential
+import vestibule/error
 import vestibule/strategy
 import vestibule/user_info
 import vestibule_microsoft
@@ -415,7 +416,7 @@ pub fn authorize_url_includes_extra_parameters_test() -> Nil {
     )
   let assert Ok(options) =
     config.authorize_options()
-    |> config.with_extra_params([#("prompt", "select_account")])
+    |> config.with_extra_parameters([#("prompt", "select_account")])
   let assert Ok(authorize_url) =
     strategy.build_authorize_url(
       microsoft_strategy,
@@ -526,4 +527,43 @@ pub fn sans_io_refresh_and_user_info_test() -> Nil {
   let assert Ok(#(user_id, _)) =
     vestibule_microsoft.parse_user_info_response(user_response)
   assert user_id == "user-123"
+}
+
+pub fn authorization_code_response_rejects_malformed_id_token_test() -> Nil {
+  let http_response =
+    response.Response(
+      status: 200,
+      headers: [],
+      body: "{\"access_token\":\"access-123\",\"token_type\":\"Bearer\",\"scope\":\"openid User.Read\",\"id_token\":123}",
+    )
+  let assert Error(auth_error) =
+    vestibule_microsoft.parse_authorization_code_response(http_response)
+  assert error.kind(auth_error) == error.DecodeKind
+  assert string.contains(error.message(auth_error), "Microsoft ID token")
+}
+
+pub fn authorization_code_response_accepts_absent_id_token_test() -> Nil {
+  let http_response =
+    response.Response(
+      status: 200,
+      headers: [],
+      body: "{\"access_token\":\"access-123\",\"token_type\":\"Bearer\",\"scope\":\"openid User.Read\"}",
+    )
+  let assert Ok(exchange) =
+    vestibule_microsoft.parse_authorization_code_response(http_response)
+  assert dict.get(strategy.exchange_artifacts(exchange), "id_token")
+    == Error(Nil)
+}
+
+pub fn authorization_code_response_accepts_null_id_token_test() -> Nil {
+  let http_response =
+    response.Response(
+      status: 200,
+      headers: [],
+      body: "{\"access_token\":\"access-123\",\"token_type\":\"Bearer\",\"scope\":\"openid User.Read\",\"id_token\":null}",
+    )
+  let assert Ok(exchange) =
+    vestibule_microsoft.parse_authorization_code_response(http_response)
+  assert dict.get(strategy.exchange_artifacts(exchange), "id_token")
+    == Error(Nil)
 }

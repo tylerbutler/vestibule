@@ -1,0 +1,3 @@
+package = "vestibule_microsoft"
+kind = "Fixed"
+body = "Return and propagate a decoding error for malformed ID token fields instead of treating them as absent; keep absent and null fields optional. Add regression tests for malformed, absent, and null fields. Update authorization request construction, examples, and tests to use the renamed core parameter helpers."

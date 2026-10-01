@@ -332,7 +332,7 @@ pub fn finish_callback(
     vestibule.handle_callback(
       strategy,
       config: config,
-      callback_params: parameters,
+      callback_parameters: parameters,
       expected_state: expected_state,
       code_verifier: code_verifier,
       expected_nonce: expected_nonce,

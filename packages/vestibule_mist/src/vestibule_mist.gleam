@@ -41,7 +41,7 @@ import vestibule_mist/signed_cookie
 /// Maximum body size accepted from a POST callback. 64 KiB is well above the
 /// largest realistic OAuth form_post payload (an Apple identity_token is a few
 /// KiB) and small enough to reject obvious abuse without risking truncation.
-const max_callback_body_bytes: Int = 65_536
+const maximum_callback_body_bytes: Int = 65_536
 
 /// Whether the session cookie is set with the `Secure` attribute.
 pub type CookieSecurity {
@@ -57,11 +57,11 @@ pub type CookieSecurity {
 /// Minimum length of the HMAC `secret_key_base`, in bytes. 32 bytes is the
 /// output size of the HMAC-SHA256 used to sign the session cookie; anything
 /// shorter weakens the signature below the hash's own strength.
-pub const min_secret_key_base_bytes: Int = 32
+pub const minimum_secret_key_base_bytes: Int = 32
 
 /// Errors returned by `new_options`.
 pub type OptionsError {
-  /// `secret_key_base` is shorter than `min_secret_key_base_bytes`.
+  /// `secret_key_base` is shorter than `minimum_secret_key_base_bytes`.
   SecretKeyBaseTooShort(minimum_bytes: Int, actual_bytes: Int)
 }
 
@@ -114,7 +114,7 @@ pub type CallbackError(e) {
   SessionUnavailable
   /// Callback parameters could not be extracted from the request; `reason`
   /// says why.
-  InvalidCallbackParams(reason: CallbackParamsError)
+  InvalidCallbackParameters(reason: CallbackParametersError)
   /// Provider authentication failed.
   AuthFailed(error.AuthError(e))
 }
@@ -135,7 +135,7 @@ pub type SessionCookieError {
 }
 
 /// Why callback parameters could not be extracted from a POST callback body.
-pub type CallbackParamsError {
+pub type CallbackParametersError {
   /// The request body could not be read (e.g. larger than the 64 KiB limit,
   /// or a transport failure).
   BodyReadFailed
@@ -152,7 +152,7 @@ const host_cookie_prefix: String = "__Host-"
 const default_cookie_base_name: String = "vestibule_session"
 
 /// Build middleware options with the given HMAC `secret_key_base`, which must
-/// be at least `min_secret_key_base_bytes` (32) bytes of unpredictable data.
+/// be at least `minimum_secret_key_base_bytes` (32) bytes of unpredictable data.
 ///
 /// Defaults: host-bound cookie name `__Host-vestibule_session`, session TTL
 /// 600 seconds, `SecureOnly` cookies, `SameSite=Lax`. Customize with
@@ -161,9 +161,9 @@ const default_cookie_base_name: String = "vestibule_session"
 pub fn new_options(secret_key_base: BitArray) -> Result(Options, OptionsError) {
   let actual_bytes = bit_array.byte_size(secret_key_base)
   use <- bool.guard(
-    when: actual_bytes < min_secret_key_base_bytes,
+    when: actual_bytes < minimum_secret_key_base_bytes,
     return: Error(SecretKeyBaseTooShort(
-      minimum_bytes: min_secret_key_base_bytes,
+      minimum_bytes: minimum_secret_key_base_bytes,
       actual_bytes: actual_bytes,
     )),
   )
@@ -447,15 +447,15 @@ pub fn callback_phase_auth_result(
       fields: [logger.field("transport", "mist")],
     ),
   )
-  case get_callback_params(http_request) {
+  case get_callback_parameters(http_request) {
     Error(callback_error) -> {
       log_callback_error(provider, callback_error)
       Error(callback_error)
     }
-    Ok(callback_params) ->
+    Ok(callback_parameters) ->
       do_callback_phase_auth_result_with_parameters(
         http_request,
-        params: callback_params,
+        parameters: callback_parameters,
         registry: registry,
         provider: provider,
         store: store,
@@ -470,9 +470,9 @@ pub fn callback_phase_auth_result(
 /// resolved the form/query parameters) and wants to hand them in directly.
 /// Generic over the request body type so it can be used in unit tests with
 /// `Request(BitArray)` or any other body.
-pub fn callback_phase_auth_result_with_params(
+pub fn callback_phase_auth_result_with_parameters(
   http_request: Request(body),
-  params callback_params: dict.Dict(String, String),
+  parameters callback_parameters: dict.Dict(String, String),
   registry registry: Registry(e),
   provider provider: String,
   store store: StateStore,
@@ -490,7 +490,7 @@ pub fn callback_phase_auth_result_with_params(
   )
   do_callback_phase_auth_result_with_parameters(
     http_request,
-    params: callback_params,
+    parameters: callback_parameters,
     registry: registry,
     provider: provider,
     store: store,
@@ -500,7 +500,7 @@ pub fn callback_phase_auth_result_with_params(
 
 fn do_callback_phase_auth_result_with_parameters(
   http_request: Request(body),
-  params callback_params: dict.Dict(String, String),
+  parameters callback_parameters: dict.Dict(String, String),
   registry registry: Registry(e),
   provider provider: String,
   store store: StateStore,
@@ -521,7 +521,7 @@ fn do_callback_phase_auth_result_with_parameters(
     transport_flow.finish_callback(
       strategy_config,
       store: store,
-      parameters: callback_params,
+      parameters: callback_parameters,
       session_id: session_id,
     )
     |> result.map_error(to_callback_error)
@@ -562,7 +562,7 @@ fn get_signed_cookie(
 /// Extract callback parameters from either query string (GET) or
 /// form-encoded body (POST). For POST requests, body parameters are merged
 /// over query parameters so body values take precedence.
-fn get_callback_params(
+fn get_callback_parameters(
   http_request: Request(Connection),
 ) -> Result(dict.Dict(String, String), CallbackError(e)) {
   let query_parameters = case http_request.query {
@@ -572,16 +572,16 @@ fn get_callback_params(
   case http_request.method {
     http.Post -> {
       use request_with_body <- result.try(
-        mist.read_body(http_request, max_callback_body_bytes)
-        |> result.replace_error(InvalidCallbackParams(BodyReadFailed)),
+        mist.read_body(http_request, maximum_callback_body_bytes)
+        |> result.replace_error(InvalidCallbackParameters(BodyReadFailed)),
       )
       use body_string <- result.try(
         bit_array.to_string(request_with_body.body)
-        |> result.replace_error(InvalidCallbackParams(BodyNotUtf8)),
+        |> result.replace_error(InvalidCallbackParameters(BodyNotUtf8)),
       )
       use body_parameters <- result.try(
         uri.parse_query(body_string)
-        |> result.replace_error(InvalidCallbackParams(BodyNotFormEncoded)),
+        |> result.replace_error(InvalidCallbackParameters(BodyNotFormEncoded)),
       )
       Ok(dict.merge(
         dict.from_list(query_parameters),
@@ -636,7 +636,7 @@ fn log_callback_error(
     MissingOrInvalidSessionCookie(CookieSignatureInvalid) ->
       "session_cookie_signature_invalid"
     SessionUnavailable -> "session_unavailable"
-    InvalidCallbackParams(_) -> "invalid_callback_params"
+    InvalidCallbackParameters(_) -> "invalid_callback_params"
     AuthFailed(authentication_error) ->
       logger.auth_error_category(authentication_error)
   }
@@ -662,7 +662,7 @@ fn callback_error_response(
     UnknownProvider(_) -> not_found_response()
     MissingOrInvalidSessionCookie(_) -> generic_error_response()
     SessionUnavailable -> generic_error_response()
-    InvalidCallbackParams(_) -> generic_error_response()
+    InvalidCallbackParameters(_) -> generic_error_response()
     AuthFailed(_) -> generic_error_response()
   }
 }

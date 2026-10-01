@@ -171,7 +171,7 @@ If you want to handle callback failures yourself instead of using the default
 HTML error page, use `vestibule_wisp.callback_phase_result`. Use
 `vestibule_wisp.callback_phase_auth_result` when you need structured errors such
 as `UnknownProvider`, `MissingOrInvalidSessionCookie`, `SessionUnavailable`,
-`InvalidCallbackParams`, or `AuthFailed`. Missing or invalid callback `state` and
+`InvalidCallbackParameters`, or `AuthFailed`. Missing or invalid callback `state` and
 `code` values are provider/authentication failures and are reported through
 `AuthFailed`.
 
@@ -282,13 +282,13 @@ provider requires them:
 ```gleam
 let assert Ok(options) =
   config.authorize_options()
-  |> config.with_extra_params([
+  |> config.with_extra_parameters([
     #("access_type", "offline"),
     #("prompt", "consent"),
   ])
 ```
 
-`config.with_extra_params` returns a `Result` because reserved OAuth
+`config.with_extra_parameters` returns a `Result` because reserved OAuth
 authorization parameters such as `state`, `client_id`, and `code_challenge`
 cannot be overridden. Valid parameters are appended to the authorization URL.
 Common examples include Google's `access_type=offline` and `prompt=consent` for

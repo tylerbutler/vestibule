@@ -58,6 +58,8 @@ pub fn redaction_guard_rejects_sensitive_field_names_test() -> Nil {
       logger.field("refresh_token", "secret-refresh-token"),
       logger.field("id_token", "secret-id-token"),
       logger.field("code_verifier", "secret-verifier"),
+      logger.field("callback_params", "legacy-callback-values"),
+      logger.field("callback_parameters", "callback-values"),
       logger.field("session_id", "secret-session"),
       logger.field("status", "500"),
     ])

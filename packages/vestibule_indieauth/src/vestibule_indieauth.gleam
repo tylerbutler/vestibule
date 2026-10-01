@@ -214,7 +214,7 @@ fn do_authorize_url(
   state: String,
 ) -> Result(String, AuthError(e)) {
   let scope = string.join(scopes, " ")
-  let extra_parameters = config.extra_params(options)
+  let extra_parameters = config.extra_parameters(options)
   case dict.get(extra_parameters, "me") {
     Ok(_) ->
       Error(error.config(

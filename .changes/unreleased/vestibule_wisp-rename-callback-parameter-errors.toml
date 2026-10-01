@@ -1,0 +1,3 @@
+package = "vestibule_wisp"
+kind = "Breaking"
+body = "Rename CallbackParamsError to CallbackParametersError and InvalidCallbackParams to InvalidCallbackParameters. Expand internal callback parameter names and update callers, tests, README examples, and API reference documentation for the renamed core interfaces. Preserve existing log category names."

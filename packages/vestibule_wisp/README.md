@@ -181,7 +181,7 @@ case vestibule_wisp.callback_phase_auth_result(
   Error(vestibule_wisp.MissingOrInvalidSessionCookie(reason)) ->
     handle_missing_cookie(reason)
   Error(vestibule_wisp.SessionUnavailable) -> handle_expired_session()
-  Error(vestibule_wisp.InvalidCallbackParams(reason)) ->
+  Error(vestibule_wisp.InvalidCallbackParameters(reason)) ->
     handle_bad_callback(reason)
   Error(vestibule_wisp.AuthFailed(auth_error)) ->
     handle_auth_failure(auth_error)
@@ -194,7 +194,7 @@ provider-controlled error descriptions are not reflected to users. Use
 the application needs structured error details for logging or custom rendering.
 
 Malformed provider responses and missing `state` or `code` parameters are
-reported through `AuthFailed`. `InvalidCallbackParams` is returned when callback
+reported through `AuthFailed`. `InvalidCallbackParameters` is returned when callback
 parameters cannot be extracted from the request, such as malformed POST form
 data.
 
@@ -204,7 +204,7 @@ data.
 `application/x-www-form-urlencoded` body parameters and merge them over query
 parameters, so body values take precedence. If a POST body cannot be read,
 decoded as UTF-8, or parsed as form data, callback handling returns
-`InvalidCallbackParams` instead of falling back to query parameters.
+`InvalidCallbackParameters` instead of falling back to query parameters.
 
 ## State store
 

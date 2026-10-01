@@ -135,7 +135,7 @@ surfaced under the `"hd"` key of `UserResult`'s `extra` dict.
 `hosted_domain` is also added to the authorization URL as an account-picker
 hint, but that hint is advisory only — enforcement happens server-side when
 the userinfo response is validated. Setting `hd` via
-`config.authorize_options() |> config.with_extra_params([#("hd", ...)])` is purely a UI hint and must not
+`config.authorize_options() |> config.with_extra_parameters([#("hd", ...)])` is purely a UI hint and must not
 be relied on for authorization.
 
 ```gleam

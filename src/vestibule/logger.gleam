@@ -113,6 +113,7 @@ const sensitive_field_names = [
   "authorization_code",
   "code_verifier",
   "callback_params",
+  "callback_parameters",
   "session_id",
   "cookie",
   "cookie_value",

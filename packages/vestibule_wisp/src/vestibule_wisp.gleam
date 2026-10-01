@@ -96,7 +96,7 @@ pub type CallbackError(e) {
   SessionUnavailable
   /// Callback parameters could not be extracted from the request; `reason`
   /// says why.
-  InvalidCallbackParams(reason: CallbackParamsError)
+  InvalidCallbackParameters(reason: CallbackParametersError)
   /// Provider authentication failed.
   AuthFailed(error.AuthError(e))
 }
@@ -117,7 +117,7 @@ pub type SessionCookieError {
 }
 
 /// Why callback parameters could not be extracted from a POST callback body.
-pub type CallbackParamsError {
+pub type CallbackParametersError {
   /// The request body could not be read.
   BodyReadFailed
   /// The request body was not valid UTF-8.
@@ -496,7 +496,7 @@ pub fn callback_phase_auth_result_with_options(
       |> result.map_error(to_callback_error),
     )
 
-    use callback_params <- result.try(get_callback_params(http_request))
+    use callback_parameters <- result.try(get_callback_parameters(http_request))
 
     use session_id <- result.try(get_signed_cookie(
       http_request,
@@ -506,7 +506,7 @@ pub fn callback_phase_auth_result_with_options(
     transport_flow.finish_callback(
       strategy_config,
       store: state_store,
-      parameters: callback_params,
+      parameters: callback_parameters,
       session_id: session_id,
     )
     |> result.map_error(to_callback_error)
@@ -588,7 +588,7 @@ fn get_signed_cookie(
 /// Extract callback parameters from either query string (GET) or
 /// form-encoded body (POST). For POST requests, body parameters
 /// are merged over query parameters so they take precedence.
-fn get_callback_params(
+fn get_callback_parameters(
   http_request: Request,
 ) -> Result(dict.Dict(String, String), CallbackError(e)) {
   let query_parameters = wisp.get_query(http_request)
@@ -596,15 +596,15 @@ fn get_callback_params(
     http.Post -> {
       use body_bit_array <- result.try(
         wisp.read_body_bits(http_request)
-        |> result.replace_error(InvalidCallbackParams(BodyReadFailed)),
+        |> result.replace_error(InvalidCallbackParameters(BodyReadFailed)),
       )
       use body_string <- result.try(
         bit_array.to_string(body_bit_array)
-        |> result.replace_error(InvalidCallbackParams(BodyNotUtf8)),
+        |> result.replace_error(InvalidCallbackParameters(BodyNotUtf8)),
       )
       use body_parameters <- result.try(
         uri.parse_query(body_string)
-        |> result.replace_error(InvalidCallbackParams(BodyNotFormEncoded)),
+        |> result.replace_error(InvalidCallbackParameters(BodyNotFormEncoded)),
       )
       // Merge: body parameters take precedence over query parameters.
       Ok(dict.merge(
@@ -646,7 +646,7 @@ fn log_callback_error(
     MissingOrInvalidSessionCookie(CookieSignatureInvalid) ->
       "session_cookie_signature_invalid"
     SessionUnavailable -> "session_unavailable"
-    InvalidCallbackParams(_) -> "invalid_callback_params"
+    InvalidCallbackParameters(_) -> "invalid_callback_params"
     AuthFailed(authentication_error) ->
       logger.auth_error_category(authentication_error)
   }
@@ -677,7 +677,7 @@ fn callback_error_response(callback_error: CallbackError(e)) -> Response {
     UnknownProvider(_) -> wisp.not_found()
     MissingOrInvalidSessionCookie(_) -> generic_error_response()
     SessionUnavailable -> generic_error_response()
-    InvalidCallbackParams(_) -> generic_error_response()
+    InvalidCallbackParameters(_) -> generic_error_response()
     AuthFailed(_) -> generic_error_response()
   }
 }

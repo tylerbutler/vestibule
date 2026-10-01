@@ -39,7 +39,7 @@ pub type CallbackError(a) {
   UnknownProvider(provider: String)
   MissingOrInvalidSessionCookie(reason: SessionCookieError)
   SessionUnavailable
-  InvalidCallbackParams(reason: CallbackParamsError)
+  InvalidCallbackParameters(reason: CallbackParametersError)
   AuthFailed(error.AuthError(a))
 }
 ```
@@ -59,7 +59,7 @@ invalid; `reason` says which.
 
 The session state was not found, expired, or already used.
 
-##### `InvalidCallbackParams(reason: CallbackParamsError)`
+##### `InvalidCallbackParameters(reason: CallbackParametersError)`
 
 Callback parameters could not be extracted from the request; `reason`
 says why.
@@ -68,12 +68,12 @@ says why.
 
 Provider authentication failed.
 
-### `CallbackParamsError`
+### `CallbackParametersError`
 
 Why callback parameters could not be extracted from a POST callback body.
 
 ```gleam
-pub type CallbackParamsError {
+pub type CallbackParametersError {
   BodyReadFailed
   BodyNotUtf8
   BodyNotFormEncoded

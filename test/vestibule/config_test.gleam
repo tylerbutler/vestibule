@@ -67,7 +67,7 @@ pub fn authorize_options_start_empty_test() -> Nil {
   let options = config.authorize_options()
 
   assert config.scopes(options) == []
-  assert config.extra_params(options) == dict.new()
+  assert config.extra_parameters(options) == dict.new()
 }
 
 pub fn with_scopes_replaces_authorize_option_scopes_test() -> Nil {
@@ -82,24 +82,24 @@ pub fn with_scopes_replaces_authorize_option_scopes_test() -> Nil {
 pub fn with_extra_parameters_adds_authorize_option_parameters_test() -> Nil {
   let assert Ok(options) =
     config.authorize_options()
-    |> config.with_extra_params([#("allow_signup", "false")])
+    |> config.with_extra_parameters([#("allow_signup", "false")])
 
-  assert config.extra_params(options)
+  assert config.extra_parameters(options)
     == dict.from_list([#("allow_signup", "false")])
 }
 
 pub fn with_extra_parameters_merges_across_calls_test() -> Nil {
   let assert Ok(options) =
     config.authorize_options()
-    |> config.with_extra_params([
+    |> config.with_extra_parameters([
       #("allow_signup", "false"),
       #("login", "a"),
     ])
   let assert Ok(options) =
     options
-    |> config.with_extra_params([#("login", "b"), #("prompt", "consent")])
+    |> config.with_extra_parameters([#("login", "b"), #("prompt", "consent")])
 
-  assert config.extra_params(options)
+  assert config.extra_parameters(options)
     == dict.from_list([
       #("allow_signup", "false"),
       #("login", "b"),
@@ -122,7 +122,7 @@ pub fn with_extra_parameters_rejects_reserved_authorization_parameters_test() ->
 fn assert_reserved_parameter_rejected(parameter: String) -> Nil {
   let result =
     config.authorize_options()
-    |> config.with_extra_params([#(parameter, "attacker-value")])
+    |> config.with_extra_parameters([#(parameter, "attacker-value")])
 
   case result {
     Error(auth_error) -> {

@@ -77,7 +77,7 @@ pub fn discovered_callback_issuer_is_enforced_before_exchange_test() -> Nil {
     vestibule.handle_callback(
       oidc_strategy,
       config: client_config,
-      callback_params: dict.from_list([
+      callback_parameters: dict.from_list([
         #("state", authorization_request.state(request)),
         #("code", "authorization-code"),
         #("iss", "https://attacker.example"),
@@ -127,7 +127,7 @@ pub fn callback_refreshes_unknown_kid_once_test() -> Nil {
     vestibule.handle_callback(
       oidc_strategy,
       config: client_config,
-      callback_params: dict.from_list([
+      callback_parameters: dict.from_list([
         #("state", authorization_request.state(request)),
         #("code", "authorization-code"),
       ]),
@@ -176,7 +176,7 @@ pub fn callback_refreshes_cached_keys_for_token_without_kid_test() -> Nil {
     vestibule.handle_callback(
       oidc_strategy,
       config: client_config,
-      callback_params: dict.from_list([
+      callback_parameters: dict.from_list([
         #("state", authorization_request.state(request)),
         #("code", "authorization-code"),
       ]),
@@ -232,7 +232,7 @@ pub fn concurrent_callbacks_wait_for_single_jwks_refresh_test() -> Nil {
         vestibule.handle_callback(
           oidc_strategy,
           config: client_config,
-          callback_params: dict.from_list([
+          callback_parameters: dict.from_list([
             #("state", authorization_request.state(request)),
             #("code", "authorization-code"),
           ]),
@@ -551,7 +551,7 @@ fn callback_result(
   vestibule.handle_callback(
     oidc_strategy,
     config: client_config,
-    callback_params: dict.from_list([
+    callback_parameters: dict.from_list([
       #("state", authorization_request.state(request)),
       #("code", "authorization-code"),
     ]),

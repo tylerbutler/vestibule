@@ -91,13 +91,13 @@ pub type StateStoreError {
 
 ##### `StoreFull`
 
-The store holds `max_entries` live sessions and no expired ones could
+The store holds `maximum_entries` live sessions and no expired ones could
 be reclaimed. New flows are refused until sessions are consumed or
 expire.
 
 ##### `InvalidCapacity`
 
-`create_with_capacity` was given a `max_entries` of zero or less.
+`create_with_capacity` was given a `maximum_entries` of zero or less.
 
 ## Functions
 
@@ -138,15 +138,15 @@ pub fn create_named(String) -> Result(StateStore, StateStoreError)
 
 ### `create_with_capacity`
 
-Create a named state store that holds at most `max_entries` live
+Create a named state store that holds at most `maximum_entries` live
 sessions. Once full, `store` fails with `StoreFull` until
 sessions are consumed or expire. Returns `Error(InvalidCapacity)` when
-`max_entries` is not positive.
+`maximum_entries` is not positive.
 
 ```gleam
 pub fn create_with_capacity(
   name: String,
-  max_entries: Int
+  maximum_entries: Int
 ) -> Result(StateStore, StateStoreError)
 ```
 
