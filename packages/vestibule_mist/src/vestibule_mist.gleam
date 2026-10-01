@@ -33,6 +33,7 @@ import vestibule/config.{type AuthorizeOptions}
 import vestibule/error
 import vestibule/logger
 import vestibule/registry.{type Registry}
+import vestibule/session_ttl.{type SessionTtl}
 import vestibule/state_store.{type StateStore}
 import vestibule/transport_flow
 import vestibule_mist/signed_cookie
@@ -83,7 +84,7 @@ pub type CookieSameSite {
 ///
 /// Construct with `new_options` — the HMAC `secret_key_base` is mandatory and
 /// has no safe default — then customize with `with_cookie_name`,
-/// `with_session_ttl_seconds`, `with_cookie_security`, and `with_same_site`. The type is opaque
+/// `with_session_ttl`, `with_cookie_security`, and `with_same_site`. The type is opaque
 /// so the effective cookie name always matches the cookie security: host-bound
 /// (`__Host-` prefixed) under `SecureOnly`, unprefixed under `AllowInsecure`
 /// (browsers reject `__Host-` cookies that are not `Secure`). A host-bound
@@ -96,7 +97,7 @@ pub opaque type Options {
     // Base cookie name without the `__Host-` prefix; the effective name is
     // produced by the `cookie_name` accessor from `cookie_security`.
     cookie_name: String,
-    session_ttl_seconds: Int,
+    session_ttl: SessionTtl,
     cookie_security: CookieSecurity,
     same_site: CookieSameSite,
   )
@@ -162,7 +163,7 @@ const default_cookie_base_name: String = "vestibule_session"
 ///
 /// Defaults: host-bound cookie name `__Host-vestibule_session`, session TTL
 /// 600 seconds, `SecureOnly` cookies, `SameSite=Lax`. Customize with
-/// `with_cookie_name`, `with_session_ttl_seconds`, `with_cookie_security`, and
+/// `with_cookie_name`, `with_session_ttl`, `with_cookie_security`, and
 /// `with_same_site`.
 pub fn new_options(secret_key_base: BitArray) -> Result(Options, OptionsError) {
   let actual_bytes = bit_array.byte_size(secret_key_base)
@@ -176,7 +177,7 @@ pub fn new_options(secret_key_base: BitArray) -> Result(Options, OptionsError) {
   Ok(Options(
     secret_key_base: secret_key_base,
     cookie_name: default_cookie_base_name,
-    session_ttl_seconds: 600,
+    session_ttl: session_ttl.default(),
     cookie_security: SecureOnly,
     same_site: Lax,
   ))
@@ -197,8 +198,8 @@ pub fn with_cookie_name(options: Options, name: String) -> Options {
 
 /// Set how long an in-flight authorization flow (and its session cookie)
 /// stays valid.
-pub fn with_session_ttl_seconds(options: Options, seconds: Int) -> Options {
-  Options(..options, session_ttl_seconds: seconds)
+pub fn with_session_ttl(options: Options, ttl: SessionTtl) -> Options {
+  Options(..options, session_ttl: ttl)
 }
 
 /// Set whether the session cookie requires HTTPS. See `CookieSecurity`.
@@ -229,9 +230,9 @@ pub fn cookie_name(options: Options) -> String {
   }
 }
 
-/// The session TTL in seconds for these options.
-pub fn session_ttl_seconds(options: Options) -> Int {
-  options.session_ttl_seconds
+/// The validated session TTL for these options.
+pub fn session_ttl(options: Options) -> SessionTtl {
+  options.session_ttl
 }
 
 /// The cookie security for these options.
@@ -328,7 +329,7 @@ pub fn request_phase_for_client(
       provider: provider,
       store: store,
       client_key: client_key,
-      ttl_seconds: options.session_ttl_seconds,
+      ttl: options.session_ttl,
       options: authorize_options,
     )
   {
@@ -428,7 +429,7 @@ pub fn request_phase_for_client(
 
 fn session_cookie_attributes(options: Options) -> cookie.Attributes {
   cookie.Attributes(
-    max_age: option.Some(options.session_ttl_seconds),
+    max_age: option.Some(session_ttl.to_seconds(options.session_ttl)),
     domain: option.None,
     path: option.Some("/"),
     secure: secure_attribute(options.cookie_security)

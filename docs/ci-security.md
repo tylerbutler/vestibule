@@ -37,10 +37,8 @@ archives because the backend did not supply checksums. Gleam and Trellis expose
 GitHub artifact attestations; the lock records verification where mise verified
 it on the review host. A checksum mismatch fails installation.
 
-CI excludes `.tool-versions` from mise discovery. That file remains available
-for asdf users, but its `just` and `rebar` aliases differ from the locked mise
-backend names. For a local locked install, use
-`MISE_OVERRIDE_TOOL_VERSIONS_FILENAMES= mise install --locked`.
+`.mise.toml` is the only tool-version configuration. For a local locked
+install, use `mise install --locked`.
 
 Upstream Just and Trellis releases are not immutable. Their locked checksums
 prevent silent replacement, but availability still depends on the upstream
@@ -51,7 +49,7 @@ lock says they were verified; they do not prove source safety.
 
 The review covered the root, example, and eight package `gleam.toml` files and
 their ten `manifest.toml` lockfiles, plus `website/package.json`,
-`website/pnpm-lock.yaml`, `.tool-versions`, `.mise.toml`, `mise.lock`, all
+`website/pnpm-lock.yaml`, `.mise.toml`, `mise.lock`, all
 workflows, composite actions, and workflow templates.
 
 This inventory includes the runtime dependency changes from PR #182. The

@@ -96,15 +96,18 @@ customize it with the `with_*` builders:
 
 ```gleam
 let assert Ok(options) = vestibule_mist.new_options(secret_key_base)
+let assert Ok(ttl) = session_ttl.from_seconds(300)
 let options =
   options
   |> vestibule_mist.with_cookie_name("my_app_oauth_session")
-  |> vestibule_mist.with_session_ttl_seconds(300)
+  |> vestibule_mist.with_session_ttl(ttl)
 ```
 
 Defaults match `vestibule_wisp`: cookie name `__Host-vestibule_session`, TTL
 600 seconds. The cookie TTL and server-side state-store TTL share the same
-value. The cookie is set with `HttpOnly`, `SameSite=Lax`, `Path=/`, and
+validated `SessionTtl` value. Construct one with `session_ttl.from_seconds` or
+`session_ttl.from_duration`; invalid values return `Error`. The cookie is set
+with `HttpOnly`, `SameSite=Lax`, `Path=/`, and
 `Secure` by default. For local HTTP development only, use
 `with_cookie_security(AllowInsecure)`, which drops both the `Secure` attribute
 and the `__Host-` prefix (browsers reject `__Host-` cookies that are not

@@ -308,7 +308,7 @@ pub fn store_for_client_with_ttl(
   state: String,
   code_verifier: String,
   nonce: option.Option(String),
-  ttl_seconds: Int
+  ttl: session_ttl.SessionTtl
 ) -> Result(String, StateStoreError)
 ```
 
@@ -325,7 +325,7 @@ pub fn store_with_ttl(
   state: String,
   code_verifier: String,
   nonce: option.Option(String),
-  ttl_seconds: Int
+  ttl: session_ttl.SessionTtl
 ) -> Result(String, StateStoreError)
 ```
 
