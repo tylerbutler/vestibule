@@ -1,3 +1,3 @@
 package = "vestibule_mist"
 kind = "Breaking"
-body = "Expand callback parameter helper and error names, use the parameters argument label, and rename minimum_secret_key_base_bytes."
+body = "Rename callback_phase_auth_result_with_params to callback_phase_auth_result_with_parameters and its params label to parameters. Rename CallbackParamsError to CallbackParametersError, InvalidCallbackParams to InvalidCallbackParameters, and min_secret_key_base_bytes to minimum_secret_key_base_bytes. Expand internal callback parameter names and maximum_callback_body_bytes, and update callers, tests, README examples, and API reference documentation. Preserve existing log category names."

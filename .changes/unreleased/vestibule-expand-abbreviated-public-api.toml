@@ -1,3 +1,3 @@
 package = "vestibule"
 kind = "Breaking"
-body = "Expand abbreviated public API names: extra_parameters, with_extra_parameters, missing_parameter, callback_parameters, append_query_parameters, and maximum_entries."
+body = "Rename config.extra_params to config.extra_parameters, config.with_extra_params to config.with_extra_parameters, error.missing_param to error.missing_parameter, and provider_support.append_query_params to provider_support.append_query_parameters. Rename handle_callback's callback_params label to callback_parameters and the state store's max_entries label to maximum_entries."
