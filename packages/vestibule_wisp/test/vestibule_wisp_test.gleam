@@ -9,6 +9,7 @@ import gleeunit
 import vestibule/config
 import vestibule/error
 import vestibule/registry
+import vestibule/session_ttl
 import vestibule/state_store
 import vestibule/strategy.{type Strategy}
 import vestibule_wisp
@@ -86,7 +87,7 @@ pub fn callback_phase_auth_result_tampered_cookie_reports_invalid_signature_test
 pub fn default_options_use_current_cookie_contract_test() -> Nil {
   let options = vestibule_wisp.default_options()
   assert vestibule_wisp.cookie_name(options) == "__Host-vestibule_session"
-  assert vestibule_wisp.session_ttl_seconds(options) == 600
+  assert session_ttl.to_seconds(vestibule_wisp.session_ttl(options)) == 600
   assert vestibule_wisp.cookie_security(options) == vestibule_wisp.SecureOnly
 }
 
@@ -214,6 +215,7 @@ pub fn request_phase_with_options_passes_authorize_options_test() -> Nil {
   let assert Ok(authorize_options) =
     config.authorize_options()
     |> config.with_extra_params([#("prompt", "login")])
+  let assert Ok(custom_ttl) = session_ttl.from_seconds(300)
 
   let response =
     vestibule_wisp.request_phase_with_shared_bucket_and_options(
@@ -224,7 +226,7 @@ pub fn request_phase_with_options_passes_authorize_options_test() -> Nil {
       authorize_options: authorize_options,
       middleware_options: vestibule_wisp.default_options()
         |> vestibule_wisp.with_cookie_name("custom_session")
-        |> vestibule_wisp.with_session_ttl_seconds(300),
+        |> vestibule_wisp.with_session_ttl(custom_ttl),
     )
 
   let location = case list.key_find(response.headers, "location") {
@@ -238,6 +240,7 @@ pub fn request_phase_with_options_passes_authorize_options_test() -> Nil {
     Error(_) -> panic as "expected a set-cookie header"
   }
   assert string.contains(set_cookie, "__Host-custom_session=")
+  assert string.contains(set_cookie, "Max-Age=300")
 }
 
 pub fn request_phase_rejects_client_above_admission_limit_test() -> Nil {
