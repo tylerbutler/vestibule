@@ -1,7 +1,6 @@
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import vestibule/config
-import vestibule/error.{type AuthError}
 
 const client_assertion_type = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
 
@@ -10,7 +9,7 @@ pub fn authorization_code(
   code code: String,
   redirect_uri redirect_uri: String,
   code_verifier code_verifier: Option(String),
-) -> Result(List(#(String, String)), AuthError(e)) {
+) -> List(#(String, String)) {
   let authentication_parameters =
     client_authentication_parameters(client_config)
   let base_parameters =
@@ -24,23 +23,21 @@ pub fn authorization_code(
 
   case code_verifier {
     Some(verifier) ->
-      Ok(list.append(base_parameters, [#("code_verifier", verifier)]))
-    None -> Ok(base_parameters)
+      list.append(base_parameters, [#("code_verifier", verifier)])
+    None -> base_parameters
   }
 }
 
 pub fn refresh(
   client_config: config.ClientConfig,
   refresh_token refresh_token: String,
-) -> Result(List(#(String, String)), AuthError(e)) {
-  Ok(
-    [
-      #("grant_type", "refresh_token"),
-      #("refresh_token", refresh_token),
-      #("client_id", config.client_id(client_config)),
-    ]
-    |> list.append(client_authentication_parameters(client_config)),
-  )
+) -> List(#(String, String)) {
+  [
+    #("grant_type", "refresh_token"),
+    #("refresh_token", refresh_token),
+    #("client_id", config.client_id(client_config)),
+  ]
+  |> list.append(client_authentication_parameters(client_config))
 }
 
 pub fn client_authentication_parameters(
