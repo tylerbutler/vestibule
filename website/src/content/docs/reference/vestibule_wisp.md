@@ -158,7 +158,7 @@ would fail with `MissingOrInvalidSessionCookie(CookieAbsent)`.
 Middleware configuration options.
 
 Construct with `default_options` and customize with `with_cookie_name`,
-`with_session_ttl_seconds`, `with_cookie_security`, and `with_same_site`. The type is opaque
+`with_session_ttl`, `with_cookie_security`, and `with_same_site`. The type is opaque
 so the effective cookie name always matches the cookie security: host-bound
 (`__Host-` prefixed) under `SecureOnly`, unprefixed under `AllowInsecure`
 (browsers reject `__Host-` cookies that are not `Secure`). A host-bound
@@ -409,12 +409,12 @@ The session cookie's `SameSite` setting for these options.
 pub fn same_site(Options) -> CookieSameSite
 ```
 
-### `session_ttl_seconds`
+### `session_ttl`
 
-The session TTL in seconds for these options.
+The validated session TTL for these options.
 
 ```gleam
-pub fn session_ttl_seconds(Options) -> Int
+pub fn session_ttl(Options) -> session_ttl.SessionTtl
 ```
 
 ### `with_cookie_name`
@@ -454,14 +454,14 @@ pub fn with_same_site(
 ) -> Options
 ```
 
-### `with_session_ttl_seconds`
+### `with_session_ttl`
 
 Set how long an in-flight authorization flow (and its session cookie)
 stays valid.
 
 ```gleam
-pub fn with_session_ttl_seconds(
+pub fn with_session_ttl(
   Options,
-  Int
+  session_ttl.SessionTtl
 ) -> Options
 ```
