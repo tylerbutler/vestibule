@@ -171,7 +171,7 @@ pub fn callback_rejects_missing_and_substituted_verifier_test() -> Nil {
   let state = authorization_request.state(flow)
   let verifier = authorization_request.code_verifier(flow)
   let code = pkce.compute_challenge(verifier) <> ":" <> redirect_uri
-  list.each(["", " ", pkce.generate_verifier()], fn(invalid_verifier) {
+  list.each(["", " "], fn(invalid_verifier) {
     let assert Error(failure) =
       vestibule.handle_callback(
         bound_strategy(),
@@ -182,7 +182,21 @@ pub fn callback_rejects_missing_and_substituted_verifier_test() -> Nil {
         expected_nonce: None,
       )
     assert error.kind(failure) == error.CodeExchangeKind
+    assert error.message(failure)
+      == "Failed to exchange authorization code: PKCE verifier is required"
   })
+  let assert Error(failure) =
+    vestibule.handle_callback(
+      bound_strategy(),
+      config: client_config(),
+      callback_params: dict.from_list([#("state", state), #("code", code)]),
+      expected_state: state,
+      code_verifier: pkce.generate_verifier(),
+      expected_nonce: None,
+    )
+  assert error.kind(failure) == error.CodeExchangeKind
+  assert error.message(failure)
+    == "Failed to exchange authorization code: Code binding failed"
 }
 
 pub fn callback_rejects_empty_code_before_exchange_test() -> Nil {

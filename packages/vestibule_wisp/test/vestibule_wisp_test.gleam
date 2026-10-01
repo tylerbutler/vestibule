@@ -97,13 +97,6 @@ pub fn cookie_name_is_unprefixed_when_insecure_test() -> Nil {
   assert vestibule_wisp.cookie_name(options) == "vestibule_session"
 }
 
-pub fn default_cookie_name_is_host_bound_test() -> Nil {
-  let options = vestibule_wisp.default_options()
-  assert vestibule_wisp.is_host_bound_cookie_name(vestibule_wisp.cookie_name(
-    options,
-  ))
-}
-
 pub fn with_cookie_name_applies_host_prefix_test() -> Nil {
   let options =
     vestibule_wisp.default_options()
@@ -116,14 +109,6 @@ pub fn with_cookie_name_does_not_double_prefix_test() -> Nil {
     vestibule_wisp.default_options()
     |> vestibule_wisp.with_cookie_name("__Host-custom_session")
   assert vestibule_wisp.cookie_name(options) == "__Host-custom_session"
-}
-
-pub fn is_host_bound_cookie_name_rejects_non_prefixed_test() -> Nil {
-  assert !vestibule_wisp.is_host_bound_cookie_name("vestibule_session")
-}
-
-pub fn is_host_bound_cookie_name_accepts_host_prefixed_test() -> Nil {
-  assert vestibule_wisp.is_host_bound_cookie_name("__Host-custom_session")
 }
 
 pub fn request_phase_sets_host_bound_cookie_test() -> Nil {
@@ -641,10 +626,10 @@ pub fn callback_phase_auth_result_missing_state_does_not_consume_session_test() 
       code_verifier: "verifier",
       nonce: option.None,
     )
-  let req_missing_state =
+  let request_without_state =
     simulate.request(http.Get, "/auth/test/callback?code=code")
     |> simulate.cookie("__Host-vestibule_session", session_id, wisp.Signed)
-  let req_with_state =
+  let request_with_state =
     simulate.request(http.Get, "/auth/test/callback?state=state&code=code")
     |> simulate.cookie("__Host-vestibule_session", session_id, wisp.Signed)
   let assert Ok(registry) =
@@ -653,7 +638,7 @@ pub fn callback_phase_auth_result_missing_state_does_not_consume_session_test() 
 
   let missing_state_result =
     vestibule_wisp.callback_phase_auth_result(
-      req_missing_state,
+      request_without_state,
       registry,
       "test",
       store,
@@ -663,7 +648,7 @@ pub fn callback_phase_auth_result_missing_state_does_not_consume_session_test() 
 
   let with_state_result =
     vestibule_wisp.callback_phase_auth_result(
-      req_with_state,
+      request_with_state,
       registry,
       "test",
       store,
@@ -673,7 +658,7 @@ pub fn callback_phase_auth_result_missing_state_does_not_consume_session_test() 
 
   let replay_result =
     vestibule_wisp.callback_phase_auth_result(
-      req_with_state,
+      request_with_state,
       registry,
       "test",
       store,

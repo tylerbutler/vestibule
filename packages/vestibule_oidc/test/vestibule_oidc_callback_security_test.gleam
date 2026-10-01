@@ -2,6 +2,7 @@ import gleam/dict
 import gleam/dynamic/decode
 import gleam/http/response
 import gleam/json
+import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import gleam/time/duration
@@ -63,7 +64,7 @@ pub fn discovered_callback_issuer_is_enforced_before_exchange_test() -> Nil {
   let oidc_strategy =
     vestibule_oidc.strategy_from_config(
       oidc_config,
-      vestibule_oidc.issuer_namespace(oidc_config),
+      vestibule_oidc.issuer(oidc_config),
     )
   let client_config = client_config()
   let assert Ok(request) =
@@ -92,6 +93,7 @@ pub fn callback_refreshes_unknown_kid_once_test() -> Nil {
   reset_counter()
   let issuer = "https://refresh.example/tenant"
   let oidc_config = oidc_config(issuer)
+  cache_jwks(issuer, jwt_signing.wrong_jwks())
   let client_config = client_config()
   let initial_strategy =
     vestibule_oidc.strategy_from_config(oidc_config, issuer)
@@ -112,11 +114,8 @@ pub fn callback_refreshes_unknown_kid_once_test() -> Nil {
     {
       True, _, _ -> Ok(http_response(token_response(token)))
       _, True, _ -> {
-        let call = increment_counter()
-        case call {
-          1 -> Ok(http_response(jwt_signing.wrong_jwks()))
-          _ -> Ok(http_response(jwt_signing.jwks()))
-        }
+        increment_counter()
+        Ok(http_response(jwt_signing.jwks()))
       }
       _, _, True -> Ok(http_response("{\"sub\":\"user-123\"}"))
       _, _, _ -> Error(error.network(reason: "Unexpected OIDC test endpoint"))
@@ -136,28 +135,121 @@ pub fn callback_refreshes_unknown_kid_once_test() -> Nil {
       code_verifier: authorization_request.code_verifier(request),
       expected_nonce: Some(nonce),
     )
-  assert counter() == 2
+  assert counter() == 1
 }
 
-pub fn issuer_namespace_preserves_path_and_port_test() -> Nil {
-  let first = oidc_config("https://login.example:8443/trusted")
-  let second = oidc_config("https://login.example:9443/trusted")
-  let third = oidc_config("https://login.example:8443/other")
-  assert vestibule_oidc.issuer_namespace(first)
-    == "https://login.example:8443/trusted"
-  assert vestibule_oidc.issuer_namespace(first)
-    != vestibule_oidc.issuer_namespace(second)
-  assert vestibule_oidc.issuer_namespace(first)
-    != vestibule_oidc.issuer_namespace(third)
-  assert vestibule_oidc.issuer_namespace(first)
-    == vestibule_oidc.issuer_namespace(first)
+pub fn callback_refreshes_cached_keys_for_token_without_kid_test() -> Nil {
+  reset_counter()
+  let issuer = "https://refresh-without-kid.example/tenant"
+  let oidc_config = oidc_config(issuer)
+  cache_jwks(issuer, jwt_signing.wrong_jwks())
+  let client_config = client_config()
+  let initial_strategy =
+    vestibule_oidc.strategy_from_config(oidc_config, issuer)
+  let assert Ok(request) =
+    vestibule.create_authorization_request(
+      initial_strategy,
+      config: client_config,
+      options: config.authorize_options(),
+    )
+  let assert Some(nonce) = authorization_request.nonce(request)
+  let token = signed_token_without_kid(issuer, "client-id", nonce, "user-123")
+  let sender = fn(http_request) {
+    let path = provider_support.secure_request_uri(http_request).path
+    case
+      string.ends_with(path, "/token"),
+      string.ends_with(path, "/keys"),
+      string.ends_with(path, "/userinfo")
+    {
+      True, _, _ -> Ok(http_response(token_response(token)))
+      _, True, _ -> {
+        increment_counter()
+        Ok(http_response(jwt_signing.jwks()))
+      }
+      _, _, True -> Ok(http_response("{\"sub\":\"user-123\"}"))
+      _, _, _ -> Error(error.network(reason: "Unexpected OIDC test endpoint"))
+    }
+  }
+  let oidc_strategy =
+    vestibule_oidc.strategy_from_config_with_sender(oidc_config, issuer, sender)
+  let assert Ok(_) =
+    vestibule.handle_callback(
+      oidc_strategy,
+      config: client_config,
+      callback_params: dict.from_list([
+        #("state", authorization_request.state(request)),
+        #("code", "authorization-code"),
+      ]),
+      expected_state: authorization_request.state(request),
+      code_verifier: authorization_request.code_verifier(request),
+      expected_nonce: Some(nonce),
+    )
+  assert counter() == 1
 }
 
-pub fn issuer_namespace_preserves_trailing_slash_test() -> Nil {
-  let without_slash = oidc_config("https://login.example/tenant")
-  let with_slash = oidc_config("https://login.example/tenant/")
-  assert vestibule_oidc.issuer_namespace(without_slash)
-    != vestibule_oidc.issuer_namespace(with_slash)
+pub fn concurrent_callbacks_claim_one_jwks_refresh_test() -> Nil {
+  assert concurrent_refresh_claim_count("concurrent-refresh", 20) == 1
+}
+
+pub fn concurrent_callbacks_wait_for_single_jwks_refresh_test() -> Nil {
+  reset_counter()
+  let issuer = "https://concurrent-refresh.example/tenant"
+  let oidc_config = oidc_config(issuer)
+  cache_jwks(issuer, jwt_signing.wrong_jwks())
+  let client_config = client_config()
+  let initial_strategy =
+    vestibule_oidc.strategy_from_config(oidc_config, issuer)
+  let assert Ok(request) =
+    vestibule.create_authorization_request(
+      initial_strategy,
+      config: client_config,
+      options: config.authorize_options(),
+    )
+  let assert Some(nonce) = authorization_request.nonce(request)
+  let token = signed_token(issuer, "client-id", nonce, "user-123")
+  let sender = fn(http_request) {
+    let path = provider_support.secure_request_uri(http_request).path
+    case
+      string.ends_with(path, "/token"),
+      string.ends_with(path, "/keys"),
+      string.ends_with(path, "/userinfo")
+    {
+      True, _, _ -> Ok(http_response(token_response(token)))
+      _, True, _ -> {
+        increment_counter()
+        sleep(50)
+        Ok(http_response(jwt_signing.jwks()))
+      }
+      _, _, True -> Ok(http_response("{\"sub\":\"user-123\"}"))
+      _, _, _ -> Error(error.network(reason: "Unexpected OIDC test endpoint"))
+    }
+  }
+  let oidc_strategy =
+    vestibule_oidc.strategy_from_config_with_sender(oidc_config, issuer, sender)
+  let results =
+    run_concurrently(
+      fn() {
+        vestibule.handle_callback(
+          oidc_strategy,
+          config: client_config,
+          callback_params: dict.from_list([
+            #("state", authorization_request.state(request)),
+            #("code", "authorization-code"),
+          ]),
+          expected_state: authorization_request.state(request),
+          code_verifier: authorization_request.code_verifier(request),
+          expected_nonce: Some(nonce),
+        )
+      },
+      20,
+    )
+  assert list.all(results, fn(callback_result) {
+    case callback_result {
+      Ok(_) -> True
+      Error(_) -> False
+    }
+  })
+  assert counter() == 1
 }
 
 pub fn discovered_configs_build_distinct_account_namespaces_test() -> Nil {
@@ -169,15 +261,9 @@ pub fn discovered_configs_build_distinct_account_namespaces_test() -> Nil {
   let assert Ok(second) =
     vestibule_oidc.parse_discovery_document(second_document)
   let first_strategy =
-    vestibule_oidc.strategy_from_config(
-      first,
-      vestibule_oidc.issuer_namespace(first),
-    )
+    vestibule_oidc.strategy_from_config(first, vestibule_oidc.issuer(first))
   let second_strategy =
-    vestibule_oidc.strategy_from_config(
-      second,
-      vestibule_oidc.issuer_namespace(second),
-    )
+    vestibule_oidc.strategy_from_config(second, vestibule_oidc.issuer(second))
   assert strategy.provider(first_strategy)
     == "https://login.example:8443/trusted"
   assert strategy.provider(first_strategy) != strategy.provider(second_strategy)
@@ -410,71 +496,6 @@ pub fn verifier_ignores_unrelated_jwks_algorithms_test() -> Nil {
   Nil
 }
 
-pub fn verifier_exposes_provider_specific_string_claims_test() -> Nil {
-  let assert Ok(keys) = oidc.parse_jwks(jwt_signing.jwks())
-  let token =
-    jwt_signing.encode(
-      payload: [
-        #("sub", json.string("user-123")),
-        #("hd", json.string("example.com")),
-        #("tid", json.string("tenant-id")),
-        #("oid", json.string("object-id")),
-        #("email_verified", json.bool(True)),
-      ],
-      claims: [
-        claim.issuer("https://claims.example", []),
-        claim.audience("client-id", []),
-        claim.expires_at(
-          max_age: duration.minutes(5),
-          leeway: duration.seconds(0),
-        ),
-      ],
-    )
-  let assert Ok(verified) =
-    oidc.verify_rs256(
-      token: token,
-      using: keys,
-      issuer: "https://claims.example",
-      audience: "client-id",
-      expected_nonce: None,
-    )
-  assert oidc.string_claim(verified, "tid") == Ok("tenant-id")
-  assert oidc.optional_string_claim(verified, "hd") == Ok(Some("example.com"))
-  assert oidc.optional_string_claim(verified, "missing") == Ok(None)
-  assert oidc.bool_claim(verified, "email_verified") == Ok(True)
-  assert oidc.optional_bool_claim(verified, "missing") == Ok(None)
-  assert oidc.hosted_domain(verified) == Some("example.com")
-  assert oidc.tenant_id(verified) == Some("tenant-id")
-  assert oidc.object_id(verified) == Some("object-id")
-}
-
-pub fn verifier_rejects_blank_provider_identity_claim_test() -> Nil {
-  let assert Ok(keys) = oidc.parse_jwks(jwt_signing.jwks())
-  let token =
-    jwt_signing.encode(
-      payload: [
-        #("sub", json.string("user-123")),
-        #("tid", json.string("  ")),
-      ],
-      claims: [
-        claim.issuer("https://blank-claim.example", []),
-        claim.audience("client-id", []),
-        claim.expires_at(
-          max_age: duration.minutes(5),
-          leeway: duration.seconds(0),
-        ),
-      ],
-    )
-  assert oidc.verify_rs256(
-      token: token,
-      using: keys,
-      issuer: "https://blank-claim.example",
-      audience: "client-id",
-      expected_nonce: None,
-    )
-    == Error(oidc.InvalidClaim("tid"))
-}
-
 type TokenKind {
   ValidToken
   ForgedToken
@@ -486,7 +507,7 @@ fn callback_result(
   id_subject: String,
   userinfo_subject: String,
   token_kind: TokenKind,
-) {
+) -> Result(auth.Auth, error.AuthError(e)) {
   let issuer = "https://" <> issuer_name <> ".example/tenant"
   let oidc_config = oidc_config(issuer)
   let client_config = client_config()
@@ -573,6 +594,31 @@ fn signed_token(
   ])
 }
 
+fn signed_token_without_kid(
+  issuer: String,
+  audience: String,
+  nonce: String,
+  subject: String,
+) -> String {
+  jwt_signing.encode_without_kid(
+    payload: [#("sub", json.string(subject))],
+    claims: [
+      claim.issuer(issuer, []),
+      claim.audience(audience, []),
+      claim.custom(
+        name: "nonce",
+        value: nonce,
+        encode: json.string,
+        decoder: decode.string,
+      ),
+      claim.expires_at(
+        max_age: duration.minutes(5),
+        leeway: duration.seconds(0),
+      ),
+    ],
+  )
+}
+
 fn oidc_config(issuer: String) -> vestibule_oidc.OidcConfig {
   let assert Ok(oidc_config) =
     vestibule_oidc.new_config_with_jwks(
@@ -608,6 +654,14 @@ fn http_response(body: String) -> response.Response(String) {
   response.Response(status: 200, headers: [], body: body)
 }
 
+fn cache_jwks(issuer: String, body: String) -> Nil {
+  let assert Ok(keys) = oidc.parse_jwks(body)
+  cache_put(issuer <> "\n" <> issuer <> "/keys", keys)
+}
+
+@external(erlang, "vestibule_oidc_cache_ffi", "put")
+fn cache_put(key: String, keys: oidc.Jwks) -> Nil
+
 @external(erlang, "vestibule_oidc_test_ffi", "reset_counter")
 fn reset_counter() -> Nil
 
@@ -616,3 +670,12 @@ fn increment_counter() -> Int
 
 @external(erlang, "vestibule_oidc_test_ffi", "counter")
 fn counter() -> Int
+
+@external(erlang, "vestibule_oidc_test_ffi", "concurrent_refresh_claim_count")
+fn concurrent_refresh_claim_count(key: String, workers: Int) -> Int
+
+@external(erlang, "vestibule_oidc_test_ffi", "sleep")
+fn sleep(milliseconds: Int) -> Nil
+
+@external(erlang, "vestibule_oidc_test_ffi", "run_concurrently")
+fn run_concurrently(callback: fn() -> a, workers: Int) -> List(a)

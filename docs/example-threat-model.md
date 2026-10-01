@@ -46,5 +46,6 @@ user ID. Email alone is not an account-linking key.
 
 Without `SECRET_KEY_BASE`, each process generates a fresh cryptographic key;
 restarts then invalidate in-flight OAuth cookies. Plain HTTP, localhost redirect
-URIs, and the proxy-unaware setup are for local demonstration only. Do not
-expose this server or copy these defaults into a deployed service.
+URIs, and the proxy-unaware setup are for local demonstration only. A configured
+secret must contain at least 32 bytes of unpredictable data. Do not expose this
+server or copy these defaults into a deployed service.

@@ -397,21 +397,6 @@ pub fn expire_session_cookie(
 ) -> response.Response(wisp.Body)
 ```
 
-### `is_host_bound_cookie_name`
-
-Returns `True` when `name` is host-bound (uses the `__Host-` prefix).
-
-Host-bound cookie names resist cookie tossing / session fixation from
-sibling subdomains: browsers only accept a `__Host-` cookie when it is set
-with `Secure`, `Path=/`, and no `Domain` attribute, so a sibling subdomain
-cannot overwrite it with a `Domain=.example.com` cookie of the same name.
-`Options` enforces the prefix for its own cookie name; use this to check
-names from other sources.
-
-```gleam
-pub fn is_host_bound_cookie_name(String) -> Bool
-```
-
 ### `parse_callback_query`
 
 Parse a callback query without silently replacing malformed input.

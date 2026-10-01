@@ -941,25 +941,25 @@ pub fn token_request_includes_client_secret_when_configured_test() -> Nil {
   )
   |> fn(actual) {
     assert actual
-      == Ok([
+      == [
         #("grant_type", "authorization_code"),
         #("code", "code-123"),
         #("redirect_uri", "https://app.example.com/callback"),
         #("client_id", "client-id"),
         #("client_secret", "secret"),
         #("code_verifier", "verifier-123"),
-      ])
+      ]
   }
 
   token_request.refresh(client_config, refresh_token: "refresh-123")
   |> fn(actual) {
     assert actual
-      == Ok([
+      == [
         #("grant_type", "refresh_token"),
         #("refresh_token", "refresh-123"),
         #("client_id", "client-id"),
         #("client_secret", "secret"),
-      ])
+      ]
   }
 }
 
@@ -979,22 +979,22 @@ pub fn token_request_omits_client_secret_for_public_client_test() -> Nil {
   )
   |> fn(actual) {
     assert actual
-      == Ok([
+      == [
         #("grant_type", "authorization_code"),
         #("code", "code-123"),
         #("redirect_uri", "https://app.example.com/callback"),
         #("client_id", "client-id"),
-      ])
+      ]
   }
 
   token_request.refresh(client_config, refresh_token: "refresh-123")
   |> fn(actual) {
     assert actual
-      == Ok([
+      == [
         #("grant_type", "refresh_token"),
         #("refresh_token", "refresh-123"),
         #("client_id", "client-id"),
-      ])
+      ]
   }
 }
 
@@ -1014,7 +1014,7 @@ pub fn token_request_includes_client_assertion_without_secret_test() -> Nil {
   )
   |> fn(actual) {
     assert actual
-      == Ok([
+      == [
         #("grant_type", "authorization_code"),
         #("code", "code-123"),
         #("redirect_uri", "https://app.example.com/callback"),
@@ -1024,13 +1024,13 @@ pub fn token_request_includes_client_assertion_without_secret_test() -> Nil {
           "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
         ),
         #("client_assertion", "assertion-jwt"),
-      ])
+      ]
   }
 
   token_request.refresh(client_config, refresh_token: "refresh-123")
   |> fn(actual) {
     assert actual
-      == Ok([
+      == [
         #("grant_type", "refresh_token"),
         #("refresh_token", "refresh-123"),
         #("client_id", "client-id"),
@@ -1039,7 +1039,7 @@ pub fn token_request_includes_client_assertion_without_secret_test() -> Nil {
           "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
         ),
         #("client_assertion", "assertion-jwt"),
-      ])
+      ]
   }
 }
 
