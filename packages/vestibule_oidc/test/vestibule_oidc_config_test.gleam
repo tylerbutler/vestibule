@@ -933,34 +933,32 @@ pub fn token_request_includes_client_secret_when_configured_test() -> Nil {
       auth: config.client_secret_auth("secret"),
     )
 
-  token_request.authorization_code(
-    client_config,
-    code: "code-123",
-    redirect_uri: "https://app.example.com/callback",
-    code_verifier: Some("verifier-123"),
-  )
-  |> fn(actual) {
-    assert actual
-      == [
-        #("grant_type", "authorization_code"),
-        #("code", "code-123"),
-        #("redirect_uri", "https://app.example.com/callback"),
-        #("client_id", "client-id"),
-        #("client_secret", "secret"),
-        #("code_verifier", "verifier-123"),
-      ]
-  }
+  let assert Ok(authorization_parameters) =
+    token_request.authorization_code(
+      client_config,
+      code: "code-123",
+      redirect_uri: "https://app.example.com/callback",
+      code_verifier: Some("verifier-123"),
+    )
+  assert authorization_parameters
+    == [
+      #("grant_type", "authorization_code"),
+      #("code", "code-123"),
+      #("redirect_uri", "https://app.example.com/callback"),
+      #("client_id", "client-id"),
+      #("client_secret", "secret"),
+      #("code_verifier", "verifier-123"),
+    ]
 
-  token_request.refresh(client_config, refresh_token: "refresh-123")
-  |> fn(actual) {
-    assert actual
-      == [
-        #("grant_type", "refresh_token"),
-        #("refresh_token", "refresh-123"),
-        #("client_id", "client-id"),
-        #("client_secret", "secret"),
-      ]
-  }
+  let assert Ok(refresh_parameters) =
+    token_request.refresh(client_config, refresh_token: "refresh-123")
+  assert refresh_parameters
+    == [
+      #("grant_type", "refresh_token"),
+      #("refresh_token", "refresh-123"),
+      #("client_id", "client-id"),
+      #("client_secret", "secret"),
+    ]
 }
 
 pub fn token_request_omits_client_secret_for_public_client_test() -> Nil {
@@ -971,31 +969,29 @@ pub fn token_request_omits_client_secret_for_public_client_test() -> Nil {
       auth: config.public_client(),
     )
 
-  token_request.authorization_code(
-    client_config,
-    code: "code-123",
-    redirect_uri: "https://app.example.com/callback",
-    code_verifier: None,
-  )
-  |> fn(actual) {
-    assert actual
-      == [
-        #("grant_type", "authorization_code"),
-        #("code", "code-123"),
-        #("redirect_uri", "https://app.example.com/callback"),
-        #("client_id", "client-id"),
-      ]
-  }
+  let assert Ok(authorization_parameters) =
+    token_request.authorization_code(
+      client_config,
+      code: "code-123",
+      redirect_uri: "https://app.example.com/callback",
+      code_verifier: None,
+    )
+  assert authorization_parameters
+    == [
+      #("grant_type", "authorization_code"),
+      #("code", "code-123"),
+      #("redirect_uri", "https://app.example.com/callback"),
+      #("client_id", "client-id"),
+    ]
 
-  token_request.refresh(client_config, refresh_token: "refresh-123")
-  |> fn(actual) {
-    assert actual
-      == [
-        #("grant_type", "refresh_token"),
-        #("refresh_token", "refresh-123"),
-        #("client_id", "client-id"),
-      ]
-  }
+  let assert Ok(refresh_parameters) =
+    token_request.refresh(client_config, refresh_token: "refresh-123")
+  assert refresh_parameters
+    == [
+      #("grant_type", "refresh_token"),
+      #("refresh_token", "refresh-123"),
+      #("client_id", "client-id"),
+    ]
 }
 
 pub fn token_request_includes_client_assertion_without_secret_test() -> Nil {
@@ -1006,41 +1002,39 @@ pub fn token_request_includes_client_assertion_without_secret_test() -> Nil {
       auth: config.client_assertion_auth("assertion-jwt"),
     )
 
-  token_request.authorization_code(
-    client_config,
-    code: "code-123",
-    redirect_uri: "https://app.example.com/callback",
-    code_verifier: None,
-  )
-  |> fn(actual) {
-    assert actual
-      == [
-        #("grant_type", "authorization_code"),
-        #("code", "code-123"),
-        #("redirect_uri", "https://app.example.com/callback"),
-        #("client_id", "client-id"),
-        #(
-          "client_assertion_type",
-          "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
-        ),
-        #("client_assertion", "assertion-jwt"),
-      ]
-  }
+  let assert Ok(authorization_parameters) =
+    token_request.authorization_code(
+      client_config,
+      code: "code-123",
+      redirect_uri: "https://app.example.com/callback",
+      code_verifier: None,
+    )
+  assert authorization_parameters
+    == [
+      #("grant_type", "authorization_code"),
+      #("code", "code-123"),
+      #("redirect_uri", "https://app.example.com/callback"),
+      #("client_id", "client-id"),
+      #(
+        "client_assertion_type",
+        "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+      ),
+      #("client_assertion", "assertion-jwt"),
+    ]
 
-  token_request.refresh(client_config, refresh_token: "refresh-123")
-  |> fn(actual) {
-    assert actual
-      == [
-        #("grant_type", "refresh_token"),
-        #("refresh_token", "refresh-123"),
-        #("client_id", "client-id"),
-        #(
-          "client_assertion_type",
-          "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
-        ),
-        #("client_assertion", "assertion-jwt"),
-      ]
-  }
+  let assert Ok(refresh_parameters) =
+    token_request.refresh(client_config, refresh_token: "refresh-123")
+  assert refresh_parameters
+    == [
+      #("grant_type", "refresh_token"),
+      #("refresh_token", "refresh-123"),
+      #("client_id", "client-id"),
+      #(
+        "client_assertion_type",
+        "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+      ),
+      #("client_assertion", "assertion-jwt"),
+    ]
 }
 
 pub fn sans_io_provider_requests_and_responses_test() -> Nil {
