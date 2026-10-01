@@ -4,7 +4,7 @@ description: "Wisp middleware that wires a `Registry` of `Strategy` values into 
 nav:
   group: Reference
   groupOrder: 20
-  order: 37
+  order: 38
   label: "vestibule_wisp"
 toc:
   - href: "#types"

@@ -25,6 +25,7 @@ packages = [
   { name = "splitter", version = "1.2.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "splitter", source = "hex", outer_checksum = "3DFD6B6C49E61EDAF6F7B27A42054A17CFF6CA2135FF553D0CB61C234D281DD0" },
   { name = "tom", version = "2.1.0", build_tools = ["gleam"], requirements = ["gleam_stdlib", "gleam_time"], otp_app = "tom", source = "hex", outer_checksum = "DCF04CB7AB35D58CFC598C66EA2E1816D160759802C89B2BA6238780D59BC256" },
   { name = "ywt_core", version = "1.2.0", build_tools = ["gleam"], requirements = ["bigi", "gleam_json", "gleam_stdlib", "gleam_time"], otp_app = "ywt_core", source = "hex", outer_checksum = "AAA8F04B1592631229E5E4F48BDD76D9AE06081FB9E025A001C17E4C575F7BC1" },
+  { name = "ywt_erlang", version = "1.0.1", build_tools = ["gleam"], requirements = ["gleam_json", "gleam_stdlib", "gleam_time", "ywt_core"], otp_app = "ywt_erlang", source = "hex", outer_checksum = "C9645B8BE588471B694CA6DD89EB78E55E740211F9D904763442B62E98C82A31" },
 ]
 
 [requirements]
@@ -37,3 +38,4 @@ gleam_time = { version = ">= 1.7.0 and < 2.0.0" }
 gleeunit = { version = ">= 1.6.0 and < 2.0.0" }
 glinter = { version = ">= 2.19.0 and < 3.0.0" }
 ywt_core = { version = ">= 1.2.0 and < 2.0.0" }
+ywt_erlang = { version = ">= 1.0.1 and < 2.0.0" }

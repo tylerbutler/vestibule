@@ -107,7 +107,7 @@ pub type ErrorKind {
 /// Provider-controlled descriptions, URIs, and unknown error codes are
 /// discarded so a provider cannot echo submitted secrets into public errors.
 pub opaque type ProviderError {
-  ProviderError(code: String, description: String, uri: Option(String))
+  ProviderError(code: String)
 }
 
 // --- Constructors ---------------------------------------------------------
@@ -143,11 +143,7 @@ pub fn provider(
   description _description: String,
   uri _uri: Option(String),
 ) -> AuthError(e) {
-  ProviderReturnedError(ProviderError(
-    code: safe_provider_error_code(code),
-    description: "Provider rejected the request",
-    uri: None,
-  ))
+  ProviderReturnedError(ProviderError(code: safe_provider_error_code(code)))
 }
 
 fn safe_provider_error_code(code: String) -> String {
@@ -246,11 +242,8 @@ pub fn message(auth_error: AuthError(e)) -> String {
       "Missing required callback parameter: " <> name
     CodeExchange(reason) -> "Failed to exchange authorization code: " <> reason
     UserInfo(reason) -> "Failed to fetch user info: " <> reason
-    ProviderReturnedError(ProviderError(
-      code: code,
-      description: description,
-      ..,
-    )) -> "Provider returned error: " <> code <> " — " <> description
+    ProviderReturnedError(ProviderError(code)) ->
+      "Provider returned error: " <> code <> " — Provider rejected the request"
     HttpError(status, summary) ->
       "HTTP " <> int.to_string(status) <> ": " <> summary
     DecodeError(context, reason) ->
@@ -362,12 +355,12 @@ pub fn provider_code(provider_error: ProviderError) -> String {
 }
 
 /// A fixed, log-safe provider error description.
-pub fn provider_description(provider_error: ProviderError) -> String {
-  provider_error.description
+pub fn provider_description(_provider_error: ProviderError) -> String {
+  "Provider rejected the request"
 }
 
 /// The provider error URI. This is always `None`; provider-controlled URIs are
 /// discarded to avoid echoing secrets.
-pub fn provider_uri(provider_error: ProviderError) -> Option(String) {
-  provider_error.uri
+pub fn provider_uri(_provider_error: ProviderError) -> Option(String) {
+  None
 }

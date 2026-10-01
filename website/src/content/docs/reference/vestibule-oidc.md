@@ -84,31 +84,12 @@ Return the verified authorized party.
 pub fn authorized_party(VerifiedIdToken) -> option.Option(String)
 ```
 
-### `bool_claim`
-
-Return a required boolean claim from the verified payload.
-
-```gleam
-pub fn bool_claim(
-  VerifiedIdToken,
-  String
-) -> Result(Bool, VerificationError)
-```
-
 ### `error_message`
 
 Return a short token-free description suitable for an authentication error.
 
 ```gleam
 pub fn error_message(VerificationError) -> String
-```
-
-### `hosted_domain`
-
-Return Google's verified hosted-domain claim, when present.
-
-```gleam
-pub fn hosted_domain(VerifiedIdToken) -> option.Option(String)
 ```
 
 ### `nonce`
@@ -119,56 +100,22 @@ Return the verified nonce.
 pub fn nonce(VerifiedIdToken) -> option.Option(String)
 ```
 
-### `object_id`
-
-Return Microsoft's verified object identifier claim, when present.
-
-```gleam
-pub fn object_id(VerifiedIdToken) -> option.Option(String)
-```
-
-### `optional_bool_claim`
-
-Return an optional boolean claim from the verified payload.
-
-```gleam
-pub fn optional_bool_claim(
-  VerifiedIdToken,
-  String
-) -> Result(option.Option(Bool), VerificationError)
-```
-
-### `optional_string_claim`
-
-Return an optional string claim from the verified payload.
-
-This is useful for provider-specific claims such as Google's `hd` or
-Microsoft's `tid`. A present non-string claim is rejected.
-
-```gleam
-pub fn optional_string_claim(
-  VerifiedIdToken,
-  String
-) -> Result(option.Option(String), VerificationError)
-```
-
 ### `parse_jwks`
 
 Parse a JWKS document, retaining only RSA signing keys pinned to RS256.
 
+Vestibule limits the document to 16 keys, accepts only RSA signing keys
+whose `alg` is absent or `RS256`, and requires unique non-empty key IDs when
+the set contains multiple eligible keys.
+
+RSA integer decoding and signature verification are delegated to `ywt` so
+Vestibule does not maintain cryptographic key parsing. `ywt` validates the
+JWK encoding, but it does not enforce a minimum or maximum RSA modulus size
+or restrict the public exponent. Applications that require those key-strength
+policies must validate the provider JWKS separately.
+
 ```gleam
 pub fn parse_jwks(String) -> Result(Jwks, VerificationError)
-```
-
-### `string_claim`
-
-Return a required string claim from the verified payload.
-
-```gleam
-pub fn string_claim(
-  VerifiedIdToken,
-  String
-) -> Result(String, VerificationError)
 ```
 
 ### `subject`
@@ -177,14 +124,6 @@ Return the verified subject.
 
 ```gleam
 pub fn subject(VerifiedIdToken) -> String
-```
-
-### `tenant_id`
-
-Return Microsoft's verified tenant identifier claim, when present.
-
-```gleam
-pub fn tenant_id(VerifiedIdToken) -> option.Option(String)
 ```
 
 ### `verify_rs256`

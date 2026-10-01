@@ -4,7 +4,7 @@ description: "IndieAuth strategy for vestibule — decentralized identity via OA
 nav:
   group: Reference
   groupOrder: 20
-  order: 28
+  order: 29
   label: "vestibule_indieauth"
 toc:
   - href: "#functions"
