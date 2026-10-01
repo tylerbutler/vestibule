@@ -15,8 +15,26 @@ pub fn encode(
   payload payload: List(#(String, json.Json)),
   claims claims: List(Claim),
 ) -> String {
+  encode_with_key(payload, claims, test_key())
+}
+
+pub fn encode_without_kid(
+  payload payload: List(#(String, json.Json)),
+  claims claims: List(Claim),
+) -> String {
+  let key =
+    string.replace(private_jwk, ",\"kid\":\"oidc-test-key\"", "")
+    |> parse_key()
+  encode_with_key(payload, claims, key)
+}
+
+fn encode_with_key(
+  payload: List(#(String, json.Json)),
+  claims: List(Claim),
+  key: SignKey,
+) -> String {
   let sign = fn(message, key, next) { next(sign_bits(message, key)) }
-  jwt.encode(payload:, claims:, key: test_key(), sign:)
+  jwt.encode(payload:, claims:, key:, sign:)
 }
 
 pub fn jwks() -> String {
@@ -46,7 +64,11 @@ pub fn with_algorithm(token: String, algorithm: String) -> String {
 }
 
 fn test_key() -> SignKey {
-  let assert Ok(key) = json.parse(private_jwk, sign_key.decoder())
+  parse_key(private_jwk)
+}
+
+fn parse_key(jwk: String) -> SignKey {
+  let assert Ok(key) = json.parse(jwk, sign_key.decoder())
   key
 }
 

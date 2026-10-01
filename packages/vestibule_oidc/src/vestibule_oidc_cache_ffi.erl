@@ -1,74 +1,141 @@
 -module(vestibule_oidc_cache_ffi).
 
--export([get/2, put/2]).
+-export([get/2,
+         put/2,
+         claim_refresh/2,
+         release_refresh/1,
+         complete_refresh/1,
+         await_refresh/2]).
 
--define(SERVER, vestibule_oidc_jwks_cache).
+-define(TABLE, vestibule_oidc_jwks_cache).
+-define(REFRESH_TABLE, vestibule_oidc_jwks_refreshes).
 -define(MAX_ENTRIES, 64).
 
 get(Key, TtlSeconds) ->
-    call({get, Key, TtlSeconds}).
+    ensure_table(),
+    Now = erlang:monotonic_time(second),
+    case ets:lookup(?TABLE, Key) of
+        [{Key, InsertedAt, Value}] when Now - InsertedAt =< TtlSeconds ->
+            {ok, Value};
+        [{Key, InsertedAt, Value}] ->
+            ets:delete_object(?TABLE, {Key, InsertedAt, Value}),
+            {error, nil};
+        [] ->
+            {error, nil}
+    end.
 
 put(Key, Value) ->
-    call({put, Key, Value}),
+    ensure_table(),
+    ets:insert(?TABLE, {Key, erlang:monotonic_time(second), Value}),
+    evict_if_needed(),
     nil.
 
-call(Request) ->
-    Server = ensure_server(),
-    Reference = make_ref(),
-    Server ! {call, self(), Reference, Request},
-    receive
-        {Reference, Reply} -> Reply
-    after 5000 ->
-        case Request of
-            {get, _, _} -> {error, nil};
-            {put, _, _} -> nil
-        end
+claim_refresh(Key, CooldownSeconds) ->
+    ensure_tables(),
+    Now = erlang:monotonic_time(second),
+    case ets:lookup(?REFRESH_TABLE, Key) of
+        [{Key, InsertedAt, completed, _Owner}]
+          when Now - InsertedAt =< CooldownSeconds ->
+            false;
+        [{Key, _InsertedAt, in_flight, Owner} = Claim] ->
+            case is_process_alive(Owner) of
+                true ->
+                    false;
+                false ->
+                    ets:delete_object(?REFRESH_TABLE, Claim),
+                    insert_refresh_claim(Key, Now)
+            end;
+        [Expired] ->
+            ets:delete_object(?REFRESH_TABLE, Expired),
+            insert_refresh_claim(Key, Now);
+        [] ->
+            insert_refresh_claim(Key, Now)
     end.
 
-ensure_server() ->
-    case whereis(?SERVER) of
+insert_refresh_claim(Key, Now) ->
+    ets:insert_new(?REFRESH_TABLE, {Key, Now, in_flight, self()}).
+
+release_refresh(Key) ->
+    ensure_tables(),
+    case ets:lookup(?REFRESH_TABLE, Key) of
+        [{Key, _InsertedAt, in_flight, Owner} = Claim]
+          when Owner =:= self() ->
+            ets:delete_object(?REFRESH_TABLE, Claim);
+        _ ->
+            ok
+    end,
+    nil.
+
+complete_refresh(Key) ->
+    ensure_tables(),
+    case ets:lookup(?REFRESH_TABLE, Key) of
+        [{Key, _InsertedAt, in_flight, Owner}] when Owner =:= self() ->
+            ets:insert(?REFRESH_TABLE,
+                       {Key,
+                        erlang:monotonic_time(second),
+                        completed,
+                        Owner});
+        _ ->
+            ok
+    end,
+    nil.
+
+await_refresh(Key, TimeoutMilliseconds) ->
+    ensure_tables(),
+    Deadline =
+        erlang:monotonic_time(millisecond) + max(TimeoutMilliseconds, 0),
+    await_refresh_loop(Key, Deadline).
+
+await_refresh_loop(Key, Deadline) ->
+    case ets:lookup(?REFRESH_TABLE, Key) of
+        [{Key, _InsertedAt, in_flight, Owner} = Claim] ->
+            case is_process_alive(Owner) of
+                true ->
+                    Remaining =
+                        Deadline - erlang:monotonic_time(millisecond),
+                    case Remaining > 0 of
+                        true ->
+                            timer:sleep(min(Remaining, 10)),
+                            await_refresh_loop(Key, Deadline);
+                        false ->
+                            nil
+                    end;
+                false ->
+                    ets:delete_object(?REFRESH_TABLE, Claim),
+                    nil
+            end;
+        _ ->
+            nil
+    end.
+
+ensure_table() ->
+    ensure_named_table(?TABLE).
+
+ensure_tables() ->
+    ensure_named_table(?TABLE),
+    ensure_named_table(?REFRESH_TABLE).
+
+ensure_named_table(Table) ->
+    case ets:whereis(Table) of
         undefined ->
-            Candidate = spawn(fun() -> loop(#{} ) end),
-            case catch register(?SERVER, Candidate) of
-                true -> Candidate;
-                _ ->
-                    exit(Candidate, kill),
-                    whereis(?SERVER)
+            try
+                ets:new(Table, [named_table, set, public,
+                                {heir, whereis(init), nil},
+                                {read_concurrency, true},
+                                {write_concurrency, true}]),
+                ok
+            catch
+                error:badarg -> ok
             end;
-        Server ->
-            Server
+        _ ->
+            ok
     end.
 
-loop(Cache) ->
-    receive
-        {call, Caller, Reference, {get, Key, TtlSeconds}} ->
-            Now = erlang:monotonic_time(second),
-            case maps:find(Key, Cache) of
-                {ok, {InsertedAt, Value}} when Now - InsertedAt =< TtlSeconds ->
-                    Caller ! {Reference, {ok, Value}},
-                    loop(Cache);
-                {ok, _Expired} ->
-                    Caller ! {Reference, {error, nil}},
-                    loop(maps:remove(Key, Cache));
-                error ->
-                    Caller ! {Reference, {error, nil}},
-                    loop(Cache)
-            end;
-        {call, Caller, Reference, {put, Key, Value}} ->
-            Now = erlang:monotonic_time(second),
-            Updated = maps:put(Key, {Now, Value}, Cache),
-            Bounded = evict_if_needed(Updated),
-            Caller ! {Reference, nil},
-            loop(Bounded)
+evict_if_needed() ->
+    case ets:info(?TABLE, size) > ?MAX_ENTRIES of
+        true ->
+            % ponytail: arbitrary eviction; add LRU only if misses matter.
+            ets:delete(?TABLE, ets:first(?TABLE));
+        false ->
+            true
     end.
-
-evict_if_needed(Cache) when map_size(Cache) =< ?MAX_ENTRIES ->
-    Cache;
-evict_if_needed(Cache) ->
-    [{OldestKey, _} | _] =
-        lists:sort(
-          fun({_KeyA, {TimeA, _}}, {_KeyB, {TimeB, _}}) ->
-                  TimeA =< TimeB
-          end,
-          maps:to_list(Cache)),
-    maps:remove(OldestKey, Cache).
