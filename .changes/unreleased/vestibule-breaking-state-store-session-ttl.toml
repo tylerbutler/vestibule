@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Breaking"
+body = "Changed state store TTL APIs to accept validated SessionTtl values instead of raw integer seconds."

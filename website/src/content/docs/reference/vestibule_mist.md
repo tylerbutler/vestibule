@@ -4,7 +4,7 @@ description: "Mist middleware that wires a `Registry` of `Strategy` values into 
 nav:
   group: Reference
   groupOrder: 20
-  order: 34
+  order: 35
   label: "vestibule_mist"
 toc:
   - href: "#types"
@@ -162,7 +162,7 @@ Middleware configuration options.
 
 Construct with `new_options` — the HMAC `secret_key_base` is mandatory and
 has no safe default — then customize with `with_cookie_name`,
-`with_session_ttl_seconds`, `with_cookie_security`, and `with_same_site`. The type is opaque
+`with_session_ttl`, `with_cookie_security`, and `with_same_site`. The type is opaque
 so the effective cookie name always matches the cookie security: host-bound
 (`__Host-` prefixed) under `SecureOnly`, unprefixed under `AllowInsecure`
 (browsers reject `__Host-` cookies that are not `Secure`). A host-bound
@@ -347,7 +347,7 @@ be at least `min_secret_key_base_bytes` (32) bytes of unpredictable data.
 
 Defaults: host-bound cookie name `__Host-vestibule_session`, session TTL
 600 seconds, `SecureOnly` cookies, `SameSite=Lax`. Customize with
-`with_cookie_name`, `with_session_ttl_seconds`, `with_cookie_security`, and
+`with_cookie_name`, `with_session_ttl`, `with_cookie_security`, and
 `with_same_site`.
 
 ```gleam
@@ -390,12 +390,12 @@ The session cookie's `SameSite` setting for these options.
 pub fn same_site(Options) -> CookieSameSite
 ```
 
-### `session_ttl_seconds`
+### `session_ttl`
 
-The session TTL in seconds for these options.
+The validated session TTL for these options.
 
 ```gleam
-pub fn session_ttl_seconds(Options) -> Int
+pub fn session_ttl(Options) -> session_ttl.SessionTtl
 ```
 
 ### `with_cookie_name`
@@ -435,14 +435,14 @@ pub fn with_same_site(
 ) -> Options
 ```
 
-### `with_session_ttl_seconds`
+### `with_session_ttl`
 
 Set how long an in-flight authorization flow (and its session cookie)
 stays valid.
 
 ```gleam
-pub fn with_session_ttl_seconds(
+pub fn with_session_ttl(
   Options,
-  Int
+  session_ttl.SessionTtl
 ) -> Options
 ```

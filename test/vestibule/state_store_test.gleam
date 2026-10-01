@@ -1,5 +1,6 @@
 import gleam/option.{None, Some}
 import gleam/string
+import vestibule/session_ttl
 import vestibule/state_store
 
 pub fn store_and_retrieve_state_and_verifier_test() -> Nil {
@@ -130,7 +131,7 @@ pub fn store_with_ttl_stores_retrievable_value_test() -> Nil {
       state: state,
       code_verifier: verifier,
       nonce: None,
-      ttl_seconds: 600,
+      ttl: session_ttl.default(),
     )
 
   state_store.consume(table, session_id, provider: "test")
@@ -153,8 +154,9 @@ pub fn retrieve_consumes_expired_session_test() -> Nil {
       state: "state",
       code_verifier: "verifier",
       nonce: None,
-      ttl_seconds: 0,
+      ttl: ttl(1),
     )
+  sleep(1100)
 
   state_store.consume(table, session_id, provider: "test")
   |> fn(result) {
@@ -181,8 +183,9 @@ pub fn expired_sessions_are_removed_by_sweep_not_on_insert_test() -> Nil {
       state: "expired-state",
       code_verifier: "verifier",
       nonce: None,
-      ttl_seconds: 0,
+      ttl: ttl(1),
     )
+  sleep(1100)
   let assert Ok(_) =
     state_store.store_with_ttl(
       table,
@@ -190,7 +193,7 @@ pub fn expired_sessions_are_removed_by_sweep_not_on_insert_test() -> Nil {
       state: "fresh-state",
       code_verifier: "verifier",
       nonce: None,
-      ttl_seconds: 600,
+      ttl: session_ttl.default(),
     )
   count_store_entries(name)
   |> fn(actual) {
@@ -217,8 +220,9 @@ pub fn owner_periodic_sweep_removes_expired_sessions_test() -> Nil {
       state: "expired-state",
       code_verifier: "verifier",
       nonce: None,
-      ttl_seconds: 0,
+      ttl: ttl(1),
     )
+  sleep(1100)
   count_store_entries(name)
   |> fn(actual) {
     assert actual == 1
@@ -274,8 +278,9 @@ pub fn store_reclaims_expired_sessions_before_reporting_full_test() -> Nil {
       state: "expired-state",
       code_verifier: "verifier",
       nonce: None,
-      ttl_seconds: 0,
+      ttl: ttl(1),
     )
+  sleep(1100)
   // At capacity, but the only occupant is expired: it is swept, not refused.
   let assert Ok(_) =
     state_store.store(
@@ -328,6 +333,14 @@ fn count_store_entries(name: String) -> Int
 
 @external(erlang, "vestibule_state_store_test_ffi", "trigger_owner_sweep")
 fn trigger_owner_sweep(name: String) -> Nil
+
+fn ttl(seconds: Int) -> session_ttl.SessionTtl {
+  let assert Ok(ttl) = session_ttl.from_seconds(seconds)
+  ttl
+}
+
+@external(erlang, "timer", "sleep")
+fn sleep(milliseconds: Int) -> Nil
 
 // === provider binding ===
 //

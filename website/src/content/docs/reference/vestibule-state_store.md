@@ -4,7 +4,7 @@ description: "Single-use storage for in-flight OAuth flow state (CSRF `state` an
 nav:
   group: Reference
   groupOrder: 20
-  order: 20
+  order: 21
   label: "vestibule/state_store"
 toc:
   - href: "#types"
@@ -198,7 +198,7 @@ pub fn store_with_ttl(
   state: String,
   code_verifier: String,
   nonce: option.Option(String),
-  ttl_seconds: Int
+  ttl: session_ttl.SessionTtl
 ) -> Result(String, StateStoreError)
 ```
 

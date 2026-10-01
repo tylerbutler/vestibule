@@ -87,7 +87,9 @@ The default options use a host-bound (`__Host-` prefixed) session cookie:
 
 ```gleam
 vestibule_wisp.default_options()
-// -> Options(cookie_name: "__Host-vestibule_session", session_ttl_seconds: 600)
+|> vestibule_wisp.session_ttl()
+|> session_ttl.to_seconds()
+// -> 600
 ```
 
 The `__Host-` prefix defends against OAuth session cookie tossing / fixation:
@@ -115,10 +117,11 @@ security. Use `vestibule_wisp.is_host_bound_cookie_name/1` to check a
 caller-supplied name.
 
 ```gleam
+let assert Ok(ttl) = session_ttl.from_seconds(300)
 let options =
   vestibule_wisp.default_options()
   |> vestibule_wisp.with_cookie_name("my_app_oauth_session")
-  |> vestibule_wisp.with_session_ttl_seconds(300)
+  |> vestibule_wisp.with_session_ttl(ttl)
 
 // Local development without TLS:
 let development_options =
@@ -143,9 +146,11 @@ vestibule_wisp.callback_phase_with_options(
 )
 ```
 
-The cookie TTL and server-side state-store TTL use the same
-`session_ttl_seconds` value. Users must complete the provider callback before
-that TTL expires. If the signed cookie is missing, invalid, or expired, the
+The cookie TTL and server-side state-store TTL use the same validated
+`SessionTtl` value. Construct one with `session_ttl.from_seconds` or
+`session_ttl.from_duration`; invalid values return `Error`. Users must complete
+the provider callback before that TTL expires. If the signed cookie is missing,
+invalid, or expired, the
 structured API returns `MissingOrInvalidSessionCookie(reason)`, where `reason`
 is `CookieAbsent` (no cookie was sent — ordinary user behaviour) or
 `CookieSignatureInvalid` (a cookie was sent that this secret key base did not
