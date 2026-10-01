@@ -47,7 +47,7 @@ import gleam/option.{type Option}
 import gleam/result
 import vestibule/internal/secret
 
-const default_ttl_seconds = 600
+import vestibule/session_ttl.{type SessionTtl}
 
 /// Default upper bound on live sessions per store. Each entry is a few
 /// hundred bytes, so this keeps the default store within a few megabytes.
@@ -182,7 +182,7 @@ pub fn store(
     state: state,
     code_verifier: code_verifier,
     nonce: nonce,
-    ttl_seconds: default_ttl_seconds,
+    ttl: session_ttl.default(),
   )
 }
 
@@ -203,7 +203,7 @@ pub fn store_for_client(
     state: state,
     code_verifier: code_verifier,
     nonce: nonce,
-    ttl_seconds: default_ttl_seconds,
+    ttl: session_ttl.default(),
   )
 }
 
@@ -216,7 +216,7 @@ pub fn store_with_ttl(
   state state: String,
   code_verifier code_verifier: String,
   nonce nonce: Option(String),
-  ttl_seconds ttl_seconds: Int,
+  ttl ttl: SessionTtl,
 ) -> Result(String, StateStoreError) {
   do_store(
     table,
@@ -225,7 +225,7 @@ pub fn store_with_ttl(
     state: state,
     code_verifier: code_verifier,
     nonce: nonce,
-    ttl_seconds: ttl_seconds,
+    ttl: ttl,
   )
 }
 
@@ -240,7 +240,7 @@ pub fn store_for_client_with_ttl(
   state state: String,
   code_verifier code_verifier: String,
   nonce nonce: Option(String),
-  ttl_seconds ttl_seconds: Int,
+  ttl ttl: SessionTtl,
 ) -> Result(String, StateStoreError) {
   let client_key = case client_key {
     "" -> "unidentified"
@@ -253,7 +253,7 @@ pub fn store_for_client_with_ttl(
     state: state,
     code_verifier: code_verifier,
     nonce: nonce,
-    ttl_seconds: ttl_seconds,
+    ttl: ttl,
   )
 }
 
@@ -264,12 +264,12 @@ fn do_store(
   state state: String,
   code_verifier code_verifier: String,
   nonce nonce: Option(String),
-  ttl_seconds ttl_seconds: Int,
+  ttl ttl: SessionTtl,
 ) -> Result(String, StateStoreError) {
   let session_id =
     crypto.strong_random_bytes(16)
     |> bit_array.base64_url_encode(False)
-  let expires_at = monotonic_seconds() + ttl_seconds
+  let expires_at = monotonic_seconds() + session_ttl.to_seconds(ttl)
   let state = secret.from_string(state)
   let code_verifier = secret.from_string(code_verifier)
   let nonce = option.map(nonce, secret.from_string)
