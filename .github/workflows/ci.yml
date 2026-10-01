@@ -56,7 +56,7 @@ jobs:
               sleep 60
               trellis run deps "$package"
             }
-            sleep 10
+            sleep 3
           done
       - name: Share dependencies with downstream jobs
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # ratchet:actions/upload-artifact@v6
