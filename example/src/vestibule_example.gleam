@@ -1,8 +1,14 @@
 import envoy
+import gleam/bit_array
+import gleam/bytes_tree
+import gleam/crypto
 import gleam/erlang/process
+import gleam/http/request
+import gleam/http/response
 import gleam/int
 import gleam/io
 import gleam/result
+import gleam/string
 import mist
 import wisp
 import wisp/wisp_mist
@@ -20,9 +26,23 @@ pub fn main() -> Nil {
     envoy.get("PORT")
     |> result.try(int.parse)
     |> result.unwrap(8000)
-  let secret_key_base =
-    envoy.get("SECRET_KEY_BASE")
-    |> result.unwrap("development-secret-key-base-change-in-production-please")
+  let secret_key_base = case envoy.get("SECRET_KEY_BASE") {
+    Ok(secret) ->
+      case string.byte_size(secret) >= 32 {
+        True -> secret
+        False -> {
+          io.println("Error: SECRET_KEY_BASE must contain at least 32 bytes.")
+          panic as "SECRET_KEY_BASE is too short"
+        }
+      }
+    Error(Nil) -> {
+      io.println(
+        "Warning: using an ephemeral SECRET_KEY_BASE; OAuth flow cookies become invalid when the server restarts.",
+      )
+      crypto.strong_random_bytes(32)
+      |> bit_array.base64_url_encode(False)
+    }
+  }
   let callback_base = "http://localhost:" <> int.to_string(port)
 
   // Build registry with available providers
@@ -115,11 +135,30 @@ pub fn main() -> Nil {
   wisp.configure_logger()
 
   // Start the server
-  let handler = fn(request) { router.handle_request(request, context) }
+  let handler = fn(request: request.Request(mist.Connection)) {
+    case mist.get_connection_info(request.body) {
+      Error(Nil) ->
+        response.new(429)
+        |> response.set_body(mist.Bytes(bytes_tree.new()))
+      Ok(connection_info) -> {
+        let client_key = mist.ip_address_to_string(connection_info.ip_address)
+        wisp_mist.handler(
+          fn(request) {
+            router.handle_request_for_client(
+              request,
+              context,
+              client_key: client_key,
+            )
+          },
+          secret_key_base,
+        )(request)
+      }
+    }
+  }
   let assert Ok(_) =
     handler
-    |> wisp_mist.handler(secret_key_base)
     |> mist.new
+    |> mist.bind("localhost")
     |> mist.port(port)
     |> mist.start
 
