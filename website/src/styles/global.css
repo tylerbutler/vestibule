@@ -1001,7 +1001,7 @@ p {
 code {
   font-family: var(--font-mono);
   font-size: var(--text-label);
-  font-feature-settings: "ss01" 1, "ss11" 1;
+  font-feature-settings: "liga" 1, "calt" 1, "ss01" 1, "ss11" 1;
   font-variant-ligatures: common-ligatures contextual;
   font-variant-numeric: tabular-nums;
 }
@@ -1021,7 +1021,7 @@ code {
 /* Expressive Code resets code descendants with `all`; this wins that cascade. */
 .expressive-code.expressive-code pre > code,
 .expressive-code.expressive-code pre > code * {
-  font-feature-settings: "ss01" 1, "ss11" 1;
+  font-feature-settings: "liga" 1, "calt" 1, "ss01" 1, "ss11" 1;
   font-variant-ligatures: common-ligatures contextual;
   font-variant-numeric: tabular-nums;
 }
