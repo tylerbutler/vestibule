@@ -186,7 +186,7 @@ fn metadata_callback(
   vestibule.handle_callback(
     vestibule_indieauth.strategy(endpoints, "https://me.example.com/"),
     config: test_client_config(),
-    callback_params: callback_params,
+    callback_parameters: callback_params,
     expected_state: "state",
     code_verifier: "pkce-verifier",
     expected_nonce: None,
