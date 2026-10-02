@@ -222,7 +222,7 @@ pub fn parse_redirect_uri_rejects_https_without_host_test() -> Nil {
 }
 
 pub fn append_query_parameters_preserves_existing_query_test() -> Nil {
-  assert provider_support.append_query_params(
+  assert provider_support.append_query_parameters(
       "https://example.com/auth?existing=1",
       [#("prompt", "consent")],
     )
@@ -230,10 +230,46 @@ pub fn append_query_parameters_preserves_existing_query_test() -> Nil {
 }
 
 pub fn append_query_parameters_encodes_values_test() -> Nil {
-  assert provider_support.append_query_params("https://example.com/auth", [
+  assert provider_support.append_query_parameters("https://example.com/auth", [
       #("state", "a&b=c"),
     ])
     == "https://example.com/auth?state=a%26b%3Dc"
+}
+
+pub fn append_query_parameters_preserves_fragment_test() -> Nil {
+  assert provider_support.append_query_parameters(
+      "https://example.com/auth#section",
+      [#("prompt", "consent")],
+    )
+    == "https://example.com/auth?prompt=consent#section"
+}
+
+pub fn append_query_parameters_preserves_query_and_fragment_test() -> Nil {
+  assert provider_support.append_query_parameters(
+      "https://example.com/auth?existing=1#section?fragment=value",
+      [#("state", "a&b=c")],
+    )
+    == "https://example.com/auth?existing=1&state=a%26b%3Dc#section?fragment=value"
+}
+
+pub fn append_query_parameters_ignores_question_mark_in_fragment_test() -> Nil {
+  assert provider_support.append_query_parameters(
+      "https://example.com/auth#section?fragment=value",
+      [#("prompt", "consent")],
+    )
+    == "https://example.com/auth?prompt=consent#section?fragment=value"
+}
+
+pub fn append_query_parameters_preserves_empty_fragment_test() -> Nil {
+  assert provider_support.append_query_parameters("https://example.com/auth#", [
+      #("prompt", "consent"),
+    ])
+    == "https://example.com/auth?prompt=consent#"
+}
+
+pub fn append_query_parameters_without_parameters_preserves_url_test() -> Nil {
+  let url = "https://example.com/auth?existing=1#section"
+  assert provider_support.append_query_parameters(url, []) == url
 }
 
 pub fn check_token_error_returns_provider_error_test() -> Nil {

@@ -1,8 +1,6 @@
 ---
 import "@fontsource-variable/figtree/wght.css";
 import "@fontsource-variable/figtree/wght-italic.css";
-import "@fontsource/commit-mono/400.css";
-import "@fontsource/commit-mono/400-italic.css";
 import DemoWarning from "../components/DemoWarning.astro";
 import { getNavigation, getSearchEntries } from "../data/content";
 import "../styles/global.css";
@@ -91,6 +89,8 @@ const moduleLabel = (subTitle: string, label: string) =>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" content={description} />
     <link rel="icon" type="image/webp" href="/icon-96.webp" />
+    <link rel="preconnect" href="https://fonts.tylerbutler.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.tylerbutler.com/css/fonts.css" />
     <title>{pageTitle}</title>
     <script is:inline>
       (() => {

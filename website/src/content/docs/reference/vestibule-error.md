@@ -33,7 +33,7 @@ in this module:
 - [`message`](#message) returns a human-readable summary, safe to log.
 - [`provider_error`](#provider_error) returns sanitized provider error data
   when the provider returned a standard OAuth error.
-- [`http_status`](#http_status) and [`missing_param`](#missing_param) expose
+- [`http_status`](#http_status) and [`missing_parameter`](#missing_parameter) expose
   the few additional structured fields some errors carry.
 - [`custom_payload`](#custom_payload) returns the provider-defined payload
   for custom errors.
@@ -51,7 +51,7 @@ An opaque authentication error.
 
 Inspect values of this type with [`kind`](#kind), [`phase`](#phase),
 [`message`](#message), [`provider_error`](#provider_error),
-[`http_status`](#http_status), [`missing_param`](#missing_param), and
+[`http_status`](#http_status), [`missing_parameter`](#missing_parameter), and
 [`custom_payload`](#custom_payload).
 
 ```gleam
@@ -307,12 +307,12 @@ A required OAuth callback parameter was missing.
 pub fn missing_callback_param(String) -> AuthError(a)
 ```
 
-### `missing_param`
+### `missing_parameter`
 
 The name of the missing callback parameter, for `MissingCallbackParamKind`.
 
 ```gleam
-pub fn missing_param(AuthError(a)) -> option.Option(String)
+pub fn missing_parameter(AuthError(a)) -> option.Option(String)
 ```
 
 ### `network`

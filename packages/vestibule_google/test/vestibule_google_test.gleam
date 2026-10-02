@@ -218,7 +218,7 @@ pub fn authorize_url_includes_extra_parameters_test() -> Nil {
     )
   let assert Ok(options) =
     config.authorize_options()
-    |> config.with_extra_params([#("prompt", "consent")])
+    |> config.with_extra_parameters([#("prompt", "consent")])
   let assert Ok(url) =
     strategy.build_authorize_url(
       google_strategy,
@@ -704,7 +704,7 @@ fn run_google_callback(
       redirect_uri: "https://app.example/callback",
       auth: config.client_secret_auth("secret"),
     ),
-    callback_params: dict.from_list([
+    callback_parameters: dict.from_list([
       #("state", "state"),
       #("code", "code"),
     ]),

@@ -4,7 +4,7 @@ description: "Wisp middleware that wires a `Registry` of `Strategy` values into 
 nav:
   group: Reference
   groupOrder: 20
-  order: 38
+  order: 39
   label: "vestibule_wisp"
 toc:
   - href: "#types"
@@ -40,7 +40,7 @@ pub type CallbackError(a) {
   MissingOrInvalidSessionCookie(reason: SessionCookieError)
   SessionUnavailable
   SessionProviderMismatch
-  InvalidCallbackParams(reason: CallbackParamsError)
+  InvalidCallbackParameters(reason: CallbackParametersError)
   AuthFailed(error.AuthError(a))
 }
 ```
@@ -64,7 +64,7 @@ The session state was not found, expired, or already used.
 
 The signed session belongs to another registered provider.
 
-##### `InvalidCallbackParams(reason: CallbackParamsError)`
+##### `InvalidCallbackParameters(reason: CallbackParametersError)`
 
 Callback parameters could not be extracted from the request; `reason`
 says why.
@@ -73,12 +73,12 @@ says why.
 
 Provider authentication failed.
 
-### `CallbackParamsError`
+### `CallbackParametersError`
 
 Why callback parameters could not be extracted from a POST callback body.
 
 ```gleam
-pub type CallbackParamsError {
+pub type CallbackParametersError {
   QueryNotFormEncoded
   BodyReadFailed
   BodyNotUtf8

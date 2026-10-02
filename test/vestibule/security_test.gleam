@@ -133,7 +133,7 @@ pub fn state_validate_rejects_swapped_values_test() -> Nil {
 
 /// Security: PKCE verifier must use URL-safe base64 characters only.
 /// No +, /, or = padding (RFC 7636 Section 4.1).
-pub fn pkce_verifier_uses_url_safe_chars_only_test() -> Nil {
+pub fn pkce_verifier_uses_url_safe_characters_only_test() -> Nil {
   let verifier = pkce.generate_verifier()
   assert !string.contains(verifier, "+")
   assert !string.contains(verifier, "/")
@@ -141,7 +141,7 @@ pub fn pkce_verifier_uses_url_safe_chars_only_test() -> Nil {
 }
 
 /// Security: PKCE challenge must use URL-safe base64 characters only.
-pub fn pkce_challenge_uses_url_safe_chars_only_test() -> Nil {
+pub fn pkce_challenge_uses_url_safe_characters_only_test() -> Nil {
   let verifier = pkce.generate_verifier()
   let challenge = pkce.compute_challenge(verifier)
   assert !string.contains(challenge, "+")
@@ -164,9 +164,9 @@ pub fn pkce_verifiers_are_unique_test() -> Nil {
 /// Security: different verifiers must produce different challenges.
 /// Ensures the hash function actually incorporates the verifier.
 pub fn pkce_different_verifiers_produce_different_challenges_test() -> Nil {
-  let c1 = pkce.generate_verifier() |> pkce.compute_challenge()
-  let c2 = pkce.generate_verifier() |> pkce.compute_challenge()
-  assert c1 != c2
+  let first_challenge = pkce.generate_verifier() |> pkce.compute_challenge()
+  let second_challenge = pkce.generate_verifier() |> pkce.compute_challenge()
+  assert first_challenge != second_challenge
 }
 
 // ===========================================================================
@@ -203,21 +203,22 @@ pub fn create_authorization_request_produces_fresh_state_and_verifier_test() -> 
       auth: config.client_secret_auth("secret"),
       redirect_uri: "https://localhost/cb",
     )
-  let assert Ok(req1) =
+  let assert Ok(first_request) =
     vestibule.create_authorization_request(
       strategy,
       config: client_config,
       options: config.authorize_options(),
     )
-  let assert Ok(req2) =
+  let assert Ok(second_request) =
     vestibule.create_authorization_request(
       strategy,
       config: client_config,
       options: config.authorize_options(),
     )
-  assert authorization_request.state(req1) != authorization_request.state(req2)
-  assert authorization_request.code_verifier(req1)
-    != authorization_request.code_verifier(req2)
+  assert authorization_request.state(first_request)
+    != authorization_request.state(second_request)
+  assert authorization_request.code_verifier(first_request)
+    != authorization_request.code_verifier(second_request)
 }
 
 // ===========================================================================
@@ -240,7 +241,7 @@ pub fn callback_rejects_state_mismatch_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: parameters,
+      callback_parameters: parameters,
       expected_state: "real_state",
       code_verifier: "verifier",
       expected_nonce: None,
@@ -262,7 +263,7 @@ pub fn callback_rejects_missing_state_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: parameters,
+      callback_parameters: parameters,
       expected_state: "expected",
       code_verifier: "verifier",
       expected_nonce: None,
@@ -283,7 +284,7 @@ pub fn callback_rejects_empty_parameters_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: dict.new(),
+      callback_parameters: dict.new(),
       expected_state: "expected",
       code_verifier: "verifier",
       expected_nonce: None,
@@ -313,7 +314,7 @@ pub fn callback_detects_provider_error_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: parameters,
+      callback_parameters: parameters,
       expected_state: state_value,
       code_verifier: "verifier",
       expected_nonce: None,
@@ -346,7 +347,7 @@ pub fn callback_preserves_provider_error_uri_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: parameters,
+      callback_parameters: parameters,
       expected_state: state_value,
       code_verifier: "verifier",
       expected_nonce: None,
@@ -378,7 +379,7 @@ pub fn callback_rejects_provider_error_when_state_mismatch_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: parameters,
+      callback_parameters: parameters,
       expected_state: "expected_state",
       code_verifier: "verifier",
       expected_nonce: None,
@@ -407,7 +408,7 @@ pub fn callback_ignores_extra_parameters_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: parameters,
+      callback_parameters: parameters,
       expected_state: state_value,
       code_verifier: "verifier",
       expected_nonce: None,

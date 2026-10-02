@@ -482,19 +482,23 @@ pub fn parse_redirect_uri(
   }
 }
 
-/// Append additional query parameters to a URL.
-pub fn append_query_params(
+/// Append additional query parameters to a URL, preserving its fragment.
+pub fn append_query_parameters(
   url: String,
   parameters: List(#(String, String)),
 ) -> String {
   case parameters {
     [] -> url
     _ -> {
-      let separator = case string.contains(url, "?") {
+      let #(base, fragment) = case string.split_once(url, "#") {
+        Ok(#(base, fragment)) -> #(base, "#" <> fragment)
+        Error(Nil) -> #(url, "")
+      }
+      let separator = case string.contains(base, "?") {
         True -> "&"
         False -> "?"
       }
-      url <> separator <> uri.query_to_string(parameters)
+      base <> separator <> uri.query_to_string(parameters) <> fragment
     }
   }
 }

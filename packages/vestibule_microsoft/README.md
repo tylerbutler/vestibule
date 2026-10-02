@@ -103,12 +103,12 @@ unsigned tenant claim as verified evidence.
 
 ## Extra authorization parameters
 
-Use `config.with_extra_params` on per-request options for Microsoft-specific authorization options:
+Use `config.with_extra_parameters` on per-request options for Microsoft-specific authorization options:
 
 ```gleam
 let assert Ok(options) =
   config.authorize_options()
-  |> config.with_extra_params([
+  |> config.with_extra_parameters([
     #("prompt", "select_account"),
     #("login_hint", "person@example.com"),
   ])

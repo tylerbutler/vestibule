@@ -92,12 +92,28 @@ Return a short token-free description suitable for an authentication error.
 pub fn error_message(VerificationError) -> String
 ```
 
+### `hosted_domain`
+
+Return the verified Google Workspace hosted domain.
+
+```gleam
+pub fn hosted_domain(VerifiedIdToken) -> option.Option(String)
+```
+
 ### `nonce`
 
 Return the verified nonce.
 
 ```gleam
 pub fn nonce(VerifiedIdToken) -> option.Option(String)
+```
+
+### `object_id`
+
+Return the verified Microsoft object ID.
+
+```gleam
+pub fn object_id(VerifiedIdToken) -> option.Option(String)
 ```
 
 ### `parse_jwks`
@@ -124,6 +140,14 @@ Return the verified subject.
 
 ```gleam
 pub fn subject(VerifiedIdToken) -> String
+```
+
+### `tenant_id`
+
+Return the verified Microsoft tenant ID.
+
+```gleam
+pub fn tenant_id(VerifiedIdToken) -> option.Option(String)
 ```
 
 ### `verify_rs256`

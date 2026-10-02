@@ -1,0 +1,3 @@
+package = "vestibule_apple"
+kind = "Changed"
+body = "Update authorization URL construction to use config.extra_parameters and provider_support.append_query_parameters after the core API renames."

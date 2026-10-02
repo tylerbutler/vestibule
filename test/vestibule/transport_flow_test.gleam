@@ -20,7 +20,7 @@ pub fn start_authorization_threads_custom_options_to_strategy_test() -> Nil {
       authorize_url: fn(_client_config, options, _scopes, _state) {
         let assert Ok(prompt) =
           options
-          |> config.extra_params()
+          |> config.extra_parameters()
           |> dict.get("prompt")
         Ok("https://example.com/authorize?prompt=" <> prompt)
       },
@@ -42,7 +42,7 @@ pub fn start_authorization_threads_custom_options_to_strategy_test() -> Nil {
     |> registry.register(strategy: strategy, config: client_config)
   let assert Ok(options) =
     config.authorize_options()
-    |> config.with_extra_params([#("prompt", "consent")])
+    |> config.with_extra_parameters([#("prompt", "consent")])
   let assert Ok(store) =
     state_store.create_named("transport_flow_custom_options_test")
 

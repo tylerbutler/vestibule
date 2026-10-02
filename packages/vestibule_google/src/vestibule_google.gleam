@@ -79,7 +79,7 @@ pub fn strategy_with_sender(
 /// `hosted_domain` is also added to the authorization URL as an account-picker
 /// hint, but that hint is advisory only — enforcement happens server-side when
 /// the ID token is verified. Setting `hd` via
-/// `config.authorize_options() |> config.with_extra_params([#("hd", ...)])` is purely a UI hint and must not
+/// `config.authorize_options() |> config.with_extra_parameters([#("hd", ...)])` is purely a UI hint and must not
 /// be relied on for authorization.
 pub fn strategy_for_hosted_domain(hosted_domain: String) -> Strategy(e) {
   strategy_for_hosted_domain_with_sender(hosted_domain, httpc.send)
@@ -428,9 +428,9 @@ fn do_authorize_url_with_hosted_domain(
   let extra_parameters = case hosted_domain {
     Some(domain) -> [
       #("hd", domain),
-      ..dict.to_list(config.extra_params(options))
+      ..dict.to_list(config.extra_parameters(options))
     ]
-    None -> dict.to_list(config.extra_params(options))
+    None -> dict.to_list(config.extra_parameters(options))
   }
   let url =
     authorize_uri.build(
@@ -442,7 +442,7 @@ fn do_authorize_url_with_hosted_domain(
     |> authorize_uri.set_state(state)
     |> authorize_uri.to_code_authorization_uri()
     |> uri.to_string()
-    |> provider_support.append_query_params(extra_parameters)
+    |> provider_support.append_query_parameters(extra_parameters)
   Ok(url)
 }
 

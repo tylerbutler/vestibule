@@ -51,7 +51,7 @@ let client_config =
   config.new(
     client_id: "client_id",
     redirect_uri: "http://localhost:8000/auth/github/callback",
-    auth: config.ClientSecret("client_secret"),
+    auth: config.client_secret_auth("client_secret"),
   )
 let options = config.authorize_options()
 
@@ -116,7 +116,7 @@ let assert Ok(registry) =
     config.new(
       client_id: "client_id",
       redirect_uri: "http://localhost:8000/auth/github/callback",
-      auth: config.ClientSecret("client_secret"),
+      auth: config.client_secret_auth("client_secret"),
     ),
   )
 let assert Ok(store) = state_store.create()
@@ -171,7 +171,7 @@ If you want to handle callback failures yourself instead of using the default
 HTML error page, use `vestibule_wisp.callback_phase_result`. Use
 `vestibule_wisp.callback_phase_auth_result` when you need structured errors such
 as `UnknownProvider`, `MissingOrInvalidSessionCookie`, `SessionUnavailable`,
-`InvalidCallbackParams`, or `AuthFailed`. Missing or invalid callback `state` and
+`InvalidCallbackParameters`, or `AuthFailed`. Missing or invalid callback `state` and
 `code` values are provider/authentication failures and are reported through
 `AuthFailed`.
 
@@ -282,13 +282,13 @@ provider requires them:
 ```gleam
 let assert Ok(options) =
   config.authorize_options()
-  |> config.with_extra_params([
+  |> config.with_extra_parameters([
     #("access_type", "offline"),
     #("prompt", "consent"),
   ])
 ```
 
-`config.with_extra_params` returns a `Result` because reserved OAuth
+`config.with_extra_parameters` returns a `Result` because reserved OAuth
 authorization parameters such as `state`, `client_id`, and `code_challenge`
 cannot be overridden. Valid parameters are appended to the authorization URL.
 Common examples include Google's `access_type=offline` and `prompt=consent` for
@@ -320,7 +320,7 @@ let client_config =
   config.new(
     client_id: "your-client-id",
     redirect_uri: "http://localhost:8000/auth/oidc/callback",
-    auth: config.ClientSecret("your-client-secret"),
+    auth: config.client_secret_auth("your-client-secret"),
   )
 let options = config.authorize_options()
 

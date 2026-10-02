@@ -270,16 +270,16 @@ pub fn handle_callback_succeeds_with_valid_parameters_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: parameters,
+      callback_parameters: parameters,
       expected_state: state,
       code_verifier: "test_verifier",
       expected_nonce: None,
     )
-  let assert Ok(authed) = result
-  assert auth.uid(authed) == "user123"
-  assert auth.provider(authed) == "test"
-  assert user_info.name(auth.info(authed)) == Some("Test User")
-  assert credential.token(auth.credentials(authed)) == "test_token"
+  let assert Ok(authentication) = result
+  assert auth.uid(authentication) == "user123"
+  assert auth.provider(authentication) == "test"
+  assert user_info.name(auth.info(authentication)) == Some("Test User")
+  assert credential.token(auth.credentials(authentication)) == "test_token"
 }
 
 pub fn handle_callback_populates_auth_extra_from_strategy_user_result_test() -> Nil {
@@ -293,16 +293,17 @@ pub fn handle_callback_populates_auth_extra_from_strategy_user_result_test() -> 
   let state = "test_state_value"
   let parameters = dict.from_list([#("code", "valid_code"), #("state", state)])
 
-  let assert Ok(authed) =
+  let assert Ok(authentication) =
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: parameters,
+      callback_parameters: parameters,
       expected_state: state,
       code_verifier: "test_verifier",
       expected_nonce: None,
     )
-  let assert Ok(raw_provider) = dict.get(auth.extra(authed), "raw_provider")
+  let assert Ok(raw_provider) =
+    dict.get(auth.extra(authentication), "raw_provider")
   assert decode.run(raw_provider, decode.string) == Ok("from-provider")
 }
 
@@ -316,18 +317,18 @@ pub fn handle_callback_passes_exchange_artifacts_to_fetch_user_test() -> Nil {
   let state = "test_state_value"
   let parameters = dict.from_list([#("code", "valid_code"), #("state", state)])
 
-  let assert Ok(authed) =
+  let assert Ok(authentication) =
     vestibule.handle_callback(
       artifact_strategy(),
       config: client_config,
-      callback_params: parameters,
+      callback_parameters: parameters,
       expected_state: state,
       code_verifier: "test_verifier",
       expected_nonce: None,
     )
 
-  assert auth.uid(authed) == "from-exchange"
-  assert credential.token(auth.credentials(authed)) == "artifact_token"
+  assert auth.uid(authentication) == "from-exchange"
+  assert credential.token(auth.credentials(authentication)) == "artifact_token"
 }
 
 pub fn refresh_token_delegates_to_strategy_refresh_token_test() -> Nil {
@@ -371,7 +372,7 @@ pub fn handle_callback_fails_on_state_mismatch_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: parameters,
+      callback_parameters: parameters,
       expected_state: "expected",
       code_verifier: "test_verifier",
       expected_nonce: None,
@@ -394,7 +395,7 @@ pub fn missing_callback_state_is_structured_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: parameters,
+      callback_parameters: parameters,
       expected_state: "expected",
       code_verifier: "test_verifier",
       expected_nonce: None,
@@ -416,7 +417,7 @@ pub fn handle_callback_fails_on_missing_code_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: parameters,
+      callback_parameters: parameters,
       expected_state: state,
       code_verifier: "test_verifier",
       expected_nonce: None,
@@ -440,7 +441,7 @@ pub fn missing_callback_code_is_structured_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: parameters,
+      callback_parameters: parameters,
       expected_state: state,
       code_verifier: "test_verifier",
       expected_nonce: None,
@@ -472,7 +473,7 @@ pub fn logging_does_not_change_core_result_shapes_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: parameters,
+      callback_parameters: parameters,
       expected_state: authorization_request.state(authorization_request_value),
       code_verifier: authorization_request.code_verifier(
         authorization_request_value,
@@ -588,7 +589,7 @@ pub fn handle_callback_accepts_matching_nonce_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: nonce_config(),
-      callback_params: nonce_parameters(),
+      callback_parameters: nonce_parameters(),
       expected_state: "expected",
       code_verifier: "verifier",
       expected_nonce: Some("the-nonce"),
@@ -604,7 +605,7 @@ pub fn handle_callback_rejects_mismatched_nonce_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: nonce_config(),
-      callback_params: nonce_parameters(),
+      callback_parameters: nonce_parameters(),
       expected_state: "expected",
       code_verifier: "verifier",
       expected_nonce: Some("the-nonce"),
@@ -619,7 +620,7 @@ pub fn handle_callback_rejects_missing_nonce_claim_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: nonce_config(),
-      callback_params: nonce_parameters(),
+      callback_parameters: nonce_parameters(),
       expected_state: "expected",
       code_verifier: "verifier",
       expected_nonce: Some("the-nonce"),
@@ -633,7 +634,7 @@ pub fn handle_callback_rejects_missing_id_token_when_nonce_expected_test() -> Ni
     vestibule.handle_callback(
       strategy,
       config: nonce_config(),
-      callback_params: nonce_parameters(),
+      callback_parameters: nonce_parameters(),
       expected_state: "expected",
       code_verifier: "verifier",
       expected_nonce: Some("the-nonce"),
@@ -648,7 +649,7 @@ pub fn handle_callback_skips_nonce_for_plain_oauth_strategy_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: nonce_config(),
-      callback_params: nonce_parameters(),
+      callback_parameters: nonce_parameters(),
       expected_state: "expected",
       code_verifier: "verifier",
       expected_nonce: None,
@@ -676,7 +677,7 @@ pub fn handle_callback_rejects_missing_expected_nonce_for_nonce_strategy_test() 
     vestibule.handle_callback(
       strategy,
       config: nonce_config(),
-      callback_params: nonce_parameters(),
+      callback_parameters: nonce_parameters(),
       expected_state: "expected",
       code_verifier: "verifier",
       expected_nonce: None,

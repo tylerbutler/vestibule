@@ -41,7 +41,7 @@ typography:
     fontWeight: 650
     lineHeight: 1.25
   code:
-    fontFamily: "'Commit Mono', ui-monospace, monospace"
+    fontFamily: "'Geist Mono', ui-monospace, monospace"
     fontSize: "0.875rem"
     fontWeight: 400
     lineHeight: 1.6
@@ -138,9 +138,9 @@ The palette is restrained product purple with yellow used as a deliberate signal
 
 **Body Font:** Figtree Variable, with system-ui as fallback
 
-**Code Font:** Commit Mono, with ui-monospace as fallback
+**Code Font:** Geist Mono, with ui-monospace as fallback
 
-**Character:** Figtree gives the documentation a calm, open, and precise reading voice without feeling generic. Commit Mono brings a neutral technical texture to code, with its arrow and comparison ligature sets enabled. Labels, buttons, tables, and headings stay in Figtree so monospace remains reserved for code.
+**Character:** Figtree gives the documentation a calm, open, and precise reading voice without feeling generic. Geist Mono gives code a cleaner, quieter technical texture with strong character distinction at documentation sizes. Its coding ligatures are explicitly enabled through OpenType stylistic set `ss11`. Labels, buttons, tables, and headings stay in Figtree so monospace remains reserved for code.
 
 ### Hierarchy
 - **Display** (700, 2.25rem, 1.06 line-height): Documentation page headings and example-page headings. Keep letter spacing no tighter than -0.025em.

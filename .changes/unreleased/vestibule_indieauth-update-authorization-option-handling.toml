@@ -1,0 +1,3 @@
+package = "vestibule_indieauth"
+kind = "Changed"
+body = "Update authorization option handling and tests to use config.extra_parameters and config.with_extra_parameters. Expand the abbreviated authorization test name."

@@ -4,7 +4,7 @@ description: "IndieAuth endpoint discovery."
 nav:
   group: Reference
   groupOrder: 20
-  order: 30
+  order: 31
   label: "vestibule_indieauth/discovery"
 toc:
   - href: "#types"

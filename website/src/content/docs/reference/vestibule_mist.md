@@ -4,7 +4,7 @@ description: "Mist middleware that wires a `Registry` of `Strategy` values into 
 nav:
   group: Reference
   groupOrder: 20
-  order: 35
+  order: 36
   label: "vestibule_mist"
 toc:
   - href: "#types"
@@ -49,7 +49,7 @@ pub type CallbackError(a) {
   MissingOrInvalidSessionCookie(reason: SessionCookieError)
   SessionUnavailable
   SessionProviderMismatch
-  InvalidCallbackParams(reason: CallbackParamsError)
+  InvalidCallbackParameters(reason: CallbackParametersError)
   AuthFailed(error.AuthError(a))
 }
 ```
@@ -73,7 +73,7 @@ The session state was not found, expired, or already used.
 
 The signed session belongs to another registered provider.
 
-##### `InvalidCallbackParams(reason: CallbackParamsError)`
+##### `InvalidCallbackParameters(reason: CallbackParametersError)`
 
 Callback parameters could not be extracted from the request; `reason`
 says why.
@@ -82,12 +82,12 @@ says why.
 
 Provider authentication failed.
 
-### `CallbackParamsError`
+### `CallbackParametersError`
 
 Why callback parameters could not be extracted from a POST callback body.
 
 ```gleam
-pub type CallbackParamsError {
+pub type CallbackParametersError {
   QueryNotFormEncoded
   BodyReadFailed
   BodyNotUtf8
@@ -210,7 +210,7 @@ pub type OptionsError {
   actual_bytes: Int
 )`
 
-`secret_key_base` is shorter than `min_secret_key_base_bytes`.
+`secret_key_base` is shorter than `minimum_secret_key_base_bytes`.
 
 ### `SessionCookieError`
 
@@ -242,14 +242,14 @@ secret, tampered payload, or a malformed token.
 
 ## Constants
 
-### `min_secret_key_base_bytes`
+### `minimum_secret_key_base_bytes`
 
 Minimum length of the HMAC `secret_key_base`, in bytes. 32 bytes is the
 output size of the HMAC-SHA256 used to sign the session cookie; anything
 shorter weakens the signature below the hash's own strength.
 
 ```gleam
-pub const min_secret_key_base_bytes: Int
+pub const minimum_secret_key_base_bytes: Int
 ```
 
 ## Functions
@@ -276,8 +276,8 @@ provided callback function.
 
 Supports both GET callbacks (query parameters) and POST callbacks
 (form-encoded body), as required by providers like Apple that use
-`response_mode=form_post`. For POST requests, form body parameters take
-precedence over query parameters.
+`response_mode=form_post`. Repeated parameter names are rejected, including
+names present in both the query and POST body.
 
 On success, calls `on_success` with the `Auth`. On error, returns a
 generic HTML error page. Returns 404 if the provider is not registered.
@@ -315,7 +315,7 @@ pub fn callback_phase_auth_result(
 ) -> Result(auth.Auth, CallbackError(a))
 ```
 
-### `callback_phase_auth_result_with_params`
+### `callback_phase_auth_result_with_parameters`
 
 Phase 2 with pre-extracted callback parameters.
 
@@ -325,9 +325,9 @@ Generic over the request body type so it can be used in unit tests with
 `Request(BitArray)` or any other body.
 
 ```gleam
-pub fn callback_phase_auth_result_with_params(
+pub fn callback_phase_auth_result_with_parameters(
   request.Request(a),
-  params: dict.Dict(String, String),
+  parameters: dict.Dict(String, String),
   registry: registry.Registry(b),
   provider: String,
   store: state_store.StateStore,
@@ -400,7 +400,7 @@ pub fn expire_session_cookie(
 ### `new_options`
 
 Build middleware options with the given HMAC `secret_key_base`, which must
-be at least `min_secret_key_base_bytes` (32) bytes of unpredictable data.
+be at least `minimum_secret_key_base_bytes` (32) bytes of unpredictable data.
 
 Defaults: host-bound cookie name `__Host-vestibule_session`, session TTL
 600 seconds, `SecureOnly` cookies, `SameSite=Lax`. Customize with

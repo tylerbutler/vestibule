@@ -71,12 +71,12 @@ pub type SecureResponseLimit {
 
 ## Functions
 
-### `append_query_params`
+### `append_query_parameters`
 
-Append additional query parameters to a URL.
+Append additional query parameters to a URL, preserving its fragment.
 
 ```gleam
-pub fn append_query_params(
+pub fn append_query_parameters(
   String,
   List(#(String, String))
 ) -> String

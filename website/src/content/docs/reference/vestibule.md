@@ -81,7 +81,7 @@ check the stored deadline before consuming the flow.
 pub fn handle_callback(
   strategy.Strategy(a),
   config: config.ClientConfig,
-  callback_params: dict.Dict(String, String),
+  callback_parameters: dict.Dict(String, String),
   expected_state: String,
   code_verifier: String,
   expected_nonce: option.Option(String)

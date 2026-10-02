@@ -45,8 +45,8 @@ import gleam/bool
 import gleam/crypto
 import gleam/option.{type Option}
 import gleam/result
-import vestibule/internal/secret
 
+import vestibule/internal/secret
 import vestibule/session_ttl.{type SessionTtl}
 
 /// Default upper bound on live sessions per store. Each entry is a few
@@ -89,11 +89,11 @@ pub type StateStoreError {
   TableNotFound
   InsertFailed(reason: String)
   CleanupFailed(reason: String)
-  /// The store holds `max_entries` live sessions and no expired ones could
+  /// The store holds `maximum_entries` live sessions and no expired ones could
   /// be reclaimed. New flows are refused until sessions are consumed or
   /// expire.
   StoreFull
-  /// `create_with_capacity` was given a `max_entries` of zero or less.
+  /// `create_with_capacity` was given a `maximum_entries` of zero or less.
   InvalidCapacity
   /// `create_with_limits` was given a per-client limit of zero or less.
   InvalidClientCapacity
@@ -119,20 +119,20 @@ pub fn create() -> Result(StateStore, StateStoreError) {
 /// `Error(TableAlreadyExists)` if the table already exists, or another
 /// `StateStoreError` if the owner process or ETS operation fails.
 pub fn create_named(name: String) -> Result(StateStore, StateStoreError) {
-  create_with_capacity(name: name, max_entries: default_max_entries)
+  create_with_capacity(name: name, maximum_entries: default_max_entries)
 }
 
-/// Create a named state store that holds at most `max_entries` live
+/// Create a named state store that holds at most `maximum_entries` live
 /// sessions. Once full, `store` fails with `StoreFull` until
 /// sessions are consumed or expire. Returns `Error(InvalidCapacity)` when
-/// `max_entries` is not positive.
+/// `maximum_entries` is not positive.
 pub fn create_with_capacity(
   name name: String,
-  max_entries max_entries: Int,
+  maximum_entries maximum_entries: Int,
 ) -> Result(StateStore, StateStoreError) {
   create_with_limits(
     name: name,
-    max_entries: max_entries,
+    max_entries: maximum_entries,
     max_entries_per_client: default_max_entries_per_client,
   )
 }

@@ -1,0 +1,3 @@
+package = "vestibule_google"
+kind = "Changed"
+body = "Update authorization URL construction, option tests, and hosted-domain examples in source documentation, README, and website to use the renamed core parameter helpers."

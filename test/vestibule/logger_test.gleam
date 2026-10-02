@@ -60,6 +60,8 @@ pub fn redaction_guard_rejects_sensitive_field_names_test() -> Nil {
       logger.field("id_token", "secret-id-token"),
       logger.field("client_assertion", "secret-client-assertion"),
       logger.field("code_verifier", "secret-verifier"),
+      logger.field("callback_params", "legacy-callback-values"),
+      logger.field("callback_parameters", "callback-values"),
       logger.field("state", "secret-state"),
       logger.field("nonce", "secret-nonce"),
       logger.field("session_id", "secret-session"),
@@ -79,6 +81,8 @@ pub fn redaction_guard_rejects_sensitive_aliases_test() -> Nil {
       logger.field("oauth-state", "secret"),
       logger.field("oidc_nonce", "secret"),
       logger.field("oidcNonce", "secret"),
+      logger.field("callback-parameters", "secret"),
+      logger.field("callbackParameters", "secret"),
       logger.field("request_count", "2"),
     ])
     == [#("request_count", "2")]

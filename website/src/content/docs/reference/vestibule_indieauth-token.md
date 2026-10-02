@@ -4,7 +4,7 @@ description: "IndieAuth token exchange and response parsing."
 nav:
   group: Reference
   groupOrder: 20
-  order: 32
+  order: 33
   label: "vestibule_indieauth/token"
 toc:
   - href: "#types"

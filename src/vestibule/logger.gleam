@@ -126,6 +126,7 @@ const sensitive_field_names = [
   "nonce",
   "oidcnonce",
   "callbackparams",
+  "callbackparameters",
   "sessionid",
   "cookie",
   "cookievalue",
