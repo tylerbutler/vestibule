@@ -177,7 +177,7 @@ pub fn callback_rejects_missing_and_substituted_verifier_test() -> Nil {
       vestibule.handle_callback(
         bound_strategy(),
         config: client_config(),
-        callback_params: dict.from_list([#("state", state), #("code", code)]),
+        callback_parameters: dict.from_list([#("state", state), #("code", code)]),
         expected_state: state,
         code_verifier: invalid_verifier,
         expected_nonce: None,
@@ -190,7 +190,7 @@ pub fn callback_rejects_missing_and_substituted_verifier_test() -> Nil {
     vestibule.handle_callback(
       bound_strategy(),
       config: client_config(),
-      callback_params: dict.from_list([#("state", state), #("code", code)]),
+      callback_parameters: dict.from_list([#("state", state), #("code", code)]),
       expected_state: state,
       code_verifier: pkce.generate_verifier(),
       expected_nonce: None,
@@ -206,7 +206,10 @@ pub fn callback_rejects_empty_code_before_exchange_test() -> Nil {
       vestibule.handle_callback(
         bound_strategy(),
         config: client_config(),
-        callback_params: dict.from_list([#("state", "state"), #("code", code)]),
+        callback_parameters: dict.from_list([
+          #("state", "state"),
+          #("code", code),
+        ]),
         expected_state: "state",
         code_verifier: pkce.generate_verifier(),
         expected_nonce: None,
@@ -224,7 +227,7 @@ pub fn reserved_parameters_cannot_replace_protocol_bindings_test() -> Nil {
     fn(parameter) {
       let assert Error(failure) =
         config.authorize_options()
-        |> config.with_extra_params([#(parameter, "attacker-value")])
+        |> config.with_extra_parameters([#(parameter, "attacker-value")])
       assert error.kind(failure) == error.ConfigKind
     },
   )
@@ -250,7 +253,7 @@ pub fn changed_redirect_uri_cannot_exchange_authorization_code_test() -> Nil {
     vestibule.handle_callback(
       bound_strategy(),
       config: altered_config,
-      callback_params: dict.from_list([#("state", state), #("code", code)]),
+      callback_parameters: dict.from_list([#("state", state), #("code", code)]),
       expected_state: state,
       code_verifier: verifier,
       expected_nonce: None,
@@ -281,7 +284,7 @@ pub fn requested_scopes_do_not_become_granted_scopes_test() -> Nil {
       vestibule.handle_callback(
         bound_strategy(),
         config: client_config(),
-        callback_params: dict.from_list([#("state", state), #("code", code)]),
+        callback_parameters: dict.from_list([#("state", state), #("code", code)]),
         expected_state: state,
         code_verifier: verifier,
         expected_nonce: None,
@@ -384,7 +387,7 @@ pub fn callback_issuer_is_required_and_compared_exactly_test() -> Nil {
         vestibule.handle_callback(
           provider,
           config: client_config(),
-          callback_params: untrusted_parameters,
+          callback_parameters: untrusted_parameters,
           expected_state: state,
           code_verifier: verifier,
           expected_nonce: None,
@@ -396,7 +399,7 @@ pub fn callback_issuer_is_required_and_compared_exactly_test() -> Nil {
     vestibule.handle_callback(
       provider,
       config: client_config(),
-      callback_params: dict.insert(
+      callback_parameters: dict.insert(
         parameters,
         "iss",
         "https://issuer.example/tenant",
