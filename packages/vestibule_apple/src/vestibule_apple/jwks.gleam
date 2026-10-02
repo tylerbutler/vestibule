@@ -58,10 +58,19 @@ pub fn initialize_named(name: String) -> Result(JwksCache, JwksCacheError) {
 /// Get Apple's public verification keys, using cached keys if available.
 /// Falls back to fetching from Apple's JWKS endpoint.
 pub fn get_keys(cache: JwksCache) -> Result(List(VerifyKey), AuthError(e)) {
+  get_keys_with_sender(cache, httpc.send)
+}
+
+/// Get cached keys or fetch them with a custom HTTP sender.
+pub fn get_keys_with_sender(
+  cache: JwksCache,
+  send: fn(request.Request(String)) ->
+    Result(response.Response(String), send_error),
+) -> Result(List(VerifyKey), AuthError(e)) {
   case uset.lookup(from: cache.table, at: cache_key) {
     Ok(keys) -> Ok(keys)
     Error(_) -> {
-      use keys <- result.try(fetch_keys())
+      use keys <- result.try(fetch_keys(send))
       let _inserted =
         uset.insert(into: cache.table, key: cache_key, value: keys)
       Ok(keys)
@@ -71,7 +80,16 @@ pub fn get_keys(cache: JwksCache) -> Result(List(VerifyKey), AuthError(e)) {
 
 /// Force refresh the cached keys from Apple's endpoint.
 pub fn refresh_keys(cache: JwksCache) -> Result(List(VerifyKey), AuthError(e)) {
-  use keys <- result.try(fetch_keys())
+  refresh_keys_with_sender(cache, httpc.send)
+}
+
+/// Refresh cached keys with a custom HTTP sender.
+pub fn refresh_keys_with_sender(
+  cache: JwksCache,
+  send: fn(request.Request(String)) ->
+    Result(response.Response(String), send_error),
+) -> Result(List(VerifyKey), AuthError(e)) {
+  use keys <- result.try(fetch_keys(send))
   let _inserted = uset.insert(into: cache.table, key: cache_key, value: keys)
   Ok(keys)
 }
@@ -116,7 +134,10 @@ pub fn parse_jwks_response(
 }
 
 /// Fetch Apple's public keys from the JWKS endpoint.
-fn fetch_keys() -> Result(List(VerifyKey), AuthError(e)) {
+fn fetch_keys(
+  send: fn(request.Request(String)) ->
+    Result(response.Response(String), send_error),
+) -> Result(List(VerifyKey), AuthError(e)) {
   use apple_request <- result.try(build_jwks_request())
   logger.new(
     level: logger.Debug,
@@ -127,7 +148,7 @@ fn fetch_keys() -> Result(List(VerifyKey), AuthError(e)) {
     fields: [logger.field("endpoint", "jwks")],
   )
   |> logger.emit()
-  case httpc.send(apple_request) {
+  case send(apple_request) {
     Ok(apple_response) -> parse_jwks_response(apple_response)
     Error(_) -> {
       logger.new(

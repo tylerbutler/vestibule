@@ -69,6 +69,21 @@ Parse GitHub's authorization-code HTTP response without performing I/O.
 pub fn parse_authorization_code_response(response.Response(String)) -> Result(strategy.ExchangeResult, error.AuthError(a))
 ```
 
+### `parse_callback_user_responses`
+
+Validate the GitHub callback's user and email responses.
+
+The numeric `/user` id establishes identity. The email is included only
+when `/user/emails` returns a primary, verified address; otherwise the
+callback fails closed.
+
+```gleam
+pub fn parse_callback_user_responses(
+  response.Response(String),
+  response.Response(String)
+) -> Result(strategy.UserResult, error.AuthError(a))
+```
+
 ### `parse_primary_email`
 
 Parse the primary verified email from GitHub /user/emails response.
