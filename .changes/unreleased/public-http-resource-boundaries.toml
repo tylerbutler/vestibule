@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Security"
+body = "Bound dynamic public HTTP requests with node-wide admission, request budgets, strict response coding, and durable cleanup and TLS validation tests."
