@@ -96,7 +96,9 @@ let client_config =
   )
 ```
 
-The generated token uses ES256 and has this header and claim shape:
+The `.p8` PEM must contain one unencrypted PKCS#8 P-256 private key.
+`kryptos` handles key import and ES256 signing, including the JWT signature
+encoding. The generated token has this header and claim shape:
 
 ```json
 {

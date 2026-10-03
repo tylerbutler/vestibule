@@ -7,6 +7,9 @@
 import gleam/bit_array
 import gleam/json
 import gleam/string
+import kryptos/ec
+import kryptos/ecdsa
+import kryptos/hash
 import ywt/claim.{type Claim}
 import ywt/internal/jwt
 import ywt/sign_key.{type SignKey}
@@ -50,20 +53,23 @@ pub fn test_key_jwks() -> String {
 }
 
 /// Generate a P-256 private key and its public verification key.
-pub fn generate_es256_key_pair() -> #(String, BitArray) {
-  do_generate_es256_key_pair()
+pub fn generate_es256_key_pair() -> #(String, ec.PublicKey) {
+  let #(private_key, public_key) = ec.generate_key_pair(ec.P256)
+  let assert Ok(pem) = ec.to_pem(private_key)
+  #(pem, public_key)
 }
 
 /// Verify an ES256 token with a P-256 public key.
-pub fn verify_es256(token: String, public_key: BitArray) -> Bool {
+pub fn verify_es256(token: String, public_key: ec.PublicKey) -> Bool {
   case string.split(token, on: ".") {
     [header, payload, signature] ->
       case bit_array.base64_url_decode(signature) {
         Ok(signature) ->
-          do_verify_es256(
+          ecdsa.verify_rs(
+            public_key,
             bit_array.from_string(header <> "." <> payload),
             signature,
-            public_key,
+            hash.Sha256,
           )
         Error(_) -> False
       }
@@ -97,13 +103,3 @@ fn sign_bits(message: BitArray, key: SignKey) -> BitArray {
 
 @external(erlang, "vestibule_apple_jwt_ffi", "sign")
 fn do_sign(message: BitArray, key: SignKey) -> BitArray
-
-@external(erlang, "vestibule_apple_jwt_ffi", "generate_es256_key_pair")
-fn do_generate_es256_key_pair() -> #(String, BitArray)
-
-@external(erlang, "vestibule_apple_jwt_ffi", "verify_es256")
-fn do_verify_es256(
-  message: BitArray,
-  signature: BitArray,
-  public_key: BitArray,
-) -> Bool

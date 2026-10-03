@@ -35,6 +35,7 @@ import gleam/dynamic/decode
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/order
 import gleam/result
 import gleam/string
 import gleam/time/duration
@@ -50,6 +51,10 @@ import glow_auth/authorize_uri
 import glow_auth/token_request
 import glow_auth/uri/uri_builder
 
+import kryptos/ec
+import kryptos/ecdsa
+import kryptos/hash
+
 import vestibule/config.{type AuthorizeOptions, type ClientConfig}
 import vestibule/credential
 import vestibule/error.{type AuthError}
@@ -64,6 +69,12 @@ import ywt/verify_key.{type VerifyKey}
 
 const max_client_secret_ttl_seconds = 15_777_000
 
+const p256_order = <<
+  0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+  0xFF, 0xFF, 0xFF, 0xBC, 0xE6, 0xFA, 0xAD, 0xA7, 0x17, 0x9E, 0x84, 0xF3, 0xB9,
+  0xCA, 0xC2, 0xFC, 0x63, 0x25, 0x51,
+>>
+
 /// Errors returned when building an Apple client-secret JWT.
 pub type ClientSecretError {
   InvalidTeamId
@@ -77,8 +88,8 @@ pub type ClientSecretError {
 ///
 /// `team_id` and `key_id` must be 10-character Apple identifiers. `client_id`
 /// must contain only ASCII letters, digits, dots, and hyphens. `p8_pem` must
-/// contain one unencrypted P-256 private key. `ttl` is in seconds and must be
-/// between 1 and Apple's limit of 15,777,000 seconds.
+/// contain one unencrypted PKCS#8 P-256 private key. `ttl` is in seconds and
+/// must be between 1 and Apple's limit of 15,777,000 seconds.
 pub fn build_client_secret(
   team_id team_id: String,
   client_id client_id: String,
@@ -225,8 +236,25 @@ fn encode_client_secret_part(value: json.Json) -> String {
   |> bit_array.base64_url_encode(False)
 }
 
-@external(erlang, "vestibule_apple_jwt_ffi", "sign_es256")
-fn sign_es256(message: BitArray, p8_pem: String) -> Result(BitArray, Nil)
+fn sign_es256(message: BitArray, p8_pem: String) -> Result(BitArray, Nil) {
+  use private_key <- result.try(import_p256_key(p8_pem))
+  let scalar = ec.to_bytes(private_key)
+  case
+    bit_array.byte_size(scalar) == 32
+    && scalar != <<0:size(256)>>
+    && bit_array.compare(scalar, p256_order) == order.Lt
+  {
+    True -> {
+      // Derive the public key even when it is absent from the PEM.
+      use #(private_key, _) <- result.try(ec.from_bytes(ec.P256, scalar))
+      Ok(ecdsa.sign_rs(private_key, message, hash.Sha256))
+    }
+    False -> Error(Nil)
+  }
+}
+
+@external(erlang, "vestibule_apple_jwt_ffi", "import_p256_key")
+fn import_p256_key(p8_pem: String) -> Result(ec.PrivateKey, Nil)
 
 /// Create an Apple Sign In authentication strategy.
 ///

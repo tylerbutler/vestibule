@@ -1,10 +1,6 @@
 -module(vestibule_apple_jwt_ffi).
 
--export([verify/3,
-         sign/2,
-         sign_es256/2,
-         generate_es256_key_pair/0,
-         verify_es256/3]).
+-export([verify/3, sign/2, import_p256_key/1]).
 
 -include_lib("public_key/include/public_key.hrl").
 -include_lib("ywt_core/include/ywt@verify_key_VerifyRsa.hrl").
@@ -40,7 +36,7 @@ verify(_Message, _Signature, _Key) ->
     false.
 
 %% Test support for producing realistic RSA JWT fixtures. Production code only
-%% calls verify/3.
+%% imports P-256 keys and calls verify/3.
 sign(Message,
      #sign_rsa_simple{digest_type = DigestType,
                       public_exponent = Exponent,
@@ -99,53 +95,15 @@ sign_rsa(Message, DigestType, Padding, PrivateKey) ->
                     PrivateKey,
                     [{rsa_padding, Padding}]).
 
-sign_es256(Message, Pem) when is_binary(Message), is_binary(Pem) ->
-    try
-        PrivateKey = decode_es256_private_key(Pem),
-        DerSignature = public_key:sign(Message, sha256, PrivateKey),
-        {ok, ecdsa_der_to_jose(DerSignature)}
-    catch
-        _:_ -> {error, nil}
+%% kryptos accepts non-EC curve OIDs that its curve accessor cannot handle.
+import_p256_key(Pem) ->
+    case kryptos_ffi:ec_import_private_key_pem(Pem) of
+        {ok, {#'ECPrivateKey'{parameters =
+                                {namedCurve, {1, 2, 840, 10045, 3, 1, 7}}} =
+                  PrivateKey, _PublicKey}} ->
+            {ok, PrivateKey};
+        {ok, _} ->
+            {error, nil};
+        {error, nil} = Error ->
+            Error
     end.
-
-%% Test support for signing through Apple's PEM path and verifying independently.
-generate_es256_key_pair() ->
-    PrivateKey = public_key:generate_key({namedCurve, secp256r1}),
-    Entry = public_key:pem_entry_encode('PrivateKeyInfo', PrivateKey),
-    {public_key:pem_encode([Entry]), PrivateKey#'ECPrivateKey'.publicKey}.
-
-verify_es256(Message, Signature, PublicKey)
-  when is_binary(Message), is_binary(Signature), is_binary(PublicKey) ->
-    try
-        DerSignature = ecdsa_jose_to_der(Signature),
-        Parameters = {namedCurve, {1, 2, 840, 10045, 3, 1, 7}},
-        Point = #'ECPoint'{point = PublicKey},
-        public_key:verify(Message,
-                          sha256,
-                          DerSignature,
-                          {Point, Parameters})
-    catch
-        _:_ -> false
-    end.
-
-decode_es256_private_key(Pem) ->
-    [Entry] = public_key:pem_decode(Pem),
-    PrivateKey = public_key:pem_entry_decode(Entry),
-    #'ECPrivateKey'{parameters = {namedCurve, {1, 2, 840, 10045, 3, 1, 7}}} =
-        PrivateKey,
-    PrivateKey.
-
-ecdsa_der_to_jose(DerSignature) ->
-    {'ECDSA-Sig-Value', R, S} =
-        public_key:der_decode('ECDSA-Sig-Value', DerSignature),
-    <<(fixed_width_integer(R, 32))/binary,
-      (fixed_width_integer(S, 32))/binary>>.
-
-ecdsa_jose_to_der(<<R:256/unsigned-big-integer,
-                    S:256/unsigned-big-integer>>) ->
-    public_key:der_encode('ECDSA-Sig-Value', {'ECDSA-Sig-Value', R, S}).
-
-fixed_width_integer(Integer, Width) ->
-    Encoded = binary:encode_unsigned(Integer),
-    Padding = Width - byte_size(Encoded),
-    <<0:Padding/unit:8, Encoded/binary>>.

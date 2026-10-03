@@ -15,6 +15,7 @@ glow_auth = ">= 1.0.1 and < 2.0.0"
 gleam_crypto = ">= 1.5.0 and < 2.0.0"
 ywt_core = ">= 1.2.0 and < 2.0.0"
 gleam_time = ">= 1.7.0 and < 2.0.0"
+kryptos = ">= 1.5.0 and < 2.0.0"
 
 [dependencies.bravo]
 git = "https://github.com/Michael-Mark-Edu/bravo"
