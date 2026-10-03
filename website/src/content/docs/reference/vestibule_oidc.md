@@ -4,7 +4,7 @@ description: "OpenID Connect Discovery support for auto-configuring strategies."
 nav:
   group: Reference
   groupOrder: 20
-  order: 37
+  order: 38
   label: "vestibule_oidc"
 toc:
   - href: "#types"

@@ -4,7 +4,7 @@ description: "Single-use storage for in-flight OAuth flow state (CSRF `state` an
 nav:
   group: Reference
   groupOrder: 20
-  order: 21
+  order: 22
   label: "vestibule/state_store"
 toc:
   - href: "#types"

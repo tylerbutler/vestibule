@@ -2,18 +2,26 @@ import gleam/dict
 import gleam/string
 import vestibule/config
 import vestibule/error
+import vestibule/registry
+import vestibule/strategy
+
+const client_secret = "CLIENT-SECRET-7f3a"
+
+const client_assertion = "CLIENT-ASSERTION-9b21"
 
 pub fn new_creates_client_config_test() -> Nil {
   let client_config =
     config.new(
       client_id: "id",
       redirect_uri: "http://localhost/callback",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth(client_secret),
     )
 
   assert config.client_id(client_config) == "id"
   assert config.redirect_uri(client_config) == "http://localhost/callback"
-  assert config.client_auth(client_config) == config.ClientSecret("secret")
+  assert config.client_auth(client_config)
+    |> config.client_auth_kind()
+    == config.ClientSecretAuth
 }
 
 pub fn client_secret_returns_secret_for_secret_auth_test() -> Nil {
@@ -21,10 +29,10 @@ pub fn client_secret_returns_secret_for_secret_auth_test() -> Nil {
     config.new(
       client_id: "id",
       redirect_uri: "http://localhost/callback",
-      auth: config.ClientSecret("secret"),
+      auth: config.client_secret_auth(client_secret),
     )
 
-  assert config.client_secret(client_config) == Ok("secret")
+  assert config.client_secret(client_config) == Ok(client_secret)
 }
 
 pub fn client_secret_rejects_assertion_auth_test() -> Nil {
@@ -32,7 +40,7 @@ pub fn client_secret_rejects_assertion_auth_test() -> Nil {
     config.new(
       client_id: "id",
       redirect_uri: "http://localhost/callback",
-      auth: config.ClientAssertion("assertion"),
+      auth: config.client_assertion_auth(client_assertion),
     )
 
   case config.client_secret(client_config) {
@@ -50,7 +58,7 @@ pub fn client_secret_rejects_public_client_test() -> Nil {
     config.new(
       client_id: "id",
       redirect_uri: "http://localhost/callback",
-      auth: config.PublicClient,
+      auth: config.public_client(),
     )
 
   case config.client_secret(client_config) {
@@ -61,6 +69,68 @@ pub fn client_secret_rejects_public_client_test() -> Nil {
     }
     Ok(_) -> panic as "expected ConfigError for public client"
   }
+}
+
+pub fn client_assertion_returns_assertion_for_assertion_auth_test() -> Nil {
+  let client_config =
+    config.new(
+      client_id: "id",
+      redirect_uri: "http://localhost/callback",
+      auth: config.client_assertion_auth(client_assertion),
+    )
+
+  assert config.client_assertion(client_config) == Ok(client_assertion)
+}
+
+pub fn inspect_client_auth_and_config_do_not_leak_credentials_test() -> Nil {
+  let client_auth = config.client_secret_auth(client_secret)
+  let client_config =
+    config.new(
+      client_id: "id",
+      redirect_uri: "http://localhost/callback",
+      auth: client_auth,
+    )
+
+  assert !string.contains(string.inspect(client_auth), client_secret)
+  assert !string.contains(string.inspect(client_config), client_secret)
+  assert !string.contains(erlang_term(client_auth), client_secret)
+  assert !string.contains(erlang_term(client_config), client_secret)
+}
+
+pub fn assertion_inspection_does_not_leak_test() -> Nil {
+  let client_auth = config.client_assertion_auth(client_assertion)
+
+  assert !string.contains(string.inspect(client_auth), client_assertion)
+  assert !string.contains(erlang_term(client_auth), client_assertion)
+}
+
+pub fn registry_inspection_does_not_leak_client_secret_test() -> Nil {
+  let provider =
+    strategy.new(
+      provider: "test",
+      default_scopes: [],
+      authorize_url: fn(_config, _options, _scopes, _state) {
+        Ok("https://example.com")
+      },
+      exchange_code: fn(_config, _code, _verifier) {
+        Error(error.config(reason: "not used"))
+      },
+      fetch_user: fn(_config, _exchange) {
+        Error(error.config(reason: "not used"))
+      },
+    )
+  let client_config =
+    config.new(
+      client_id: "id",
+      redirect_uri: "http://localhost/callback",
+      auth: config.client_secret_auth(client_secret),
+    )
+  let assert Ok(provider_registry) =
+    registry.new()
+    |> registry.register(strategy: provider, config: client_config)
+
+  assert !string.contains(string.inspect(provider_registry), client_secret)
+  assert !string.contains(erlang_term(provider_registry), client_secret)
 }
 
 pub fn authorize_options_start_empty_test() -> Nil {
@@ -135,3 +205,6 @@ fn assert_reserved_parameter_rejected(parameter: String) -> Nil {
     Ok(_) -> panic as "expected ConfigError for reserved authorization parameter"
   }
 }
+
+@external(erlang, "vestibule_secret_test_ffi", "format_term")
+fn erlang_term(value: a) -> String

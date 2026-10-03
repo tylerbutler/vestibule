@@ -30,6 +30,13 @@ pub fn inspect_credentials_does_not_leak_tokens_test() -> Nil {
   assert !string.contains(rendered, refresh_secret)
 }
 
+pub fn erlang_term_formatting_does_not_leak_tokens_test() -> Nil {
+  let rendered = erlang_term(sample_credentials())
+
+  assert !string.contains(rendered, access_token)
+  assert !string.contains(rendered, refresh_secret)
+}
+
 pub fn inspect_auth_does_not_leak_tokens_test() -> Nil {
   let result =
     auth.new(
@@ -67,3 +74,6 @@ pub fn credentials_without_refresh_token_inspects_cleanly_test() -> Nil {
 
   assert credential.refresh_token(oauth_credentials) == None
 }
+
+@external(erlang, "vestibule_secret_test_ffi", "format_term")
+fn erlang_term(value: a) -> String

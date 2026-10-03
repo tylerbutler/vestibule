@@ -31,7 +31,7 @@ code: |
     config.new(
       client_id: "client_id",
       redirect_uri: "http://localhost:8000/auth/github/callback",
-      auth: config.ClientSecret("client_secret"),
+      auth: config.client_secret_auth("client_secret"),
     )
 
   let options = config.authorize_options()

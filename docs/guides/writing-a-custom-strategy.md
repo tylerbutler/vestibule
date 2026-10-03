@@ -692,7 +692,7 @@ pub fn start_auth() -> Nil {
     config.new(
       client_id: "your_client_id",
       redirect_uri: "http://localhost:8080/auth/twitch/callback",
-      auth: config.ClientSecret("your_client_secret"),
+      auth: config.client_secret_auth("your_client_secret"),
     )
   let options = config.authorize_options()
   let strategy = vestibule_twitch.strategy()

@@ -434,13 +434,12 @@ pub fn build_authorization_code_request(
   use redirect <- result.try(
     provider_support.parse_redirect_uri(config.redirect_uri(client_config)),
   )
-  let parameters =
-    token_request.authorization_code(
-      client_config,
-      code: code,
-      redirect_uri: uri.to_string(redirect),
-      code_verifier: code_verifier,
-    )
+  use parameters <- result.try(token_request.authorization_code(
+    client_config,
+    code: code,
+    redirect_uri: uri.to_string(redirect),
+    code_verifier: code_verifier,
+  ))
   let body = uri.query_to_string(parameters)
   build_token_request(oidc_config.token_endpoint, body)
 }
@@ -463,8 +462,10 @@ pub fn build_refresh_token_request(
   client_config: config.ClientConfig,
   refresh_token: String,
 ) -> Result(provider_support.SecureRequest, AuthError(e)) {
-  let parameters =
-    token_request.refresh(client_config, refresh_token: refresh_token)
+  use parameters <- result.try(token_request.refresh(
+    client_config,
+    refresh_token: refresh_token,
+  ))
   let body = uri.query_to_string(parameters)
   build_token_request(oidc_config.token_endpoint, body)
 }

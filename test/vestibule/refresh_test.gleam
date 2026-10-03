@@ -83,7 +83,7 @@ pub fn parse_refresh_response_error_invalid_grant_test() -> Nil {
     )
     == Error(error.provider(
       code: "invalid_grant",
-      description: "The refresh token has expired.",
+      description: "Provider rejected the request",
       uri: None,
     ))
 }
@@ -97,7 +97,7 @@ pub fn parse_refresh_response_error_invalid_client_test() -> Nil {
     )
     == Error(error.provider(
       code: "invalid_client",
-      description: "Client authentication failed.",
+      description: "Provider rejected the request",
       uri: None,
     ))
 }

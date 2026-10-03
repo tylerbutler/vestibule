@@ -4,7 +4,7 @@ description: "URL validation and canonicalization for IndieAuth."
 nav:
   group: Reference
   groupOrder: 20
-  order: 33
+  order: 34
   label: "vestibule_indieauth/url"
 toc:
   - href: "#functions"

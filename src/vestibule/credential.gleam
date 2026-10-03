@@ -14,8 +14,9 @@ import vestibule/internal/secret.{type Secret}
 /// matching or casual field access. The access and refresh tokens are wrapped
 /// in `Secret`, so `string.inspect`, Erlang `~p` formatting, logs, and crash
 /// reports redact them even when a caller accidentally renders a `Credentials`
-/// (or an `Auth` containing one) directly. Use `new` to construct credentials
-/// in strategies and accessors to read fields when needed.
+/// (or an `Auth` containing one) directly. This does not erase token data from
+/// process memory or guarantee secrecy in VM dumps. Use `new` to construct
+/// credentials in strategies and accessors to read fields when needed.
 pub opaque type Credentials {
   Credentials(
     token: Secret,
