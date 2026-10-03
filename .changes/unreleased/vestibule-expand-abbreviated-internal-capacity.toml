@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Changed"
+body = "Expand abbreviated internal capacity names and test names for challenges, requests, authenticated results, and characters. Update callers, README examples, the custom strategy guide, website snippets, and API reference documentation for the renamed interfaces."

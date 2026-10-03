@@ -163,7 +163,8 @@ case vestibule_mist.callback_phase_auth_result(
   Error(vestibule_mist.MissingOrInvalidSessionCookie(reason)) ->
     handle_missing_cookie(reason)
   Error(vestibule_mist.SessionUnavailable) -> handle_expired_session()
-  Error(vestibule_mist.InvalidCallbackParams(reason)) ->
+  Error(vestibule_mist.SessionProviderMismatch) -> handle_provider_mismatch()
+  Error(vestibule_mist.InvalidCallbackParameters(reason)) ->
     handle_bad_callback(reason)
   Error(vestibule_mist.AuthFailed(auth_error)) ->
     handle_auth_failure(auth_error)
@@ -178,7 +179,7 @@ details for logging or custom rendering.
 Malformed query encoding is rejected before a POST body is parsed, so a valid
 body cannot hide ambiguous query input. Malformed provider responses and
 missing `state` or `code` parameters are
-reported through `AuthFailed`. `InvalidCallbackParams` is returned when
+reported through `AuthFailed`. `InvalidCallbackParameters` is returned when
 callback parameters cannot be extracted from the request, such as malformed
 POST form data.
 
@@ -190,7 +191,7 @@ before a POST body is read. `POST` callbacks read
 merge them with query parameters. Repeated parameter names are rejected,
 including identical values and names present once in each source. If a
 POST body cannot be read, decoded as UTF-8, or parsed as form data,
-callback handling returns `InvalidCallbackParams` instead of falling back
+callback handling returns `InvalidCallbackParameters` instead of falling back
 to query parameters.
 
 ## State store

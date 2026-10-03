@@ -198,7 +198,7 @@ pub fn authorize_url_includes_extra_parameters_test() -> Nil {
     )
   let assert Ok(options) =
     config.authorize_options()
-    |> config.with_extra_params([#("allow_signup", "false")])
+    |> config.with_extra_parameters([#("allow_signup", "false")])
   let assert Ok(authorization_url) =
     strategy.build_authorize_url(
       github_strategy,

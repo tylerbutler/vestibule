@@ -859,7 +859,7 @@ pub fn strategy_from_config_authorize_url_test() -> Nil {
   }
 }
 
-pub fn strategy_from_config_authorize_url_with_extra_params_test() -> Nil {
+pub fn strategy_from_config_authorize_url_with_extra_parameters_test() -> Nil {
   let assert Ok(oidc_config) =
     vestibule_oidc.new_config(
       issuer: "https://accounts.example.com",
@@ -878,7 +878,7 @@ pub fn strategy_from_config_authorize_url_with_extra_params_test() -> Nil {
     )
   let assert Ok(options) =
     config.authorize_options()
-    |> config.with_extra_params([#("prompt", "consent")])
+    |> config.with_extra_parameters([#("prompt", "consent")])
   let assert Ok(url) =
     strategy.build_authorize_url(
       oidc_strategy,

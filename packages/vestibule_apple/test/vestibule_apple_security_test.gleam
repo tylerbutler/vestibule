@@ -252,7 +252,7 @@ fn apple_callback(
       redirect_uri: "https://app.example/callback",
       auth: config.client_secret_auth("secret"),
     ),
-    callback_params: dict.from_list([
+    callback_parameters: dict.from_list([
       #("state", "state"),
       #("code", "code"),
     ]),

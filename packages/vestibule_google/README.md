@@ -34,7 +34,7 @@ return `Some(email)` when `email_verified` is true.
 ## Hosted-domain (Workspace) enforcement
 
 `strategy()` does **not** restrict sign-in to a Google Workspace domain. Setting
-`hd` via `config.authorize_options() |> config.with_extra_params([#("hd", "corp.example")])` only pre-selects
+`hd` via `config.authorize_options() |> config.with_extra_parameters([#("hd", "corp.example")])` only pre-selects
 the account picker — it is a UI hint and **must not** be relied on for
 authorization, because a user can still authenticate with an account outside
 that domain.
@@ -89,7 +89,7 @@ specific authorization parameters:
 ```gleam
 let assert Ok(options) =
   config.authorize_options()
-  |> config.with_extra_params([
+  |> config.with_extra_parameters([
     #("access_type", "offline"),
     #("prompt", "consent"),
   ])

@@ -133,7 +133,7 @@ pub fn state_validate_rejects_swapped_values_test() -> Nil {
 
 /// Security: PKCE verifier must use URL-safe base64 characters only.
 /// No +, /, or = padding (RFC 7636 Section 4.1).
-pub fn pkce_verifier_uses_url_safe_chars_only_test() -> Nil {
+pub fn pkce_verifier_uses_url_safe_characters_only_test() -> Nil {
   let verifier = pkce.generate_verifier()
   assert !string.contains(verifier, "+")
   assert !string.contains(verifier, "/")
@@ -141,7 +141,7 @@ pub fn pkce_verifier_uses_url_safe_chars_only_test() -> Nil {
 }
 
 /// Security: PKCE challenge must use URL-safe base64 characters only.
-pub fn pkce_challenge_uses_url_safe_chars_only_test() -> Nil {
+pub fn pkce_challenge_uses_url_safe_characters_only_test() -> Nil {
   let verifier = pkce.generate_verifier()
   let challenge = pkce.compute_challenge(verifier)
   assert !string.contains(challenge, "+")
@@ -241,7 +241,7 @@ pub fn callback_rejects_state_mismatch_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: parameters,
+      callback_parameters: parameters,
       expected_state: "real_state",
       code_verifier: "verifier",
       expected_nonce: None,
@@ -263,7 +263,7 @@ pub fn callback_rejects_missing_state_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: parameters,
+      callback_parameters: parameters,
       expected_state: "expected",
       code_verifier: "verifier",
       expected_nonce: None,
@@ -284,7 +284,7 @@ pub fn callback_rejects_empty_parameters_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: dict.new(),
+      callback_parameters: dict.new(),
       expected_state: "expected",
       code_verifier: "verifier",
       expected_nonce: None,
@@ -314,7 +314,7 @@ pub fn callback_detects_provider_error_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: parameters,
+      callback_parameters: parameters,
       expected_state: state_value,
       code_verifier: "verifier",
       expected_nonce: None,
@@ -347,7 +347,7 @@ pub fn callback_preserves_provider_error_uri_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: parameters,
+      callback_parameters: parameters,
       expected_state: state_value,
       code_verifier: "verifier",
       expected_nonce: None,
@@ -379,7 +379,7 @@ pub fn callback_rejects_provider_error_when_state_mismatch_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: parameters,
+      callback_parameters: parameters,
       expected_state: "expected_state",
       code_verifier: "verifier",
       expected_nonce: None,
@@ -408,7 +408,7 @@ pub fn callback_ignores_extra_parameters_test() -> Nil {
     vestibule.handle_callback(
       strategy,
       config: client_config,
-      callback_params: parameters,
+      callback_parameters: parameters,
       expected_state: state_value,
       code_verifier: "verifier",
       expected_nonce: None,

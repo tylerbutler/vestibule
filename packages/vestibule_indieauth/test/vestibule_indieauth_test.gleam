@@ -18,7 +18,7 @@ pub fn main() -> Nil {
   gleeunit.main()
 }
 
-pub fn authorize_url_includes_extra_params_test() -> Nil {
+pub fn authorize_url_includes_extra_parameters_test() -> Nil {
   let endpoints =
     DiscoveredEndpoints(
       authorization_endpoint: "https://auth.example.com/authorize",
@@ -36,7 +36,7 @@ pub fn authorize_url_includes_extra_params_test() -> Nil {
     )
   let assert Ok(options) =
     config.authorize_options()
-    |> config.with_extra_params([#("prompt", "login")])
+    |> config.with_extra_parameters([#("prompt", "login")])
 
   let assert Ok(authorization_url) =
     strategy.build_authorize_url(
@@ -71,7 +71,7 @@ pub fn authorize_url_rejects_me_extra_param_test() -> Nil {
     )
   let assert Ok(options) =
     config.authorize_options()
-    |> config.with_extra_params([#("me", "https://attacker.example.com/")])
+    |> config.with_extra_parameters([#("me", "https://attacker.example.com/")])
 
   let result =
     strategy.build_authorize_url(
@@ -186,7 +186,7 @@ fn metadata_callback(
   vestibule.handle_callback(
     vestibule_indieauth.strategy(endpoints, "https://me.example.com/"),
     config: test_client_config(),
-    callback_params: callback_params,
+    callback_parameters: callback_params,
     expected_state: "state",
     code_verifier: "pkce-verifier",
     expected_nonce: None,

@@ -4,7 +4,7 @@ description: "Microsoft Identity Platform (v2.0) strategy."
 nav:
   group: Reference
   groupOrder: 20
-  order: 34
+  order: 35
   label: "vestibule_microsoft"
 toc:
   - href: "#functions"
@@ -20,7 +20,7 @@ searchTerms:
 
 Microsoft Identity Platform (v2.0) strategy.
 
-Requests `openid User.Read` by default. Tokens are exchanged against
+Requests `openid profile User.Read` by default. Tokens are exchanged against
 `/oauth2/v2.0/token`; user info comes from Microsoft Graph `/me`.
 
 ## Tenant isolation

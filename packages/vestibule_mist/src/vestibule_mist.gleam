@@ -41,7 +41,7 @@ import vestibule_mist/signed_cookie
 /// Maximum body size accepted from a POST callback. 64 KiB is well above the
 /// largest realistic OAuth form_post payload (an Apple identity_token is a few
 /// KiB) and small enough to reject obvious abuse without risking truncation.
-const max_callback_body_bytes: Int = 65_536
+const maximum_callback_body_bytes: Int = 65_536
 
 /// Whether the session cookie is set with the `Secure` attribute.
 pub type CookieSecurity {
@@ -57,11 +57,11 @@ pub type CookieSecurity {
 /// Minimum length of the HMAC `secret_key_base`, in bytes. 32 bytes is the
 /// output size of the HMAC-SHA256 used to sign the session cookie; anything
 /// shorter weakens the signature below the hash's own strength.
-pub const min_secret_key_base_bytes: Int = 32
+pub const minimum_secret_key_base_bytes: Int = 32
 
 /// Errors returned by `new_options`.
 pub type OptionsError {
-  /// `secret_key_base` is shorter than `min_secret_key_base_bytes`.
+  /// `secret_key_base` is shorter than `minimum_secret_key_base_bytes`.
   SecretKeyBaseTooShort(minimum_bytes: Int, actual_bytes: Int)
 }
 
@@ -116,7 +116,7 @@ pub type CallbackError(e) {
   SessionProviderMismatch
   /// Callback parameters could not be extracted from the request; `reason`
   /// says why.
-  InvalidCallbackParams(reason: CallbackParamsError)
+  InvalidCallbackParameters(reason: CallbackParametersError)
   /// Provider authentication failed.
   AuthFailed(error.AuthError(e))
 }
@@ -137,7 +137,7 @@ pub type SessionCookieError {
 }
 
 /// Why callback parameters could not be extracted from a POST callback body.
-pub type CallbackParamsError {
+pub type CallbackParametersError {
   /// The callback query string was not valid form/query encoding.
   QueryNotFormEncoded
   /// The request body could not be read (e.g. larger than the 64 KiB limit,
@@ -159,7 +159,7 @@ const host_cookie_prefix: String = "__Host-"
 const default_cookie_base_name: String = "vestibule_session"
 
 /// Build middleware options with the given HMAC `secret_key_base`, which must
-/// be at least `min_secret_key_base_bytes` (32) bytes of unpredictable data.
+/// be at least `minimum_secret_key_base_bytes` (32) bytes of unpredictable data.
 ///
 /// Defaults: host-bound cookie name `__Host-vestibule_session`, session TTL
 /// 600 seconds, `SecureOnly` cookies, `SameSite=Lax`. Customize with
@@ -168,9 +168,9 @@ const default_cookie_base_name: String = "vestibule_session"
 pub fn new_options(secret_key_base: BitArray) -> Result(Options, OptionsError) {
   let actual_bytes = bit_array.byte_size(secret_key_base)
   use <- bool.guard(
-    when: actual_bytes < min_secret_key_base_bytes,
+    when: actual_bytes < minimum_secret_key_base_bytes,
     return: Error(SecretKeyBaseTooShort(
-      minimum_bytes: min_secret_key_base_bytes,
+      minimum_bytes: minimum_secret_key_base_bytes,
       actual_bytes: actual_bytes,
     )),
   )
@@ -482,8 +482,8 @@ pub fn request_phase_for_direct_client(
 ///
 /// Supports both GET callbacks (query parameters) and POST callbacks
 /// (form-encoded body), as required by providers like Apple that use
-/// `response_mode=form_post`. For POST requests, form body parameters take
-/// precedence over query parameters.
+/// `response_mode=form_post`. Repeated parameter names are rejected, including
+/// names present in both the query and POST body.
 ///
 /// On success, calls `on_success` with the `Auth`. On error, returns a
 /// generic HTML error page. Returns 404 if the provider is not registered.
@@ -591,17 +591,27 @@ pub fn callback_phase_auth_result(
       cookie_name(options),
       options.secret_key_base,
     ))
-    use callback_params <- result.try(get_callback_params(http_request))
+    use callback_parameters <- result.try(get_callback_parameters(http_request))
     transport_flow.finish_callback(
       strategy_config,
       store: store,
-      parameters: callback_params,
+      parameters: callback_parameters,
       session_id: session_id,
     )
     |> result.map_error(to_callback_error)
   }
   case outcome {
-    Ok(_) -> Nil
+    Ok(_) ->
+      logger.emit(
+        logger.new(
+          level: logger.Info,
+          event: "vestibule.adapter.callback.success",
+          phase: "callback",
+          outcome: "success",
+          provider: option.Some(provider),
+          fields: [logger.field("transport", "mist")],
+        ),
+      )
     Error(callback_error) -> log_callback_error(provider, callback_error)
   }
   outcome
@@ -613,9 +623,9 @@ pub fn callback_phase_auth_result(
 /// resolved the form/query parameters) and wants to hand them in directly.
 /// Generic over the request body type so it can be used in unit tests with
 /// `Request(BitArray)` or any other body.
-pub fn callback_phase_auth_result_with_params(
+pub fn callback_phase_auth_result_with_parameters(
   http_request: Request(body),
-  params callback_params: dict.Dict(String, String),
+  parameters callback_parameters: dict.Dict(String, String),
   registry registry: Registry(e),
   provider provider: String,
   store store: StateStore,
@@ -633,7 +643,7 @@ pub fn callback_phase_auth_result_with_params(
   )
   do_callback_phase_auth_result_with_parameters(
     http_request,
-    params: callback_params,
+    parameters: callback_parameters,
     registry: registry,
     provider: provider,
     store: store,
@@ -643,7 +653,7 @@ pub fn callback_phase_auth_result_with_params(
 
 fn do_callback_phase_auth_result_with_parameters(
   http_request: Request(body),
-  params callback_params: dict.Dict(String, String),
+  parameters callback_parameters: dict.Dict(String, String),
   registry registry: Registry(e),
   provider provider: String,
   store store: StateStore,
@@ -664,7 +674,7 @@ fn do_callback_phase_auth_result_with_parameters(
     transport_flow.finish_callback(
       strategy_config,
       store: store,
-      parameters: callback_params,
+      parameters: callback_parameters,
       session_id: session_id,
     )
     |> result.map_error(to_callback_error)
@@ -715,7 +725,7 @@ fn callback_cookie_is_terminal(
     Error(UnknownProvider(_))
     | Error(MissingOrInvalidSessionCookie(CookieAbsent))
     | Error(SessionProviderMismatch)
-    | Error(InvalidCallbackParams(_)) -> False
+    | Error(InvalidCallbackParameters(_)) -> False
     Error(AuthFailed(_)) ->
       case
         get_signed_cookie(
@@ -736,7 +746,7 @@ fn callback_cookie_is_terminal(
         | Error(UnknownProvider(_))
         | Error(SessionUnavailable)
         | Error(SessionProviderMismatch)
-        | Error(InvalidCallbackParams(_))
+        | Error(InvalidCallbackParameters(_))
         | Error(AuthFailed(_)) -> True
       }
   }
@@ -763,23 +773,23 @@ fn get_signed_cookie(
 /// Extract callback parameters from either query string (GET) or
 /// form-encoded body (POST). Repeated names fail closed before conversion to
 /// a dictionary.
-fn get_callback_params(
+fn get_callback_parameters(
   http_request: Request(Connection),
 ) -> Result(dict.Dict(String, String), CallbackError(e)) {
   use query_parameters <- result.try(parse_callback_query(http_request.query))
   case http_request.method {
     http.Post -> {
       use request_with_body <- result.try(
-        mist.read_body(http_request, max_callback_body_bytes)
-        |> result.replace_error(InvalidCallbackParams(BodyReadFailed)),
+        mist.read_body(http_request, maximum_callback_body_bytes)
+        |> result.replace_error(InvalidCallbackParameters(BodyReadFailed)),
       )
       use body_string <- result.try(
         bit_array.to_string(request_with_body.body)
-        |> result.replace_error(InvalidCallbackParams(BodyNotUtf8)),
+        |> result.replace_error(InvalidCallbackParameters(BodyNotUtf8)),
       )
       use body_parameters <- result.try(
         uri.parse_query(body_string)
-        |> result.replace_error(InvalidCallbackParams(BodyNotFormEncoded)),
+        |> result.replace_error(InvalidCallbackParameters(BodyNotFormEncoded)),
       )
       callback_parameters_from_pairs(query_parameters, body_parameters)
     }
@@ -802,7 +812,7 @@ pub fn parse_callback_query(
   case query {
     option.Some(value) ->
       uri.parse_query(value)
-      |> result.replace_error(InvalidCallbackParams(QueryNotFormEncoded))
+      |> result.replace_error(InvalidCallbackParameters(QueryNotFormEncoded))
     option.None -> Ok([])
   }
 }
@@ -818,7 +828,7 @@ pub fn callback_parameters_from_pairs(
 ) -> Result(dict.Dict(String, String), CallbackError(e)) {
   transport_flow.callback_parameters(query, body)
   |> result.map_error(fn(name) {
-    InvalidCallbackParams(DuplicateParameter(name))
+    InvalidCallbackParameters(DuplicateParameter(name))
   })
 }
 
@@ -860,7 +870,7 @@ fn log_callback_error(
       "session_cookie_signature_invalid"
     SessionUnavailable -> "session_unavailable"
     SessionProviderMismatch -> "provider_mismatch"
-    InvalidCallbackParams(_) -> "invalid_callback_params"
+    InvalidCallbackParameters(_) -> "invalid_callback_params"
     AuthFailed(authentication_error) ->
       logger.auth_error_category(authentication_error)
   }
@@ -887,7 +897,7 @@ fn callback_error_response(
     MissingOrInvalidSessionCookie(_) -> generic_error_response()
     SessionUnavailable -> generic_error_response()
     SessionProviderMismatch -> generic_error_response()
-    InvalidCallbackParams(_) -> generic_error_response()
+    InvalidCallbackParameters(_) -> generic_error_response()
     AuthFailed(_) -> generic_error_response()
   }
 }

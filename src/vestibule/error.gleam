@@ -11,7 +11,7 @@
 //// - [`message`](#message) returns a human-readable summary, safe to log.
 //// - [`provider_error`](#provider_error) returns sanitized provider error data
 ////   when the provider returned a standard OAuth error.
-//// - [`http_status`](#http_status) and [`missing_param`](#missing_param) expose
+//// - [`http_status`](#http_status) and [`missing_parameter`](#missing_parameter) expose
 ////   the few additional structured fields some errors carry.
 //// - [`custom_payload`](#custom_payload) returns the provider-defined payload
 ////   for custom errors.
@@ -28,7 +28,7 @@ import gleam/option.{type Option, None, Some}
 ///
 /// Inspect values of this type with [`kind`](#kind), [`phase`](#phase),
 /// [`message`](#message), [`provider_error`](#provider_error),
-/// [`http_status`](#http_status), [`missing_param`](#missing_param), and
+/// [`http_status`](#http_status), [`missing_parameter`](#missing_parameter), and
 /// [`custom_payload`](#custom_payload).
 pub opaque type AuthError(e) {
   StateMismatch
@@ -312,7 +312,7 @@ pub fn http_summary(auth_error: AuthError(e)) -> Option(String) {
 }
 
 /// The name of the missing callback parameter, for `MissingCallbackParamKind`.
-pub fn missing_param(auth_error: AuthError(e)) -> Option(String) {
+pub fn missing_parameter(auth_error: AuthError(e)) -> Option(String) {
   case auth_error {
     MissingCallbackParam(name) -> Some(name)
     StateMismatch

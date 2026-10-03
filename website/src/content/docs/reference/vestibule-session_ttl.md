@@ -4,7 +4,7 @@ description: "A validated lifetime for short-lived OAuth flow sessions."
 nav:
   group: Reference
   groupOrder: 20
-  order: 20
+  order: 21
   label: "vestibule/session_ttl"
 toc:
   - href: "#types"

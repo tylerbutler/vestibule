@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Fixed"
+body = "Redact callback_parameters in structured log fields alongside the legacy callback_params key. Keep existing log field names and add regression coverage for both redaction keys."

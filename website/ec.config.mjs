@@ -4,6 +4,7 @@ export default {
     theme.type === "dark" ? '[data-theme="dark"]' : '[data-theme="light"]',
   styleOverrides: {
     borderRadius: "0.875rem",
+    codeFontFamily: "var(--font-mono)",
     frames: {
       shadowColor: "transparent"
     }

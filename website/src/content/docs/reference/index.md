@@ -29,7 +29,7 @@ Vestibule packages are not published on Hex. Follow the [installation guide](/do
 
 | Package | Version | Modules | Description |
 |---|---:|---:|---|
-| `vestibule` | `0.1.0` | 14 | Demo-ready OAuth sign-in for Gleam. Real auth flows for demos and prototypes — not audited, not for production. |
+| `vestibule` | `0.1.0` | 15 | Demo-ready OAuth sign-in for Gleam. Real auth flows for demos and prototypes — not audited, not for production. |
 | `vestibule_apple` | `0.0.1` | 3 | Apple Sign In strategy for vestibule (demo-ready — not audited, not for production) |
 | `vestibule_github` | `0.1.0` | 1 | GitHub OAuth strategy for vestibule (demo-ready — not audited, not for production) |
 | `vestibule_google` | `0.0.1` | 1 | Google OAuth strategy for vestibule (demo-ready — not audited, not for production) |
@@ -54,6 +54,7 @@ Vestibule packages are not published on Hex. Follow the [installation guide](/do
 | `vestibule` | [`vestibule/oidc`](/docs/reference/vestibule-oidc) | Shared OpenID Connect ID-token verification. |
 | `vestibule` | [`vestibule/provider_support`](/docs/reference/vestibule-provider_support) | Stable helpers for OAuth provider implementations. |
 | `vestibule` | [`vestibule/registry`](/docs/reference/vestibule-registry) | In-memory registry that maps provider names ("google", "apple", ...) to `Strategy` values. Used by the middleware to dispatch incoming authorize/callback requests to the right provider. |
+| `vestibule` | [`vestibule/session_ttl`](/docs/reference/vestibule-session_ttl) | A validated lifetime for short-lived OAuth flow sessions. |
 | `vestibule` | [`vestibule/state_store`](/docs/reference/vestibule-state_store) | Single-use storage for in-flight OAuth flow state (CSRF `state` and PKCE `code_verifier`). Entries are deleted on first read to prevent replay. |
 | `vestibule` | [`vestibule/strategy`](/docs/reference/vestibule-strategy) | Provider-strategy interface. A `Strategy(e)` is an opaque record bundling the provider-specific functions an OAuth/OIDC provider implements: build authorize URL, exchange code, fetch user, and an optional refresh token. |
 | `vestibule` | [`vestibule/user_info`](/docs/reference/vestibule-user_info) | Normalized user profile returned by a provider's userinfo endpoint or extracted from an ID token. Provider-specific fields land in `extra`. |

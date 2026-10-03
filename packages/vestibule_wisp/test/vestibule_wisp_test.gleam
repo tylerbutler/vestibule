@@ -144,7 +144,7 @@ pub fn request_phase_requires_admission_identity_test() -> Nil {
   let assert Ok(store) =
     state_store.create_with_capacity(
       name: "test_wisp_request_identity_required",
-      max_entries: 1,
+      maximum_entries: 1,
     )
   let response =
     vestibule_wisp.request_phase(
@@ -214,7 +214,7 @@ pub fn request_phase_with_options_passes_authorize_options_test() -> Nil {
   let http_request = simulate.request(http.Get, "/auth/test")
   let assert Ok(authorize_options) =
     config.authorize_options()
-    |> config.with_extra_params([#("prompt", "login")])
+    |> config.with_extra_parameters([#("prompt", "login")])
   let assert Ok(custom_ttl) = session_ttl.from_seconds(300)
 
   let response =
@@ -339,7 +339,9 @@ pub fn callback_phase_auth_result_malformed_post_body_returns_invalid_parameters
       store,
     )
   assert result
-    == Error(vestibule_wisp.InvalidCallbackParams(vestibule_wisp.BodyNotUtf8))
+    == Error(vestibule_wisp.InvalidCallbackParameters(
+      vestibule_wisp.BodyNotUtf8,
+    ))
 }
 
 pub fn callback_rejects_duplicate_session_cookies_test() -> Nil {
@@ -398,9 +400,9 @@ pub fn callback_rejects_identical_duplicate_parameters_test() -> Nil {
     )
   assert result
     == Error(
-      vestibule_wisp.InvalidCallbackParams(vestibule_wisp.DuplicateParameter(
-        "state",
-      )),
+      vestibule_wisp.InvalidCallbackParameters(
+        vestibule_wisp.DuplicateParameter("state"),
+      ),
     )
   assert state_store.peek(store, session_id, provider: "test")
     == Ok(#("state", "verifier", option.None))
@@ -414,9 +416,9 @@ pub fn callback_rejects_conflicting_duplicate_parameters_test() -> Nil {
     )
   assert result
     == Error(
-      vestibule_wisp.InvalidCallbackParams(vestibule_wisp.DuplicateParameter(
-        "state",
-      )),
+      vestibule_wisp.InvalidCallbackParameters(
+        vestibule_wisp.DuplicateParameter("state"),
+      ),
     )
 }
 
@@ -428,15 +430,15 @@ pub fn callback_rejects_query_post_parameter_collision_test() -> Nil {
     ])
   assert result
     == Error(
-      vestibule_wisp.InvalidCallbackParams(vestibule_wisp.DuplicateParameter(
-        "state",
-      )),
+      vestibule_wisp.InvalidCallbackParameters(
+        vestibule_wisp.DuplicateParameter("state"),
+      ),
     )
 }
 
 pub fn callback_rejects_malformed_query_test() -> Nil {
   assert vestibule_wisp.parse_callback_query(option.Some("state=%ZZ"))
-    == Error(vestibule_wisp.InvalidCallbackParams(
+    == Error(vestibule_wisp.InvalidCallbackParameters(
       vestibule_wisp.QueryNotFormEncoded,
     ))
 }
@@ -466,7 +468,7 @@ pub fn callback_malformed_query_cannot_hide_behind_valid_post_body_test() -> Nil
       "test",
       store,
     )
-    == Error(vestibule_wisp.InvalidCallbackParams(
+    == Error(vestibule_wisp.InvalidCallbackParameters(
       vestibule_wisp.QueryNotFormEncoded,
     ))
   assert state_store.peek(store, session_id, provider: "test")
@@ -592,7 +594,9 @@ pub fn callback_post_body_limit_is_64_kib_test() -> Nil {
       store,
     )
   assert over_result
-    == Error(vestibule_wisp.InvalidCallbackParams(vestibule_wisp.BodyReadFailed))
+    == Error(vestibule_wisp.InvalidCallbackParameters(
+      vestibule_wisp.BodyReadFailed,
+    ))
 }
 
 pub fn callback_checks_cookie_before_reading_post_body_test() -> Nil {
@@ -716,7 +720,7 @@ fn authorize_options_strategy() -> Strategy(e) {
     provider: "test",
     default_scopes: [],
     authorize_url: fn(_config, options, _scopes, _state) {
-      case dict.get(config.extra_params(options), "prompt") {
+      case dict.get(config.extra_parameters(options), "prompt") {
         Ok(prompt) -> Ok("https://example.com?prompt=" <> prompt)
         Error(_) -> Ok("https://example.com")
       }
@@ -926,7 +930,7 @@ pub fn cross_site_cookie_is_accepted_by_callback_test() -> Nil {
       panic as "session unexpectedly belonged to another provider"
     Ok(_)
     | Error(vestibule_wisp.UnknownProvider(_))
-    | Error(vestibule_wisp.InvalidCallbackParams(_))
+    | Error(vestibule_wisp.InvalidCallbackParameters(_))
     | Error(vestibule_wisp.AuthFailed(_)) -> Nil
   }
 }

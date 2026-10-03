@@ -4,7 +4,7 @@ description: "Provider-strategy interface. A `Strategy(e)` is an opaque record b
 nav:
   group: Reference
   groupOrder: 20
-  order: 22
+  order: 23
   label: "vestibule/strategy"
 toc:
   - href: "#types"
@@ -40,7 +40,9 @@ The result of exchanging an authorization code.
 provider-specific token response data that may be needed while resolving the
 user, such as an OpenID Connect `id_token`.
 
-Opaque to keep provider-specific artifacts evolution-safe.
+Opaque to keep provider-specific artifacts evolution-safe. Artifacts are
+held behind a closure so inspect/debug rendering does not expose sensitive
+values such as ID tokens. This does not erase them from process memory.
 
 ```gleam
 pub type ExchangeResult

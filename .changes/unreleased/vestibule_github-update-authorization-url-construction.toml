@@ -1,0 +1,3 @@
+package = "vestibule_github"
+kind = "Changed"
+body = "Update authorization URL construction and option tests to use the renamed core parameter helpers."

@@ -100,7 +100,7 @@ pub type CallbackError(e) {
   SessionProviderMismatch
   /// Callback parameters could not be extracted from the request; `reason`
   /// says why.
-  InvalidCallbackParams(reason: CallbackParamsError)
+  InvalidCallbackParameters(reason: CallbackParametersError)
   /// Provider authentication failed.
   AuthFailed(error.AuthError(e))
 }
@@ -121,7 +121,7 @@ pub type SessionCookieError {
 }
 
 /// Why callback parameters could not be extracted from a POST callback body.
-pub type CallbackParamsError {
+pub type CallbackParametersError {
   /// The callback query string was not valid form/query encoding.
   QueryNotFormEncoded
   /// The request body could not be read.
@@ -619,12 +619,12 @@ pub fn callback_phase_auth_result_with_options(
       cookie_name(options),
     ))
 
-    use callback_params <- result.try(get_callback_params(http_request))
+    use callback_parameters <- result.try(get_callback_parameters(http_request))
 
     transport_flow.finish_callback(
       strategy_config,
       store: state_store,
-      parameters: callback_params,
+      parameters: callback_parameters,
       session_id: session_id,
     )
     |> result.map_error(to_callback_error)
@@ -727,7 +727,7 @@ fn callback_cookie_is_terminal(
     Error(UnknownProvider(_))
     | Error(MissingOrInvalidSessionCookie(CookieAbsent))
     | Error(SessionProviderMismatch)
-    | Error(InvalidCallbackParams(_)) -> False
+    | Error(InvalidCallbackParameters(_)) -> False
     Error(AuthFailed(_)) ->
       case get_signed_cookie(http_request, cookie_name(options)) {
         Ok(session_id) ->
@@ -746,7 +746,7 @@ fn callback_cookie_is_terminal(
         | Error(UnknownProvider(_))
         | Error(SessionUnavailable)
         | Error(SessionProviderMismatch)
-        | Error(InvalidCallbackParams(_))
+        | Error(InvalidCallbackParameters(_))
         | Error(AuthFailed(_)) -> True
       }
   }
@@ -780,7 +780,7 @@ fn get_signed_cookie(
 /// Extract callback parameters from either query string (GET) or
 /// form-encoded body (POST). Repeated names fail closed before conversion to
 /// a dictionary.
-fn get_callback_params(
+fn get_callback_parameters(
   http_request: Request,
 ) -> Result(dict.Dict(String, String), CallbackError(e)) {
   use query_parameters <- result.try(parse_callback_query(http_request.query))
@@ -797,19 +797,19 @@ fn get_callback_params(
         ))
       use <- bool.guard(
         when: declared_body_too_large(http_request),
-        return: Error(InvalidCallbackParams(BodyReadFailed)),
+        return: Error(InvalidCallbackParameters(BodyReadFailed)),
       )
       use body_bit_array <- result.try(
         wisp.read_body_bits(http_request)
-        |> result.replace_error(InvalidCallbackParams(BodyReadFailed)),
+        |> result.replace_error(InvalidCallbackParameters(BodyReadFailed)),
       )
       use body_string <- result.try(
         bit_array.to_string(body_bit_array)
-        |> result.replace_error(InvalidCallbackParams(BodyNotUtf8)),
+        |> result.replace_error(InvalidCallbackParameters(BodyNotUtf8)),
       )
       use body_parameters <- result.try(
         uri.parse_query(body_string)
-        |> result.replace_error(InvalidCallbackParams(BodyNotFormEncoded)),
+        |> result.replace_error(InvalidCallbackParameters(BodyNotFormEncoded)),
       )
       callback_parameters_from_pairs(query_parameters, body_parameters)
     }
@@ -832,7 +832,7 @@ pub fn parse_callback_query(
   case query {
     option.Some(value) ->
       uri.parse_query(value)
-      |> result.replace_error(InvalidCallbackParams(QueryNotFormEncoded))
+      |> result.replace_error(InvalidCallbackParameters(QueryNotFormEncoded))
     option.None -> Ok([])
   }
 }
@@ -848,7 +848,7 @@ pub fn callback_parameters_from_pairs(
 ) -> Result(dict.Dict(String, String), CallbackError(e)) {
   transport_flow.callback_parameters(query, body)
   |> result.map_error(fn(name) {
-    InvalidCallbackParams(DuplicateParameter(name))
+    InvalidCallbackParameters(DuplicateParameter(name))
   })
 }
 
@@ -887,7 +887,7 @@ fn log_callback_error(
       "session_cookie_signature_invalid"
     SessionUnavailable -> "session_unavailable"
     SessionProviderMismatch -> "provider_mismatch"
-    InvalidCallbackParams(_) -> "invalid_callback_params"
+    InvalidCallbackParameters(_) -> "invalid_callback_params"
     AuthFailed(authentication_error) ->
       logger.auth_error_category(authentication_error)
   }
@@ -919,7 +919,7 @@ fn callback_error_response(callback_error: CallbackError(e)) -> Response {
     MissingOrInvalidSessionCookie(_) -> generic_error_response()
     SessionUnavailable -> generic_error_response()
     SessionProviderMismatch -> generic_error_response()
-    InvalidCallbackParams(_) -> generic_error_response()
+    InvalidCallbackParameters(_) -> generic_error_response()
     AuthFailed(_) -> generic_error_response()
   }
 }
