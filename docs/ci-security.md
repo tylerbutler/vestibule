@@ -122,3 +122,16 @@ controls after an administrative change. The implementation follow-ups are
 [#179](https://github.com/tylerbutler/vestibule/issues/179),
 [#180](https://github.com/tylerbutler/vestibule/issues/180), and
 [#181](https://github.com/tylerbutler/vestibule/issues/181).
+
+## Review completion
+
+The review covered every workflow trigger, job permission, shell use of event
+data, third-party action, dependency cache, release credential, tag operation,
+and release artifact source. Pull-request code has read-only credentials and
+cannot save a cache or reach release credentials. Release writes occur only
+after the reviewed merge commit passes the trusted CI gate.
+
+`scripts/check_ci_security.py` enforces the critical workflow invariants, and
+`scripts/test_release_gate.py` covers accepted and rejected release commits.
+The repository settings listed above address the remaining default-token,
+protected-branch, tag, and immutable-release controls.
