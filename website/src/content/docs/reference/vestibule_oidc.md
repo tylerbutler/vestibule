@@ -180,6 +180,16 @@ Get the issuer identifier for an OIDC configuration.
 pub fn issuer(OidcConfig) -> String
 ```
 
+### `issuer_namespace`
+
+Return the stable account namespace for an OIDC issuer.
+
+This preserves issuer paths, non-default ports, and trailing slashes.
+
+```gleam
+pub fn issuer_namespace(OidcConfig) -> String
+```
+
 ### `jwks_uri`
 
 Get the provider's JSON Web Key Set endpoint URL.
