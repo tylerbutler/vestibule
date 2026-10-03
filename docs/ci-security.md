@@ -118,7 +118,6 @@ then restore the protections. There is no standing administrator or release-App
 bypass for `main` or immutable package tags.
 
 Repository settings can drift independently of committed files. Recheck these
-controls after an administrative change. The implementation follow-ups are
-[#179](https://github.com/tylerbutler/vestibule/issues/179),
-[#180](https://github.com/tylerbutler/vestibule/issues/180), and
-[#181](https://github.com/tylerbutler/vestibule/issues/181).
+controls after an administrative change. The CI workflow publishes the named
+`Format`, `Check`, `Lint`, `Build`, `Test`, and `Docs` checks that the `main`
+ruleset requires for the exact merge commit.
