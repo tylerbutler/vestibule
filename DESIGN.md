@@ -178,6 +178,7 @@ Vestibule should be flat by default. Depth comes from tonal layering, soft borde
 - **Hover / Focus:** Hover shifts to `brand-purple-hover`; focus uses a 3px `threshold-yellow` outline offset by 2px.
 - **Secondary / Ghost:** Secondary buttons are a neutral outline — `surface` background, `ink` text, 1px `border` — that shifts to a `brand-purple` border over a `brand-purple-soft` surface on hover. Ghost buttons are text-first with a transparent background and purple hover surface. Yellow is never a button fill; it stays a signal accent.
 - **Touch:** Interactive buttons and compact links must keep a 44px minimum hit area on coarse-pointer devices, even when their visual style stays compact.
+- **Section links:** Use a quiet link icon beside headings, with a 44px touch target. Keep query parameters when copying a section URL so a selected setup path survives the copy.
 
 ### Chips
 - **Style:** Provider and state chips use `brand-purple-soft` with `brand-purple` text, 6px radius, and compact 6px 10px padding.
