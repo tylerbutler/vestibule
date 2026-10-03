@@ -1,6 +1,6 @@
 -module(vestibule_apple_jwt_ffi).
 
--export([verify/3, sign/2]).
+-export([verify/3, sign/2, import_p256_key/1]).
 
 -include_lib("public_key/include/public_key.hrl").
 -include_lib("ywt_core/include/ywt@verify_key_VerifyRsa.hrl").
@@ -36,7 +36,7 @@ verify(_Message, _Signature, _Key) ->
     false.
 
 %% Test support for producing realistic RSA JWT fixtures. Production code only
-%% calls verify/3.
+%% imports P-256 keys and calls verify/3.
 sign(Message,
      #sign_rsa_simple{digest_type = DigestType,
                       public_exponent = Exponent,
@@ -94,3 +94,16 @@ sign_rsa(Message, DigestType, Padding, PrivateKey) ->
                     DigestType,
                     PrivateKey,
                     [{rsa_padding, Padding}]).
+
+%% kryptos accepts non-EC curve OIDs that its curve accessor cannot handle.
+import_p256_key(Pem) ->
+    case kryptos_ffi:ec_import_private_key_pem(Pem) of
+        {ok, {#'ECPrivateKey'{parameters =
+                                {namedCurve, {1, 2, 840, 10045, 3, 1, 7}}} =
+                  PrivateKey, _PublicKey}} ->
+            {ok, PrivateKey};
+        {ok, _} ->
+            {error, nil};
+        {error, nil} = Error ->
+            Error
+    end.
