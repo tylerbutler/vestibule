@@ -66,3 +66,9 @@ hostname verification, and verifies rejection of untrusted, expired,
 wrong-DNS-name, and DNS-only certificates used with an IP host. These tests do
 not certify all operating systems, trust stores, OTP releases, or provider load
 limits.
+
+The Wisp and Mist adapter suites also send 100 rejected authorization starts
+through each public request-phase entry point after one client reaches its
+limit. Every excess request returns 429 without displacing the accepted flow.
+Run `just test-pkg vestibule_wisp` and `just test-pkg vestibule_mist` to repeat
+the adapter load checks.

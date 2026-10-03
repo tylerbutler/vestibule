@@ -166,6 +166,55 @@ pub fn request_phase_requires_admission_identity_test() -> Nil {
   Nil
 }
 
+pub fn request_phase_rejects_sustained_client_load_test() -> Nil {
+  let assert Ok(store) =
+    state_store.create_with_limits(
+      name: "test_wisp_sustained_client_load",
+      max_entries: 16,
+      max_entries_per_client: 1,
+    )
+  let assert Ok(registry) =
+    registry.new()
+    |> registry.register(strategy: test_strategy(), config: test_config())
+  let http_request = simulate.request(http.Get, "/auth/test")
+
+  let accepted =
+    vestibule_wisp.request_phase_for_client(
+      http_request,
+      registry,
+      "test",
+      store,
+      config.authorize_options(),
+      client_key: "192.0.2.1",
+    )
+  assert accepted.status == 303
+  assert_wisp_load_rejected(http_request, registry, store, 100)
+}
+
+fn assert_wisp_load_rejected(
+  http_request: wisp.Request,
+  registry: registry.Registry(e),
+  store: state_store.StateStore,
+  remaining: Int,
+) -> Nil {
+  case remaining {
+    0 -> Nil
+    _ -> {
+      let rejected =
+        vestibule_wisp.request_phase_for_client(
+          http_request,
+          registry,
+          "test",
+          store,
+          config.authorize_options(),
+          client_key: "192.0.2.1",
+        )
+      assert rejected.status == 429
+      assert_wisp_load_rejected(http_request, registry, store, remaining - 1)
+    }
+  }
+}
+
 pub fn request_phase_over_plain_http_can_opt_out_of_host_binding_test() -> Nil {
   let assert Ok(store) =
     state_store.create_named("test_request_phase_insecure_cookie")
