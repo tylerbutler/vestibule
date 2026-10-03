@@ -111,6 +111,18 @@ Existing releases do not become immutable retroactively. Their tags are now
 covered by the tag rules, but historical release assets retain their original
 mutability. No release was deleted or republished to change that history.
 
+Before a release window, verify the repository setting and published release
+state:
+
+```sh
+gh api repos/tylerbutler/vestibule/immutable-releases
+gh api repos/tylerbutler/vestibule/releases \
+  --jq '.[] | {tag_name, immutable}'
+```
+
+An immutable release cannot have its body or assets replaced. A failed release
+must use a new version instead of rewriting an existing exact tag or release.
+
 These settings change the contributor workflow: direct pushes to `main` are
 blocked, and an author cannot approve their own pull request. An emergency
 change requires an administrator to make an explicit, recorded ruleset change,
@@ -118,7 +130,4 @@ then restore the protections. There is no standing administrator or release-App
 bypass for `main` or immutable package tags.
 
 Repository settings can drift independently of committed files. Recheck these
-controls after an administrative change. The implementation follow-ups are
-[#179](https://github.com/tylerbutler/vestibule/issues/179),
-[#180](https://github.com/tylerbutler/vestibule/issues/180), and
-[#181](https://github.com/tylerbutler/vestibule/issues/181).
+controls after an administrative change.
