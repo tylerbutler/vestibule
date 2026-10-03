@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Security"
+body = "Add opaque cookie-signing key wrappers."

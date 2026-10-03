@@ -13,7 +13,6 @@
 //// `default_options` — callers must start from `new_options` so the type
 //// system enforces a conscious secret choice.
 
-import gleam/bit_array
 import gleam/bool
 import gleam/bytes_tree
 import gleam/dict
@@ -33,6 +32,8 @@ import vestibule/config.{type AuthorizeOptions}
 import vestibule/error
 import vestibule/logger
 import vestibule/registry.{type Registry}
+import vestibule/secret_key
+import vestibule/secret_key.{type SecretKey}
 import vestibule/session_ttl.{type SessionTtl}
 import vestibule/state_store.{type StateStore}
 import vestibule/transport_flow
@@ -93,7 +94,7 @@ pub type CookieSameSite {
 /// fixation). Read the effective name with `cookie_name`.
 pub opaque type Options {
   Options(
-    secret_key_base: BitArray,
+    secret_key_base: SecretKey,
     // Base cookie name without the `__Host-` prefix; the effective name is
     // produced by the `cookie_name` accessor from `cookie_security`.
     cookie_name: String,
@@ -158,15 +159,18 @@ const host_cookie_prefix: String = "__Host-"
 /// The default session cookie name, before the `__Host-` prefix is applied.
 const default_cookie_base_name: String = "vestibule_session"
 
-/// Build middleware options with the given HMAC `secret_key_base`, which must
-/// be at least `minimum_secret_key_base_bytes` (32) bytes of unpredictable data.
+/// Build middleware options with the given opaque HMAC `secret_key_base`, which
+/// must be at least `minimum_secret_key_base_bytes` (32) bytes of unpredictable
+/// data. Wrap raw bytes with `vestibule/secret_key.from_bit_array` first.
 ///
 /// Defaults: host-bound cookie name `__Host-vestibule_session`, session TTL
 /// 600 seconds, `SecureOnly` cookies, `SameSite=Lax`. Customize with
 /// `with_cookie_name`, `with_session_ttl`, `with_cookie_security`, and
 /// `with_same_site`.
-pub fn new_options(secret_key_base: BitArray) -> Result(Options, OptionsError) {
-  let actual_bytes = bit_array.byte_size(secret_key_base)
+pub fn new_options(
+  secret_key_base: SecretKey,
+) -> Result(Options, OptionsError) {
+  let actual_bytes = secret_key.byte_size(secret_key_base)
   use <- bool.guard(
     when: actual_bytes < minimum_secret_key_base_bytes,
     return: Error(SecretKeyBaseTooShort(
@@ -415,7 +419,7 @@ pub fn request_phase_for_client(
       let token =
         signed_cookie.sign(
           payload: session_id,
-          secret_key_base: options.secret_key_base,
+          secret_key_base: secret_key.expose(options.secret_key_base),
         )
       redirect(url)
       |> response.set_cookie(
@@ -755,14 +759,17 @@ fn callback_cookie_is_terminal(
 fn get_signed_cookie(
   http_request: Request(body),
   cookie_name: String,
-  secret_key_base: BitArray,
+  secret_key_base: SecretKey,
 ) -> Result(String, CallbackError(e)) {
   let cookies = request.get_cookies(http_request)
   let matching = list.filter(cookies, fn(cookie) { cookie.0 == cookie_name })
   case matching {
     [] -> Error(MissingOrInvalidSessionCookie(CookieAbsent))
     [#(_, token)] ->
-      signed_cookie.verify(token: token, secret_key_base: secret_key_base)
+      signed_cookie.verify(
+        token: token,
+        secret_key_base: secret_key.expose(secret_key_base),
+      )
       |> result.map_error(fn(_) {
         MissingOrInvalidSessionCookie(CookieSignatureInvalid)
       })
