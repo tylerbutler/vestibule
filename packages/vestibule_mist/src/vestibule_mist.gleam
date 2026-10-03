@@ -32,7 +32,7 @@ import vestibule/config.{type AuthorizeOptions}
 import vestibule/error
 import vestibule/logger
 import vestibule/registry.{type Registry}
-import vestibule/secret_key.{type SecretKey}
+import vestibule/secret_key
 import vestibule/session_ttl.{type SessionTtl}
 import vestibule/state_store.{type StateStore}
 import vestibule/transport_flow
@@ -93,7 +93,7 @@ pub type CookieSameSite {
 /// fixation). Read the effective name with `cookie_name`.
 pub opaque type Options {
   Options(
-    secret_key_base: SecretKey,
+    secret_key_base: secret_key.SecretKey,
     // Base cookie name without the `__Host-` prefix; the effective name is
     // produced by the `cookie_name` accessor from `cookie_security`.
     cookie_name: String,
@@ -167,7 +167,7 @@ const default_cookie_base_name: String = "vestibule_session"
 /// `with_cookie_name`, `with_session_ttl`, `with_cookie_security`, and
 /// `with_same_site`.
 pub fn new_options(
-  secret_key_base: SecretKey,
+  secret_key_base: secret_key.SecretKey,
 ) -> Result(Options, OptionsError) {
   let actual_bytes = secret_key.byte_size(secret_key_base)
   use <- bool.guard(
@@ -758,7 +758,7 @@ fn callback_cookie_is_terminal(
 fn get_signed_cookie(
   http_request: Request(body),
   cookie_name: String,
-  secret_key_base: SecretKey,
+  secret_key_base: secret_key.SecretKey,
 ) -> Result(String, CallbackError(e)) {
   let cookies = request.get_cookies(http_request)
   let matching = list.filter(cookies, fn(cookie) { cookie.0 == cookie_name })
