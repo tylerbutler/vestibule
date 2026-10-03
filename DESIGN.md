@@ -210,6 +210,10 @@ Use a restrained row/list treatment for supported OAuth providers. Brand marks m
 
 The homepage dependency builder groups GitHub, Google, Microsoft, and Apple as hosted providers. At the provider decision, show separate IndieAuth and OIDC discovery paths with links to their setup guides. Do not present the four hosted providers as the complete support list.
 
+### Selected Quick Start
+
+Keep the chosen server and provider visible on the quick-start page. Put repeated dependencies in a native disclosure. Number the next tasks: wire the matching routes on the current page, then configure the provider. Show the selected Wisp or Mist example and open the core disclosure for a custom router.
+
 ## 6. Do's and Don'ts
 
 ### Do:

@@ -374,10 +374,9 @@ const installBlocks = routeOptions.flatMap((route) =>
 
         if (title) title.textContent = `${server.dataset.label} + ${provider.dataset.label}`;
         if (continueLink instanceof HTMLAnchorElement) {
-          const hash = server.value === "core" ? "core-path" : "selected-path";
           continueLink.href =
             `/docs/quick-start?server=${encodeURIComponent(server.value)}` +
-            `&provider=${encodeURIComponent(provider.dataset.slug || "")}#${hash}`;
+            `&provider=${encodeURIComponent(provider.dataset.slug || "")}#selected-path`;
           continueLink.textContent = `Continue with ${server.dataset.label}`;
         }
         if (providerLink instanceof HTMLAnchorElement) {
