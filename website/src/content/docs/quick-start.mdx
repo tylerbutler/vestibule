@@ -26,13 +26,13 @@ searchTerms:
 ---
 
 import CodeBlock from "../../components/CodeBlock.astro";
+import MiddlewareQuickStart from "../../components/MiddlewareQuickStart.astro";
 import SelectedQuickStart from "../../components/SelectedQuickStart.astro";
 import {
   callbackFailureCode,
   coreCode,
   coreInstallCode,
   middlewareInstallCode,
-  wispCode,
 } from "../../data/doc-snippets";
 
 <SelectedQuickStart />
@@ -60,7 +60,9 @@ import {
         <a href="/docs/installation">installation guide</a> for paths and
         version information.
       </p>
-      <CodeBlock code={middlewareInstallCode} lang="toml" />
+      <div data-quick-start-dependencies>
+        <CodeBlock code={middlewareInstallCode} lang="toml" />
+      </div>
 
       <h2>Route request and callback phases</h2>
       <p>
@@ -74,7 +76,11 @@ import {
         callback data and starts the redirect. The callback route returns an
         auth result only after state and PKCE validation.
       </p>
-      <CodeBlock code={wispCode} lang="gleam" />
+      <p>
+        These route examples use GitHub to show the flow. Use your provider's
+        setup guide to replace the strategy and client configuration.
+      </p>
+      <MiddlewareQuickStart />
 
       <ul className="responsibility-list" aria-label="Middleware responsibilities before redirecting">
         <li>
@@ -95,11 +101,6 @@ import {
         </li>
       </ul>
 
-      <div className="scope-note">
-        <strong>Using Mist?</strong> The route shape is the same. Use{" "}
-        <a href="/docs/packages/mist">vestibule_mist</a> for plain Mist
-        handlers.
-      </div>
     </div>
   </div>
 
@@ -116,7 +117,9 @@ import {
         Core returns the authorization URL, state, and PKCE verifier. Your app
         stores the values and supplies them when it validates the callback.
       </p>
-      <CodeBlock code={coreInstallCode} lang="toml" />
+      <div data-quick-start-dependencies>
+        <CodeBlock code={coreInstallCode} lang="toml" />
+      </div>
 
       <h2>Handle the two phases yourself</h2>
       <p>

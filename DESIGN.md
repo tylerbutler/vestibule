@@ -178,6 +178,7 @@ Vestibule should be flat by default. Depth comes from tonal layering, soft borde
 - **Hover / Focus:** Hover shifts to `brand-purple-hover`; focus uses a 3px `threshold-yellow` outline offset by 2px.
 - **Secondary / Ghost:** Secondary buttons are a neutral outline — `surface` background, `ink` text, 1px `border` — that shifts to a `brand-purple` border over a `brand-purple-soft` surface on hover. Ghost buttons are text-first with a transparent background and purple hover surface. Yellow is never a button fill; it stays a signal accent.
 - **Touch:** Interactive buttons and compact links must keep a 44px minimum hit area on coarse-pointer devices, even when their visual style stays compact.
+- **Section links:** Use a quiet link icon beside headings, with a 44px touch target. Keep query parameters when copying a section URL so a selected setup path survives the copy.
 
 ### Chips
 - **Style:** Provider and state chips use `brand-purple-soft` with `brand-purple` text, 6px radius, and compact 6px 10px padding.
@@ -197,6 +198,7 @@ Vestibule should be flat by default. Depth comes from tonal layering, soft borde
 
 ### Navigation
 - **Style, typography, default/hover/active states, mobile treatment.** Navigation should be text-first and compact. Active states use `brand-purple`; hover states use `brand-purple-soft`. On narrow screens, collapse into a simple stacked list or native disclosure pattern rather than a custom animated menu.
+- **Homepage entry:** Use one compact header row on narrow screens. Put search, quick start, packages, and reference links in its disclosure; reserve the separate documentation menu for documentation pages. Keep the demo-only warning above the header at its normal reading size.
 - **Safe areas:** Layout chrome and page gutters account for `viewport-fit=cover` safe-area insets so phone notches and rounded corners never cover navigation or content.
 - **Theme persistence:** Theme controls must work when browser storage is blocked. Persist the choice when possible; otherwise keep the selected theme for the current page without breaking navigation or reading.
 
@@ -207,6 +209,18 @@ Use a two-column key/value layout for provider, UID, name, email, and nickname. 
 ### Supported Provider Ledger
 
 Use a restrained row/list treatment for supported OAuth providers. Brand marks may appear as compact identifiers beside GitHub, Google, Microsoft, Apple, or future providers, but they should not turn the surface into a rainbow OAuth button grid. The provider name, package name, and behavior note carry the meaning; icons are supplemental.
+
+The homepage dependency builder groups GitHub, Google, Microsoft, and Apple as hosted providers. At the provider decision, show separate IndieAuth and OIDC discovery paths with links to their setup guides. Do not present the four hosted providers as the complete support list.
+
+### Selected Quick Start
+
+Keep the chosen server and provider visible on the quick-start page. Put repeated dependencies in a native disclosure. Number the next tasks: wire the matching routes on the current page, then configure the provider. Show the selected Wisp or Mist example and open the core disclosure for a custom router.
+
+### Callback Diagram
+
+Show the callback diagram beside the homepage introduction at wide widths. At narrow widths, use a native disclosure below the primary action. Keep the diagram open without JavaScript so its explanation remains available.
+
+Homepage copy names the completed outcome: generating a dependency block. Do not imply that this alone finishes provider setup or promise a fixed time to working sign-in.
 
 ## 6. Do's and Don'ts
 
