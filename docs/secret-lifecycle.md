@@ -72,3 +72,19 @@ Rotate client credentials and cookie-signing keys according to provider and
 application policy. Never log full configuration, authorization requests,
 callback parameters, exchange results, credentials after accessors run, or HTTP
 request/response bodies.
+
+## Review completion
+
+The redaction tests cover normal Gleam inspection, Erlang term formatting, and
+a crash-report-shaped Erlang map containing client configuration,
+authorization state, credentials, and the Mist cookie-signing key. Provider
+error tests confirm that returned descriptions, URIs, bodies, and unknown codes
+cannot echo submitted secrets into public errors. Request-builder tests confirm
+that bearer tokens are placed in authorization headers, not URLs.
+
+These checks cover accidental rendering before an explicit accessor is used.
+After an accessor constructs an HTTP header or body, the resulting raw request
+term contains the secret by design and can appear in a VM dump or an
+application-owned crash report. Vestibule does not claim memory erasure or
+protection after that boundary; callers must avoid logging request terms and
+must apply their own crash-report and telemetry redaction.
