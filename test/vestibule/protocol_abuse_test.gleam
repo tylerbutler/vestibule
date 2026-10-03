@@ -410,3 +410,64 @@ pub fn callback_issuer_is_required_and_compared_exactly_test() -> Nil {
     )
   assert auth.uid(identity) == "subject"
 }
+
+pub fn generated_callback_parameter_invariants_test() -> Nil {
+  list.each(
+    [
+      #("missing_state", fn(_state, code) { dict.from_list([#("code", code)]) }),
+      #("missing_code", fn(state, _code) { dict.from_list([#("state", state)]) }),
+      #("changed_state", fn(_state, code) {
+        dict.from_list([#("state", "attacker"), #("code", code)])
+      }),
+      #("changed_code", fn(state, _code) {
+        dict.from_list([#("state", state), #("code", "attacker")])
+      }),
+      #("added_parameter", fn(_state, _code) {
+        dict.from_list([
+          #("state", "attacker"),
+          #("code", "attacker"),
+          #("admin", "true"),
+        ])
+      }),
+    ],
+    fn(mutation) {
+      let assert Ok(store) =
+        state_store.create_named("generated_callback_" <> mutation.0)
+      let #(session, state, code) = start(store)
+      case
+        transport_flow.finish_callback(
+          #(bound_strategy(), client_config()),
+          store: store,
+          parameters: mutation.1(state, code),
+          session_id: session,
+        )
+      {
+        Error(_) -> Nil
+        Ok(_) -> panic as mutation.0
+      }
+    },
+  )
+
+  list.each(["state", "code", "error", "iss"], fn(name) {
+    let result =
+      transport_flow.callback_parameters(
+        [#(name, "first"), #(name, "second")],
+        [],
+      )
+    assert result == Error(name)
+  })
+
+  let assert Ok(store) =
+    state_store.create_named("generated_callback_reordered")
+  let #(session, state, code) = start(store)
+  let assert Ok(identity) =
+    transport_flow.finish_callback(
+      #(bound_strategy(), client_config()),
+      store: store,
+      parameters: dict.from_list([#("code", code), #("state", state)]),
+      session_id: session,
+    )
+  assert auth.uid(identity) == "subject"
+  assert finish(store, session, state, code)
+    == Error(transport_flow.CallbackSessionUnavailable)
+}
