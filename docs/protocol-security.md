@@ -60,3 +60,22 @@ binding. They do not prove a real provider's server behavior. The nonce test
 isolates flow binding and does not test a signature. Signed-token evidence,
 HTTP response handling, and browser cookie behavior require their separate
 provider and transport coverage.
+
+## Browser cookie matrix
+
+Run `python3 test/browser_cookie_matrix.py` with Chromium, OpenSSL, and the
+Python `websocket-client` package installed. The real-browser matrix verifies
+that:
+
+- a sibling subdomain cannot set a `__Host-` cookie for the application;
+- a parent-domain cookie cannot shadow the host-bound session cookie;
+- `SameSite=Lax` cookies are absent from a cross-site POST;
+- a `Secure`, host-bound `SameSite=None` cookie is present for an Apple-style
+  cross-site POST; and
+- expiry removes the host-bound session cookie.
+
+Wisp and Mist derive admission identity from the direct socket peer. They do
+not trust `Forwarded` or `X-Forwarded-*` headers. A deployment behind a proxy
+must accept traffic only from that trusted proxy and enforce its per-client
+rate policy there; do not pass unvalidated forwarded identity into
+`request_phase_for_client`.

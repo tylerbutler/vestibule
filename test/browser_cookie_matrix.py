@@ -41,6 +41,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_header(
                 "Set-Cookie", "none_cookie=none; Secure; Path=/; SameSite=None"
             )
+            self.send_header(
+                "Set-Cookie",
+                "__Host-cross_site_session=post-good; Secure; Path=/; HttpOnly; SameSite=None",
+            )
             self.end_headers()
             events["set"].set()
         elif host == "evil.example.test" and self.path == "/fix":
@@ -193,6 +197,7 @@ def main():
         assert "__Host-vestibule_session=good" in seen["check"]
         assert "vestibule_session=evil" in seen["check"]
         assert "none_cookie=none" in seen["callback"]
+        assert "__Host-cross_site_session=post-good" in seen["callback"]
         assert "lax_cookie=lax" not in seen["callback"]
         assert "__Host-vestibule_session=good" not in seen["callback"]
         assert "__Host-vestibule_session=" not in seen["check_after"]
