@@ -32,7 +32,6 @@ import vestibule/config.{type AuthorizeOptions}
 import vestibule/error
 import vestibule/logger
 import vestibule/registry.{type Registry}
-import vestibule/secret_key
 import vestibule/secret_key.{type SecretKey}
 import vestibule/session_ttl.{type SessionTtl}
 import vestibule/state_store.{type StateStore}
