@@ -194,11 +194,13 @@ import gleam/http/request.{type Request}
 import gleam/http/response.{type Response}
 import mist.{type Connection, type ResponseData}
 import vestibule/config
+import vestibule/secret_key
 import vestibule/state_store
 import vestibule_mist
 
 let assert Ok(store) = state_store.create()
-let assert Ok(options) = vestibule_mist.new_options(secret_key_base)
+let secret_key = secret_key.from_bit_array(secret_key_base)
+let assert Ok(options) = vestibule_mist.new_options(secret_key)
 
 fn handle_request(http_request: Request(Connection)) -> Response(ResponseData) {
   case request.path_segments(http_request), http_request.method {

@@ -8,6 +8,7 @@ import gleeunit
 import vestibule/config
 import vestibule/error
 import vestibule/registry
+import vestibule/secret_key
 import vestibule/session_ttl
 import vestibule/state_store
 import vestibule/strategy.{type Strategy}
@@ -48,6 +49,12 @@ pub fn signed_cookie_verify_with_wrong_secret_fails_test() -> Nil {
   Nil
 }
 
+pub fn secret_key_inspection_hides_key_material_test() -> Nil {
+  let key_material = "vestibule_mist_test_secret_key_base!!"
+  let key = secret_key.from_bit_array(<<key_material:utf8>>)
+  assert !string.contains(string.inspect(key), key_material)
+}
+
 pub fn signed_cookie_verify_with_tampered_token_fails_test() -> Nil {
   let secret = test_secret()
   let token =
@@ -77,7 +84,8 @@ pub fn signed_cookie_verify_malformed_token_fails_test() -> Nil {
 // === options ===
 
 pub fn new_options_uses_default_cookie_contract_test() -> Nil {
-  let assert Ok(options) = vestibule_mist.new_options(test_secret())
+  let assert Ok(options) =
+    vestibule_mist.new_options(secret_key.from_bit_array(test_secret()))
   vestibule_mist.cookie_name(options)
   |> fn(actual) {
     assert actual == "__Host-vestibule_session"
@@ -731,7 +739,8 @@ fn test_secret() -> BitArray {
 }
 
 fn test_options() -> vestibule_mist.Options {
-  let assert Ok(options) = vestibule_mist.new_options(test_secret())
+  let assert Ok(options) =
+    vestibule_mist.new_options(secret_key.from_bit_array(test_secret()))
   options
 }
 
@@ -815,7 +824,7 @@ fn find_header(
 // === secret_key_base minimum ===
 
 pub fn new_options_rejects_short_secret_test() -> Nil {
-  vestibule_mist.new_options(<<>>)
+  vestibule_mist.new_options(secret_key.from_bit_array(<<>>))
   |> fn(actual) {
     assert actual
       == Error(vestibule_mist.SecretKeyBaseTooShort(
@@ -823,7 +832,9 @@ pub fn new_options_rejects_short_secret_test() -> Nil {
         actual_bytes: 0,
       ))
   }
-  vestibule_mist.new_options(<<"0123456789abcdef0123456789abcde":utf8>>)
+  vestibule_mist.new_options(
+    secret_key.from_bit_array(<<"0123456789abcdef0123456789abcde":utf8>>),
+  )
   |> fn(result) {
     let assert Error(value) = result
     value
@@ -833,7 +844,9 @@ pub fn new_options_rejects_short_secret_test() -> Nil {
 
 pub fn new_options_accepts_minimum_length_secret_test() -> Nil {
   let _ =
-    vestibule_mist.new_options(<<"0123456789abcdef0123456789abcdef":utf8>>)
+    vestibule_mist.new_options(
+      secret_key.from_bit_array(<<"0123456789abcdef0123456789abcdef":utf8>>),
+    )
     |> fn(result) {
       let assert Ok(value) = result
       value

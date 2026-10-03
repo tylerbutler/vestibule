@@ -26,7 +26,10 @@ HMAC-SHA256 cookie signing. You **must** supply a strong, stable secret key
 base when building `Options`:
 
 ```gleam
-let assert Ok(options) = vestibule_mist.new_options(secret_key_base)
+import vestibule/secret_key
+
+let secret_key = secret_key.from_bit_array(secret_key_base)
+let assert Ok(options) = vestibule_mist.new_options(secret_key)
 ```
 
 There is no `default_options/0` — the secret has no safe default. Use a
@@ -35,7 +38,10 @@ a secrets manager.
 
 If the secret changes, existing OAuth callbacks cannot read the signed
 session cookie and will return
-`MissingOrInvalidSessionCookie(CookieSignatureInvalid)`.
+`MissingOrInvalidSessionCookie(CookieSignatureInvalid)`. Rotate the key only
+when you accept invalidation of all outstanding OAuth cookies. The opaque
+wrapper keeps the key out of ordinary inspection and Erlang term formatting;
+it does not erase key material from process memory.
 
 ## What it does
 
@@ -52,10 +58,12 @@ Initialize the state store once per BEAM VM at application startup:
 
 ```gleam
 import vestibule/config
+import vestibule/secret_key
 import vestibule/state_store
 
 let assert Ok(store) = state_store.create()
-let assert Ok(options) = vestibule_mist.new_options(secret_key_base)
+let secret_key = secret_key.from_bit_array(secret_key_base)
+let assert Ok(options) = vestibule_mist.new_options(secret_key)
 ```
 
 Then dispatch from your mist handler:
@@ -95,7 +103,10 @@ fn handle_request(http_request: Request(Connection)) -> Response(ResponseData) {
 customize it with the `with_*` builders:
 
 ```gleam
-let assert Ok(options) = vestibule_mist.new_options(secret_key_base)
+import vestibule/secret_key
+
+let secret_key = secret_key.from_bit_array(secret_key_base)
+let assert Ok(options) = vestibule_mist.new_options(secret_key)
 let assert Ok(ttl) = session_ttl.from_seconds(300)
 let options =
   options
