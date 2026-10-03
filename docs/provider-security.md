@@ -30,3 +30,26 @@ evidence is absent or invalid.
 - Microsoft: [ID tokens](https://learn.microsoft.com/en-us/entra/identity-platform/id-tokens), [ID-token claims](https://learn.microsoft.com/en-us/entra/identity-platform/id-token-claims-reference)
 - GitHub: [Authorizing OAuth apps](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps), [REST email endpoints](https://docs.github.com/en/rest/users/emails)
 - IndieAuth: [IndieAuth specification, section 5](https://indieauth.spec.indieweb.org/#authorization)
+
+## Callback-level regression coverage
+
+Successful and adversarial callback paths are covered in:
+
+- `vestibule_apple_security_test.gleam`: key rotation, unknown keys, RS256,
+  claims, nonce, and verified email; `vestibule_apple_test.gleam`: `form_post`;
+- `vestibule_google_test.gleam`: signature, issuer, audience, expiry, nonce,
+  hosted domain, verified email, and subject binding;
+- `vestibule_microsoft_test.gleam`: signed tenant identity, issuer, audience,
+  nonce, tenant claims, and Graph identity binding;
+- `vestibule_github_test.gleam`: Bearer token type, granted scopes, verified
+  primary email, and refresh-token rotation;
+- `vestibule_indieauth_test.gleam` plus its discovery, profile, token, and URL
+  modules: issuer confirmation, endpoint binding, redirects, and canonical
+  profile identity;
+- `vestibule_oidc_callback_security_test.gleam`: signed issuer-bound identity,
+  key refresh, claims, nonce, and UserInfo subject binding.
+
+Each provider fails before returning an authenticated identity when required
+evidence is missing or inconsistent. Provider profile or UserInfo responses can
+enrich the result but cannot replace the identity established by verified
+protocol evidence.
