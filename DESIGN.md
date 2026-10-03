@@ -208,6 +208,8 @@ Use a two-column key/value layout for provider, UID, name, email, and nickname. 
 
 Use a restrained row/list treatment for supported OAuth providers. Brand marks may appear as compact identifiers beside GitHub, Google, Microsoft, Apple, or future providers, but they should not turn the surface into a rainbow OAuth button grid. The provider name, package name, and behavior note carry the meaning; icons are supplemental.
 
+The homepage dependency builder groups GitHub, Google, Microsoft, and Apple as hosted providers. At the provider decision, show separate IndieAuth and OIDC discovery paths with links to their setup guides. Do not present the four hosted providers as the complete support list.
+
 ## 6. Do's and Don'ts
 
 ### Do:

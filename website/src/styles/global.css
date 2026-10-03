@@ -1211,6 +1211,29 @@ code {
   align-items: center;
 }
 
+.setup-discovery {
+  border-block-start: 1px solid var(--border);
+  padding-block-start: var(--space-4);
+}
+
+.setup-discovery ul {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.setup-discovery li {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.setup-discovery span {
+  color: var(--muted);
+  font-size: var(--text-label);
+}
+
 .setup-result h3 {
   margin-bottom: 0;
   font-size: var(--text-headline);

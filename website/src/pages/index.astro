@@ -11,7 +11,7 @@ const hrefForPackage = (slug: string) => {
 };
 const nameForPackage = (slug: string, fallback: string) =>
   packageBySlug.get(slug)?.data.name || fallback;
-const supportedProviders = [
+const hostedProviders = [
   {
     name: "GitHub",
     slug: "github",
@@ -81,7 +81,7 @@ const defaultInstallBlock = [
   dependencyLine("vestibule_wisp", "packages/vestibule_wisp")
 ].join("\n");
 const installBlocks = routeOptions.flatMap((route) =>
-  supportedProviders.map((provider) => ({
+  hostedProviders.map((provider) => ({
     key: `${route.value}:${provider.packageName}`,
     code: [
       "[dependencies]",
@@ -196,14 +196,14 @@ const installBlocks = routeOptions.flatMap((route) =>
       <fieldset class="setup-panel" data-setup-panel="provider">
         <legend>
           <span class="setup-legend-step">Step 2 of 3</span>
-          <span class="setup-legend-copy" data-setup-focus tabindex="-1">Which provider should users sign in with?</span>
+          <span class="setup-legend-copy" data-setup-focus tabindex="-1">Which hosted provider should users sign in with?</span>
         </legend>
         <p class="setup-help">
           Pick the account type your demo audience already uses. Apple requires
           the most provider setup.
         </p>
         <div class="setup-options">
-          {supportedProviders.map((provider, index) => (
+          {hostedProviders.map((provider, index) => (
             <label class="setup-option">
               <input
                 type="radio"
@@ -229,6 +229,23 @@ const installBlocks = routeOptions.flatMap((route) =>
           <button class="button primary" type="button" data-setup-next="result">
             Build dependency block
           </button>
+        </div>
+        <div class="setup-discovery">
+          <h3>Discovery-based sign-in</h3>
+          <p>
+            These strategies need a different setup. Start with the guide for
+            the identity your users will supply.
+          </p>
+          <ul>
+            <li>
+              <a class="text-link" href={hrefForPackage("indieauth")}>Use IndieAuth</a>
+              <span>Users sign in with their own website URL.</span>
+            </li>
+            <li>
+              <a class="text-link" href={hrefForPackage("oidc")}>Use OIDC discovery</a>
+              <span>Configure an OpenID Connect issuer, including a self-hosted provider.</span>
+            </li>
+          </ul>
         </div>
       </fieldset>
 
@@ -257,7 +274,7 @@ const installBlocks = routeOptions.flatMap((route) =>
             Continue with Wisp
           </a>
         </div>
-        <a class="text-link" href={supportedProviders[0].href} data-setup-provider-link>
+        <a class="text-link" href={hostedProviders[0].href} data-setup-provider-link>
           Review GitHub provider details
         </a>
       </section>
