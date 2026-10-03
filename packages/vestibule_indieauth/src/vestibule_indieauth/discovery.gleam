@@ -362,12 +362,14 @@ pub fn find_html_link_relation(
   relation: String,
 ) -> Option(String) {
   let query =
-    soup.elements([
-      soup.with_tag("link"),
-      soup.with_attribute("rel", relation),
-    ])
-    |> soup.return(soup.attributes())
-    |> soup.scrape(html)
+    catch_html_parser_crash(fn() {
+      soup.elements([
+        soup.with_tag("link"),
+        soup.with_attribute("rel", relation),
+      ])
+      |> soup.return(soup.attributes())
+      |> soup.scrape(html)
+    })
 
   case query {
     Ok([attributes, ..]) -> find_href(attributes)
@@ -378,9 +380,21 @@ pub fn find_html_link_relation(
 
 /// Extract the href from a list of element attributes.
 fn find_href(attributes: List(#(String, String))) -> Option(String) {
-  list.key_find(attributes, "href")
-  |> option.from_result()
+  case list.key_find(attributes, "href") {
+    Ok(href) ->
+      case string.trim(href) {
+        "" -> None
+        href -> Some(href)
+      }
+
+    Error(_) -> None
+  }
 }
+
+@external(erlang, "vestibule_indieauth_discovery_ffi", "catch_parser_crash")
+fn catch_html_parser_crash(
+  run: fn() -> Result(List(List(#(String, String))), e),
+) -> Result(List(List(#(String, String))), Nil)
 
 /// Resolve a potentially relative URL against a base URL.
 fn resolve_url(url: String, base_url: String) -> String {
