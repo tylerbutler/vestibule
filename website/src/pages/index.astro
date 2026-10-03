@@ -11,7 +11,7 @@ const hrefForPackage = (slug: string) => {
 };
 const nameForPackage = (slug: string, fallback: string) =>
   packageBySlug.get(slug)?.data.name || fallback;
-const supportedProviders = [
+const hostedProviders = [
   {
     name: "GitHub",
     slug: "github",
@@ -81,7 +81,7 @@ const defaultInstallBlock = [
   dependencyLine("vestibule_wisp", "packages/vestibule_wisp")
 ].join("\n");
 const installBlocks = routeOptions.flatMap((route) =>
-  supportedProviders.map((provider) => ({
+  hostedProviders.map((provider) => ({
     key: `${route.value}:${provider.packageName}`,
     code: [
       "[dependencies]",
@@ -100,20 +100,17 @@ const installBlocks = routeOptions.flatMap((route) =>
 >
   <section class="hero">
     <div class="hero-copy">
-      <p class="intro-label">Demo-ready OAuth sign-in for Gleam</p>
-      <h1>Real OAuth <span class="nowrap">sign-in</span> for your Gleam demo, in minutes.</h1>
+      <h1>Start a real OAuth flow for your Gleam demo.</h1>
       <p class="lead">
-        Vestibule gives demos and prototypes a real provider round-trip: a
-        consistent request and callback flow with normalized auth results,
-        PKCE, CSRF state, provider strategies, and Wisp or Mist middleware.
-        It has not been security audited — keep it out of production. Your
-        app remains responsible for its user accounts and sessions.
+        Use provider strategies and Wisp or Mist middleware for the request
+        and callback flow. Your app manages user accounts and sessions.
+        Not audited, not for production.
       </p>
       <div class="hero-actions">
-        <a class="button primary" href="#get-started">Build your install block</a>
+        <a class="button primary" href="#get-started">Build your dependency block</a>
       </div>
     </div>
-    <details class="hero-threshold-disclosure">
+    <details class="hero-threshold-disclosure" open>
       <summary>See how the callback flow works</summary>
       <div class="hero-threshold" aria-label="The sign-in path through Vestibule">
         <p class="threshold-cap">Identity provider</p>
@@ -147,7 +144,6 @@ const installBlocks = routeOptions.flatMap((route) =>
 
   <section id="get-started" class="setup-guide" aria-labelledby="setup-heading">
     <div class="section-heading">
-      <p class="intro-label">Start here</p>
       <h2 id="setup-heading">Build the dependency block for your app.</h2>
       <p>
         Choose your server and identity provider. Vestibule prepares the Git
@@ -196,14 +192,14 @@ const installBlocks = routeOptions.flatMap((route) =>
       <fieldset class="setup-panel" data-setup-panel="provider">
         <legend>
           <span class="setup-legend-step">Step 2 of 3</span>
-          <span class="setup-legend-copy" data-setup-focus tabindex="-1">Which provider should users sign in with?</span>
+          <span class="setup-legend-copy" data-setup-focus tabindex="-1">Which hosted provider should users sign in with?</span>
         </legend>
         <p class="setup-help">
           Pick the account type your demo audience already uses. Apple requires
           the most provider setup.
         </p>
         <div class="setup-options">
-          {supportedProviders.map((provider, index) => (
+          {hostedProviders.map((provider, index) => (
             <label class="setup-option">
               <input
                 type="radio"
@@ -229,6 +225,23 @@ const installBlocks = routeOptions.flatMap((route) =>
           <button class="button primary" type="button" data-setup-next="result">
             Build dependency block
           </button>
+        </div>
+        <div class="setup-discovery">
+          <h3>Discovery-based sign-in</h3>
+          <p>
+            These strategies need a different setup. Start with the guide for
+            the identity your users will supply.
+          </p>
+          <ul>
+            <li>
+              <a class="text-link" href={hrefForPackage("indieauth")}>Use IndieAuth</a>
+              <span>Users sign in with their own website URL.</span>
+            </li>
+            <li>
+              <a class="text-link" href={hrefForPackage("oidc")}>Use OIDC discovery</a>
+              <span>Configure an OpenID Connect issuer, including a self-hosted provider.</span>
+            </li>
+          </ul>
         </div>
       </fieldset>
 
@@ -257,7 +270,7 @@ const installBlocks = routeOptions.flatMap((route) =>
             Continue with Wisp
           </a>
         </div>
-        <a class="text-link" href={supportedProviders[0].href} data-setup-provider-link>
+        <a class="text-link" href={hostedProviders[0].href} data-setup-provider-link>
           Review GitHub provider details
         </a>
       </section>
@@ -313,6 +326,14 @@ const installBlocks = routeOptions.flatMap((route) =>
 
   <script is:inline>
     (() => {
+      const flow = document.querySelector(".hero-threshold-disclosure");
+      if (flow instanceof HTMLDetailsElement) {
+        const wideViewport = window.matchMedia("(min-width: 58rem)");
+        const adaptFlow = () => { flow.open = wideViewport.matches; };
+        adaptFlow();
+        wideViewport.addEventListener("change", adaptFlow);
+      }
+
       const builder = document.querySelector("[data-setup-builder]");
       if (!(builder instanceof HTMLFormElement)) return;
 
@@ -357,10 +378,9 @@ const installBlocks = routeOptions.flatMap((route) =>
 
         if (title) title.textContent = `${server.dataset.label} + ${provider.dataset.label}`;
         if (continueLink instanceof HTMLAnchorElement) {
-          const hash = server.value === "core" ? "core-path" : "selected-path";
           continueLink.href =
             `/docs/quick-start?server=${encodeURIComponent(server.value)}` +
-            `&provider=${encodeURIComponent(provider.dataset.slug || "")}#${hash}`;
+            `&provider=${encodeURIComponent(provider.dataset.slug || "")}#selected-path`;
           continueLink.textContent = `Continue with ${server.dataset.label}`;
         }
         if (providerLink instanceof HTMLAnchorElement) {
