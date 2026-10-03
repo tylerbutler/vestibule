@@ -197,6 +197,7 @@ Vestibule should be flat by default. Depth comes from tonal layering, soft borde
 
 ### Navigation
 - **Style, typography, default/hover/active states, mobile treatment.** Navigation should be text-first and compact. Active states use `brand-purple`; hover states use `brand-purple-soft`. On narrow screens, collapse into a simple stacked list or native disclosure pattern rather than a custom animated menu.
+- **Homepage entry:** Use one compact header row on narrow screens. Put search, quick start, packages, and reference links in its disclosure; reserve the separate documentation menu for documentation pages. Keep the demo-only warning above the header at its normal reading size.
 - **Safe areas:** Layout chrome and page gutters account for `viewport-fit=cover` safe-area insets so phone notches and rounded corners never cover navigation or content.
 - **Theme persistence:** Theme controls must work when browser storage is blocked. Persist the choice when possible; otherwise keep the selected theme for the current page without breaking navigation or reading.
 
@@ -213,6 +214,10 @@ The homepage dependency builder groups GitHub, Google, Microsoft, and Apple as h
 ### Selected Quick Start
 
 Keep the chosen server and provider visible on the quick-start page. Put repeated dependencies in a native disclosure. Number the next tasks: wire the matching routes on the current page, then configure the provider. Show the selected Wisp or Mist example and open the core disclosure for a custom router.
+
+### Callback Diagram
+
+Show the callback diagram beside the homepage introduction at wide widths. At narrow widths, use a native disclosure below the primary action. Keep the diagram open without JavaScript so its explanation remains available.
 
 ## 6. Do's and Don'ts
 

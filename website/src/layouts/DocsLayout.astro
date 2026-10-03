@@ -135,10 +135,12 @@ const moduleLabel = (subTitle: string, label: string) =>
       </a>
       <div class="header-actions">
         <details class="header-resources">
-          <summary>Search &amp; links</summary>
+          <summary>Docs &amp; search</summary>
           <nav aria-label="Site links">
             <a href="/docs/search" data-search-trigger>Search</a>
             <a href="/docs/quick-start">Quick start</a>
+            <a href="/docs/packages">Packages</a>
+            <a href="/docs/reference">API reference</a>
             <a href="https://github.com/tylerbutler/vestibule">GitHub</a>
           </nav>
         </details>
@@ -202,7 +204,7 @@ const moduleLabel = (subTitle: string, label: string) =>
       </aside>
 
       <main id="main-content" class="content-shell">
-        <details class="mobile-nav">
+        {currentPath !== "/" && (<details class="mobile-nav">
           <summary>Docs menu{currentLink ? `: ${currentLink.label}` : ""}</summary>
           <nav aria-label="Mobile documentation navigation">
             {navGroups.map((group) => (
@@ -232,7 +234,7 @@ const moduleLabel = (subTitle: string, label: string) =>
                               </li>
                             ))}
                           </ul>
-                        </details>
+                        </details>)}
                       </li>
                     )
                   )}

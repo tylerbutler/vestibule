@@ -248,14 +248,15 @@ svg {
 }
 
 .brand-mark {
-  width: 3rem;
-  height: 3rem;
+  width: 2.5rem;
+  height: 2.5rem;
   object-fit: contain;
   flex-shrink: 0;
 }
 
 .brand strong,
 .brand small {
+  display: none;
   display: block;
   overflow-wrap: anywhere;
 }
@@ -272,7 +273,7 @@ svg {
 .header-actions {
   gap: var(--space-2);
   min-width: 0;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
 }
 
@@ -315,13 +316,13 @@ svg {
 .header-resources summary {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--ink);
   cursor: pointer;
   list-style: none;
-  padding: 0 var(--space-3);
+  padding: 0 var(--space-2);
 }
 
 .header-resources summary::-webkit-details-marker {
@@ -377,6 +378,7 @@ svg {
   justify-content: center;
   gap: var(--space-2);
   min-width: 2.75rem;
+  flex-shrink: 0;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--ink);
@@ -1972,6 +1974,15 @@ code {
 }
 
 @media (min-width: 42rem) {
+  .brand-mark {
+    width: 3rem;
+    height: 3rem;
+  }
+
+  .brand small {
+    display: block;
+  }
+
   .header-resources {
     display: none;
   }
@@ -2074,10 +2085,6 @@ code {
 
   .hero-threshold-disclosure > summary {
     display: none;
-  }
-
-  .hero-threshold-disclosure > .hero-threshold {
-    display: grid;
   }
 
   .content-grid {

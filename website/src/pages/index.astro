@@ -113,7 +113,7 @@ const installBlocks = routeOptions.flatMap((route) =>
         <a class="button primary" href="#get-started">Build your install block</a>
       </div>
     </div>
-    <details class="hero-threshold-disclosure">
+    <details class="hero-threshold-disclosure" open>
       <summary>See how the callback flow works</summary>
       <div class="hero-threshold" aria-label="The sign-in path through Vestibule">
         <p class="threshold-cap">Identity provider</p>
@@ -330,6 +330,14 @@ const installBlocks = routeOptions.flatMap((route) =>
 
   <script is:inline>
     (() => {
+      const flow = document.querySelector(".hero-threshold-disclosure");
+      if (flow instanceof HTMLDetailsElement) {
+        const wideViewport = window.matchMedia("(min-width: 58rem)");
+        const adaptFlow = () => { flow.open = wideViewport.matches; };
+        adaptFlow();
+        wideViewport.addEventListener("change", adaptFlow);
+      }
+
       const builder = document.querySelector("[data-setup-builder]");
       if (!(builder instanceof HTMLFormElement)) return;
 
