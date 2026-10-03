@@ -1,0 +1,3 @@
+package = "vestibule_indieauth"
+kind = "Security"
+body = "Reject malformed HTML discovery links without crashing."
