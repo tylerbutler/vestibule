@@ -84,7 +84,8 @@ pub fn signed_cookie_verify_malformed_token_fails_test() -> Nil {
 // === options ===
 
 pub fn new_options_uses_default_cookie_contract_test() -> Nil {
-  let assert Ok(options) = vestibule_mist.new_options(test_secret())
+  let assert Ok(options) =
+    vestibule_mist.new_options(secret_key.from_bit_array(test_secret()))
   vestibule_mist.cookie_name(options)
   |> fn(actual) {
     assert actual == "__Host-vestibule_session"

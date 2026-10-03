@@ -13,6 +13,7 @@
 //// `default_options` — callers must start from `new_options` so the type
 //// system enforces a conscious secret choice.
 
+import gleam/bit_array
 import gleam/bool
 import gleam/bytes_tree
 import gleam/dict
