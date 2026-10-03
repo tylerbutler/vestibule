@@ -219,6 +219,8 @@ Keep the chosen server and provider visible on the quick-start page. Put repeate
 
 Show the callback diagram beside the homepage introduction at wide widths. At narrow widths, use a native disclosure below the primary action. Keep the diagram open without JavaScript so its explanation remains available.
 
+Homepage copy names the completed outcome: generating a dependency block. Do not imply that this alone finishes provider setup or promise a fixed time to working sign-in.
+
 ## 6. Do's and Don'ts
 
 ### Do:

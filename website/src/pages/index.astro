@@ -100,17 +100,14 @@ const installBlocks = routeOptions.flatMap((route) =>
 >
   <section class="hero">
     <div class="hero-copy">
-      <p class="intro-label">Demo-ready OAuth sign-in for Gleam</p>
-      <h1>Real OAuth <span class="nowrap">sign-in</span> for your Gleam demo, in minutes.</h1>
+      <h1>Start a real OAuth flow for your Gleam demo.</h1>
       <p class="lead">
-        Vestibule gives demos and prototypes a real provider round-trip: a
-        consistent request and callback flow with normalized auth results,
-        PKCE, CSRF state, provider strategies, and Wisp or Mist middleware.
-        It has not been security audited — keep it out of production. Your
-        app remains responsible for its user accounts and sessions.
+        Use provider strategies and Wisp or Mist middleware for the request
+        and callback flow. Your app manages user accounts and sessions.
+        Not audited, not for production.
       </p>
       <div class="hero-actions">
-        <a class="button primary" href="#get-started">Build your install block</a>
+        <a class="button primary" href="#get-started">Build your dependency block</a>
       </div>
     </div>
     <details class="hero-threshold-disclosure" open>
@@ -147,7 +144,6 @@ const installBlocks = routeOptions.flatMap((route) =>
 
   <section id="get-started" class="setup-guide" aria-labelledby="setup-heading">
     <div class="section-heading">
-      <p class="intro-label">Start here</p>
       <h2 id="setup-heading">Build the dependency block for your app.</h2>
       <p>
         Choose your server and identity provider. Vestibule prepares the Git
