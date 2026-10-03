@@ -97,6 +97,16 @@ html {
   font-optical-sizing: auto;
   scroll-padding-top: 5.5rem;
   scroll-behavior: smooth;
+  scrollbar-color: var(--muted) var(--surface);
+}
+
+::selection {
+  background: var(--primary-soft);
+  color: var(--ink);
+}
+
+input {
+  caret-color: var(--accent-ink);
 }
 
 body {
@@ -216,7 +226,7 @@ svg {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-4);
+  gap: var(--space-2);
   border-bottom: 1px solid var(--border);
   background: color-mix(in oklch, var(--bg) 92%, transparent);
   padding: var(--space-3) clamp(var(--space-4), 3vw, var(--space-8));
@@ -242,14 +252,14 @@ svg {
 
 .brand {
   min-width: 0;
-  gap: var(--space-3);
+  gap: var(--space-2);
   color: var(--ink);
   text-decoration: none;
 }
 
 .brand-mark {
-  width: 3rem;
-  height: 3rem;
+  width: 2.5rem;
+  height: 2.5rem;
   object-fit: contain;
   flex-shrink: 0;
 }
@@ -265,6 +275,7 @@ svg {
 }
 
 .brand small {
+  display: none;
   color: var(--muted);
   font-size: var(--text-caption);
 }
@@ -272,7 +283,7 @@ svg {
 .header-actions {
   gap: var(--space-2);
   min-width: 0;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
 }
 
@@ -315,13 +326,14 @@ svg {
 .header-resources summary {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--ink);
   cursor: pointer;
   list-style: none;
-  padding: 0 var(--space-3);
+  padding: 0 var(--space-2);
+  white-space: nowrap;
 }
 
 .header-resources summary::-webkit-details-marker {
@@ -377,6 +389,7 @@ svg {
   justify-content: center;
   gap: var(--space-2);
   min-width: 2.75rem;
+  flex-shrink: 0;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--ink);
@@ -419,7 +432,6 @@ svg {
 .header-resources,
 .header-resources summary,
 .header-resources a,
-.theme-toggle,
 .button,
 .cmd-close-button,
 .path-panel summary > span,
@@ -720,10 +732,6 @@ h3 {
   text-wrap: balance;
 }
 
-.nowrap {
-  white-space: nowrap;
-}
-
 h1 {
   max-width: 19ch;
   margin: 0;
@@ -758,13 +766,14 @@ h3 {
    Quiet until the heading is hovered or the link is focused. */
 .heading-anchor {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-1);
   margin-inline-start: var(--space-2);
   color: var(--muted);
   font-size: 0.8em;
   font-weight: var(--weight-semibold);
   text-decoration: none;
+  vertical-align: middle;
   opacity: 0;
   transition: opacity 150ms ease, color 150ms ease;
 }
@@ -1211,6 +1220,29 @@ code {
   align-items: center;
 }
 
+.setup-discovery {
+  border-block-start: 1px solid var(--border);
+  padding-block-start: var(--space-4);
+}
+
+.setup-discovery ul {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.setup-discovery li {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.setup-discovery span {
+  color: var(--muted);
+  font-size: var(--text-label);
+}
+
 .setup-result h3 {
   margin-bottom: 0;
   font-size: var(--text-headline);
@@ -1380,11 +1412,36 @@ code {
   max-width: 62ch;
 }
 
-.selected-path-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  align-items: center;
+.selected-path-install summary,
+.middleware-example > summary {
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: var(--weight-semibold);
+}
+
+.selected-path-install[open] summary {
+  margin-bottom: var(--space-3);
+}
+
+.selected-path-steps {
+  display: grid;
+  gap: var(--space-5);
+  margin: 0;
+  padding-inline-start: var(--space-6);
+}
+
+.selected-path-steps li > strong {
+  display: block;
+  margin-bottom: var(--space-2);
+  color: var(--ink);
+}
+
+.middleware-example[open] > summary {
+  margin-bottom: var(--space-4);
+}
+
+.middleware-example p {
+  margin-block: var(--space-4);
 }
 
 .primary-path,
@@ -1820,6 +1877,29 @@ code {
 }
 
 @media (pointer: coarse) {
+  .text-link,
+  .heading-anchor {
+    display: inline-flex;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    align-items: center;
+  }
+
+  .heading-anchor {
+    justify-content: center;
+  }
+
+  .selected-path-install > summary,
+  .middleware-example > summary {
+    min-height: 2.75rem;
+    padding-block: var(--space-2);
+  }
+
+  .expressive-code .copy button {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+
   .nav-group a,
   .page-toc a {
     display: flex;
@@ -1924,6 +2004,23 @@ code {
 }
 
 @media (min-width: 42rem) {
+  .site-header {
+    gap: var(--space-4);
+  }
+
+  .brand {
+    gap: var(--space-3);
+  }
+
+  .brand-mark {
+    width: 3rem;
+    height: 3rem;
+  }
+
+  .brand small {
+    display: block;
+  }
+
   .header-resources {
     display: none;
   }
@@ -2026,10 +2123,6 @@ code {
 
   .hero-threshold-disclosure > summary {
     display: none;
-  }
-
-  .hero-threshold-disclosure > .hero-threshold {
-    display: grid;
   }
 
   .content-grid {

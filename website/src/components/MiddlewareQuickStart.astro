@@ -1,0 +1,26 @@
+---
+import CodeBlock from "./CodeBlock.astro";
+import { getPackageEntry } from "../data/content";
+import { wispCode } from "../data/doc-snippets";
+
+const mistPackage = await getPackageEntry("mist");
+if (!mistPackage) throw new Error("The quick start requires the Mist package guide.");
+---
+
+<section id="wisp-route" data-middleware-example="wisp">
+  <h3>Wisp route setup</h3>
+  <CodeBlock code={wispCode} lang="gleam" />
+</section>
+
+<details id="mist-route" class="middleware-example" data-middleware-example="mist">
+  <summary>Mist route setup</summary>
+  <div data-quick-start-dependencies>
+    <p>Use the Mist middleware package instead of the Wisp middleware package.</p>
+    <CodeBlock code={mistPackage.data.install.join("\n")} lang="toml" />
+  </div>
+  <p>
+    Load a high-entropy secret key base from configuration. Create the options
+    and state store once, then use them in your Mist handler.
+  </p>
+  <CodeBlock code={mistPackage.data.code} lang="gleam" />
+</details>

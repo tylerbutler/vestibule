@@ -135,10 +135,12 @@ const moduleLabel = (subTitle: string, label: string) =>
       </a>
       <div class="header-actions">
         <details class="header-resources">
-          <summary>Search &amp; links</summary>
+          <summary>Docs &amp; search</summary>
           <nav aria-label="Site links">
             <a href="/docs/search" data-search-trigger>Search</a>
             <a href="/docs/quick-start">Quick start</a>
+            <a href="/docs/packages">Packages</a>
+            <a href="/docs/reference">API reference</a>
             <a href="https://github.com/tylerbutler/vestibule">GitHub</a>
           </nav>
         </details>
@@ -202,7 +204,7 @@ const moduleLabel = (subTitle: string, label: string) =>
       </aside>
 
       <main id="main-content" class="content-shell">
-        <details class="mobile-nav">
+        {currentPath !== "/" && (<details class="mobile-nav">
           <summary>Docs menu{currentLink ? `: ${currentLink.label}` : ""}</summary>
           <nav aria-label="Mobile documentation navigation">
             {navGroups.map((group) => (
@@ -240,7 +242,7 @@ const moduleLabel = (subTitle: string, label: string) =>
               </details>
             ))}
           </nav>
-        </details>
+        </details>)}
 
         {showBreadcrumbs && (
           <nav class="breadcrumbs" aria-label="Breadcrumb">
@@ -399,17 +401,19 @@ const moduleLabel = (subTitle: string, label: string) =>
           anchor.href = `#${heading.id}`;
           const title = heading.textContent?.trim() || "section";
           anchor.setAttribute("aria-label", `Copy link to section: ${title}`);
-          anchor.append(Object.assign(document.createElement("span"), {
-            ariaHidden: "true",
-            textContent: "#"
-          }));
+          anchor.innerHTML = `
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"
+              fill="none" stroke="currentColor" stroke-width="1.75"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="m9 15 6-6M8 12l-2 2a3.5 3.5 0 0 0 5 5l2-2M11 7l2-2a3.5 3.5 0 0 1 5 5l-2 2" />
+            </svg>`;
           heading.append(anchor);
 
           anchor.addEventListener("click", async (event) => {
             // No clipboard? Let the default hash navigation happen.
             if (!canCopy()) return;
             event.preventDefault();
-            const url = `${location.origin}${location.pathname}#${heading.id}`;
+            const url = `${location.origin}${location.pathname}${location.search}#${heading.id}`;
             history.replaceState(null, "", `#${heading.id}`);
             try {
               await navigator.clipboard.writeText(url);
@@ -534,6 +538,11 @@ const moduleLabel = (subTitle: string, label: string) =>
         dialog.addEventListener("close", syncClosedState);
 
         document.addEventListener("keydown", (event) => {
+          if (event.key === "Escape" && dialog.open) {
+            event.preventDefault();
+            close();
+            return;
+          }
           if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
             event.preventDefault();
             dialog.open ? close() : open();

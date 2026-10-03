@@ -12,7 +12,7 @@ setup:
   - Register a provider application and copy its client ID and secret.
   - Create a config with the provider redirect URI.
   - Store state and code_verifier server-side before redirecting.
-  - Delete state and code_verifier after a successful callback. Expire them after a failure.
+  - Validate the provider and callback state, then atomically consume the stored flow before handle_callback. Preserve valid flows on malformed callbacks or state mismatch.
 highlights:
   - PKCE is appended to every authorization URL.
   - State validation happens before provider error details are surfaced.
@@ -22,6 +22,7 @@ code: |
   import gleam/dict
   import gleam/option
   import vestibule
+  import vestibule/authorization_request
   import vestibule/config
   import vestibule/error
   import vestibule_github
@@ -50,8 +51,9 @@ code: |
       #("code", "authorization code from callback"),
     ])
 
-  // Validate the callback. State can mismatch and providers can reject
-  // the user, so handle the error instead of asserting.
+  // Validate and atomically consume the stored flow before this call.
+  // Pass the consumed values; do not restore them after a failure.
+  // Handle callback errors instead of asserting.
   case
     vestibule.handle_callback(
       strategy,
