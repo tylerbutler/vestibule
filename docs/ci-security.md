@@ -25,7 +25,7 @@ restore.
 
 All active third-party actions and committed workflow templates use full,
 verified upstream commit SHAs. `scripts/check_ci_security.py` enforces full SHA
-pins, read-only `GITHUB_TOKEN` permissions, non-persisted checkout credentials,
+pins, explicit least-privilege permissions on every job, non-persisted checkout credentials,
 safe expression handling, locked tools, secret-free pull-request CI, scoped Hex
 credentials, trusted cache saves, and release-SHA binding.
 
@@ -88,8 +88,8 @@ vulnerabilities.
 
 ## Repository protections
 
-The repository owner approved these settings during this review. The GitHub API
-confirmed that they are active:
+These controls are repository settings, not controls enforced by this PR. A
+read-only GitHub API check on 2026-10-03 confirmed that they are active:
 
 | Control | Applied setting |
 | --- | --- |
@@ -101,6 +101,10 @@ confirmed that they are active:
 | Package-tag immutability ruleset `22369322` | No actor, including the release App, can update or delete those tags |
 | Moving-tag ruleset `22369319` | Only the release App can create, update, or delete `v[0-9]*` tags |
 | Immutable GitHub Releases | Enabled for future published releases |
+
+Repository Actions policy allows all actions and does not require SHA pins.
+The committed policy check supplies that enforcement for this repository's
+workflows and templates.
 
 The `release` environment permits its designated reviewer to approve their own
 dispatch. Approval is still an explicit human step, not an automatic or admin
@@ -118,7 +122,7 @@ then restore the protections. There is no standing administrator or release-App
 bypass for `main` or immutable package tags.
 
 Repository settings can drift independently of committed files. Recheck these
-controls after an administrative change. The implementation follow-ups are
+controls after an administrative change. The separate repository-setting work is tracked in
 [#179](https://github.com/tylerbutler/vestibule/issues/179),
 [#180](https://github.com/tylerbutler/vestibule/issues/180), and
 [#181](https://github.com/tylerbutler/vestibule/issues/181).

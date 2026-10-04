@@ -34,14 +34,46 @@ def check_workflows(failures: list[str]) -> None:
         name = path.relative_to(ROOT)
         if "\npermissions:\n" not in text:
             fail(f"{name}: missing explicit top-level permissions", failures)
-        if re.search(r"^ {2,4}[^ #\n][^:\n]*:\s+write\s*$", text, re.MULTILINE):
-            fail(f"{name}: GITHUB_TOKEN write permission is not allowed", failures)
         if "pull_request_target:" in text:
             fail(f"{name}: pull_request_target is not allowed", failures)
         if re.search(r"run:[^\n]*(?:github\.event|github\.head_ref|inputs\.)", text):
             fail(f"{name}: untrusted expression is interpolated directly into a command", failures)
 
         lines = text.splitlines()
+        jobs_start = lines.index("jobs:")
+        jobs = [
+            (index, match.group(1))
+            for index, line in enumerate(lines[jobs_start + 1 :], jobs_start + 1)
+            if (match := re.match(r"^  ([a-zA-Z0-9_-]+):\s*$", line))
+        ]
+        for position, (start, job) in enumerate(jobs):
+            end = jobs[position + 1][0] if position + 1 < len(jobs) else len(lines)
+            block = lines[start + 1 : end]
+            permission_index = next(
+                (
+                    index
+                    for index, line in enumerate(block)
+                    if line in ("    permissions:", "    permissions: {}")
+                ),
+                None,
+            )
+            if permission_index is None:
+                fail(f"{name}: job {job!r} lacks explicit permissions", failures)
+                continue
+            permission_line = block[permission_index]
+            if permission_line.strip() == "permissions: {}":
+                continue
+            permission_block = []
+            for line in block[permission_index + 1 :]:
+                if line and not line.startswith("      "):
+                    break
+                if line.startswith("      "):
+                    permission_block.append(line)
+            if not permission_block:
+                fail(f"{name}: job {job!r} has an empty permissions block", failures)
+            if any(re.match(r"^      [^ #\n][^:\n]*:\s+write\s*$", line) for line in permission_block):
+                fail(f"{name}: job {job!r} grants GITHUB_TOKEN write permission", failures)
+
         for index, line in enumerate(lines):
             if re.match(r"^\s*-\s+uses:\s+actions/checkout@", line):
                 block = "\n".join(lines[index + 1 : index + 6])
