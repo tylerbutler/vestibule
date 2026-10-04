@@ -311,6 +311,17 @@ Whether this strategy uses the OIDC `nonce` (generate + validate).
 pub fn uses_nonce(Strategy(a)) -> Bool
 ```
 
+### `validate_config`
+
+Validate client configuration without making network requests.
+
+```gleam
+pub fn validate_config(
+  Strategy(a),
+  config.ClientConfig
+) -> Result(Nil, List(config.ValidationError))
+```
+
 ### `with_callback_issuer`
 
 Require the authorization response's `iss` parameter to match this issuer.
@@ -322,6 +333,20 @@ identification in authorization responses. The comparison is exact.
 pub fn with_callback_issuer(
   Strategy(a),
   String
+) -> Strategy(a)
+```
+
+### `with_config_validation`
+
+Attach offline provider-specific client-configuration validation.
+
+The validator must not make network requests. It runs after Vestibule's
+provider-independent checks.
+
+```gleam
+pub fn with_config_validation(
+  Strategy(a),
+  fn(config.ClientConfig) -> Result(Nil, List(config.ValidationError))
 ) -> Strategy(a)
 ```
 

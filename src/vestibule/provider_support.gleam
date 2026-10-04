@@ -14,6 +14,7 @@ import vestibule/error.{type AuthError}
 import vestibule/internal/public_http
 import vestibule/logger
 
+import vestibule/config
 import vestibule/credential
 
 /// An opaque HTTP request for an untrusted, dynamically selected destination.
@@ -460,26 +461,24 @@ pub fn check_token_error(body: String) -> Result(String, AuthError(e)) {
 pub fn parse_redirect_uri(
   redirect_uri: String,
 ) -> Result(uri.Uri, AuthError(e)) {
+  use _ <- result.try(case config.validate_redirect_uri(redirect_uri) {
+    Ok(Nil) -> Ok(Nil)
+    Error(validation_error) -> {
+      let reason = case config.validation_error_reason(validation_error) {
+        "must be a valid URL" -> "Invalid redirect URI"
+        "must include a host" -> "Redirect URI must include a host"
+        "must not include a fragment" ->
+          "Redirect URI must not include a fragment"
+        _ -> "Redirect URI must use HTTPS (except localhost)"
+      }
+      Error(error.config(reason: reason))
+    }
+  })
   use parsed <- result.try(
     uri.parse(redirect_uri)
     |> result.map_error(fn(_) { error.config(reason: "Invalid redirect URI") }),
   )
-  let https_error =
-    Error(error.config(reason: "Redirect URI must use HTTPS (except localhost)"))
-  case parsed.scheme {
-    option.Some("https") ->
-      case parsed.host {
-        option.Some("") | option.None ->
-          Error(error.config(reason: "Redirect URI must include a host"))
-        option.Some(_) -> Ok(parsed)
-      }
-    option.Some("http") ->
-      case parsed.host {
-        option.Some("localhost") | option.Some("127.0.0.1") -> Ok(parsed)
-        option.Some(_) | option.None -> https_error
-      }
-    option.Some(_) | option.None -> https_error
-  }
+  Ok(parsed)
 }
 
 /// Append additional query parameters to a URL, preserving its fragment.

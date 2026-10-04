@@ -1,0 +1,3 @@
+package = "vestibule_google"
+kind = "Changed"
+body = "Validate Google client authentication compatibility at startup."

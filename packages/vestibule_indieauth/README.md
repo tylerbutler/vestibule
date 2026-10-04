@@ -1,160 +1,165 @@
 # vestibule_indieauth
 
-IndieAuth strategy for [vestibule](https://hex.pm/packages/vestibule) — decentralized identity authentication using your own domain.
-
-[![Package Version](https://img.shields.io/hexpm/v/vestibule_indieauth)](https://hex.pm/packages/vestibule_indieauth)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/vestibule_indieauth/)
+IndieAuth strategy for vestibule. Users sign in with a URL that they control.
 
 > [!WARNING]
 > Vestibule has not been security audited and must not be considered secure.
-> It is intended for demos and prototypes that need real OAuth flows — do not
-> use it in production.
+> It is for demos and prototypes that need real OAuth flows. Do not use it in
+> production.
 
-[IndieAuth](https://indieauth.spec.indieweb.org/) is an identity layer on top of OAuth 2.0
-where users are identified by a URL they control (e.g., `https://example.com/`).
-Unlike centralized providers, IndieAuth endpoints are discovered dynamically from
-the user's homepage.
-
-## Quick Start
+## Install
 
 ```sh
-gleam add vestibule_indieauth
+gleam add vestibule vestibule_indieauth
 ```
+
+Add `vestibule_wisp` or `vestibule_mist` if you use that middleware adapter.
+
+## Register the client
+
+IndieAuth has no common provider console. Your app's `client_id` is a URL. The
+user's profile points to an authorization server, and vestibule discovers its
+authorization, token, and optional userinfo endpoints.
+
+Publish client metadata at the client ID URL when the authorization server
+requires it. Configure the callback with that server as required.
+
+Callback examples:
+
+- Local: `http://localhost:8000/auth/indieauth/callback`
+- HTTPS deployment: `https://demo.example/auth/indieauth/callback`
+
+For a local callback, keep a stable HTTPS client ID, such as
+`https://demo.example/`, if the authorization server must fetch client
+metadata. User profile URLs and discovered endpoints must be public HTTPS.
+They cannot use localhost, private, link-local, or `.local` hosts.
+
+## Provider behavior
+
+| Item | Behavior |
+|---|---|
+| Default scope | `profile`; add `email` only when the authorization server supports it |
+| Client authentication | Public client; use `config.public_client()` |
+| Callback | GET query parameters; metadata-based servers can also require an exact callback `iss` |
+| Refresh | Supported when the authorization server issues a refresh token |
+| Revocation | No revocation discovery or helper |
+| Nonce | Not used |
+| Email | Optional profile data; vestibule does not claim that IndieAuth email data is verified |
+
+State and PKCE validation are part of the shared vestibule flow. The token
+response `me` URL establishes identity only after vestibule confirms it against
+the authorization server used by the flow.
+
+## Minimal core flow
 
 ```gleam
 import gleam/dict
 import gleam/option
 import vestibule
-import vestibule/authorization_request
-import vestibule/auth
 import vestibule/config
-import vestibule/user_info
 import vestibule_indieauth
 
-// Phase 0: Discover the user's IndieAuth endpoints
-// (The user provides their URL, e.g. "https://user.example.com")
-let assert Ok(strategy) = vestibule_indieauth.discover("https://user.example.com")
-
-// Configure your app — client_id is your app's URL, no client_secret needed
+let assert Ok(#(endpoints, me)) =
+  vestibule_indieauth.discover_endpoints_with_me(user_profile_url)
+let strategy = vestibule_indieauth.strategy(endpoints, me)
 let client_config =
   config.new(
-    client_id: "https://myapp.example.com/",
-    redirect_uri: "https://myapp.example.com/auth/indieauth/callback",
+    client_id: "https://demo.example/",
+    redirect_uri: "http://localhost:8000/auth/indieauth/callback",
     auth: config.public_client(),
   )
 let options =
   config.authorize_options()
   |> config.with_scopes(["profile", "email"])
 
-// Phase 1: Generate authorization URL and redirect user
-let assert Ok(auth_request) =
+let assert Ok(request) =
   vestibule.create_authorization_request(
     strategy,
     config: client_config,
     options: options,
   )
-// Store authorization_request.state(auth_request) and
-// authorization_request.code_verifier(auth_request) in session
-// Redirect user to authorization_request.url(auth_request)
+// Store state, code verifier, and
+// vestibule_indieauth.serialize_endpoints(endpoints, me) in the session.
 
-// Phase 2: Handle the callback
 let params =
   dict.from_list([
-    #("state", "state from callback"),
-    #("code", "authorization code from callback"),
-    #("iss", "issuer from callback"),
+    #("state", callback_state),
+    #("code", callback_code),
+    #("iss", callback_issuer),
   ])
-
-let assert Ok(auth) =
+let result =
   vestibule.handle_callback(
     strategy,
     client_config,
     params,
-    "expected state from session",
-    "code verifier from session",
+    expected_state,
+    stored_code_verifier,
     expected_nonce: option.None,
   )
-// auth.uid(auth) is the user's canonical URL (e.g., "https://user.example.com/")
-// user_info.name(auth.info(auth)), user_info.email(auth.info(auth)),
-// user_info.image(auth.info(auth)) come from the profile
 ```
 
-## How It Works
+On callback, use `parse_endpoints` and `strategy` to restore the same strategy
+without a second discovery request.
 
-1. **User enters their URL** — The user provides their homepage URL
-2. **Discovery** — The library fetches the URL and discovers IndieAuth endpoints via:
-   - `.well-known/oauth-authorization-server` metadata (preferred)
-   - HTTP `Link` headers with `rel="authorization_endpoint"`
-   - HTML `<link>` tags with `rel="authorization_endpoint"`
-3. **Authorization** — Standard OAuth 2.0 authorization code flow with PKCE
-   Metadata discovery requires an issuer, and the callback `iss` must exactly
-   match it before any token request is sent. Legacy link-relation discovery
-   remains compatible with servers that do not publish metadata.
-4. **Token exchange** — Code is exchanged at the discovered token endpoint;
-   the response includes the user's canonical URL (`me`) and optional profile info
-5. **Profile URL confirmation** — The `me` returned by the token endpoint is the
-   user's identity, not the URL they typed. If it differs from the typed URL, the
-   library re-discovers the returned URL and only accepts it when it is served by
-   the same authorization server the flow used (IndieAuth §5.3.4). A userinfo
-   endpoint may add profile details but cannot change the confirmed `me`
+## Minimal Wisp middleware
 
-## Key Differences from Other Providers
-
-- **No client secret** — IndieAuth clients are public; use `config.public_client()`
-- **client_id is your app's URL** — Not an opaque ID from a developer console
-- **User identity is a URL** — `auth.uid(auth)` returns the user's confirmed
-  canonical URL, which may differ from the URL they typed (for example, a shared
-  authorization server returns the URL of the account that actually signed in)
-- **Endpoints are per-user** — Each user may have different authorization/token endpoints
-- **Discovery required** — Call `discover()` before starting the auth flow
-- **Identities and endpoints must be public HTTPS** — Profile URLs and
-  discovered endpoints are fetched server-side, so the library refuses
-  `http://` URLs and hosts that are loopback, private, link-local, or
-  `localhost`/`*.local`. A local IndieAuth server therefore needs a public
-  HTTPS hostname (for example via a tunnel) rather than `localhost`
-
-## Resuming a flow across request and callback
-
-Because endpoints are discovered per-user at request time, a web app needs the
-same endpoints again in the callback phase. Rather than re-running discovery (a
-second network round-trip), discover once and persist the result — for example
-in a signed cookie or server-side session — then rebuild the strategy on the way
-back:
+The registry middleware works when one discovered IndieAuth strategy is known
+before requests start. This is useful for a fixed demo identity:
 
 ```gleam
-// Request phase: discover once, keep the endpoints + canonical `me`.
-let assert Ok(#(endpoints, me)) =
-  vestibule_indieauth.discover_endpoints_with_me("https://user.example.com")
-let strategy = vestibule_indieauth.strategy(endpoints, me)
-// ...start the authorization flow, and stash this for the callback:
-let stashed = vestibule_indieauth.serialize_endpoints(endpoints, me)
+let assert Ok(strategy) =
+  vestibule_indieauth.discover("https://user.example/")
+let assert Ok(registry) =
+  registry.new()
+  |> registry.register(
+    strategy,
+    config.new(
+      client_id: "https://demo.example/",
+      redirect_uri: "http://localhost:8000/auth/indieauth/callback",
+      auth: config.public_client(),
+    ),
+  )
+let assert Ok(store) = state_store.create()
 
-// Callback phase: restore and rebuild — no second discovery.
-let assert Ok(#(endpoints, me)) = vestibule_indieauth.parse_endpoints(stashed)
-let strategy = vestibule_indieauth.strategy(endpoints, me)
+case wisp.path_segments(request), request.method {
+  ["auth", "indieauth"], http.Get ->
+    vestibule_wisp.request_phase_for_client(
+      request,
+      registry: registry,
+      provider: "indieauth",
+      state_store: store,
+      authorize_options: config.authorize_options(),
+      client_key: client_key,
+    )
+  ["auth", "indieauth", "callback"], http.Get ->
+    vestibule_wisp.callback_phase(
+      request,
+      registry,
+      "indieauth",
+      store,
+      on_success,
+    )
+  _, _ -> wisp.not_found()
+}
 ```
 
-`discover_endpoints_with_me` validates, canonicalizes, and discovers in one call,
-returning both the endpoints and the canonical `me` URL (unlike `discover`, which
-returns only a `Strategy`, or `discover_endpoints`, which returns only the
-endpoints).
+For user-entered profile URLs, discover and persist the endpoints per session,
+then use the core callback flow. A single startup registry entry cannot
+represent different endpoints for each user.
 
-## Secure dynamic requests
+## Diagnose setup errors
 
-The `vestibule_indieauth/discovery` module exposes the multi-step sans-IO
-discovery flow: build and parse the profile request, then, when parsing returns
-`MetadataRequired(url)`, build and parse the metadata request. The
-`vestibule_indieauth/token` module similarly exposes request/response pairs for
-authorization-code exchange, refresh, and userinfo.
-
-Unlike providers with fixed endpoints, these builders do not return an ordinary
-`gleam_http` request. They return an opaque `provider_support.SecureRequest`
-that can only be sent with `provider_support.send_public`. That sender resolves
-the hostname immediately before connecting, rejects the destination if any DNS
-answer is non-public, pins a validated address, preserves the original hostname
-for TLS SNI/certificate validation and the `Host` header, and disables
-redirects. Response parsing remains pure and can still be tested independently.
-
-## Target
-
-Erlang (BEAM) runtime only — discovery requires HTTP requests.
+- **Profile rejected before discovery:** use a public HTTPS profile URL. Local
+  and private network destinations are intentionally blocked.
+- **Missing endpoints:** publish IndieAuth metadata or the required link
+  relations on the profile page.
+- **Issuer mismatch:** restore the same discovered endpoints for the callback
+  and pass the callback `iss` parameter.
+- **`me` mismatch:** the token or userinfo endpoint returned an identity that
+  the original authorization server does not confirm.
+- **Client ID error:** use an app URL, not an opaque client identifier. Publish
+  metadata there if the authorization server requires it.
+- **No email:** request `email` only if supported, and treat it as optional,
+  unverified profile data.
+- **No refresh token:** the authorization server controls whether it issues
+  one.

@@ -16,7 +16,7 @@ import wisp/wisp_mist
 import vestibule/config
 import vestibule/registry
 import vestibule/state_store
-import vestibule_example/router.{Context}
+import vestibule_example/router
 import vestibule_github
 import vestibule_google
 import vestibule_microsoft
@@ -129,7 +129,7 @@ pub fn main() -> Nil {
   // Initialize state store
   let assert Ok(store) = state_store.create()
 
-  let context = Context(registry: provider_registry, state_store: store)
+  let assert Ok(context) = router.new_context(provider_registry, store)
 
   // Configure Wisp logging
   wisp.configure_logger()

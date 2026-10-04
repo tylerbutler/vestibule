@@ -63,6 +63,7 @@ pub fn strategy_with_sender(
       fetch_user_enforcing(client_config, exchange, None, send)
     },
   )
+  |> strategy.with_config_validation(require_client_secret)
   |> strategy.with_nonce()
   |> strategy.with_refresh(fn(client_config, refresh_token) {
     do_refresh_token(client_config, refresh_token, send)
@@ -110,10 +111,21 @@ pub fn strategy_for_hosted_domain_with_sender(
       fetch_user_enforcing(client_config, exchange, Some(hosted_domain), send)
     },
   )
+  |> strategy.with_config_validation(require_client_secret)
   |> strategy.with_nonce()
   |> strategy.with_refresh(fn(client_config, refresh_token) {
     do_refresh_token(client_config, refresh_token, send)
   })
+}
+
+fn require_client_secret(
+  client_config: ClientConfig,
+) -> Result(Nil, List(config.ValidationError)) {
+  config.require_auth_kind(
+    client_config,
+    [config.ClientSecretAuth],
+    "Google requires client-secret authentication",
+  )
 }
 
 /// Parse Google token response JSON.

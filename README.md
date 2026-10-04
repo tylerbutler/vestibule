@@ -47,8 +47,8 @@ import vestibule/config
 import vestibule_github
 
 let strategy = vestibule_github.strategy()
-let client_config =
-  config.new(
+let assert Ok(client_config) =
+  config.try_new(
     client_id: "client_id",
     redirect_uri: "http://localhost:8000/auth/github/callback",
     auth: config.client_secret_auth("client_secret"),
@@ -96,6 +96,11 @@ and client authentication. Reuse it across requests. `AuthorizeOptions` carries
 per-request authorization choices, such as scopes or provider-specific query
 parameters. Create fresh options for each authorization request.
 
+`config.try_new` checks provider-independent fields without network access.
+`config.new` remains available as an unchecked, infallible compatibility API.
+When using `config.new`, call `registry.validate` at startup to check both the
+base fields and provider-specific authentication-method requirements.
+
 Store `state` and the PKCE `code_verifier` on the server, bound to the user's
 session. Expire them quickly. Validate the provider and callback state, then
 atomically consume the stored values before calling `handle_callback`.
@@ -124,6 +129,7 @@ let assert Ok(registry) =
       auth: config.client_secret_auth("client_secret"),
     ),
   )
+let assert Ok(Nil) = registry.validate(registry)
 let assert Ok(store) = state_store.create()
 
 // In your router, client_key comes from the direct peer or a trusted edge.
@@ -184,6 +190,13 @@ as `UnknownProvider`, `MissingOrInvalidSessionCookie`, `SessionUnavailable`,
 `code` values are provider/authentication failures and are reported through
 `AuthFailed`.
 
+Every `AuthError` has stable recovery metadata from `error.recovery`: a
+recommended HTTP status, public error code, safe user summary, and one of
+`RetryOperation`, `RestartAuthorization`, or `ContactApplication`. The Wisp and
+Mist adapters expose the same metadata for `CallbackError` through
+`callback_recovery`. Provider descriptions, response bodies, and internal
+reasons are never used in the user summary.
+
 Or use the `vestibule_mist` middleware for the same ergonomics on a plain
 mist server. Mist has no built-in signed-cookie helper, so you supply the
 secret explicitly:
@@ -240,12 +253,12 @@ are named `MissingOrInvalidSessionCookie(reason)` — with `reason` distinguishi
 | `vestibule` | Core types, two-phase OAuth2 flow, PKCE, token refresh, shared state store | `gleam add vestibule` |
 | `vestibule_wisp` | Wisp middleware for request/callback routing | `gleam add vestibule_wisp` |
 | `vestibule_mist` | Mist middleware for request/callback routing | `gleam add vestibule_mist` |
-| `vestibule_github` | GitHub OAuth strategy | `gleam add vestibule_github` |
-| `vestibule_google` | Google OAuth strategy | `gleam add vestibule_google` |
-| `vestibule_microsoft` | Microsoft OAuth strategy | `gleam add vestibule_microsoft` |
-| `vestibule_apple` | Apple Sign In strategy | `gleam add vestibule_apple` |
-| `vestibule_indieauth` | IndieAuth strategy (decentralized identity) | `gleam add vestibule_indieauth` |
-| `vestibule_oidc` | OpenID Connect discovery (auto-configure any OIDC provider) | `gleam add vestibule_oidc` |
+| [`vestibule_github`](packages/vestibule_github/README.md) | GitHub OAuth strategy | `gleam add vestibule_github` |
+| [`vestibule_google`](packages/vestibule_google/README.md) | Google OAuth strategy | `gleam add vestibule_google` |
+| [`vestibule_microsoft`](packages/vestibule_microsoft/README.md) | Microsoft OAuth strategy | `gleam add vestibule_microsoft` |
+| [`vestibule_apple`](packages/vestibule_apple/README.md) | Apple Sign In strategy | `gleam add vestibule_apple` |
+| [`vestibule_indieauth`](packages/vestibule_indieauth/README.md) | IndieAuth strategy (decentralized identity) | `gleam add vestibule_indieauth` |
+| [`vestibule_oidc`](packages/vestibule_oidc/README.md) | OpenID Connect discovery (auto-configure any OIDC provider) | `gleam add vestibule_oidc` |
 
 ## How It Works
 
