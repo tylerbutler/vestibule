@@ -51,7 +51,39 @@ import vestibule/config
 let assert Ok(store) = state_store.create()
 ```
 
-Then pass that store to the request and callback phases:
+Configure the optional route mount once. Its error callback receives both the
+structured callback error and safe recovery metadata:
+
+```gleam
+let assert Ok(auth_routes) =
+  vestibule_wisp.new_route_mount(
+    "/auth",
+    registry,
+    store,
+    config.authorize_options(),
+    options,
+    on_success,
+    fn(callback_error, recovery) {
+      custom_error_response(callback_error, recovery)
+    },
+  )
+```
+
+Compose it with the host router. Wisp cannot read the socket peer, so the host
+must still supply a trusted direct-client admission key:
+
+```gleam
+case vestibule_wisp.route_for_client(request, auth_routes, direct_client_key) {
+  option.Some(response) -> response
+  option.None -> host_router(request)
+}
+```
+
+The mount handles `GET /auth/<provider>` plus `GET` and form-encoded `POST`
+callbacks at `/auth/<provider>/callback`. Other paths and methods return
+`None`, including prefix lookalikes and traversal segments.
+
+The lower-level phase functions remain available for custom routing:
 
 ```gleam
 case wisp.path_segments(request), request.method {

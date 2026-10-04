@@ -143,6 +143,27 @@ pub type RecoveryPathError {
   RecoveryPathMustBeLocal
 }
 
+/// Why an auth route prefix was rejected.
+pub type RouteMountError {
+  /// The prefix must be an absolute path such as `/auth`.
+  AuthPathPrefixMustBeAbsolute
+  /// The prefix must contain only canonical, non-empty path segments.
+  AuthPathPrefixMustBeCanonical
+}
+
+/// Configuration for the optional request and callback route helper.
+pub opaque type RouteMount(e) {
+  RouteMount(
+    path_prefix: List(String),
+    registry: Registry(e),
+    state_store: StateStore,
+    authorize_options: AuthorizeOptions,
+    middleware_options: Options,
+    on_success: fn(Auth) -> Response,
+    on_error: fn(CallbackError(e), error.Recovery) -> Response,
+  )
+}
+
 /// Default middleware options.
 ///
 /// Uses the host-bound `__Host-vestibule_session` signed cookie with a
@@ -247,6 +268,140 @@ pub fn session_ttl(options: Options) -> SessionTtl {
 /// The cookie security for these options.
 pub fn cookie_security(options: Options) -> CookieSecurity {
   options.cookie_security
+}
+
+/// Configure request and callback routes below one auth path prefix.
+///
+/// The mount handles `GET <prefix>/<provider>` and `GET` or `POST`
+/// `<prefix>/<provider>/callback`. Other paths and methods fall through.
+pub fn new_route_mount(
+  auth_path_prefix auth_path_prefix: String,
+  registry registry: Registry(e),
+  state_store state_store: StateStore,
+  authorize_options authorize_options: AuthorizeOptions,
+  middleware_options middleware_options: Options,
+  on_success on_success: fn(Auth) -> Response,
+  on_error on_error: fn(CallbackError(e), error.Recovery) -> Response,
+) -> Result(RouteMount(e), RouteMountError) {
+  use path_prefix <- result.try(route_prefix_segments(auth_path_prefix))
+  Ok(RouteMount(
+    path_prefix: path_prefix,
+    registry: registry,
+    state_store: state_store,
+    authorize_options: authorize_options,
+    middleware_options: middleware_options,
+    on_success: on_success,
+    on_error: on_error,
+  ))
+}
+
+/// Handle a mounted auth route using a trusted direct-client admission key.
+///
+/// `None` means that the host router must continue routing the request.
+pub fn route_for_client(
+  http_request: Request,
+  mount mount: RouteMount(e),
+  client_key client_key: String,
+) -> option.Option(Response) {
+  let remaining =
+    route_suffix(wisp.path_segments(http_request), mount.path_prefix)
+  case remaining, http_request.method {
+    option.Some([provider]), http.Get ->
+      case canonical_route_segment(provider) {
+        True ->
+          option.Some(request_phase_for_client_with_options(
+            http_request,
+            registry: mount.registry,
+            provider: provider,
+            state_store: mount.state_store,
+            authorize_options: mount.authorize_options,
+            middleware_options: mount.middleware_options,
+            client_key: client_key,
+          ))
+        False -> option.None
+      }
+    option.Some([provider, "callback"]), http.Get
+    | option.Some([provider, "callback"]), http.Post
+    ->
+      case canonical_route_segment(provider) {
+        True -> option.Some(route_callback(http_request, mount, provider))
+        False -> option.None
+      }
+    _, _ -> option.None
+  }
+}
+
+fn route_callback(
+  http_request: Request,
+  mount: RouteMount(e),
+  provider: String,
+) -> Response {
+  let outcome =
+    callback_phase_auth_result_with_options(
+      http_request,
+      registry: mount.registry,
+      provider: provider,
+      state_store: mount.state_store,
+      options: mount.middleware_options,
+    )
+  let response = case outcome {
+    Ok(authentication) -> mount.on_success(authentication)
+    Error(callback_error) ->
+      mount.on_error(callback_error, callback_recovery(callback_error))
+  }
+  case
+    callback_cookie_is_terminal(
+      outcome,
+      http_request,
+      provider,
+      mount.state_store,
+      mount.middleware_options,
+    )
+  {
+    True ->
+      expire_session_cookie(response, http_request, mount.middleware_options)
+    False -> response
+  }
+}
+
+fn route_prefix_segments(
+  prefix: String,
+) -> Result(List(String), RouteMountError) {
+  use <- bool.guard(
+    when: !string.starts_with(prefix, "/"),
+    return: Error(AuthPathPrefixMustBeAbsolute),
+  )
+  let segments = prefix |> string.drop_start(1) |> string.split("/")
+  use <- bool.guard(
+    when: segments == [] || !list.all(segments, canonical_route_segment),
+    return: Error(AuthPathPrefixMustBeCanonical),
+  )
+  Ok(segments)
+}
+
+fn canonical_route_segment(segment: String) -> Bool {
+  segment != ""
+  && segment != "."
+  && segment != ".."
+  && !string.contains(segment, "/")
+  && !string.contains(segment, "%")
+  && !string.contains(segment, "\\")
+  && !string.contains(segment, "\r")
+  && !string.contains(segment, "\n")
+  && !string.contains(segment, "\u{0000}")
+  && !string.contains(segment, "?")
+  && !string.contains(segment, "#")
+}
+
+fn route_suffix(
+  path: List(String),
+  prefix: List(String),
+) -> option.Option(List(String)) {
+  let prefix_length = list.length(prefix)
+  case list.take(path, prefix_length) == prefix {
+    True -> option.Some(list.drop(path, prefix_length))
+    False -> option.None
+  }
 }
 
 /// Phase 1: Redirect user to the OAuth provider.
