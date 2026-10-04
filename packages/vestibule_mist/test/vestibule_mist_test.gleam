@@ -1,10 +1,13 @@
+import gleam/bytes_tree
 import gleam/dict
 import gleam/http/request
 import gleam/http/response
 import gleam/list
 import gleam/option
+import gleam/result
 import gleam/string
 import gleeunit
+import mist
 import vestibule/config
 import vestibule/error
 import vestibule/registry
@@ -132,6 +135,30 @@ pub fn callback_recovery_is_stable_and_restarts_consumed_flows_test() -> Nil {
     |> vestibule_mist.callback_recovery
   assert error.recovery_action(security_recovery) == error.RestartAuthorization
   assert error.recovery_code(security_recovery) == "callback_session_invalid"
+}
+
+pub fn route_mount_rejects_noncanonical_prefixes_test() -> Nil {
+  let assert Ok(store) = state_store.create_named("test_mist_route_prefixes")
+  let prefixes = ["auth", "/", "/auth/", "/auth//nested", "/auth/../nested"]
+  prefixes
+  |> list.each(fn(prefix) {
+    assert vestibule_mist.new_route_mount(
+        prefix,
+        registry: registry.new(),
+        state_store: store,
+        authorize_options: config.authorize_options(),
+        middleware_options: test_options(),
+        on_success: fn(_) {
+          response.new(200)
+          |> response.set_body(mist.Bytes(bytes_tree.new()))
+        },
+        on_error: fn(_, _) {
+          response.new(418)
+          |> response.set_body(mist.Bytes(bytes_tree.new()))
+        },
+      )
+      |> result.is_error
+  })
 }
 
 pub fn with_cookie_name_applies_host_prefix_test() -> Nil {

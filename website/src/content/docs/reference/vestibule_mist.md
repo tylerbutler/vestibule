@@ -229,6 +229,35 @@ pub type RecoveryPathError {
 
 The value was not a safe same-origin path.
 
+### `RouteMount`
+
+Configuration for the optional request and callback route helper.
+
+```gleam
+pub type RouteMount(a)
+```
+
+### `RouteMountError`
+
+Why an auth route prefix was rejected.
+
+```gleam
+pub type RouteMountError {
+  AuthPathPrefixMustBeAbsolute
+  AuthPathPrefixMustBeCanonical
+}
+```
+
+#### Constructors
+
+##### `AuthPathPrefixMustBeAbsolute`
+
+The prefix must be an absolute path such as `/auth`.
+
+##### `AuthPathPrefixMustBeCanonical`
+
+The prefix must contain only canonical, non-empty path segments.
+
 ### `SessionCookieError`
 
 Why the signed session cookie could not be used.
@@ -436,6 +465,25 @@ Defaults: host-bound cookie name `__Host-vestibule_session`, session TTL
 pub fn new_options(BitArray) -> Result(Options, OptionsError)
 ```
 
+### `new_route_mount`
+
+Configure request and callback routes below one auth path prefix.
+
+The mount handles `GET <prefix>/<provider>` and `GET` or `POST`
+`<prefix>/<provider>/callback`. Other paths and methods fall through.
+
+```gleam
+pub fn new_route_mount(
+  auth_path_prefix: String,
+  registry: registry.Registry(a),
+  state_store: state_store.StateStore,
+  authorize_options: config.AuthorizeOptions,
+  middleware_options: Options,
+  on_success: fn(auth.Auth) -> response.Response(mist.ResponseData),
+  on_error: fn(CallbackError(a), error.Recovery) -> response.Response(mist.ResponseData)
+) -> Result(RouteMount(a), RouteMountError)
+```
+
 ### `parse_callback_query`
 
 Parse a callback query without silently replacing malformed input.
@@ -532,6 +580,33 @@ pub fn request_phase_with_shared_bucket(
   authorize_options: config.AuthorizeOptions,
   options: Options
 ) -> response.Response(mist.ResponseData)
+```
+
+### `route`
+
+Handle a mounted auth route using Mist's direct socket peer.
+
+`None` means that the host router must continue routing the request.
+
+```gleam
+pub fn route(
+  request.Request(http.Connection),
+  mount: RouteMount(a)
+) -> option.Option(response.Response(mist.ResponseData))
+```
+
+### `route_for_client`
+
+Handle a mounted auth route using a trusted client admission key.
+
+Use this behind a trusted edge that supplies and rate-limits the identity.
+
+```gleam
+pub fn route_for_client(
+  request.Request(http.Connection),
+  mount: RouteMount(a),
+  client_key: String
+) -> option.Option(response.Response(mist.ResponseData))
 ```
 
 ### `same_site`

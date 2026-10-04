@@ -12,7 +12,7 @@ import vestibule/registry
 import vestibule/state_store
 import vestibule/strategy.{type Strategy}
 import vestibule/user_info
-import vestibule_example/router.{Context}
+import vestibule_example/router
 import wisp
 import wisp/simulate
 
@@ -179,7 +179,8 @@ fn context_for(
   let assert Ok(provider_registry) =
     registry.new()
     |> registry.register(strategy: strategy, config: test_config())
-  Context(registry: provider_registry, state_store: store)
+  let assert Ok(context) = router.new_context(provider_registry, store)
+  context
 }
 
 fn success_strategy() -> Strategy(Nil) {

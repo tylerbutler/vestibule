@@ -4,6 +4,7 @@ import gleam/http
 import gleam/http/request
 import gleam/list
 import gleam/option
+import gleam/result
 import gleam/string
 import gleeunit
 import vestibule/config
@@ -130,6 +131,77 @@ pub fn callback_recovery_is_stable_and_restarts_consumed_flows_test() -> Nil {
     |> vestibule_wisp.callback_recovery
   assert error.recovery_action(security_recovery) == error.RestartAuthorization
   assert error.recovery_code(security_recovery) == "callback_session_invalid"
+}
+
+pub fn route_mount_rejects_noncanonical_prefixes_test() -> Nil {
+  let assert Ok(store) = state_store.create_named("test_route_prefixes")
+  let prefixes = ["auth", "/", "/auth/", "/auth//nested", "/auth/../nested"]
+  prefixes
+  |> list.each(fn(prefix) {
+    assert new_test_route_mount(prefix, registry.new(), store)
+      |> result.is_error
+  })
+}
+
+pub fn route_mount_falls_through_boundaries_traversal_and_wrong_methods_test() -> Nil {
+  let assert Ok(store) = state_store.create_named("test_route_fallthrough")
+  let assert Ok(mount) = new_test_route_mount("/auth", registry.new(), store)
+  let requests = [
+    simulate.request(http.Get, "/"),
+    simulate.request(http.Get, "/authenticate/test"),
+    simulate.request(http.Get, "/auth/test/extra"),
+    simulate.request(http.Get, "/auth/../test"),
+    simulate.request(http.Get, "/auth/%2e%2e/callback"),
+    simulate.request(http.Put, "/auth/test"),
+    simulate.request(http.Delete, "/auth/test/callback"),
+  ]
+  requests
+  |> list.each(fn(http_request) {
+    assert vestibule_wisp.route_for_client(http_request, mount, "client")
+      == option.None
+  })
+}
+
+pub fn route_mount_handles_request_and_unknown_provider_test() -> Nil {
+  let assert Ok(store) = state_store.create_named("test_route_request")
+  let assert Ok(mount) = new_test_route_mount("/auth", registry.new(), store)
+  let response =
+    simulate.request(http.Get, "/auth/unknown")
+    |> vestibule_wisp.route_for_client(mount, "client")
+  let assert option.Some(response) = response
+  assert response.status == 404
+}
+
+pub fn route_mount_handles_get_and_post_callbacks_with_custom_errors_test() -> Nil {
+  let assert Ok(store) = state_store.create_named("test_route_callbacks")
+  let assert Ok(mount) = new_test_route_mount("/auth", registry.new(), store)
+  [http.Get, http.Post]
+  |> list.each(fn(method) {
+    let response =
+      simulate.request(method, "/auth/unknown/callback")
+      |> vestibule_wisp.route_for_client(mount, "client")
+    let assert option.Some(response) = response
+    assert response.status == 418
+  })
+}
+
+fn new_test_route_mount(
+  prefix: String,
+  provider_registry: registry.Registry(e),
+  store: state_store.StateStore,
+) -> Result(vestibule_wisp.RouteMount(e), vestibule_wisp.RouteMountError) {
+  vestibule_wisp.new_route_mount(
+    prefix,
+    registry: provider_registry,
+    state_store: store,
+    authorize_options: config.authorize_options(),
+    middleware_options: vestibule_wisp.default_options(),
+    on_success: fn(_) { wisp.html_response("success", 200) },
+    on_error: fn(_, recovery) {
+      assert error.recovery_code(recovery) == "callback_unknown_provider"
+      wisp.html_response("custom error", 418)
+    },
+  )
 }
 
 pub fn cookie_name_is_unprefixed_when_insecure_test() -> Nil {

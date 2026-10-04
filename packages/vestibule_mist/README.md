@@ -58,7 +58,38 @@ let assert Ok(store) = state_store.create()
 let assert Ok(options) = vestibule_mist.new_options(secret_key_base)
 ```
 
-Then dispatch from your mist handler:
+Configure the optional route mount once. Its error callback receives both the
+structured callback error and safe recovery metadata:
+
+```gleam
+let assert Ok(auth_routes) =
+  vestibule_mist.new_route_mount(
+    "/auth",
+    registry,
+    store,
+    config.authorize_options(),
+    options,
+    on_success,
+    fn(callback_error, recovery) {
+      custom_error_response(callback_error, recovery)
+    },
+  )
+```
+
+Compose it with the host router:
+
+```gleam
+case vestibule_mist.route(request, auth_routes) {
+  option.Some(response) -> response
+  option.None -> host_router(request)
+}
+```
+
+The mount handles `GET /auth/<provider>` plus `GET` and form-encoded `POST`
+callbacks at `/auth/<provider>/callback`. Other paths and methods return
+`None`, including prefix lookalikes and traversal segments.
+
+The lower-level phase functions remain available for custom routing:
 
 ```gleam
 fn handle_request(http_request: Request(Connection)) -> Response(ResponseData) {
