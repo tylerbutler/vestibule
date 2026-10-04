@@ -14,6 +14,7 @@ jobs:
   # short enough for header-max-length.
   title:
     name: PR Title
+    permissions: {}
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft != true && github.head_ref != 'release/pending'
     steps:
@@ -38,6 +39,8 @@ jobs:
   # adding any, so it is skipped here too.
   changelog:
     name: Changelog
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft != true && github.head_ref != 'release/pending'
     steps:

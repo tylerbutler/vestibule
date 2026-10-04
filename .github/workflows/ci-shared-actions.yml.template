@@ -16,6 +16,8 @@ permissions:
 
 jobs:
   test:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     name: Test
     steps:
@@ -39,6 +41,8 @@ jobs:
         run: just test
 
   docs:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     name: Docs
     steps:
