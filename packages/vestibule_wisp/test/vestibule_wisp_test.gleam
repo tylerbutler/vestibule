@@ -4,6 +4,7 @@ import gleam/http
 import gleam/http/request
 import gleam/list
 import gleam/option
+import gleam/result
 import gleam/string
 import gleeunit
 import vestibule/config
@@ -89,6 +90,118 @@ pub fn default_options_use_current_cookie_contract_test() -> Nil {
   assert vestibule_wisp.cookie_name(options) == "__Host-vestibule_session"
   assert session_ttl.to_seconds(vestibule_wisp.session_ttl(options)) == 600
   assert vestibule_wisp.cookie_security(options) == vestibule_wisp.SecureOnly
+  assert vestibule_wisp.recovery_path(options) == option.None
+}
+
+pub fn recovery_path_accepts_only_same_origin_paths_test() -> Nil {
+  let assert Ok(options) =
+    vestibule_wisp.default_options()
+    |> vestibule_wisp.with_recovery_path("/auth/test?next=%2Fdemo")
+  assert vestibule_wisp.recovery_path(options)
+    == option.Some("/auth/test?next=%2Fdemo")
+
+  let unsafe_paths = [
+    "https://evil.example/",
+    "//evil.example/",
+    "/\\evil.example/",
+    "/auth\"\n<script>",
+  ]
+  unsafe_paths
+  |> list.each(fn(path) {
+    assert vestibule_wisp.default_options()
+      |> vestibule_wisp.with_recovery_path(path)
+      == Error(vestibule_wisp.RecoveryPathMustBeLocal)
+  })
+}
+
+pub fn callback_recovery_is_stable_and_restarts_consumed_flows_test() -> Nil {
+  let recovery =
+    vestibule_wisp.AuthFailed(error.network("provider secret"))
+    |> vestibule_wisp.callback_recovery
+  assert error.recovery_action(recovery) == error.RestartAuthorization
+  assert error.recovery_http_status(recovery) == 503
+  assert error.recovery_code(recovery) == "provider_unavailable"
+  assert error.recovery_summary(recovery)
+    == "The provider could not complete sign-in. Start sign-in again."
+
+  let security_recovery =
+    vestibule_wisp.MissingOrInvalidSessionCookie(
+      vestibule_wisp.CookieSignatureInvalid,
+    )
+    |> vestibule_wisp.callback_recovery
+  assert error.recovery_action(security_recovery) == error.RestartAuthorization
+  assert error.recovery_code(security_recovery) == "callback_session_invalid"
+}
+
+pub fn route_mount_rejects_noncanonical_prefixes_test() -> Nil {
+  let assert Ok(store) = state_store.create_named("test_route_prefixes")
+  let prefixes = ["auth", "/", "/auth/", "/auth//nested", "/auth/../nested"]
+  prefixes
+  |> list.each(fn(prefix) {
+    assert new_test_route_mount(prefix, registry.new(), store)
+      |> result.is_error
+  })
+}
+
+pub fn route_mount_falls_through_boundaries_traversal_and_wrong_methods_test() -> Nil {
+  let assert Ok(store) = state_store.create_named("test_route_fallthrough")
+  let assert Ok(mount) = new_test_route_mount("/auth", registry.new(), store)
+  let requests = [
+    simulate.request(http.Get, "/"),
+    simulate.request(http.Get, "/authenticate/test"),
+    simulate.request(http.Get, "/auth/test/extra"),
+    simulate.request(http.Get, "/auth/../test"),
+    simulate.request(http.Get, "/auth/%2e%2e/callback"),
+    simulate.request(http.Put, "/auth/test"),
+    simulate.request(http.Delete, "/auth/test/callback"),
+  ]
+  requests
+  |> list.each(fn(http_request) {
+    assert vestibule_wisp.route_for_client(http_request, mount, "client")
+      == option.None
+  })
+}
+
+pub fn route_mount_handles_request_and_unknown_provider_test() -> Nil {
+  let assert Ok(store) = state_store.create_named("test_route_request")
+  let assert Ok(mount) = new_test_route_mount("/auth", registry.new(), store)
+  let response =
+    simulate.request(http.Get, "/auth/unknown")
+    |> vestibule_wisp.route_for_client(mount, "client")
+  let assert option.Some(response) = response
+  assert response.status == 404
+}
+
+pub fn route_mount_handles_get_and_post_callbacks_with_custom_errors_test() -> Nil {
+  let assert Ok(store) = state_store.create_named("test_route_callbacks")
+  let assert Ok(mount) = new_test_route_mount("/auth", registry.new(), store)
+  [http.Get, http.Post]
+  |> list.each(fn(method) {
+    let response =
+      simulate.request(method, "/auth/unknown/callback")
+      |> vestibule_wisp.route_for_client(mount, "client")
+    let assert option.Some(response) = response
+    assert response.status == 418
+  })
+}
+
+fn new_test_route_mount(
+  prefix: String,
+  provider_registry: registry.Registry(e),
+  store: state_store.StateStore,
+) -> Result(vestibule_wisp.RouteMount(e), vestibule_wisp.RouteMountError) {
+  vestibule_wisp.new_route_mount(
+    prefix,
+    registry: provider_registry,
+    state_store: store,
+    authorize_options: config.authorize_options(),
+    middleware_options: vestibule_wisp.default_options(),
+    on_success: fn(_) { wisp.html_response("success", 200) },
+    on_error: fn(_, recovery) {
+      assert error.recovery_code(recovery) == "callback_unknown_provider"
+      wisp.html_response("custom error", 418)
+    },
+  )
 }
 
 pub fn cookie_name_is_unprefixed_when_insecure_test() -> Nil {
@@ -778,12 +891,55 @@ pub fn callback_phase_default_error_response_does_not_render_provider_details_te
     wisp.Text(body) -> body
     wisp.Bytes(_) | wisp.File(_, _, _) -> panic as "expected text response body"
   }
+
   assert !string.contains(body, "secret-token")
   assert !string.contains(body, "provider-controlled phishing text")
-  assert string.contains(body, "Authentication failed")
+  assert string.contains(body, "Authentication Failed")
   let assert Ok(expired_cookie) = list.key_find(response.headers, "set-cookie")
   assert string.contains(expired_cookie, "__Host-vestibule_session=")
   assert string.contains(expired_cookie, "Max-Age=0")
+}
+
+pub fn callback_phase_default_error_response_uses_safe_recovery_path_test() -> Nil {
+  let assert Ok(store) = state_store.create_named("test_callback_recovery_path")
+  let assert Ok(session_id) =
+    state_store.store(
+      store,
+      provider: "test",
+      state: "state",
+      code_verifier: "verifier",
+      nonce: option.None,
+    )
+  let http_request =
+    simulate.request(http.Get, "/auth/test/callback?state=state&code=code")
+    |> simulate.cookie("__Host-vestibule_session", session_id, wisp.Signed)
+  let assert Ok(registry) =
+    registry.new()
+    |> registry.register(
+      strategy: leaky_error_strategy(),
+      config: test_config(),
+    )
+
+  let assert Ok(options) =
+    vestibule_wisp.default_options()
+    |> vestibule_wisp.with_recovery_path("/auth/test?from=callback&safe=1")
+  let response =
+    vestibule_wisp.callback_phase_with_options(
+      http_request,
+      registry: registry,
+      provider: "test",
+      state_store: store,
+      on_success: fn(_auth) { wisp.html_response("success", 200) },
+      options: options,
+    )
+
+  let body = case response.body {
+    wisp.Text(body) -> body
+    wisp.Bytes(_) | wisp.File(_, _, _) -> panic as "expected text response body"
+  }
+  assert string.contains(body, "href=\"/auth/test?from=callback&amp;safe=1\"")
+  assert string.contains(body, "Start over")
+  assert !string.contains(body, "provider-controlled phishing text")
 }
 
 pub fn callback_phase_auth_result_preserves_provider_error_details_test() -> Nil {

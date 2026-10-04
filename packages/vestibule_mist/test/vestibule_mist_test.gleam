@@ -1,10 +1,13 @@
+import gleam/bytes_tree
 import gleam/dict
 import gleam/http/request
 import gleam/http/response
 import gleam/list
 import gleam/option
+import gleam/result
 import gleam/string
 import gleeunit
+import mist
 import vestibule/config
 import vestibule/error
 import vestibule/registry
@@ -91,6 +94,71 @@ pub fn new_options_uses_default_cookie_contract_test() -> Nil {
   |> fn(actual) {
     assert actual == vestibule_mist.SecureOnly
   }
+  assert vestibule_mist.recovery_path(options) == option.None
+}
+
+pub fn recovery_path_accepts_only_same_origin_paths_test() -> Nil {
+  let assert Ok(options) =
+    test_options()
+    |> vestibule_mist.with_recovery_path("/auth/test?next=%2Fdemo")
+  assert vestibule_mist.recovery_path(options)
+    == option.Some("/auth/test?next=%2Fdemo")
+
+  let unsafe_paths = [
+    "https://evil.example/",
+    "//evil.example/",
+    "/\\evil.example/",
+    "/auth\"\n<script>",
+  ]
+  unsafe_paths
+  |> list.each(fn(path) {
+    assert test_options()
+      |> vestibule_mist.with_recovery_path(path)
+      == Error(vestibule_mist.RecoveryPathMustBeLocal)
+  })
+}
+
+pub fn callback_recovery_is_stable_and_restarts_consumed_flows_test() -> Nil {
+  let recovery =
+    vestibule_mist.AuthFailed(error.network("provider secret"))
+    |> vestibule_mist.callback_recovery
+  assert error.recovery_action(recovery) == error.RestartAuthorization
+  assert error.recovery_http_status(recovery) == 503
+  assert error.recovery_code(recovery) == "provider_unavailable"
+  assert error.recovery_summary(recovery)
+    == "The provider could not complete sign-in. Start sign-in again."
+
+  let security_recovery =
+    vestibule_mist.MissingOrInvalidSessionCookie(
+      vestibule_mist.CookieSignatureInvalid,
+    )
+    |> vestibule_mist.callback_recovery
+  assert error.recovery_action(security_recovery) == error.RestartAuthorization
+  assert error.recovery_code(security_recovery) == "callback_session_invalid"
+}
+
+pub fn route_mount_rejects_noncanonical_prefixes_test() -> Nil {
+  let assert Ok(store) = state_store.create_named("test_mist_route_prefixes")
+  let prefixes = ["auth", "/", "/auth/", "/auth//nested", "/auth/../nested"]
+  prefixes
+  |> list.each(fn(prefix) {
+    assert vestibule_mist.new_route_mount(
+        prefix,
+        registry: registry.new(),
+        state_store: store,
+        authorize_options: config.authorize_options(),
+        middleware_options: test_options(),
+        on_success: fn(_) {
+          response.new(200)
+          |> response.set_body(mist.Bytes(bytes_tree.new()))
+        },
+        on_error: fn(_, _) {
+          response.new(418)
+          |> response.set_body(mist.Bytes(bytes_tree.new()))
+        },
+      )
+      |> result.is_error
+  })
 }
 
 pub fn with_cookie_name_applies_host_prefix_test() -> Nil {

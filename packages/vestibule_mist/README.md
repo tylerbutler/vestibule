@@ -58,7 +58,38 @@ let assert Ok(store) = state_store.create()
 let assert Ok(options) = vestibule_mist.new_options(secret_key_base)
 ```
 
-Then dispatch from your mist handler:
+Configure the optional route mount once. Its error callback receives both the
+structured callback error and safe recovery metadata:
+
+```gleam
+let assert Ok(auth_routes) =
+  vestibule_mist.new_route_mount(
+    "/auth",
+    registry,
+    store,
+    config.authorize_options(),
+    options,
+    on_success,
+    fn(callback_error, recovery) {
+      custom_error_response(callback_error, recovery)
+    },
+  )
+```
+
+Compose it with the host router:
+
+```gleam
+case vestibule_mist.route(request, auth_routes) {
+  option.Some(response) -> response
+  option.None -> host_router(request)
+}
+```
+
+The mount handles `GET /auth/<provider>` plus `GET` and form-encoded `POST`
+callbacks at `/auth/<provider>/callback`. Other paths and methods return
+`None`, including prefix lookalikes and traversal segments.
+
+The lower-level phase functions remain available for custom routing:
 
 ```gleam
 fn handle_request(http_request: Request(Connection)) -> Response(ResponseData) {
@@ -97,10 +128,11 @@ customize it with the `with_*` builders:
 ```gleam
 let assert Ok(options) = vestibule_mist.new_options(secret_key_base)
 let assert Ok(ttl) = session_ttl.from_seconds(300)
-let options =
+let assert Ok(options) =
   options
   |> vestibule_mist.with_cookie_name("my_app_oauth_session")
   |> vestibule_mist.with_session_ttl(ttl)
+  |> vestibule_mist.with_recovery_path("/auth/google")
 ```
 
 Defaults match `vestibule_wisp`: cookie name `__Host-vestibule_session`, TTL
@@ -175,6 +207,16 @@ case vestibule_mist.callback_phase_auth_result(
 provider-controlled error descriptions are not reflected to users. Use
 `callback_phase_auth_result` when the application needs structured error
 details for logging or custom rendering.
+Pass a same-origin path through `with_recovery_path` to add a safe “Try again”
+or “Start over” link to the default response. Absolute URLs, network-path
+references, backslashes, control characters, and HTML delimiters return
+`Error(RecoveryPathMustBeLocal)`.
+
+For custom rendering, pass the structured error to `callback_recovery`. It
+returns the same `error.Recovery` metadata used by the default response:
+recommended HTTP status, stable public code, safe user summary, and
+`RetryOperation`, `RestartAuthorization`, or `ContactApplication`. This keeps
+the classification available when the application replaces the HTML.
 
 Malformed query encoding is rejected before a POST body is parsed, so a valid
 body cannot hide ambiguous query input. Malformed provider responses and

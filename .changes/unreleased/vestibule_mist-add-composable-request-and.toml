@@ -1,0 +1,3 @@
+package = "vestibule_mist"
+kind = "Added"
+body = "Add composable request and callback route mounts with structured error recovery."
