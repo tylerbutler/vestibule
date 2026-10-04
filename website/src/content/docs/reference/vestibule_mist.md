@@ -178,8 +178,9 @@ Middleware configuration options.
 
 Construct with `new_options` — the HMAC `secret_key_base` is mandatory and
 has no safe default — then customize with `with_cookie_name`,
-`with_session_ttl`, `with_cookie_security`, and `with_same_site`. The type is opaque
-so the effective cookie name always matches the cookie security: host-bound
+`with_session_ttl`, `with_cookie_security`, `with_same_site`, and
+`with_recovery_path`. The type is opaque so the effective cookie name always
+matches the cookie security: host-bound
 (`__Host-` prefixed) under `SecureOnly`, unprefixed under `AllowInsecure`
 (browsers reject `__Host-` cookies that are not `Secure`). A host-bound
 name prevents a sibling subdomain from overwriting the session cookie with
@@ -211,6 +212,22 @@ pub type OptionsError {
 )`
 
 `secret_key_base` is shorter than `minimum_secret_key_base_bytes`.
+
+### `RecoveryPathError`
+
+Why a callback recovery path was rejected.
+
+```gleam
+pub type RecoveryPathError {
+  RecoveryPathMustBeLocal
+}
+```
+
+#### Constructors
+
+##### `RecoveryPathMustBeLocal`
+
+The value was not a safe same-origin path.
 
 ### `SessionCookieError`
 
@@ -353,6 +370,14 @@ pub fn callback_phase_result(
 ) -> Result(auth.Auth, response.Response(mist.ResponseData))
 ```
 
+### `callback_recovery`
+
+Return stable, non-sensitive recovery metadata for a callback error.
+
+```gleam
+pub fn callback_recovery(CallbackError(a)) -> error.Recovery
+```
+
 ### `cookie_name`
 
 The effective session cookie name: host-bound (`__Host-` prefixed) under
@@ -404,8 +429,8 @@ be at least `minimum_secret_key_base_bytes` (32) bytes of unpredictable data.
 
 Defaults: host-bound cookie name `__Host-vestibule_session`, session TTL
 600 seconds, `SecureOnly` cookies, `SameSite=Lax`. Customize with
-`with_cookie_name`, `with_session_ttl`, `with_cookie_security`, and
-`with_same_site`.
+`with_cookie_name`, `with_session_ttl`, `with_cookie_security`,
+`with_same_site`, and `with_recovery_path`.
 
 ```gleam
 pub fn new_options(BitArray) -> Result(Options, OptionsError)
@@ -417,6 +442,14 @@ Parse a callback query without silently replacing malformed input.
 
 ```gleam
 pub fn parse_callback_query(option.Option(String)) -> Result(List(#(String, String)), CallbackError(a))
+```
+
+### `recovery_path`
+
+Return the configured same-origin recovery path.
+
+```gleam
+pub fn recovery_path(Options) -> option.Option(String)
 ```
 
 ### `request_phase`
@@ -541,6 +574,20 @@ pub fn with_cookie_security(
   Options,
   CookieSecurity
 ) -> Options
+```
+
+### `with_recovery_path`
+
+Set a same-origin path for the default callback error page.
+
+Absolute URLs, network-path references, backslashes, control characters,
+and HTML delimiters return `Error(RecoveryPathMustBeLocal)`.
+
+```gleam
+pub fn with_recovery_path(
+  Options,
+  String
+) -> Result(Options, RecoveryPathError)
 ```
 
 ### `with_same_site`

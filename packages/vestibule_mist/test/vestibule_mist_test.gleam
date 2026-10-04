@@ -91,6 +91,47 @@ pub fn new_options_uses_default_cookie_contract_test() -> Nil {
   |> fn(actual) {
     assert actual == vestibule_mist.SecureOnly
   }
+  assert vestibule_mist.recovery_path(options) == option.None
+}
+
+pub fn recovery_path_accepts_only_same_origin_paths_test() -> Nil {
+  let assert Ok(options) =
+    test_options()
+    |> vestibule_mist.with_recovery_path("/auth/test?next=%2Fdemo")
+  assert vestibule_mist.recovery_path(options)
+    == option.Some("/auth/test?next=%2Fdemo")
+
+  let unsafe_paths = [
+    "https://evil.example/",
+    "//evil.example/",
+    "/\\evil.example/",
+    "/auth\"\n<script>",
+  ]
+  unsafe_paths
+  |> list.each(fn(path) {
+    assert test_options()
+      |> vestibule_mist.with_recovery_path(path)
+      == Error(vestibule_mist.RecoveryPathMustBeLocal)
+  })
+}
+
+pub fn callback_recovery_is_stable_and_restarts_consumed_flows_test() -> Nil {
+  let recovery =
+    vestibule_mist.AuthFailed(error.network("provider secret"))
+    |> vestibule_mist.callback_recovery
+  assert error.recovery_action(recovery) == error.RestartAuthorization
+  assert error.recovery_http_status(recovery) == 503
+  assert error.recovery_code(recovery) == "provider_unavailable"
+  assert error.recovery_summary(recovery)
+    == "The provider could not complete sign-in. Start sign-in again."
+
+  let security_recovery =
+    vestibule_mist.MissingOrInvalidSessionCookie(
+      vestibule_mist.CookieSignatureInvalid,
+    )
+    |> vestibule_mist.callback_recovery
+  assert error.recovery_action(security_recovery) == error.RestartAuthorization
+  assert error.recovery_code(security_recovery) == "callback_session_invalid"
 }
 
 pub fn with_cookie_name_applies_host_prefix_test() -> Nil {

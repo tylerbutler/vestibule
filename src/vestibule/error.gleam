@@ -15,6 +15,8 @@
 ////   the few additional structured fields some errors carry.
 //// - [`custom_payload`](#custom_payload) returns the provider-defined payload
 ////   for custom errors.
+//// - [`recovery`](#recovery) returns stable, non-sensitive recovery metadata
+////   suitable for HTTP handlers and user-facing error pages.
 ////
 //// Construct errors with the constructor functions ([`config`](#config),
 //// [`network`](#network), [`provider`](#provider), and friends). The type
@@ -110,6 +112,29 @@ pub opaque type ProviderError {
   ProviderError(code: String)
 }
 
+/// What an application should let the user do after an authentication error.
+pub type RecoveryAction {
+  /// Retry the same operation.
+  RetryOperation
+  /// Start a new authorization flow.
+  RestartAuthorization
+  /// The application or its configuration must be changed.
+  ContactApplication
+}
+
+/// Stable, non-sensitive recovery metadata for an authentication error.
+///
+/// The summary is safe to show to users. It never contains provider-controlled
+/// descriptions, raw response bodies, credentials, or internal error reasons.
+pub opaque type Recovery {
+  Recovery(
+    action: RecoveryAction,
+    http_status: Int,
+    code: String,
+    summary: String,
+  )
+}
+
 // --- Constructors ---------------------------------------------------------
 
 /// State parameter mismatch — possible CSRF attack.
@@ -200,6 +225,186 @@ pub fn custom(payload: e) -> AuthError(e) {
 }
 
 // --- Accessors ------------------------------------------------------------
+
+/// Return stable recovery metadata for an authentication error.
+pub fn recovery(auth_error: AuthError(e)) -> Recovery {
+  case auth_error {
+    StateMismatch ->
+      new_recovery(
+        RestartAuthorization,
+        400,
+        "state_mismatch",
+        "Your sign-in session could not be verified. Start sign-in again.",
+      )
+    InvalidNonce ->
+      new_recovery(
+        RestartAuthorization,
+        400,
+        "invalid_nonce",
+        "Your sign-in response could not be verified. Start sign-in again.",
+      )
+    MissingCallbackParam(_) ->
+      new_recovery(
+        RestartAuthorization,
+        400,
+        "missing_callback_parameter",
+        "The sign-in response was incomplete. Start sign-in again.",
+      )
+    CodeExchange(_) ->
+      new_recovery(
+        RestartAuthorization,
+        502,
+        "code_exchange_failed",
+        "The provider could not complete sign-in. Start sign-in again.",
+      )
+    UserInfo(_) ->
+      new_recovery(
+        RestartAuthorization,
+        502,
+        "user_info_failed",
+        "The provider could not complete sign-in. Start sign-in again.",
+      )
+    ProviderReturnedError(ProviderError(code)) -> provider_recovery(code)
+    HttpError(_, _) ->
+      new_recovery(
+        RetryOperation,
+        502,
+        "provider_http_error",
+        "The provider did not complete the request. Try again.",
+      )
+    DecodeError(_, _) ->
+      new_recovery(
+        RetryOperation,
+        502,
+        "provider_response_invalid",
+        "The provider returned an invalid response. Try again.",
+      )
+    NetworkError(_) ->
+      new_recovery(
+        RetryOperation,
+        503,
+        "provider_unavailable",
+        "The provider is temporarily unavailable. Try again.",
+      )
+    ConfigError(_) ->
+      new_recovery(
+        ContactApplication,
+        500,
+        "configuration_error",
+        "Sign-in is not configured correctly. Contact the application owner.",
+      )
+    RefreshUnsupported ->
+      new_recovery(
+        ContactApplication,
+        501,
+        "refresh_unsupported",
+        "This sign-in provider does not support session refresh.",
+      )
+    CustomError(_) ->
+      new_recovery(
+        ContactApplication,
+        500,
+        "provider_custom_error",
+        "The provider could not complete sign-in. Contact the application owner.",
+      )
+  }
+}
+
+fn provider_recovery(code: String) -> Recovery {
+  case code {
+    "access_denied" ->
+      new_recovery(
+        RestartAuthorization,
+        403,
+        "provider_access_denied",
+        "Sign-in was cancelled or denied. Start sign-in again.",
+      )
+    "server_error" | "temporarily_unavailable" ->
+      new_recovery(
+        RetryOperation,
+        503,
+        "provider_unavailable",
+        "The provider is temporarily unavailable. Try again.",
+      )
+    "invalid_client" | "unauthorized_client" ->
+      new_recovery(
+        ContactApplication,
+        500,
+        "provider_configuration_error",
+        "Sign-in is not configured correctly. Contact the application owner.",
+      )
+    "invalid_token" ->
+      new_recovery(
+        RestartAuthorization,
+        401,
+        "provider_invalid_token",
+        "Your sign-in session is no longer valid. Start sign-in again.",
+      )
+    "invalid_grant" ->
+      new_recovery(
+        RestartAuthorization,
+        400,
+        "provider_invalid_grant",
+        "The sign-in request is no longer valid. Start sign-in again.",
+      )
+    "invalid_request" ->
+      new_recovery(
+        RestartAuthorization,
+        400,
+        "provider_request_rejected",
+        "The provider rejected the sign-in request. Start sign-in again.",
+      )
+    "invalid_scope" | "unsupported_grant_type" | "unsupported_response_type" ->
+      new_recovery(
+        ContactApplication,
+        400,
+        "provider_request_rejected",
+        "The provider rejected the sign-in request. Contact the application owner.",
+      )
+    _ ->
+      new_recovery(
+        RestartAuthorization,
+        400,
+        "provider_error",
+        "The provider did not complete sign-in. Start sign-in again.",
+      )
+  }
+}
+
+/// Build recovery metadata for adapter-defined errors.
+pub fn new_recovery(
+  action: RecoveryAction,
+  http_status: Int,
+  code: String,
+  summary: String,
+) -> Recovery {
+  Recovery(
+    action: action,
+    http_status: http_status,
+    code: code,
+    summary: summary,
+  )
+}
+
+/// Return the recommended recovery action.
+pub fn recovery_action(recovery: Recovery) -> RecoveryAction {
+  recovery.action
+}
+
+/// Return the recommended HTTP response status.
+pub fn recovery_http_status(recovery: Recovery) -> Int {
+  recovery.http_status
+}
+
+/// Return the stable public error code.
+pub fn recovery_code(recovery: Recovery) -> String {
+  recovery.code
+}
+
+/// Return the safe default user-facing summary.
+pub fn recovery_summary(recovery: Recovery) -> String {
+  recovery.summary
+}
 
 /// The machine-readable [`ErrorKind`](#ErrorKind) classifier for this error.
 pub fn kind(auth_error: AuthError(e)) -> ErrorKind {

@@ -190,6 +190,13 @@ as `UnknownProvider`, `MissingOrInvalidSessionCookie`, `SessionUnavailable`,
 `code` values are provider/authentication failures and are reported through
 `AuthFailed`.
 
+Every `AuthError` has stable recovery metadata from `error.recovery`: a
+recommended HTTP status, public error code, safe user summary, and one of
+`RetryOperation`, `RestartAuthorization`, or `ContactApplication`. The Wisp and
+Mist adapters expose the same metadata for `CallbackError` through
+`callback_recovery`. Provider descriptions, response bodies, and internal
+reasons are never used in the user summary.
+
 Or use the `vestibule_mist` middleware for the same ergonomics on a plain
 mist server. Mist has no built-in signed-cookie helper, so you supply the
 secret explicitly:
