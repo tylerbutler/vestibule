@@ -53,8 +53,8 @@ server or copy these defaults into a deployed service.
 ## Route-test coverage
 
 `example/test/router_security_test.gleam` sends attacker-controlled provider
-names, profile names, email addresses, avatar URLs, callback errors, host
-headers, forwarded headers, cookies, and callback parameters through the
+route segments, configured provider labels, profile fields, callback errors,
+host headers, forwarded headers, cookies, and callback parameters through the
 example routes. The tests confirm escaped output, fixed redirect origins,
 generic error pages, direct-peer admission, terminal cookie expiry, and no
 token display.
