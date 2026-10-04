@@ -1,0 +1,3 @@
+package = "vestibule_apple"
+kind = "Changed"
+body = "Validate Apple client authentication compatibility at startup."

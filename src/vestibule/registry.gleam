@@ -3,6 +3,7 @@
 //// authorize/callback requests to the right provider.
 
 import gleam/dict.{type Dict}
+import gleam/list
 import vestibule/config.{type ClientConfig}
 import vestibule/strategy.{type Strategy}
 
@@ -18,6 +19,11 @@ pub type RegistryError {
   /// A strategy with this provider name is already registered. Use
   /// `register_or_replace` if you intend to overwrite the existing entry.
   DuplicateProvider(name: String)
+}
+
+/// An invalid provider registration found during startup validation.
+pub type ValidationError {
+  ValidationError(provider: String, field: String, reason: String)
 }
 
 /// Create an empty registry.
@@ -85,4 +91,47 @@ pub fn get(
 /// List all registered provider names.
 pub fn providers(registry: Registry(e)) -> List(String) {
   dict.keys(registry.providers)
+}
+
+/// Validate every registered provider without making network requests.
+///
+/// All errors are returned together so startup diagnostics can identify every
+/// invalid provider, field, and reason in one pass.
+pub fn validate(registry: Registry(e)) -> Result(Nil, List(ValidationError)) {
+  let errors =
+    registry.providers
+    |> dict.to_list()
+    |> list.flat_map(fn(entry) {
+      let #(provider, #(provider_strategy, client_config)) = entry
+      case strategy.validate_config(provider_strategy, client_config) {
+        Ok(Nil) -> []
+        Error(validation_errors) ->
+          list.map(validation_errors, fn(validation_error) {
+            ValidationError(
+              provider: provider,
+              field: config.validation_error_field(validation_error),
+              reason: config.validation_error_reason(validation_error),
+            )
+          })
+      }
+    })
+  case errors {
+    [] -> Ok(Nil)
+    errors -> Error(errors)
+  }
+}
+
+/// Return the provider associated with a registry validation error.
+pub fn validation_error_provider(validation_error: ValidationError) -> String {
+  validation_error.provider
+}
+
+/// Return the field associated with a registry validation error.
+pub fn validation_error_field(validation_error: ValidationError) -> String {
+  validation_error.field
+}
+
+/// Return the actionable reason associated with a registry validation error.
+pub fn validation_error_reason(validation_error: ValidationError) -> String {
+  validation_error.reason
 }

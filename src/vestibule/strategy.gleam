@@ -11,6 +11,7 @@
 import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
 import gleam/http/request
+import gleam/list
 import gleam/option.{type Option}
 import gleam/string
 import gleam/uri
@@ -117,6 +118,8 @@ pub opaque type Strategy(e) {
     default_scopes: List(String),
     uses_nonce: Bool,
     callback_issuer: Option(String),
+    validate_config: fn(ClientConfig) ->
+      Result(Nil, List(config.ValidationError)),
     authorize_url: fn(ClientConfig, AuthorizeOptions, List(String), String) ->
       Result(String, AuthError(e)),
     exchange_code: fn(ClientConfig, String, Option(String)) ->
@@ -172,11 +175,29 @@ pub fn new(
     default_scopes: default_scopes,
     uses_nonce: False,
     callback_issuer: option.None,
+    validate_config: fn(_config) { Ok(Nil) },
     authorize_url: authorize_url,
     exchange_code: exchange_code,
     refresh_token: option.None,
     fetch_user: fetch_user,
   )
+}
+
+/// Attach offline provider-specific client-configuration validation.
+///
+/// The validator must not make network requests. It runs after Vestibule's
+/// provider-independent checks.
+pub fn with_config_validation(
+  strategy: Strategy(e),
+  validate_config: fn(ClientConfig) -> Result(Nil, List(config.ValidationError)),
+) -> Strategy(e) {
+  let previous_validation = strategy.validate_config
+  Strategy(..strategy, validate_config: fn(client_config) {
+    combine_validations(
+      previous_validation(client_config),
+      validate_config(client_config),
+    )
+  })
 }
 
 /// Attach an optional token-refresh capability. `refresh_token` swaps a
@@ -227,6 +248,37 @@ pub fn uses_nonce(strategy: Strategy(e)) -> Bool {
 /// `AuthorizeOptions` does not specify any.
 pub fn default_scopes(strategy: Strategy(e)) -> List(String) {
   strategy.default_scopes
+}
+
+/// Validate client configuration without making network requests.
+pub fn validate_config(
+  strategy: Strategy(e),
+  client_config: ClientConfig,
+) -> Result(Nil, List(config.ValidationError)) {
+  combine_validations(
+    config.validate(client_config),
+    strategy.validate_config(client_config),
+  )
+}
+
+fn combine_validations(
+  first: Result(Nil, List(config.ValidationError)),
+  second: Result(Nil, List(config.ValidationError)),
+) -> Result(Nil, List(config.ValidationError)) {
+  let errors = list.append(validation_errors(first), validation_errors(second))
+  case errors {
+    [] -> Ok(Nil)
+    errors -> Error(errors)
+  }
+}
+
+fn validation_errors(
+  validation: Result(Nil, List(config.ValidationError)),
+) -> List(config.ValidationError) {
+  case validation {
+    Ok(Nil) -> []
+    Error(errors) -> errors
+  }
 }
 
 /// Build the provider's authorization URL.

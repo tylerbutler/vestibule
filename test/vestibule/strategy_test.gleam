@@ -150,6 +150,23 @@ fn bare_strategy(provider: String) -> strategy.Strategy(e) {
   )
 }
 
+pub fn config_validation_builders_compose_test() -> Nil {
+  let configured_strategy =
+    bare_strategy("validated")
+    |> strategy.with_config_validation(fn(_client_config) {
+      Error([config.ValidationError("client_id", "first")])
+    })
+    |> strategy.with_config_validation(fn(_client_config) {
+      Error([config.ValidationError("auth", "second")])
+    })
+
+  assert strategy.validate_config(configured_strategy, test_config())
+    == Error([
+      config.ValidationError("client_id", "first"),
+      config.ValidationError("auth", "second"),
+    ])
+}
+
 @external(erlang, "vestibule_secret_test_ffi", "format_term")
 fn erlang_term(value: a) -> String
 
