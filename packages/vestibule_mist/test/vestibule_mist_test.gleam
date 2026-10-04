@@ -366,6 +366,65 @@ pub fn request_phase_rejects_client_above_admission_limit_test() -> Nil {
   assert rejected.status == 429
 }
 
+pub fn request_phase_rejects_sustained_client_load_test() -> Nil {
+  let http_request = request.new() |> request.set_path("/auth/test")
+  let assert Ok(store) =
+    state_store.create_with_limits(
+      name: "test_mist_sustained_client_load",
+      max_entries: 16,
+      max_entries_per_client: 1,
+    )
+  let assert Ok(registry) =
+    registry.new()
+    |> registry.register(strategy: test_strategy(), config: test_config())
+
+  let accepted =
+    vestibule_mist.request_phase_for_client(
+      http_request,
+      registry,
+      "test",
+      store,
+      config.authorize_options(),
+      test_options(),
+      client_key: "192.0.2.1",
+    )
+  assert accepted.status == 302
+  assert_mist_load_rejected(http_request, registry, store, 100)
+  let assert Ok(set_cookie) = find_header(accepted.headers, "set-cookie")
+  let assert Ok(#(cookie_pair, _attributes)) =
+    string.split_once(set_cookie, ";")
+  let assert Ok(#(_, cookie_value)) = string.split_once(cookie_pair, "=")
+  let assert Ok(session_id) =
+    signed_cookie.verify(token: cookie_value, secret_key_base: test_secret())
+  let assert Ok(_) = state_store.peek(store, session_id, provider: "test")
+  Nil
+}
+
+fn assert_mist_load_rejected(
+  http_request: request.Request(body),
+  registry: registry.Registry(e),
+  store: state_store.StateStore,
+  remaining: Int,
+) -> Nil {
+  case remaining {
+    0 -> Nil
+    _ -> {
+      let rejected =
+        vestibule_mist.request_phase_for_client(
+          http_request,
+          registry,
+          "test",
+          store,
+          config.authorize_options(),
+          test_options(),
+          client_key: "192.0.2.1",
+        )
+      assert rejected.status == 429
+      assert_mist_load_rejected(http_request, registry, store, remaining - 1)
+    }
+  }
+}
+
 // === callback_phase_auth_result_with_parameters ===
 
 pub fn callback_unknown_provider_test() -> Nil {
