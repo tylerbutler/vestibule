@@ -189,6 +189,15 @@ pub fn request_phase_rejects_sustained_client_load_test() -> Nil {
     )
   assert accepted.status == 303
   assert_wisp_load_rejected(http_request, registry, store, 100)
+  let assert Ok(set_cookie) = list.key_find(accepted.headers, "set-cookie")
+  let assert Ok(#(cookie_pair, _attributes)) =
+    string.split_once(set_cookie, ";")
+  let assert Ok(#(_, cookie_value)) = string.split_once(cookie_pair, "=")
+  let assert Ok(session_bits) =
+    wisp.verify_signed_message(http_request, cookie_value)
+  let assert Ok(session_id) = bit_array.to_string(session_bits)
+  let assert Ok(_) = state_store.peek(store, session_id, provider: "test")
+  Nil
 }
 
 fn assert_wisp_load_rejected(

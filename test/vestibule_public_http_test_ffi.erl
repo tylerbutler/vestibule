@@ -10,6 +10,7 @@
     response_timeout/0,
     unsupported_transfer_coding/0,
     unsupported_content_coding/0,
+    interim_response_overflow/0,
     ambiguous_framing/0,
     proxy_is_ignored/0,
     request_budgets_precede_dns/0,
@@ -182,6 +183,22 @@ unsupported_content_coding() ->
         1000
     ),
     Closed andalso response_error(Result, <<"content-encoding">>).
+
+interim_response_overflow() ->
+    Interim = binary:copy(
+        <<"HTTP/1.1 103 Early Hints\r\nLink: </style.css>; rel=preload\r\n\r\n">>,
+        1200
+    ),
+    {Result, Closed} = exchange(
+        fun(Socket) ->
+            _ = gen_tcp:send(Socket, Interim),
+            peer_disconnected(Socket)
+        end,
+        16,
+        1000
+    ),
+    Closed andalso
+        response_too_large_error(Result, <<"response headers">>).
 
 ambiguous_framing() ->
     {Result, Closed} = exchange(
@@ -752,10 +769,22 @@ peer_closed(Socket) ->
         _ -> false
     end.
 
+peer_disconnected(Socket) ->
+    case gen_tcp:recv(Socket, 0, 5000) of
+        {error, closed} -> true;
+        {error, econnreset} -> true;
+        _ -> false
+    end.
+
 oversized_error({error, {response_too_large, Reason}}, Detail) ->
     binary:match(Reason, <<"exceeds limit of 16 bytes">>) =/= nomatch
         andalso binary:match(Reason, Detail) =/= nomatch;
 oversized_error(_, _) ->
+    false.
+
+response_too_large_error({error, {response_too_large, Reason}}, Detail) ->
+    binary:match(Reason, Detail) =/= nomatch;
+response_too_large_error(_, _) ->
     false.
 
 response_error({error, {response_error, Reason}}, Detail) ->

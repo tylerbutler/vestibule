@@ -322,6 +322,14 @@ pub fn request_phase_rejects_sustained_client_load_test() -> Nil {
     )
   assert accepted.status == 302
   assert_mist_load_rejected(http_request, registry, store, 100)
+  let assert Ok(set_cookie) = find_header(accepted.headers, "set-cookie")
+  let assert Ok(#(cookie_pair, _attributes)) =
+    string.split_once(set_cookie, ";")
+  let assert Ok(#(_, cookie_value)) = string.split_once(cookie_pair, "=")
+  let assert Ok(session_id) =
+    signed_cookie.verify(token: cookie_value, secret_key_base: test_secret())
+  let assert Ok(_) = state_store.peek(store, session_id, provider: "test")
+  Nil
 }
 
 fn assert_mist_load_rejected(

@@ -5,6 +5,25 @@ has not had a production security audit. Applications must still apply
 rate limits before authorization, callback, discovery, token, JWKS, and
 UserInfo work starts.
 
+## Inbound authentication limits
+
+The adapter limits below apply before provider network work starts:
+
+| Resource | Limit |
+| --- | ---: |
+| Live authorization state per store | 4,096 |
+| Live authorization state per direct client | 8 |
+| Authorization state lifetime | 10 minutes |
+| Wisp callback body | 65,536 bytes |
+| Mist callback body | 65,536 bytes |
+| Callback body read chunk | 8,192 bytes |
+
+Wisp and Mist verify the session cookie before they read a POST callback body.
+Malformed callback parameters do not consume valid state. The adapters do not
+own the HTTP listener, so inbound URL, header, connection, request-rate,
+request-timeout, and callback-concurrency limits must be set in the server or
+reverse proxy.
+
 ## Destination policy
 
 `provider_support.send_public` accepts HTTPS requests only. It resolves the
@@ -53,10 +72,18 @@ decoded.
 ## Deployment limits
 
 These are client-side resource ceilings, not a full denial-of-service defense.
-Apply per-IP and per-session request rates at the public HTTP server or reverse
-proxy. Set stricter limits for authorization starts and callbacks than the
-provider's published token, discovery, JWKS, and UserInfo quotas. Use provider
-`Retry-After` responses and documented quotas when setting outbound rates.
+At minimum, configure hard per-IP request-rate and concurrent-connection limits
+for authorization starts and callbacks. A conservative starting point for a
+demo is a burst of 8 authorization starts with a refill of 1 per minute, plus a
+burst of 16 callbacks with a refill of 1 per second. Keep callback request
+bodies at or below 65,536 bytes, set a request-header limit, and set listener
+timeouts no longer than the application's authentication timeout. Tune these
+values for expected demo traffic; Vestibule does not make them production-safe.
+
+Also rate-limit outbound discovery, token, JWKS, and UserInfo work below each
+provider's published quota. Honor `Retry-After`. A provider-specific quota can
+be lower than Vestibule's node-wide concurrency ceiling, so the 64-request
+transport limit is not an outbound rate limit.
 
 Tests cover admission saturation and reuse, caller cancellation, deadlines,
 request and response limits, DNS answer rejection and connector pinning, proxy
@@ -67,8 +94,21 @@ wrong-DNS-name, and DNS-only certificates used with an IP host. These tests do
 not certify all operating systems, trust stores, OTP releases, or provider load
 limits.
 
-The Wisp and Mist adapter suites also send 100 rejected authorization starts
-through each public request-phase entry point after one client reaches its
-limit. Every excess request returns 429 without displacing the accepted flow.
-Run `just test-pkg vestibule_wisp` and `just test-pkg vestibule_mist` to repeat
-the adapter load checks.
+The Wisp and Mist adapter suites send 100 rejected authorization starts through
+each public request-phase entry point after one client reaches its limit. Every
+excess request returns 429, and the accepted flow remains in the state store.
+The core transport suite covers slow responses, concurrent oversized responses,
+chunked and close-delimited overflow, compressed responses, cumulative interim
+response headers, DNS rejection, request-worker admission, cancellation, and
+deadline cleanup. Public parser suites cover malformed OAuth JSON, discovery
+JSON, JWKS JSON, and JWTs without retaining callback state.
+
+Run these repeatable checks:
+
+```sh
+just test-pkg .
+just test-pkg vestibule_wisp
+just test-pkg vestibule_mist
+just test-pkg vestibule_oidc
+just test-pkg vestibule_apple
+```

@@ -34,6 +34,9 @@ fn unsupported_transfer_coding() -> Bool
 @external(erlang, "vestibule_public_http_test_ffi", "unsupported_content_coding")
 fn unsupported_content_coding() -> Bool
 
+@external(erlang, "vestibule_public_http_test_ffi", "interim_response_overflow")
+fn interim_response_overflow() -> Bool
+
 @external(erlang, "vestibule_public_http_test_ffi", "ambiguous_framing")
 fn ambiguous_framing() -> Bool
 
@@ -108,6 +111,10 @@ pub fn unsupported_transfer_coding_is_rejected_test() -> Nil {
 
 pub fn unsupported_content_coding_is_rejected_test() -> Nil {
   assert unsupported_content_coding()
+}
+
+pub fn many_interim_responses_are_bounded_test() -> Nil {
+  assert interim_response_overflow()
 }
 
 pub fn transfer_encoding_and_content_length_are_rejected_test() -> Nil {
