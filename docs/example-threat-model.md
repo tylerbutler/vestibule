@@ -49,3 +49,19 @@ restarts then invalidate in-flight OAuth cookies. Plain HTTP, localhost redirect
 URIs, and the proxy-unaware setup are for local demonstration only. A configured
 secret must contain at least 32 bytes of unpredictable data. Do not expose this
 server or copy these defaults into a deployed service.
+
+## Route-test coverage
+
+`example/test/router_security_test.gleam` sends attacker-controlled provider
+route segments, configured provider labels, profile fields, callback errors,
+host headers, forwarded headers, cookies, and callback parameters through the
+example routes. The tests confirm escaped output, fixed redirect origins,
+generic error pages, direct-peer admission, terminal cookie expiry, and no
+token display.
+
+The example intentionally creates no application login session. Therefore,
+session creation, rotation, logout, account linking, and non-callback CSRF are
+not executable paths to test. The requirements for applications that add those
+features are stated above. This keeps the example's security contract aligned
+with its actual demo-only behavior instead of adding a production session
+system to sample code.

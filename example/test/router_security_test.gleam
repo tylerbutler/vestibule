@@ -6,6 +6,7 @@ import gleam/int
 import gleam/list
 import gleam/option
 import gleam/string
+import gleam/uri
 import vestibule/config
 import vestibule/credential
 import vestibule/registry
@@ -38,7 +39,8 @@ pub fn landing_route_escapes_and_encodes_provider_test() -> Nil {
 pub fn authorization_route_uses_local_http_cookie_contract_test() -> Nil {
   let response =
     router.handle_request(
-      insecure_localhost(simulate.request(http.Get, "/auth/test")),
+      insecure_localhost(simulate.request(http.Get, "/auth/test"))
+        |> simulate.header("host", "attacker.example"),
       context_for(success_strategy(), "example_authorization_security"),
     )
   let assert Ok(set_cookie) = list.key_find(response.headers, "set-cookie")
@@ -46,6 +48,11 @@ pub fn authorization_route_uses_local_http_cookie_contract_test() -> Nil {
 
   assert response.status >= 300 && response.status < 400
   assert string.starts_with(location, "https://provider.example/authorize?")
+  assert string.contains(
+    location,
+    "redirect_uri=http%3A%2F%2Flocalhost%3A8000%2Fauth%2Ftest%2Fcallback",
+  )
+  assert !string.contains(location, "attacker.example")
   assert string.contains(set_cookie, "vestibule_session=")
   assert string.contains(set_cookie, "HttpOnly")
   assert string.contains(set_cookie, "SameSite=Lax")
@@ -79,18 +86,7 @@ pub fn authorization_route_ignores_forwarded_client_headers_test() -> Nil {
 
 pub fn callback_route_escapes_profile_and_hides_tokens_test() -> Nil {
   let context = context_for(success_strategy(), "example_callback_security")
-  let start_request =
-    insecure_localhost(simulate.request(http.Get, "/auth/test"))
-  let start_response = router.handle_request(start_request, context)
-  let assert Ok(set_cookie) =
-    list.key_find(start_response.headers, "set-cookie")
-  let assert Ok(#(cookie_pair, _)) = string.split_once(set_cookie, ";")
-  let assert Ok(#(_, signed_session)) = string.split_once(cookie_pair, "=")
-  let assert Ok(session_bits) =
-    wisp.verify_signed_message(start_request, signed_session)
-  let assert Ok(session_id) = bit_array.to_string(session_bits)
-  let assert Ok(#(state, _, _)) =
-    state_store.peek(context.state_store, session_id, provider: provider)
+  let #(cookie_pair, state) = start_flow(context)
 
   let wrong_state_response =
     router.handle_request(
@@ -117,8 +113,11 @@ pub fn callback_route_escapes_profile_and_hides_tokens_test() -> Nil {
   assert string.contains(expired_cookie, "vestibule_session=")
   assert string.contains(expired_cookie, "Max-Age=0")
   assert string.contains(body, "No application login session was created.")
+  assert string.contains(body, "<td style=\"padding: 8px;\">test</td>")
+  assert string.contains(body, "&lt;svg onload=alert(5)&gt;")
   assert string.contains(body, "&lt;img src=x onerror=alert(1)&gt;")
   assert string.contains(body, "&lt;script&gt;alert(2)&lt;/script&gt;")
+  assert string.contains(body, "&quot; onclick=&quot;alert(3)")
   assert string.contains(body, "https://images.example/avatar.png&quot;")
   assert !string.contains(body, "<script>")
   assert !string.contains(body, "access-token-secret")
@@ -127,6 +126,34 @@ pub fn callback_route_escapes_profile_and_hides_tokens_test() -> Nil {
   let replay_response = router.handle_request(callback, context)
   assert replay_response.status == 400
   assert string.contains(text_body(replay_response), "Start sign-in again.")
+}
+
+pub fn callback_route_hides_provider_error_text_test() -> Nil {
+  let context =
+    context_for(success_strategy(), "example_callback_error_security")
+  let #(cookie_pair, state) = start_flow(context)
+  let attacker_text = "<script>steal()</script>"
+  let callback =
+    simulate.request(
+      http.Get,
+      "/auth/test/callback?state="
+        <> state
+        <> "&error=access_denied&error_description="
+        <> uri.percent_encode(attacker_text)
+        <> "&error_uri="
+        <> uri.percent_encode("https://attacker.example/phish"),
+    )
+    |> insecure_localhost
+    |> simulate.header("cookie", cookie_pair)
+  let response = router.handle_request(callback, context)
+  let body = text_body(response)
+  let assert Ok(expired_cookie) = list.key_find(response.headers, "set-cookie")
+
+  assert response.status == 400
+  assert string.contains(body, "Authentication failed")
+  assert !string.contains(body, attacker_text)
+  assert !string.contains(body, "attacker.example")
+  assert string.contains(expired_cookie, "Max-Age=0")
 }
 
 pub fn callback_routes_reject_missing_flow_without_reflection_test() -> Nil {
@@ -144,12 +171,21 @@ pub fn callback_routes_reject_missing_flow_without_reflection_test() -> Nil {
       simulate.request(http.Post, "/auth/test/callback?state=x&code=y"),
       context,
     )
+  let authorization_response =
+    router.handle_request(
+      simulate.request(http.Get, "/auth/" <> attacker),
+      context,
+    )
 
   assert get_response.status == 404
   assert !string.contains(text_body(get_response), "script")
   assert post_response.status == 400
   assert string.contains(text_body(post_response), "Start sign-in again.")
   assert !string.contains(text_body(post_response), "state=x")
+  assert authorization_response.status == 404
+  assert !string.contains(text_body(authorization_response), "script")
+  assert list.key_find(authorization_response.headers, "set-cookie")
+    == Error(Nil)
 }
 
 pub fn unsupported_routes_do_not_create_oauth_state_test() -> Nil {
@@ -183,12 +219,33 @@ fn context_for(
   context
 }
 
+fn start_flow(context: router.Context(Nil)) -> #(String, String) {
+  let start_request =
+    insecure_localhost(simulate.request(http.Get, "/auth/test"))
+  let start_response = router.handle_request(start_request, context)
+  let assert Ok(set_cookie) =
+    list.key_find(start_response.headers, "set-cookie")
+  let assert Ok(#(cookie_pair, _)) = string.split_once(set_cookie, ";")
+  let assert Ok(#(_, signed_session)) = string.split_once(cookie_pair, "=")
+  let assert Ok(session_bits) =
+    wisp.verify_signed_message(start_request, signed_session)
+  let assert Ok(session_id) = bit_array.to_string(session_bits)
+  let assert Ok(#(state, _, _)) =
+    state_store.peek(context.state_store, session_id, provider: provider)
+  #(cookie_pair, state)
+}
+
 fn success_strategy() -> Strategy(Nil) {
   strategy.new(
     provider: provider,
     default_scopes: [],
-    authorize_url: fn(_config, _options, _scopes, state) {
-      Ok("https://provider.example/authorize?state=" <> state)
+    authorize_url: fn(client_config, _options, _scopes, state) {
+      Ok(
+        "https://provider.example/authorize?state="
+        <> state
+        <> "&redirect_uri="
+        <> uri.percent_encode(config.redirect_uri(client_config)),
+      )
     },
     exchange_code: fn(_config, _code, _verifier) {
       Ok(
