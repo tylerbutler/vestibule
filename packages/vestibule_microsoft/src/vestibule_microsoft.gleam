@@ -120,6 +120,13 @@ fn build_strategy(
       do_fetch_user(expected_tenant, client_configuration, exchange, send)
     },
   )
+  |> strategy.with_config_validation(fn(client_config) {
+    config.require_auth_kind(
+      client_config,
+      [config.ClientSecretAuth],
+      "Microsoft requires client-secret authentication",
+    )
+  })
   |> strategy.with_nonce()
   |> strategy.with_refresh(fn(client_configuration, refresh_token) {
     do_refresh_token(authority, client_configuration, refresh_token, send)

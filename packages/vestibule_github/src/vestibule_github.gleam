@@ -34,6 +34,13 @@ pub fn strategy() -> Strategy(e) {
     exchange_code: do_exchange_code,
     fetch_user: do_fetch_user,
   )
+  |> strategy.with_config_validation(fn(client_config) {
+    config.require_auth_kind(
+      client_config,
+      [config.ClientSecretAuth],
+      "GitHub requires client-secret authentication",
+    )
+  })
   |> strategy.with_refresh(do_refresh_token)
 }
 

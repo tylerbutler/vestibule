@@ -201,6 +201,13 @@ pub fn strategy(endpoints: DiscoveredEndpoints, me: String) -> Strategy(e) {
         do_fetch_user(endpoints, me, exchange)
       },
     )
+    |> strategy.with_config_validation(fn(client_config) {
+      config.require_auth_kind(
+        client_config,
+        [config.PublicClientAuth],
+        "IndieAuth uses public-client authentication",
+      )
+    })
     |> strategy.with_refresh(fn(client_config, refresh_token) {
       do_refresh_token(endpoints, client_config, refresh_token)
     })
