@@ -84,8 +84,9 @@ pub type CookieSameSite {
 ///
 /// Construct with `new_options` — the HMAC `secret_key_base` is mandatory and
 /// has no safe default — then customize with `with_cookie_name`,
-/// `with_session_ttl`, `with_cookie_security`, and `with_same_site`. The type is opaque
-/// so the effective cookie name always matches the cookie security: host-bound
+/// `with_session_ttl`, `with_cookie_security`, `with_same_site`, and
+/// `with_recovery_path`. The type is opaque so the effective cookie name always
+/// matches the cookie security: host-bound
 /// (`__Host-` prefixed) under `SecureOnly`, unprefixed under `AllowInsecure`
 /// (browsers reject `__Host-` cookies that are not `Secure`). A host-bound
 /// name prevents a sibling subdomain from overwriting the session cookie with
@@ -100,6 +101,7 @@ pub opaque type Options {
     session_ttl: SessionTtl,
     cookie_security: CookieSecurity,
     same_site: CookieSameSite,
+    recovery_path: option.Option(String),
   )
 }
 
@@ -152,6 +154,12 @@ pub type CallbackParametersError {
   DuplicateParameter(name: String)
 }
 
+/// Why a callback recovery path was rejected.
+pub type RecoveryPathError {
+  /// The value was not a safe same-origin path.
+  RecoveryPathMustBeLocal
+}
+
 /// Prefix that makes a cookie host-bound under the `__Host-` cookie name rule.
 const host_cookie_prefix: String = "__Host-"
 
@@ -163,8 +171,8 @@ const default_cookie_base_name: String = "vestibule_session"
 ///
 /// Defaults: host-bound cookie name `__Host-vestibule_session`, session TTL
 /// 600 seconds, `SecureOnly` cookies, `SameSite=Lax`. Customize with
-/// `with_cookie_name`, `with_session_ttl`, `with_cookie_security`, and
-/// `with_same_site`.
+/// `with_cookie_name`, `with_session_ttl`, `with_cookie_security`,
+/// `with_same_site`, and `with_recovery_path`.
 pub fn new_options(secret_key_base: BitArray) -> Result(Options, OptionsError) {
   let actual_bytes = bit_array.byte_size(secret_key_base)
   use <- bool.guard(
@@ -180,6 +188,7 @@ pub fn new_options(secret_key_base: BitArray) -> Result(Options, OptionsError) {
     session_ttl: session_ttl.default(),
     cookie_security: SecureOnly,
     same_site: Lax,
+    recovery_path: option.None,
   ))
 }
 
@@ -213,6 +222,26 @@ pub fn with_cookie_security(
 /// Set the session cookie's `SameSite` attribute. See `CookieSameSite`.
 pub fn with_same_site(options: Options, same_site: CookieSameSite) -> Options {
   Options(..options, same_site: same_site)
+}
+
+/// Set a same-origin path for the default callback error page.
+///
+/// Absolute URLs, network-path references, backslashes, control characters,
+/// and HTML delimiters return `Error(RecoveryPathMustBeLocal)`.
+pub fn with_recovery_path(
+  options: Options,
+  path: String,
+) -> Result(Options, RecoveryPathError) {
+  use <- bool.guard(
+    when: !safe_recovery_path(path),
+    return: Error(RecoveryPathMustBeLocal),
+  )
+  Ok(Options(..options, recovery_path: option.Some(path)))
+}
+
+/// Return the configured same-origin recovery path.
+pub fn recovery_path(options: Options) -> option.Option(String) {
+  options.recovery_path
 }
 
 /// The session cookie's `SameSite` setting for these options.
@@ -366,7 +395,7 @@ pub fn request_phase_for_client(
           ],
         ),
       )
-      generic_error_response()
+      request_error_response()
     }
     Error(transport_flow.StoreFailed(state_store.ClientLimitReached))
     | Error(transport_flow.StoreFailed(state_store.StoreFull)) -> {
@@ -399,7 +428,7 @@ pub fn request_phase_for_client(
           ],
         ),
       )
-      generic_error_response()
+      request_error_response()
     }
     Ok(#(url, session_id)) -> {
       logger.emit(
@@ -505,7 +534,7 @@ pub fn callback_phase(
     )
   let response = case outcome {
     Ok(auth) -> on_success(auth)
-    Error(callback_error) -> callback_error_response(callback_error)
+    Error(callback_error) -> callback_error_response(callback_error, options)
   }
   case
     callback_cookie_is_terminal(outcome, http_request, provider, store, options)
@@ -538,7 +567,7 @@ pub fn callback_phase_result(
   case outcome {
     Ok(auth) -> Ok(auth)
     Error(callback_error) -> {
-      let response = callback_error_response(callback_error)
+      let response = callback_error_response(callback_error, options)
       case
         callback_cookie_is_terminal(
           outcome,
@@ -889,17 +918,83 @@ fn log_callback_error(
   )
 }
 
+/// Return stable, non-sensitive recovery metadata for a callback error.
+pub fn callback_recovery(callback_error: CallbackError(e)) -> error.Recovery {
+  case callback_error {
+    UnknownProvider(_) ->
+      error.new_recovery(
+        error.ContactApplication,
+        404,
+        "callback_unknown_provider",
+        "This sign-in provider is not available.",
+      )
+    MissingOrInvalidSessionCookie(CookieAbsent) ->
+      restart_recovery(
+        "callback_session_missing",
+        "Your sign-in session is missing or expired. Start sign-in again.",
+      )
+    MissingOrInvalidSessionCookie(CookieSignatureInvalid) ->
+      restart_recovery(
+        "callback_session_invalid",
+        "Your sign-in session could not be verified. Start sign-in again.",
+      )
+    SessionUnavailable ->
+      restart_recovery(
+        "callback_session_unavailable",
+        "Your sign-in session is expired or already used. Start sign-in again.",
+      )
+    SessionProviderMismatch ->
+      restart_recovery(
+        "callback_provider_mismatch",
+        "Your sign-in session does not match this provider. Start sign-in again.",
+      )
+    InvalidCallbackParameters(_) ->
+      restart_recovery(
+        "callback_parameters_invalid",
+        "The sign-in response was invalid. Start sign-in again.",
+      )
+    AuthFailed(authentication_error) ->
+      callback_auth_recovery(error.recovery(authentication_error))
+  }
+}
+
+fn restart_recovery(code: String, summary: String) -> error.Recovery {
+  error.new_recovery(error.RestartAuthorization, 400, code, summary)
+}
+
+fn callback_auth_recovery(recovery: error.Recovery) -> error.Recovery {
+  case error.recovery_action(recovery) {
+    error.RetryOperation ->
+      error.new_recovery(
+        error.RestartAuthorization,
+        error.recovery_http_status(recovery),
+        error.recovery_code(recovery),
+        "The provider could not complete sign-in. Start sign-in again.",
+      )
+    error.RestartAuthorization | error.ContactApplication -> recovery
+  }
+}
+
 fn callback_error_response(
   callback_error: CallbackError(e),
+  options: Options,
 ) -> Response(ResponseData) {
-  case callback_error {
-    UnknownProvider(_) -> not_found_response()
-    MissingOrInvalidSessionCookie(_) -> generic_error_response()
-    SessionUnavailable -> generic_error_response()
-    SessionProviderMismatch -> generic_error_response()
-    InvalidCallbackParameters(_) -> generic_error_response()
-    AuthFailed(_) -> generic_error_response()
-  }
+  generic_error_response(
+    callback_recovery(callback_error),
+    options.recovery_path,
+  )
+}
+
+fn request_error_response() -> Response(ResponseData) {
+  generic_error_response(
+    error.new_recovery(
+      error.ContactApplication,
+      400,
+      "authorization_request_failed",
+      "Sign-in could not be started. Contact the application owner.",
+    ),
+    option.None,
+  )
 }
 
 fn redirect(location: String) -> Response(ResponseData) {
@@ -920,17 +1015,51 @@ fn too_many_requests_response() -> Response(ResponseData) {
   |> response.set_body(mist.Bytes(bytes_tree.from_string("Too Many Requests")))
 }
 
-fn generic_error_response() -> Response(ResponseData) {
-  let body =
-    "<html>
+fn generic_error_response(
+  recovery: error.Recovery,
+  recovery_path: option.Option(String),
+) -> Response(ResponseData) {
+  let recovery_link = case error.recovery_action(recovery), recovery_path {
+    error.RetryOperation, option.Some(path) ->
+      "<a href=\"" <> escape_html(path) <> "\">Try again</a>"
+    error.RestartAuthorization, option.Some(path) ->
+      "<a href=\"" <> escape_html(path) <> "\">Start over</a>"
+    error.ContactApplication, _
+    | error.RetryOperation, option.None
+    | error.RestartAuthorization, option.None
+    -> ""
+  }
+  let body = "<html>
 <head><title>Authentication Error</title></head>
 <body style=\"font-family: system-ui, sans-serif; max-width: 600px; margin: 80px auto;\">
   <h1>Authentication Failed</h1>
-  <p style=\"color: #c0392b;\">Authentication failed. Please try again.</p>
-  <a href=\"/\">Try again</a>
+  <p style=\"color: #c0392b;\">" <> escape_html(error.recovery_summary(recovery)) <> "</p>
+  " <> recovery_link <> "
 </body>
 </html>"
-  response.new(400)
+  response.new(error.recovery_http_status(recovery))
   |> response.set_header("content-type", "text/html; charset=utf-8")
   |> response.set_body(mist.Bytes(bytes_tree.from_string(body)))
+}
+
+fn safe_recovery_path(path: String) -> Bool {
+  string.starts_with(path, "/")
+  && !string.starts_with(path, "//")
+  && !string.contains(path, "\\")
+  && !string.contains(path, "\r")
+  && !string.contains(path, "\n")
+  && !string.contains(path, "\u{0000}")
+  && !string.contains(path, "\"")
+  && !string.contains(path, "'")
+  && !string.contains(path, "<")
+  && !string.contains(path, ">")
+}
+
+fn escape_html(value: String) -> String {
+  value
+  |> string.replace("&", "&amp;")
+  |> string.replace("<", "&lt;")
+  |> string.replace(">", "&gt;")
+  |> string.replace("\"", "&quot;")
+  |> string.replace("'", "&#39;")
 }

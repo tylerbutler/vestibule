@@ -126,7 +126,7 @@ pub fn callback_route_escapes_profile_and_hides_tokens_test() -> Nil {
 
   let replay_response = router.handle_request(callback, context)
   assert replay_response.status == 400
-  assert string.contains(text_body(replay_response), "Authentication failed")
+  assert string.contains(text_body(replay_response), "Start sign-in again.")
 }
 
 pub fn callback_routes_reject_missing_flow_without_reflection_test() -> Nil {
@@ -148,7 +148,7 @@ pub fn callback_routes_reject_missing_flow_without_reflection_test() -> Nil {
   assert get_response.status == 404
   assert !string.contains(text_body(get_response), "script")
   assert post_response.status == 400
-  assert string.contains(text_body(post_response), "Authentication failed")
+  assert string.contains(text_body(post_response), "Start sign-in again.")
   assert !string.contains(text_body(post_response), "state=x")
 }
 
