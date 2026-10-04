@@ -240,12 +240,12 @@ are named `MissingOrInvalidSessionCookie(reason)` — with `reason` distinguishi
 | `vestibule` | Core types, two-phase OAuth2 flow, PKCE, token refresh, shared state store | `gleam add vestibule` |
 | `vestibule_wisp` | Wisp middleware for request/callback routing | `gleam add vestibule_wisp` |
 | `vestibule_mist` | Mist middleware for request/callback routing | `gleam add vestibule_mist` |
-| `vestibule_github` | GitHub OAuth strategy | `gleam add vestibule_github` |
-| `vestibule_google` | Google OAuth strategy | `gleam add vestibule_google` |
-| `vestibule_microsoft` | Microsoft OAuth strategy | `gleam add vestibule_microsoft` |
-| `vestibule_apple` | Apple Sign In strategy | `gleam add vestibule_apple` |
-| `vestibule_indieauth` | IndieAuth strategy (decentralized identity) | `gleam add vestibule_indieauth` |
-| `vestibule_oidc` | OpenID Connect discovery (auto-configure any OIDC provider) | `gleam add vestibule_oidc` |
+| [`vestibule_github`](packages/vestibule_github/README.md) | GitHub OAuth strategy | `gleam add vestibule_github` |
+| [`vestibule_google`](packages/vestibule_google/README.md) | Google OAuth strategy | `gleam add vestibule_google` |
+| [`vestibule_microsoft`](packages/vestibule_microsoft/README.md) | Microsoft OAuth strategy | `gleam add vestibule_microsoft` |
+| [`vestibule_apple`](packages/vestibule_apple/README.md) | Apple Sign In strategy | `gleam add vestibule_apple` |
+| [`vestibule_indieauth`](packages/vestibule_indieauth/README.md) | IndieAuth strategy (decentralized identity) | `gleam add vestibule_indieauth` |
+| [`vestibule_oidc`](packages/vestibule_oidc/README.md) | OpenID Connect discovery (auto-configure any OIDC provider) | `gleam add vestibule_oidc` |
 
 ## How It Works
 

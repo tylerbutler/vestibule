@@ -1,147 +1,183 @@
 # vestibule_apple
 
-Apple Sign In strategy for vestibule.
+Sign in with Apple strategy for vestibule.
 
 > [!WARNING]
 > Vestibule has not been security audited and must not be considered secure.
-> It is intended for demos and prototypes that need real OAuth flows — do not
-> use it in production.
+> It is for demos and prototypes that need real OAuth flows. Do not use it in
+> production.
 
 ## Install
 
 ```sh
-gleam add vestibule_apple
+gleam add vestibule vestibule_apple
 ```
 
-## Usage
+Add `vestibule_wisp` or `vestibule_mist` if you use that middleware adapter.
 
-```gleam
-import vestibule_apple
+## Register the service
 
-let assert Ok(apple) = vestibule_apple.initialize()
-let strategy = vestibule_apple.strategy(apple)
-```
+1. In [Apple Developer](https://developer.apple.com/account), create an App ID
+   and enable **Sign in with Apple**.
+2. Create a Services ID. This is the OAuth client ID.
+3. Configure Sign in with Apple for the Services ID. Add the domain and each
+   exact return URL.
+4. Create a Sign in with Apple key, associate it with the App ID, and download
+   its `.p8` file. Apple offers the file once.
+5. Record the Team ID and Key ID.
 
-`initialize()` initializes the JWKS cache used to verify Apple ID tokens. It no
-longer initializes an ID-token handoff cache; the `id_token` returned by Apple
-during code exchange is available through `strategy.exchange_artifacts(exchange)`
-and consumed directly while resolving the user.
+Apple rejects `localhost` and plain HTTP callbacks. For local work, use a stable
+HTTPS tunnel:
 
-`initialize()` returns `Error(JwksCacheInitializationFailed(_))` when the JWKS
-cache cannot be initialized, including duplicate cache initialization. Handle
-the error, or assert on it at the top level of your application where failing
-to start is the right outcome.
+- Local through a tunnel: `https://vestibule-demo.ngrok.app/auth/apple/callback`
+- HTTPS deployment: `https://demo.example/auth/apple/callback`
 
-## Default scopes
+Add the matching domains and return URLs in the Services ID settings.
 
-`name email`. Override per request with `config.with_scopes` on `AuthorizeOptions`. Apple delivers `name`
-and `email` only on the **first** consent, in the form-post callback.
+## Provider behavior
 
-## Custom HTTP clients
+| Item | Behavior |
+|---|---|
+| Default scopes | `name email` |
+| Client authentication | ES256 client-secret JWT in the token request form |
+| Callback | POST with `response_mode=form_post`; accept form data, not only a query string |
+| Refresh | Supported when Apple issues a refresh token |
+| Revocation | No revocation helper; call Apple's revoke endpoint outside vestibule if needed |
+| Nonce | Generated and checked against the verified Apple ID token |
+| Email | Exposed only when the verified ID token says `email_verified` is true |
 
-The strategy remains a convenient `gleam_httpc` integration. For sans-IO use,
-call `build_authorization_code_request` or `build_refresh_token_request`, send
-the returned `gleam_http` request with your client, then call the matching
-`parse_*_response` function. Apple JWKS uses the same pattern through
-`vestibule_apple/jwks.build_jwks_request` and `parse_jwks_response`; token
-verification remains separate in `verify_id_token`.
+Apple sends the name only on the first consent. Save it after that callback.
+The strategy reads identity from the verified ID token; Apple has no userinfo
+request in this flow.
 
-## Apple Developer portal setup
+## Build and rotate the client secret
 
-1. Sign in at <https://developer.apple.com/account>.
-2. **Certificates, IDs & Profiles → Identifiers**:
-   - Create an **App ID** for your app, enable the
-     *Sign In with Apple* capability.
-   - Create a **Services ID** — this is your OAuth `client_id`.
-     Enable *Sign In with Apple*, add your domain, and register the
-     **return URL** (e.g. `https://example.com/auth/apple/callback`).
-     Apple does **not** allow `localhost` or `http://` callbacks.
-3. **Keys → register a new key**, enable *Sign In with Apple*, associate
-   it with your App ID, download the `.p8` private key (one-time
-   download). Note the **Key ID**.
-4. Note your **Team ID** (top-right of the developer portal).
-5. Use these to generate the signed JWT `client_secret` (see below).
-
-## Client-secret JWT setup
-
-Apple does not use a static client secret. Build its signed JWT from your Apple
-Developer account details:
-
-- **Team ID**: your Apple Developer team identifier; use this as the JWT `iss`.
-- **Key ID**: the identifier for the Sign in with Apple private key; include it
-  in the JWT header as `kid`.
-- **Services ID / client ID**: the Services ID registered for your web app; use
-  this as both the OAuth client ID and the JWT `sub`.
-- **Private key**: the `.p8` key downloaded from Apple. Store it securely and do
-  not commit it to your repository.
-
-Load the `.p8` file with your application's file or secret-store library, then
-build the JWT and pass it as `config.client_secret_auth(jwt)`:
+Vestibule includes the current `.p8` signing helper:
 
 ```gleam
 let assert Ok(client_secret) =
   vestibule_apple.build_client_secret(
     team_id: "A1B2C3D4E5",
-    client_id: "com.example.service-id",
+    client_id: "com.example.demo",
     key_id: "1A2B3C4D5E",
     p8_pem: p8_pem,
     ttl: 3600,
   )
+```
 
+The helper accepts one unencrypted PKCS#8 P-256 private key and signs the Apple
+client-secret JWT with ES256. The TTL must be from 1 through 15,777,000 seconds.
+Prefer a short TTL and create a new JWT when needed.
+
+Keep the `.p8` key outside the repository. For local work, load a path from an
+environment variable. In a deployment, load the key from the platform secret
+store. If the store supports only single-line values, store the PEM as base64
+and decode it at startup.
+
+To rotate the key:
+
+1. Create a new Apple key and deploy its `.p8` file and Key ID.
+2. Confirm that code exchange works with the new key.
+3. Revoke the old key only after all running instances use the new key.
+
+## Minimal core flow
+
+```gleam
+import gleam/dict
+import vestibule
+import vestibule/config
+import vestibule_apple
+
+let assert Ok(apple) = vestibule_apple.initialize()
+let strategy = vestibule_apple.strategy(apple)
+let assert Ok(client_secret) =
+  vestibule_apple.build_client_secret(
+    team_id: "A1B2C3D4E5",
+    client_id: "com.example.demo",
+    key_id: "1A2B3C4D5E",
+    p8_pem: p8_pem,
+    ttl: 3600,
+  )
 let client_config =
   config.new(
-    client_id: "com.example.service-id",
-    redirect_uri: "https://example.com/auth/apple/callback",
+    client_id: "com.example.demo",
+    redirect_uri: "https://vestibule-demo.ngrok.app/auth/apple/callback",
     auth: config.client_secret_auth(client_secret),
+  )
+
+let assert Ok(request) =
+  vestibule.create_authorization_request(
+    strategy,
+    config: client_config,
+    options: config.authorize_options(),
+  )
+// Store state, code verifier, and nonce in the server session. Parse the
+// callback parameters from the POST form body.
+
+let params = dict.from_list([#("state", callback_state), #("code", callback_code)])
+let result =
+  vestibule.handle_callback(
+    strategy,
+    client_config,
+    params,
+    expected_state,
+    stored_code_verifier,
+    expected_nonce: stored_nonce,
   )
 ```
 
-The `.p8` PEM must contain one unencrypted PKCS#8 P-256 private key.
-`kryptos` handles key import and ES256 signing, including the JWT signature
-encoding. The generated token has this header and claim shape:
+Call `initialize()` once per BEAM VM. Consume the stored state, PKCE verifier,
+and nonce once.
 
-```json
-{
-  "alg": "ES256",
-  "kid": "1A2B3C4D5E"
+## Minimal Wisp middleware
+
+```gleam
+let assert Ok(apple) = vestibule_apple.initialize()
+let assert Ok(registry) =
+  registry.new()
+  |> registry.register(
+    vestibule_apple.strategy(apple),
+    config.new(
+      client_id: "com.example.demo",
+      redirect_uri: "https://vestibule-demo.ngrok.app/auth/apple/callback",
+      auth: config.client_secret_auth(client_secret),
+    ),
+  )
+let assert Ok(store) = state_store.create()
+
+case wisp.path_segments(request), request.method {
+  ["auth", "apple"], http.Get ->
+    vestibule_wisp.request_phase_for_client(
+      request,
+      registry: registry,
+      provider: "apple",
+      state_store: store,
+      authorize_options: config.authorize_options(),
+      client_key: client_key,
+    )
+  ["auth", "apple", "callback"], http.Post ->
+    vestibule_wisp.callback_phase(request, registry, "apple", store, on_success)
+  _, _ -> wisp.not_found()
 }
 ```
 
-```json
-{
-  "iss": "A1B2C3D4E5",
-  "iat": 1710000000,
-  "exp": 1710604800,
-  "aud": "https://appleid.apple.com",
-  "sub": "com.example.service-id"
-}
-```
+The Wisp and Mist callback helpers parse form-post callbacks and reject
+duplicate parameters. For Mist, use `vestibule_mist.request_phase` and
+`vestibule_mist.callback_phase`.
 
-`ttl` is in seconds. It must be positive and no more than Apple's six-month
-limit of 15,777,000 seconds. Prefer a short lifetime such as one hour and
-generate a new token when needed.
+## Diagnose setup errors
 
-Keep the `.p8` key outside the repository. For local demos, read it from a file
-whose path is in an environment variable. In deployed environments, load it
-from the platform secret store. If the store only exposes environment
-variables, store the PEM as base64 and decode it at startup so its line breaks
-are preserved.
-
-To rotate the key, create and deploy a new Sign in with Apple key and Key ID,
-confirm that token exchange works with the new key, then revoke the old key in
-the Apple Developer portal. Do not revoke the old key before all running
-instances use the replacement.
-
-## Notes
-
-- Apple requires `response_mode=form_post`, which this strategy adds for you.
-- The JWT passed to `config.client_secret_auth(jwt)` can be generated with
-  `build_client_secret`.
-- Apple user info comes from the verified `id_token`, not a userinfo endpoint.
-
-## Migration note
-
-`AppleCache` now contains only the JWKS cache. Code that constructed
-`AppleCache(id_tokens: ..., jwks: ...)` must change to `AppleCache(jwks: ...)`.
-The `vestibule_apple/id_token_cache` module has been removed because ID tokens
-are no longer passed between exchange and fetch through an implicit cache.
+- **Invalid redirect:** Apple requires an allowed HTTPS return URL and domain.
+  It does not accept `localhost`.
+- **Invalid client:** make the Services ID, Team ID, Key ID, and `.p8` key come
+  from the same Apple Developer setup.
+- **Invalid private key:** load the complete unencrypted PKCS#8 P-256 PEM,
+  including line breaks.
+- **Expired client secret:** create a new JWT. Check the host clock if a new
+  token is rejected.
+- **GET callback handler:** Apple posts form data. Add a POST route and let the
+  middleware parse the body.
+- **Missing name:** Apple sends it only on the first consent.
+- **Cache initialization failure:** call `initialize()` once at application
+  startup and reuse the returned handle.
+- **Nonce or state failure:** keep all values in the same one-time session.
