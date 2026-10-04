@@ -106,6 +106,11 @@ Repository Actions policy allows all actions and does not require SHA pins.
 The committed policy check supplies that enforcement for this repository's
 workflows and templates.
 
+The `main` ruleset still requires legacy per-task check names that the current
+combined CI job does not emit. This can leave pull requests blocked after all
+current checks pass. Issue #180 owns that external settings alignment; this PR
+does not change the ruleset.
+
 The `release` environment permits its designated reviewer to approve their own
 dispatch. Approval is still an explicit human step, not an automatic or admin
 bypass. Repository-level App secrets remain available to the reviewed
