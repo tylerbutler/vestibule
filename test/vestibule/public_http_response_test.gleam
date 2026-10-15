@@ -52,6 +52,9 @@ fn resolver_result_is_pinned() -> Bool
 @external(erlang, "vestibule_public_http_test_ffi", "mixed_dns_answer_is_rejected")
 fn mixed_dns_answer_is_rejected() -> Bool
 
+@external(erlang, "vestibule_public_http_test_ffi", "loopback_dns_answer_is_rejected")
+fn loopback_dns_answer_is_rejected() -> Bool
+
 @external(erlang, "vestibule_public_http_test_ffi", "tls_uses_original_host_and_system_ca")
 fn tls_uses_original_host_and_system_ca() -> Bool
 
@@ -135,6 +138,10 @@ pub fn validated_resolver_address_is_given_to_connector_test() -> Nil {
 
 pub fn mixed_public_and_private_dns_answers_are_rejected_test() -> Nil {
   assert mixed_dns_answer_is_rejected()
+}
+
+pub fn dns_loopback_is_rejected_before_connecting_test() -> Nil {
+  assert loopback_dns_answer_is_rejected()
 }
 
 pub fn tls_uses_original_hostname_and_system_ca_test() -> Nil {

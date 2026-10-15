@@ -45,7 +45,8 @@ import vestibule/provider_support
 import vestibule/strategy.{type Strategy, type UserResult}
 import vestibule/user_info.{type UserInfo}
 
-const microsoft_jwks_url = "https://login.microsoftonline.com/common/discovery/v2.0/keys"
+const microsoft_jwks_url =
+  "https://login.microsoftonline.com/common/discovery/v2.0/keys"
 
 const microsoft_consumer_tenant_id = "9188040d-6c67-4c5b-b112-36a304b66dad"
 

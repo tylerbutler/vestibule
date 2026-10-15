@@ -149,8 +149,8 @@ pub fn callback_route_hides_provider_error_text_test() -> Nil {
   let body = text_body(response)
   let assert Ok(expired_cookie) = list.key_find(response.headers, "set-cookie")
 
-  assert response.status == 400
-  assert string.contains(body, "Authentication failed")
+  assert response.status == 403
+  assert string.contains(body, "Authentication failed (provider_access_denied)")
   assert !string.contains(body, attacker_text)
   assert !string.contains(body, "attacker.example")
   assert string.contains(expired_cookie, "Max-Age=0")
