@@ -16,6 +16,7 @@
     request_budgets_precede_dns/0,
     resolver_result_is_pinned/0,
     mixed_dns_answer_is_rejected/0,
+    loopback_dns_answer_is_rejected/0,
     tls_uses_original_host_and_system_ca/0,
     tls_handshake_matrix/0,
     admission_is_bounded_and_reusable/0,
@@ -280,9 +281,15 @@ resolver_result_is_pinned() ->
             end.
 
 mixed_dns_answer_is_rejected() ->
+    dns_answers_are_rejected([{8, 8, 8, 8}, {127, 0, 0, 1}]).
+
+loopback_dns_answer_is_rejected() ->
+    dns_answers_are_rejected([{127, 0, 0, 1}]).
+
+dns_answers_are_rejected(Addresses) ->
     Parent = self(),
     Resolver = fun(<<"provider.example">>) ->
-        {ok, [{8, 8, 8, 8}, {127, 0, 0, 1}]}
+        {ok, Addresses}
     end,
     Transport = fun(_, _, _, _, _, _, _, _, _, _, _) ->
         Parent ! transport_called,
