@@ -2,7 +2,8 @@ import gleam/option.{Some}
 import gleam/string
 import vestibule/authorization_request
 
-const authorization_url = "https://provider.example/authorize?state=STATE-SECRET-7f3a&nonce=NONCE-SECRET-9b21"
+const authorization_url =
+  "https://provider.example/authorize?state=STATE-SECRET-7f3a&nonce=NONCE-SECRET-9b21"
 
 const state = "STATE-SECRET-7f3a"
 
