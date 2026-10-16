@@ -1230,7 +1230,9 @@ code {
 }
 
 .setup-discovery {
-  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
 }
 
 .setup-result h3 {
@@ -1357,6 +1359,11 @@ code {
 
 .doc-page {
   max-width: 70ch;
+}
+
+/* Figtree's digit width exceeds the average width of its prose characters. */
+:where(.doc-page) p {
+  max-width: 50ch;
 }
 
 .doc-page section + section {
