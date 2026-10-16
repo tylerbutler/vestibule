@@ -9,13 +9,9 @@ type Props = {
   title: string;
   description: string;
   section?: string;
-  toc?: Array<{
-    href: string;
-    label: string;
-  }>;
 };
 
-const { title, description, section = "Docs", toc = [] } = Astro.props;
+const { title, description, section = "Docs" } = Astro.props;
 const navGroups = await getNavigation();
 const searchEntries = await getSearchEntries();
 const pageTitle = title === "Vestibule" ? "Vestibule" : `${title} - Vestibule`;
@@ -35,7 +31,6 @@ const currentGroup = navGroups.find((group) =>
 );
 const showBreadcrumbs = currentPath !== "/";
 const breadcrumbLabel = currentLink?.label || title;
-const hasToc = toc.length > 0;
 
 type NavLink = (typeof navGroups)[number]["links"][number];
 type NavEntry =
@@ -205,7 +200,7 @@ const moduleLabel = (subTitle: string, label: string) =>
 
       <main id="main-content" class="content-shell">
         {currentPath !== "/" && (<details class="mobile-nav">
-          <summary>Docs menu{currentLink ? `: ${currentLink.label}` : ""}</summary>
+          <summary>Docs menu: {breadcrumbLabel}</summary>
           <nav aria-label="Mobile documentation navigation">
             {navGroups.map((group) => (
               <details
@@ -255,16 +250,6 @@ const moduleLabel = (subTitle: string, label: string) =>
             )}
             <span aria-hidden="true">/</span>
             <span aria-current="page">{breadcrumbLabel}</span>
-          </nav>
-        )}
-        {hasToc && (
-          <nav class="page-toc" aria-label="On this page">
-            <span>On this page</span>
-            <ol>
-              {toc.map((item) => (
-                <li><a href={item.href}>{item.label}</a></li>
-              ))}
-            </ol>
           </nav>
         )}
         <slot />

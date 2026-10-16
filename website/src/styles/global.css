@@ -476,7 +476,7 @@ svg {
 }
 
 .mobile-nav {
-  margin-bottom: var(--space-8);
+  margin-bottom: var(--space-5);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface);
@@ -484,7 +484,8 @@ svg {
 
 .mobile-nav summary {
   cursor: pointer;
-  padding: var(--space-4);
+  min-height: 2.75rem;
+  padding: var(--space-3) var(--space-4);
   font-weight: var(--weight-semibold);
 }
 
@@ -621,7 +622,7 @@ svg {
 }
 
 .breadcrumbs {
-  display: flex;
+  display: none;
   flex-wrap: wrap;
   gap: var(--space-2);
   align-items: center;
@@ -645,18 +646,26 @@ svg {
 }
 
 .page-toc {
-  display: grid;
-  gap: var(--space-3);
   margin-bottom: var(--space-8);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface);
-  padding: var(--space-4);
 }
 
-.page-toc > span {
+.page-toc > summary {
+  min-height: 2.75rem;
+  padding: var(--space-3) var(--space-4);
   color: var(--ink);
+  cursor: pointer;
   font-weight: var(--weight-semibold);
+}
+
+.page-toc nav {
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+.doc-hero:has(+ .page-toc) {
+  margin-bottom: var(--space-4);
 }
 
 .page-toc ol {
@@ -2156,6 +2165,10 @@ code {
 
   .mobile-nav {
     display: none;
+  }
+
+  .breadcrumbs {
+    display: flex;
   }
 
   .content-shell {

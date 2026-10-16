@@ -1,6 +1,7 @@
 ---
 import type { CollectionEntry } from "astro:content";
 import CodeBlock from "../../../components/CodeBlock.astro";
+import PageToc from "../../../components/PageToc.astro";
 import DocsLayout from "../../../layouts/DocsLayout.astro";
 import {
   getPackageEntries,
@@ -27,13 +28,6 @@ const referenceUrl = packageReferenceUrl(pkg);
   title={data.name}
   description={data.summary}
   section="Packages"
-  toc={[
-    { href: "#when-to-use", label: "When to use it" },
-    { href: "#install", label: "Install" },
-    { href: "#setup", label: "Setup" },
-    { href: "#usage", label: "Usage" },
-    { href: "#handling", label: "Responsibilities" }
-  ]}
 >
   <article class="doc-page">
     <header class="doc-hero package-hero">
@@ -41,6 +35,13 @@ const referenceUrl = packageReferenceUrl(pkg);
       <h1>{data.name}</h1>
       <p>{data.summary}</p>
     </header>
+    <PageToc items={[
+      { href: "#when-to-use", label: "When to use it" },
+      { href: "#install", label: "Install" },
+      { href: "#setup", label: "Setup" },
+      { href: "#usage", label: "Usage" },
+      { href: "#handling", label: "Responsibilities" }
+    ]} />
 
     <section class="content-grid split">
       <div id="when-to-use">
