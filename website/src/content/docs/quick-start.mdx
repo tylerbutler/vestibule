@@ -7,6 +7,8 @@ nav:
   order: 10
   label: Quick start
 toc:
+  - href: "#provider-setup"
+    label: Configure your provider
   - href: "#middleware-path"
     label: Choose the route shape
   - href: "#callback-failure"
@@ -27,6 +29,7 @@ searchTerms:
 
 import CodeBlock from "../../components/CodeBlock.astro";
 import MiddlewareQuickStart from "../../components/MiddlewareQuickStart.astro";
+import ProviderQuickStart from "../../components/ProviderQuickStart.astro";
 import SelectedQuickStart from "../../components/SelectedQuickStart.astro";
 import {
   callbackFailureCode,
@@ -37,8 +40,10 @@ import {
 
 <SelectedQuickStart />
 
+<ProviderQuickStart />
+
 <section id="middleware-path" className="quick-paths" aria-label="Recommended quick start path">
-  <div className="primary-path">
+  <div className="primary-path" data-middleware-path>
     <div className="path-body">
       <span className="path-label">Recommended for Wisp and Mist apps</span>
       <h2>Let middleware own the auth routes</h2>
@@ -77,8 +82,8 @@ import {
         auth result only after state and PKCE validation.
       </p>
       <p>
-        These route examples use GitHub to show the flow. Use your provider's
-        setup guide to replace the strategy and client configuration.
+        These route examples use the <code>strategy</code> and{" "}
+        <code>client_config</code> from the provider setup above.
       </p>
       <MiddlewareQuickStart />
 
@@ -115,7 +120,8 @@ import {
     <div className="path-body">
       <p>
         Core returns the authorization URL, state, and PKCE verifier. Your app
-        stores the values and supplies them when it validates the callback.
+        stores these values and the optional nonce, then supplies them when
+        it validates the callback.
       </p>
       <div data-quick-start-dependencies>
         <CodeBlock code={coreInstallCode} lang="toml" />
@@ -125,7 +131,8 @@ import {
       <p>
         Before the redirect, store{" "}
         <code>authorization_request.state(auth_request)</code> and{" "}
-        <code>authorization_request.code_verifier(auth_request)</code>. Then
+        <code>authorization_request.code_verifier(auth_request)</code>, and{" "}
+        <code>authorization_request.nonce(auth_request)</code>. Then
         redirect to <code>authorization_request.url(auth_request)</code>.
         Validate the provider and callback state, then atomically consume the
         stored flow before calling <code>handle_callback</code>. Pass the
@@ -140,7 +147,7 @@ import {
 
       <ul className="responsibility-list warning" aria-label="Core flow responsibilities">
         <li>
-          <strong>Store state and PKCE verifier server-side before redirecting.</strong>
+          <strong>Store state, PKCE verifier, and nonce server-side before redirecting.</strong>
           Bind the values to the user's session. Set a short expiration time.
         </li>
         <li>
@@ -216,7 +223,7 @@ import {
   </div>
   <ul className="check-list">
     <li>Non-local redirect URIs must use HTTPS.</li>
-    <li>Store state and PKCE verifier values on the server for a short time.</li>
+    <li>Store state, PKCE verifier, and nonce values on the server for a short time.</li>
     <li>Remove client secrets, authorization codes, and PKCE verifiers from logs and error reports.</li>
     {/*
     <li>Bearer tokens must be redacted from logs and error reports.</li>

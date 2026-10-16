@@ -1,0 +1,30 @@
+---
+import CodeBlock from "./CodeBlock.astro";
+import { providerSetups } from "../data/doc-snippets";
+---
+
+<section id="provider-setup">
+  <p data-default-provider>
+    This quick start uses GitHub by default.
+    <a href="/#get-started">Choose a different provider</a> to get its configuration.
+  </p>
+  {providerSetups.map((provider) => (
+    <div data-provider-example={provider.id} hidden={provider.id !== "github"}>
+      <h2>Configure {provider.label}</h2>
+      <p>
+        <a href={`/docs/packages/${provider.id}#setup`}>Register your {provider.label} app</a>,
+        then load its credentials from configuration. Replace the example
+        values below. Use this <code>strategy</code> and <code>client_config</code>
+        in the route example that follows.
+      </p>
+      {provider.id === "apple" && (
+        <p class="scope-note">
+          Initialize Apple once per BEAM VM. Register an HTTPS return URL;
+          Apple rejects localhost. Keep the .p8 key outside source control
+          and renew the client-secret JWT before it expires.
+        </p>
+      )}
+      <CodeBlock code={provider.code} lang="gleam" />
+    </div>
+  ))}
+</section>

@@ -8,6 +8,7 @@
     "dev": "astro dev",
     "generate:reference": "node scripts/generate-reference.mjs",
     "test:reference": "node --test scripts/generate-reference.test.mjs",
+    "test:quick-start": "node --test scripts/quick-start.test.mjs",
     "build": "astro build",
     "preview": "astro preview"
   },
