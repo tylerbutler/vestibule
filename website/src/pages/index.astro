@@ -194,6 +194,12 @@ const installBlocks = routeOptions.flatMap((route) =>
           <span class="setup-legend-step">Step 2 of 3</span>
           <span class="setup-legend-copy" data-setup-focus tabindex="-1">Which hosted provider should users sign in with?</span>
         </legend>
+        <p class="setup-discovery">
+          Signing in with a website URL? Use
+          <a class="text-link" href={hrefForPackage("indieauth")}>IndieAuth</a>.
+          For an OpenID Connect issuer, use
+          <a class="text-link" href={hrefForPackage("oidc")}>OIDC discovery</a>.
+        </p>
         <p class="setup-help">
           Pick the account type your demo audience already uses. Apple requires
           the most provider setup.
@@ -225,23 +231,6 @@ const installBlocks = routeOptions.flatMap((route) =>
           <button class="button primary" type="button" data-setup-next="result">
             Build dependency block
           </button>
-        </div>
-        <div class="setup-discovery">
-          <h3>Discovery-based sign-in</h3>
-          <p>
-            These strategies need a different setup. Start with the guide for
-            the identity your users will supply.
-          </p>
-          <ul>
-            <li>
-              <a class="text-link" href={hrefForPackage("indieauth")}>Use IndieAuth</a>
-              <span>Users sign in with their own website URL.</span>
-            </li>
-            <li>
-              <a class="text-link" href={hrefForPackage("oidc")}>Use OIDC discovery</a>
-              <span>Configure an OpenID Connect issuer, including a self-hosted provider.</span>
-            </li>
-          </ul>
         </div>
       </fieldset>
 
