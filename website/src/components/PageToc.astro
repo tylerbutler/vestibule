@@ -1,0 +1,31 @@
+---
+type Props = {
+  items: Array<{ href: string; label: string }>;
+};
+
+const { items } = Astro.props;
+---
+
+{items.length > 0 && (
+  <details class="page-toc" open>
+    <summary>On this page</summary>
+    <nav aria-label="On this page">
+      <ol>
+        {items.map((item) => (
+          <li><a href={item.href}>{item.label}</a></li>
+        ))}
+      </ol>
+    </nav>
+  </details>
+)}
+
+<script>
+  const wideViewport = window.matchMedia("(min-width: 68rem)");
+  const adaptToc = () => {
+    for (const toc of document.querySelectorAll<HTMLDetailsElement>(".page-toc")) {
+      toc.open = wideViewport.matches;
+    }
+  };
+  adaptToc();
+  wideViewport.addEventListener("change", adaptToc);
+</script>

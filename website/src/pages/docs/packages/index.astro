@@ -1,5 +1,6 @@
 ---
 import DocsLayout from "../../../layouts/DocsLayout.astro";
+import PageToc from "../../../components/PageToc.astro";
 import {
   getPackageEntries,
   packageHref,
@@ -29,11 +30,6 @@ const routeLabel = (slug: string) =>
   title="Package overview"
   description="Choose the right Vestibule package for a Gleam OAuth integration."
   section="Packages"
-  toc={[
-    { href: "#route-packages", label: "Route packages" },
-    { href: "#provider-strategies", label: "Provider strategies" },
-    { href: "#api-reference", label: "API reference" }
-  ]}
 >
   <article class="doc-page">
     <header class="doc-hero">
@@ -43,6 +39,11 @@ const routeLabel = (slug: string) =>
         strategies into different packages.
       </p>
     </header>
+    <PageToc items={[
+      { href: "#route-packages", label: "Route packages" },
+      { href: "#provider-strategies", label: "Provider strategies" },
+      { href: "#api-reference", label: "API reference" }
+    ]} />
 
     <section id="route-packages" class="route-decision">
       <div class="section-heading">
