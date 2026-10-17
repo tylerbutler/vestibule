@@ -2329,6 +2329,11 @@ code {
   cursor: pointer;
 }
 
+.cmd-results[hidden],
+.cmd-result[hidden] {
+  display: none;
+}
+
 .cmd-result[aria-selected="true"] {
   border-color: var(--primary);
   background: var(--primary-soft);

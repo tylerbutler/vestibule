@@ -99,6 +99,7 @@ For website-only changes, run these checks from `website/`:
 
 ```bash
 pnpm test:quick-start
+pnpm test:search
 pnpm test:reference
 pnpm exec tsc --noEmit
 pnpm build
@@ -108,6 +109,10 @@ The quick-start checks cover the hosted-provider configuration snippets and
 shared route examples. Also check the chooser-to-quick-start flow in a browser
 for Wisp, Mist, and custom routing, including Apple and the no-JavaScript
 fallback.
+
+The search checks cover modal filtering, result counts, keyboard selection,
+empty-state recovery, and the hidden-state CSS rules. Also check the rendered
+dialog in a browser; script checks alone do not verify layout.
 
 ### Continuous Integration
 
