@@ -65,10 +65,14 @@ function searchDialog() {
   const dialog = new Dialog();
   const document = new Element();
   const navigated = [];
-  const items = ["quick start", "callback errors", "google provider", "API reference", "PKCE"]
+  const items = ["quick start", "installation", "package overview", "API reference", "callback errors PKCE"]
     .map((text, index) => Object.assign(new Element(), {
       id: `cmd-opt-${index}`,
-      dataset: { cmdText: text, cmdHref: `/docs/${index}` }
+      dataset: {
+        cmdText: text,
+        cmdHref: `/docs/${index}`,
+        ...(index < 4 ? { cmdSuggested: "true" } : {})
+      }
     }));
   const elements = new Map([
     ["[data-cmd-input]", input],
@@ -102,14 +106,14 @@ test("hidden search grids do not override the hidden attribute", () => {
 test("modal search keeps matching rows, counts and keyboard navigation in agreement", () => {
   const search = searchDialog();
   search.query("  CALLBACK érrors  ");
-  assert.deepEqual(search.items.filter((item) => !item.hidden), [search.items[1]]);
+  assert.deepEqual(search.items.filter((item) => !item.hidden), [search.items[4]]);
   assert.equal(search.count.textContent, "1 result");
   assert.equal(search.empty.hidden, true);
   assert.equal(search.list.hidden, false);
-  assert.equal(search.input.getAttribute("aria-activedescendant"), search.items[1].id);
+  assert.equal(search.input.getAttribute("aria-activedescendant"), search.items[4].id);
   search.input.dispatch("keydown", { key: "ArrowDown" });
   search.input.dispatch("keydown", { key: "Enter" });
-  assert.deepEqual(search.navigated, [search.items[1].dataset.cmdHref]);
+  assert.deepEqual(search.navigated, [search.items[4].dataset.cmdHref]);
   assert.equal(search.input.getAttribute("aria-expanded"), "false");
 });
 
@@ -124,8 +128,21 @@ test("modal search recovers from no matches when the query is cleared", () => {
   search.input.dispatch("keydown", { key: "Enter" });
   assert.deepEqual(search.navigated, []);
   search.query("");
-  assert.equal(search.items.every((item) => !item.hidden), true);
-  assert.equal(search.count.textContent, "5 results");
+  assert.deepEqual(search.items.filter((item) => !item.hidden), search.items.slice(0, 4));
+  assert.equal(search.count.textContent, "4 suggested pages");
   assert.equal(search.empty.hidden, true);
   assert.equal(search.list.hidden, false);
+});
+
+test("empty search offers four pages without limiting searches of the full index", () => {
+  const search = searchDialog();
+  assert.deepEqual(search.items.filter((item) => !item.hidden), search.items.slice(0, 4));
+  assert.equal(search.count.textContent, "4 suggested pages");
+  assert.equal(search.list.getAttribute("aria-label"), "Suggested pages");
+  search.query("PKCE");
+  assert.deepEqual(search.items.filter((item) => !item.hidden), [search.items[4]]);
+  assert.equal(search.list.getAttribute("aria-label"), "Search results");
+  search.query("   ");
+  assert.deepEqual(search.items.filter((item) => !item.hidden), search.items.slice(0, 4));
+  assert.equal(search.count.textContent, "4 suggested pages");
 });

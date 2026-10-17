@@ -14,6 +14,12 @@ type Props = {
 const { title, description, section = "Docs" } = Astro.props;
 const navGroups = await getNavigation();
 const searchEntries = await getSearchEntries();
+const suggestedSearchHrefs = new Set([
+  "/docs/quick-start",
+  "/docs/installation",
+  "/docs/packages",
+  "/docs/reference"
+]);
 const pageTitle = title === "Vestibule" ? "Vestibule" : `${title} - Vestibule`;
 const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
 
@@ -295,6 +301,7 @@ const moduleLabel = (subTitle: string, label: string) =>
               data-cmd-item
               data-cmd-href={entry.href}
               data-cmd-external={entry.external ? "true" : undefined}
+              data-cmd-suggested={suggestedSearchHrefs.has(entry.href) ? "true" : undefined}
               data-cmd-text={`${entry.title} ${entry.category} ${entry.description} ${entry.terms}`.toLocaleLowerCase()}
             >
               <span class="chip">{entry.category}</span>
@@ -468,12 +475,17 @@ const moduleLabel = (subTitle: string, label: string) =>
           visible = [];
           for (const item of items) {
             const text = normalized(item.dataset.cmdText || "");
-            const match = terms.every((term) => text.includes(term));
+            const match = terms.length > 0
+              ? terms.every((term) => text.includes(term))
+              : item.dataset.cmdSuggested === "true";
             item.hidden = !match;
             if (match) visible.push(item);
           }
           const n = visible.length;
-          count.textContent = `${n} result${n === 1 ? "" : "s"}`;
+          count.textContent = terms.length > 0
+            ? `${n} result${n === 1 ? "" : "s"}`
+            : `${n} suggested page${n === 1 ? "" : "s"}`;
+          list.setAttribute("aria-label", terms.length > 0 ? "Search results" : "Suggested pages");
           empty.hidden = n > 0;
           list.hidden = n === 0;
           setActive(n > 0 ? 0 : -1);

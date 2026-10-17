@@ -202,6 +202,7 @@ Vestibule should be flat by default. Depth comes from tonal layering, soft borde
 - **Documentation entry:** Show the current page in the mobile Docs menu and hide redundant breadcrumbs below the sidebar breakpoint. Put the contents disclosure after the page introduction. Start it closed on narrow screens and open on wide screens; without JavaScript, keep its links available.
 - **Safe areas:** Layout chrome and page gutters account for `viewport-fit=cover` safe-area insets so phone notches and rounded corners never cover navigation or content.
 - **Theme persistence:** Theme controls must work when browser storage is blocked. Persist the choice when possible; otherwise keep the selected theme for the current page without breaking navigation or reading.
+- **Search entry:** An empty command palette offers the quick start, installation guide, package overview, and API reference. Typing searches the full index. Visible results, counts, empty states, and keyboard selection must agree.
 
 ### Authentication Result Panel
 
@@ -222,6 +223,10 @@ Keep the chosen server and provider visible on the quick-start page. Put repeate
 Show the callback diagram beside the homepage introduction at wide widths. At narrow widths, use a native disclosure below the primary action. Keep the diagram open without JavaScript so its explanation remains available.
 
 Homepage copy names the completed outcome: generating a dependency block. Do not imply that this alone finishes provider setup or promise a fixed time to working sign-in.
+
+Keep the chosen server visible during provider selection. Name custom routing
+consistently, and show the Gleam 1.18+ Git path dependency requirement before the
+generated dependency block.
 
 ## 6. Do's and Don'ts
 
