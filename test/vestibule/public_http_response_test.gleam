@@ -76,6 +76,34 @@ fn caller_death_cleans_up() -> Bool
 @external(erlang, "vestibule_public_http_test_ffi", "deadline_releases_admission")
 fn deadline_releases_admission() -> Bool
 
+@external(erlang, "vestibule_public_http_test_ffi", "ambiguous_post_is_not_replayed")
+fn ambiguous_post_is_not_replayed() -> Bool
+
+@external(erlang, "vestibule_public_http_test_ffi", "connection_failure_falls_back")
+fn connection_failure_falls_back() -> Bool
+
+@external(erlang, "vestibule_public_http_test_ffi", "post_deadline_cleans_up")
+fn post_deadline_cleans_up() -> Bool
+
+@external(erlang, "vestibule_public_http_test_ffi", "transport_failure_contract")
+fn transport_failure_contract() -> Bool
+
+pub fn only_connect_errors_retry_and_all_errors_keep_public_shape_test() -> Nil {
+  assert transport_failure_contract()
+}
+
+pub fn consumed_token_post_is_not_replayed_after_lost_headers_test() -> Nil {
+  assert ambiguous_post_is_not_replayed()
+}
+
+pub fn token_post_falls_back_only_after_connection_failure_test() -> Nil {
+  assert connection_failure_falls_back()
+}
+
+pub fn token_post_deadline_closes_socket_and_releases_workers_and_slot_test() -> Nil {
+  assert post_deadline_cleans_up()
+}
+
 pub fn oversized_content_length_is_rejected_before_body_test() -> Nil {
   assert oversized_content_length()
 }

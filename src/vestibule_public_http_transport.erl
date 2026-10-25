@@ -105,7 +105,8 @@ request_with_trust(
                 close(Socket)
             end;
         {error, Reason} ->
-            {error, {transport, Reason}}
+            %% No HTTP bytes were sent; another validated address is safe.
+            {error, {connect, Reason}}
     end.
 
 connect(http, _Host, Address, Port, Deadline, _Trust) ->

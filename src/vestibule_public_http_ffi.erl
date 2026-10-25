@@ -498,7 +498,7 @@ send_pinned_addresses(
     ) of
         Result = {ok, _} ->
             Result;
-        Error = {error, {network_failure, _}} ->
+        {error, {connection_failure, Reason}} ->
             send_pinned_addresses(
                 Rest,
                 Method,
@@ -512,8 +512,10 @@ send_pinned_addresses(
                 BodyLimit,
                 Transport,
                 Timeout,
-                Error
+                {error, {network_failure, Reason}}
             );
+        Error = {error, {network_failure, _}} ->
+            Error;
         {error, {response_failure, Reason}} ->
             {error, {network_failure, Reason}}
     end.
@@ -720,6 +722,8 @@ handle_response({error, {response_too_large, Reason}}) ->
     {error, {response_failure, Reason}};
 handle_response({error, {response_error, Reason}}) ->
     {error, {response_failure, Reason}};
+handle_response({error, {connect, Reason}}) when is_binary(Reason) ->
+    {error, {connection_failure, Reason}};
 handle_response({error, {transport, Reason}}) when is_binary(Reason) ->
     {error, {network_failure, Reason}};
 handle_response({error, Reason}) ->

@@ -99,6 +99,10 @@ in order with one environment setup and dependency restore. Tests compile all
 packages, so CI has no separate check or build job.
 `just pr` retains the separate local check and strict build commands.
 
+Jobs that install mise tools use `ubuntu-24.04`, matching the precompiled
+Erlang target in `mise.lock`. Keep that runner pinned: the pinned mise version
+cannot use this locked Erlang build on newer Ubuntu runner images.
+
 ### Before Merging to Main
 
 ```bash

@@ -319,6 +319,11 @@ pub fn secure_request_header(
 /// independently validated and pinned. The response body is counted while it
 /// is read and the connection is closed immediately if the request's fixed
 /// endpoint cap is exceeded.
+///
+/// Another validated address is tried only if connection setup fails before
+/// sending. Send or response-read failures return a network error without
+/// replaying the request: the provider may have consumed a single-use token.
+/// A network error does not prove that the provider did not receive the request.
 pub fn send_public(
   secure_request: SecureRequest,
 ) -> Result(Response(String), AuthError(e)) {

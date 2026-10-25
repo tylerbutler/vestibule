@@ -1,5 +1,5 @@
 name: "Setup mise tools"
-description: "Install the tool versions declared in the repository's mise configuration"
+description: "Install locked tools on Ubuntu 24.04, matching the Erlang build in mise.lock"
 
 runs:
   using: "composite"
