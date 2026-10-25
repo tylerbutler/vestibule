@@ -11,7 +11,7 @@ install:
 useWhen: Use Mist middleware if your app runs directly on Mist and does not use Wisp.
 setup:
   - Load a high-entropy secret key base from configuration or a secrets manager.
-  - Create Options with vestibule_mist.new_options(secret_key_base).
+  - Wrap the key with vestibule/secret_key, then create Options with vestibule_mist.new_options.
   - Initialize the shared state store once per BEAM VM.
   - Dispatch request and callback paths from your Mist handler.
 highlights:
@@ -25,11 +25,13 @@ code: |
   import gleam/http/response.{type Response}
   import mist.{type Connection, type ResponseData}
   import vestibule/config
-  import vestibule/state_store
-  import vestibule_mist
+    import vestibule/secret_key
+    import vestibule/state_store
+    import vestibule_mist
 
-  let assert Ok(store) = state_store.create()
-  let assert Ok(options) = vestibule_mist.new_options(secret_key_base)
+    let assert Ok(store) = state_store.create()
+    let secret_key = secret_key.from_bit_array(secret_key_base)
+    let assert Ok(options) = vestibule_mist.new_options(secret_key)
 
   fn handle_request(http_request: Request(Connection)) -> Response(ResponseData) {
     case request.path_segments(http_request), http_request.method {

@@ -34,7 +34,7 @@ credential for request construction.
 | Access and refresh tokens | Decoded from token responses; closure-wrapped in `credential.Credentials` | Authorization header and refresh request body | Retained as long as application-held credentials; Vestibule has no persistent token store | `Credentials` and `Auth` redact under normal term formatting. `credential.token` and `credential.refresh_token` return raw strings. Request terms contain raw headers or bodies after construction. |
 | ID token | Provider token response; closure-wrapped with the exchange artifact dictionary | Nonce and provider-claim validation | Callback-local unless application or provider code retains the exchange term | `ExchangeResult` redacts under normal term formatting. `strategy.exchange_artifacts` explicitly returns the raw artifact dictionary. The ID token is not copied into `Credentials`. |
 | Signed session identifier | Random state-store key, signed into the middleware cookie | Cookie verification and state-store lookup | Cookie is cleared by middleware after callback; state entry is consumed or expires | The identifier is not a provider token, but possession binds the browser to an in-flight flow. Structured logging rejects session and cookie field names. |
-| Cookie-signing key | Application input to Wisp or Mist middleware | Cookie signature generation and verification | Application lifetime; Vestibule does not persist or rotate it | Passed as a plain string. Do not render middleware configuration or signing inputs. Rotation is application-owned and invalidates outstanding login cookies. |
+| Cookie-signing key | Application input to the Wisp server or Mist middleware | Cookie signature generation and verification | Application lifetime; Vestibule does not persist or rotate it | Mist accepts `secret_key.SecretKey`, which hides the bytes during normal Gleam inspection and Erlang term formatting and exposes them only to the signing and verification calls. Wisp owns its signing key outside Vestibule's middleware API. Rotation is application-owned and invalidates outstanding login cookies. |
 | Apple signing material | Application-owned Apple private key creates a signed client-secret JWT outside Vestibule | Apple token endpoint | Private-key retention is entirely application-owned; JWT follows the client-secret lifecycle above | Vestibule receives the signed JWT, not the private key. Use `config.client_secret_auth(jwt)`. |
 
 ## Errors, logs, and request placement
@@ -58,11 +58,7 @@ credential for request construction.
   accessor has produced a raw string, or while an HTTP request term contains a
   raw header or body, can still disclose that value.
 
-Remaining follow-up defects track raw state-store callback artifacts
-([#175](https://github.com/tylerbutler/vestibule/issues/175)) and plain
-middleware signing keys
-([#177](https://github.com/tylerbutler/vestibule/issues/177)). Exchange-result
-redaction and structured-log alias filtering address
+Exchange-result redaction and structured-log alias filtering address
 [#176](https://github.com/tylerbutler/vestibule/issues/176) and
 [#178](https://github.com/tylerbutler/vestibule/issues/178), respectively.
 

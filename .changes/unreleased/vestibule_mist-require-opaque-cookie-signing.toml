@@ -1,0 +1,3 @@
+package = "vestibule_mist"
+kind = "Security"
+body = "Require opaque cookie-signing keys and document rotation invalidation."
