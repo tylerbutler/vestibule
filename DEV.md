@@ -19,11 +19,6 @@ Ensure you have the following installed:
 mise install --locked
 ```
 
-CI jobs that install mise tools use Ubuntu 24.04 to match the precompiled
-Erlang build in `mise.lock`. Keep that runner version pinned: the pinned mise
-release does not recognize Ubuntu 26.04 as a precompiled Erlang target, so
-`ubuntu-latest` can fail during locked setup before dependencies are downloaded.
-
 ## Getting Started
 
 ```bash
@@ -103,6 +98,10 @@ The combined job checks formatting, lints, runs tests, and builds documentation
 in order with one environment setup and dependency restore. Tests compile all
 packages, so CI has no separate check or build job.
 `just pr` retains the separate local check and strict build commands.
+
+Jobs that install mise tools use `ubuntu-24.04`, matching the precompiled
+Erlang target in `mise.lock`. Keep that runner pinned: the pinned mise version
+cannot use this locked Erlang build on newer Ubuntu runner images.
 
 ### Before Merging to Main
 
