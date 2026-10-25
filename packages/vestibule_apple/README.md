@@ -129,6 +129,25 @@ let result =
 Call `initialize()` once per BEAM VM. Consume the stored state, PKCE verifier,
 and nonce once.
 
+### JWKS cache lifetime and access
+
+Initialize the cache in an application process that stays alive while requests
+use it. That process owns the ETS table; the table is deleted when it exits.
+Pass the returned handle to callback processes rather than initializing a cache
+per request.
+
+The JWKS table uses public ETS access so callback processes can persist cache
+misses and key refreshes. This trusts application code in the same VM: any local
+process can write the table. The cached RSA verification keys are public, not
+secrets, but their integrity matters. This cache does not isolate untrusted code
+running in the VM. ID tokens still require RS256 signature and claim validation;
+an unknown key ID still triggers a refresh.
+
+If fetched keys cannot be stored, the operation returns a configuration error
+instead of reporting a successful cache update. Handle this as a cache lifecycle
+or storage failure. Network and JWKS parsing errors are returned without replacing
+previously cached keys.
+
 ## Minimal Wisp middleware
 
 ```gleam
