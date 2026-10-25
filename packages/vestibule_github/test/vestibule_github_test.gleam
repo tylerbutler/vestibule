@@ -16,6 +16,20 @@ pub fn main() -> Nil {
   gleeunit.main()
 }
 
+pub fn strategy_rejects_public_client_configuration_test() -> Nil {
+  let client_config =
+    config.new(
+      client_id: "client-id",
+      redirect_uri: "https://example.com/callback",
+      auth: config.public_client(),
+    )
+  let assert Error([validation_error]) =
+    strategy.validate_config(vestibule_github.strategy(), client_config)
+  assert config.validation_error_field(validation_error) == "auth"
+  assert config.validation_error_reason(validation_error)
+    == "GitHub requires client-secret authentication"
+}
+
 pub fn parse_token_response_success_test() -> Nil {
   let json =
     "{\"access_token\":\"gho_abc123\",\"token_type\":\"bearer\",\"scope\":\"user:email\"}"

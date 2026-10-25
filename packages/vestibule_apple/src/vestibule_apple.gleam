@@ -286,6 +286,13 @@ pub fn strategy_with_sender(
       do_fetch_user(apple, client_config, exchange, send)
     },
   )
+  |> strategy.with_config_validation(fn(client_config) {
+    config.require_auth_kind(
+      client_config,
+      [config.ClientSecretAuth],
+      "Apple requires a client-secret JWT",
+    )
+  })
   |> strategy.with_nonce()
   |> strategy.with_refresh(fn(client_config, refresh_token) {
     do_refresh_token(client_config, refresh_token, send)

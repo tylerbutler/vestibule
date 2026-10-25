@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Added"
+body = "Add offline checked client configuration and aggregate registry startup validation."

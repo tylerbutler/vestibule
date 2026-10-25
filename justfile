@@ -60,7 +60,7 @@ build-strict:
 
 # === TESTING ===
 
-# Run tests for all packages (Erlang target)
+# Run tests for all packages, including the example (Erlang target)
 test:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -70,6 +70,8 @@ test:
         echo "==> $pkg: testing (erlang)"
         ( cd "$dir" && gleam test )
     done
+    echo "==> example: testing (erlang)"
+    ( cd example && gleam test )
 
 # Backwards-compatible alias for all tests
 test-all: test

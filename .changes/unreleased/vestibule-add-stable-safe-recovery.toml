@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Added"
+body = "Add stable, safe recovery metadata for authentication errors."

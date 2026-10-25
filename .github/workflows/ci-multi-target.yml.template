@@ -16,6 +16,8 @@ permissions:
 
 jobs:
   test:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -45,6 +47,8 @@ jobs:
 
   # Uncomment for JavaScript runtime integration tests
   # integration-test:
+  #   permissions:
+  #     contents: read
   #   runs-on: ubuntu-latest
   #   strategy:
   #     matrix:
@@ -77,6 +81,8 @@ jobs:
   #       run: just test-integration-${{ matrix.runtime }}
 
   docs:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     name: Docs
     steps:

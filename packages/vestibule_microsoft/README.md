@@ -1,21 +1,60 @@
 # vestibule_microsoft
 
-Microsoft OAuth strategy for vestibule using the `/common` tenant endpoints.
+Microsoft OpenID Connect strategy for vestibule.
 
 > [!WARNING]
 > Vestibule has not been security audited and must not be considered secure.
-> It is intended for demos and prototypes that need real OAuth flows — do not
-> use it in production.
+> It is for demos and prototypes that need real OAuth flows. Do not use it in
+> production.
 
 ## Install
 
 ```sh
-gleam add vestibule_microsoft
+gleam add vestibule vestibule_microsoft
 ```
 
-## Usage
+Add `vestibule_wisp` or `vestibule_mist` if you use that middleware adapter.
+
+## Register the application
+
+1. Open **Microsoft Entra ID → App registrations → New registration**.
+2. Select the supported account types. The default vestibule strategy uses the
+   `/common` authority and accepts eligible personal and work/school accounts.
+3. Add a **Web** redirect URI.
+4. Copy the **Application (client) ID**.
+5. Open **Certificates & secrets**, create a client secret, and copy its
+   **Value**.
+6. Add delegated permissions for `openid`, `profile`, and `User.Read`. Grant
+   admin consent if the tenant requires it.
+
+Callback examples:
+
+- Local: `http://localhost:8000/auth/microsoft/callback`
+- HTTPS deployment: `https://demo.example/auth/microsoft/callback`
+
+The configured URI must exactly match `redirect_uri`. Vestibule permits plain
+HTTP only for `localhost` and loopback addresses.
+
+## Provider behavior
+
+| Item | Behavior |
+|---|---|
+| Default scopes | `openid profile User.Read` |
+| Client authentication | Client ID and secret in the token request form; use `config.client_secret_auth` |
+| Callback | GET query parameters |
+| Refresh | Supported; add `offline_access` to request a refresh token |
+| Revocation | No revocation helper; use Microsoft account or Graph controls outside vestibule |
+| Nonce | Generated and checked against the verified Microsoft ID token |
+| Email | Not exposed as verified email; `userPrincipalName` is kept as the nickname |
+
+The strategy uses Microsoft Graph `/me`. PKCE and state validation are part of
+the shared vestibule flow.
+
+## Minimal core flow
 
 ```gleam
+import gleam/dict
+import vestibule
 import vestibule/config
 import vestibule_microsoft
 
@@ -26,109 +65,112 @@ let client_config =
     redirect_uri: "http://localhost:8000/auth/microsoft/callback",
     auth: config.client_secret_auth("microsoft-client-secret"),
   )
+
+let assert Ok(request) =
+  vestibule.create_authorization_request(
+    strategy,
+    config: client_config,
+    options: config.authorize_options(),
+  )
+// Store request.state, request.code_verifier, and request.nonce in the server
+// session, then redirect to request.url.
+
+let params = dict.from_list([#("state", callback_state), #("code", callback_code)])
+let result =
+  vestibule.handle_callback(
+    strategy,
+    client_config,
+    params,
+    expected_state,
+    stored_code_verifier,
+    expected_nonce: stored_nonce,
+  )
 ```
 
-The strategy uses Microsoft Graph `/me` for profile data and keeps
-`userPrincipalName` as the nickname rather than treating it as a verified email.
+Consume the stored state, PKCE verifier, and nonce once.
 
-## Default scopes
-
-`openid profile User.Read`. Request different Microsoft permissions per request
-with `config.with_scopes` on `AuthorizeOptions`; `openid` and `profile` are
-still included for nonce and identity validation.
-
-## Azure portal setup
-
-1. Sign in to <https://portal.azure.com/> and open **Microsoft Entra ID
-   → App registrations → New registration**.
-2. **Supported account types**: pick one that matches the tenant
-   behavior section below (most apps want
-   *Accounts in any organizational directory and personal Microsoft
-   accounts*).
-3. **Redirect URI**: platform *Web*, value
-   `http://localhost:8000/auth/microsoft/callback` for dev (add the
-   HTTPS production URI as a second entry).
-4. After creation, copy the **Application (client) ID**.
-5. **Certificates & secrets → New client secret** → copy the secret
-   `Value` (not the ID). It is shown once.
-6. **API permissions**: the default `openid`, `profile`, and `User.Read`
-   (delegated) scopes are enough for nonce and identity validation and the
-   built-in Graph `/me` parsing; click **Grant admin consent** if your tenant
-   requires it.
-
-## Tenant behavior
-
-By default, `vestibule_microsoft.strategy()` uses Microsoft Entra ID's `/common`
-tenant:
-
-```text
-https://login.microsoftonline.com/common/oauth2/v2.0
-```
-
-This allows both personal Microsoft accounts and work/school accounts from any
-tenant that can consent to your app, and it performs **no** tenant validation. It
-is convenient for general sign-in, but it does **not** restrict authentication to
-one organization. Use it only for explicitly multi-tenant apps.
-
-### Restricting to a single tenant
-
-For single-organization apps, use `strategy_for_tenant`:
+## Minimal Wisp middleware
 
 ```gleam
+import gleam/http
+import vestibule/config
+import vestibule/registry
+import vestibule/state_store
 import vestibule_microsoft
+import vestibule_wisp
+import wisp
 
-// Pass your tenant's directory (tenant) GUID:
-let strategy =
-  vestibule_microsoft.strategy_for_tenant("72f988bf-86f1-41af-91ab-2d7cd011db47")
+let assert Ok(registry) =
+  registry.new()
+  |> registry.register(
+    vestibule_microsoft.strategy(),
+    config.new(
+      client_id: "microsoft-client-id",
+      redirect_uri: "http://localhost:8000/auth/microsoft/callback",
+      auth: config.client_secret_auth("microsoft-client-secret"),
+    ),
+  )
+let assert Ok(store) = state_store.create()
+
+case wisp.path_segments(request), request.method {
+  ["auth", "microsoft"], http.Get ->
+    vestibule_wisp.request_phase_for_client(
+      request,
+      registry: registry,
+      provider: "microsoft",
+      state_store: store,
+      authorize_options: config.authorize_options(),
+      client_key: client_key,
+    )
+  ["auth", "microsoft", "callback"], http.Get ->
+    vestibule_wisp.callback_phase(
+      request,
+      registry,
+      "microsoft",
+      store,
+      on_success,
+    )
+  _, _ -> wisp.not_found()
+}
 ```
 
-This:
+For Mist, use the same registry with `vestibule_mist.request_phase` and
+`vestibule_mist.callback_phase`.
 
-- targets the tenant-specific authority endpoints
-  (`https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/...`), so Microsoft
-  only issues tokens for that tenant; and
-- requests the `openid` and `profile` scopes, verifies the ID token signature, RS256
-  algorithm, issuer, audience, lifetime, `tid`, and `oid`, then requires
-  Microsoft Graph `/me.id` to match the verified `oid`.
+## Tenant choice
 
-Pass the tenant **GUID** rather than a verified domain
-(e.g. `contoso.onmicrosoft.com`): the `tid` claim is always a GUID, so domain
-values cannot be matched and would reject otherwise-valid logins.
-
-For lower-level integrations, parse Microsoft JWKS with
-`parse_jwks_response`, then call `verify_id_token`. It returns `oid` and `tid`
-only after cryptographic and claim validation. No public helper accepts an
-unsigned tenant claim as verified evidence.
-
-
-## Extra authorization parameters
-
-Use `config.with_extra_parameters` on per-request options for Microsoft-specific authorization options:
+`strategy()` uses `/common` and does not restrict sign-in to one organization.
+For one tenant, pass its directory GUID:
 
 ```gleam
-let assert Ok(options) =
-  config.authorize_options()
-  |> config.with_extra_parameters([
-    #("prompt", "select_account"),
-    #("login_hint", "person@example.com"),
-  ])
+let strategy =
+  vestibule_microsoft.strategy_for_tenant(
+    "72f988bf-86f1-41af-91ab-2d7cd011db47",
+  )
 ```
 
-Useful parameters include `prompt=select_account` to force account selection,
-`prompt=consent` to force a consent prompt, `login_hint` to pre-fill the account
-identifier, and `domain_hint` to streamline home-realm discovery for a tenant.
+Do not pass a verified domain. The strategy validates the signed `tid` and
+`oid` claims and checks that Graph `/me.id` matches `oid`.
 
-## Custom HTTP clients
+To request refresh tokens, replace the defaults with all required scopes:
 
-For sans-IO use, call `build_authorization_code_request` or
-`build_refresh_token_request` with `"common"` or the tenant GUID used by
-`strategy_for_tenant`. Userinfo uses `build_user_info_request`. Send each
-returned request with your HTTP client and pass its response to the matching
-`parse_*_response` function. The existing strategies continue to use
-`gleam_httpc` internally.
+```gleam
+let options =
+  config.authorize_options()
+  |> config.with_scopes(["openid", "profile", "User.Read", "offline_access"])
+```
 
-## Profile images
+## Diagnose setup errors
 
-Microsoft Graph `/me` does not include profile photos. The built-in strategy
-returns `None` from the image accessor; if your app needs photos, request the
-additional Microsoft Graph photo permissions and fetch the photo separately.
+- **Redirect mismatch:** compare the complete URI, including scheme, host,
+  port, path, and trailing slash.
+- **Secret failure:** use the client secret **Value**, not its secret ID.
+- **Consent failure:** confirm delegated `User.Read` permission and tenant
+  consent policy.
+- **Wrong accounts:** make the Entra supported-account setting match `/common`,
+  or use `strategy_for_tenant` with the tenant GUID.
+- **Nonce or tenant failure:** keep the nonce from the same session and confirm
+  that the selected account belongs to the expected tenant.
+- **Missing email:** this strategy does not claim that
+  `userPrincipalName` is a verified email.
+- **No refresh token:** request `offline_access`.

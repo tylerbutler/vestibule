@@ -67,8 +67,9 @@ pub type CookieSameSite {
 /// Middleware configuration options.
 ///
 /// Construct with `default_options` and customize with `with_cookie_name`,
-/// `with_session_ttl`, `with_cookie_security`, and `with_same_site`. The type is opaque
-/// so the effective cookie name always matches the cookie security: host-bound
+/// `with_session_ttl`, `with_cookie_security`, `with_same_site`, and
+/// `with_recovery_path`. The type is opaque so the effective cookie name always
+/// matches the cookie security: host-bound
 /// (`__Host-` prefixed) under `SecureOnly`, unprefixed under `AllowInsecure`
 /// (browsers reject `__Host-` cookies that are not `Secure`). A host-bound
 /// name prevents a sibling subdomain from overwriting the session cookie with
@@ -84,6 +85,7 @@ pub opaque type Options {
     session_ttl: SessionTtl,
     cookie_security: CookieSecurity,
     same_site: CookieSameSite,
+    recovery_path: option.Option(String),
   )
 }
 
@@ -135,6 +137,33 @@ pub type CallbackParametersError {
   DuplicateParameter(name: String)
 }
 
+/// Why a callback recovery path was rejected.
+pub type RecoveryPathError {
+  /// The value was not a safe same-origin path.
+  RecoveryPathMustBeLocal
+}
+
+/// Why an auth route prefix was rejected.
+pub type RouteMountError {
+  /// The prefix must be an absolute path such as `/auth`.
+  AuthPathPrefixMustBeAbsolute
+  /// The prefix must contain only canonical, non-empty path segments.
+  AuthPathPrefixMustBeCanonical
+}
+
+/// Configuration for the optional request and callback route helper.
+pub opaque type RouteMount(e) {
+  RouteMount(
+    path_prefix: List(String),
+    registry: Registry(e),
+    state_store: StateStore,
+    authorize_options: AuthorizeOptions,
+    middleware_options: Options,
+    on_success: fn(Auth) -> Response,
+    on_error: fn(CallbackError(e), error.Recovery) -> Response,
+  )
+}
+
 /// Default middleware options.
 ///
 /// Uses the host-bound `__Host-vestibule_session` signed cookie with a
@@ -154,6 +183,7 @@ pub fn default_options() -> Options {
     session_ttl: session_ttl.default(),
     cookie_security: SecureOnly,
     same_site: Lax,
+    recovery_path: option.None,
   )
 }
 
@@ -195,6 +225,26 @@ pub fn with_same_site(options: Options, same_site: CookieSameSite) -> Options {
   Options(..options, same_site: same_site)
 }
 
+/// Set a same-origin path for the default callback error page.
+///
+/// Absolute URLs, network-path references, backslashes, control characters,
+/// and HTML delimiters return `Error(RecoveryPathMustBeLocal)`.
+pub fn with_recovery_path(
+  options: Options,
+  path: String,
+) -> Result(Options, RecoveryPathError) {
+  use <- bool.guard(
+    when: !safe_recovery_path(path),
+    return: Error(RecoveryPathMustBeLocal),
+  )
+  Ok(Options(..options, recovery_path: option.Some(path)))
+}
+
+/// Return the configured same-origin recovery path.
+pub fn recovery_path(options: Options) -> option.Option(String) {
+  options.recovery_path
+}
+
 /// The session cookie's `SameSite` setting for these options.
 pub fn same_site(options: Options) -> CookieSameSite {
   options.same_site
@@ -218,6 +268,140 @@ pub fn session_ttl(options: Options) -> SessionTtl {
 /// The cookie security for these options.
 pub fn cookie_security(options: Options) -> CookieSecurity {
   options.cookie_security
+}
+
+/// Configure request and callback routes below one auth path prefix.
+///
+/// The mount handles `GET <prefix>/<provider>` and `GET` or `POST`
+/// `<prefix>/<provider>/callback`. Other paths and methods fall through.
+pub fn new_route_mount(
+  auth_path_prefix auth_path_prefix: String,
+  registry registry: Registry(e),
+  state_store state_store: StateStore,
+  authorize_options authorize_options: AuthorizeOptions,
+  middleware_options middleware_options: Options,
+  on_success on_success: fn(Auth) -> Response,
+  on_error on_error: fn(CallbackError(e), error.Recovery) -> Response,
+) -> Result(RouteMount(e), RouteMountError) {
+  use path_prefix <- result.try(route_prefix_segments(auth_path_prefix))
+  Ok(RouteMount(
+    path_prefix: path_prefix,
+    registry: registry,
+    state_store: state_store,
+    authorize_options: authorize_options,
+    middleware_options: middleware_options,
+    on_success: on_success,
+    on_error: on_error,
+  ))
+}
+
+/// Handle a mounted auth route using a trusted direct-client admission key.
+///
+/// `None` means that the host router must continue routing the request.
+pub fn route_for_client(
+  http_request: Request,
+  mount mount: RouteMount(e),
+  client_key client_key: String,
+) -> option.Option(Response) {
+  let remaining =
+    route_suffix(wisp.path_segments(http_request), mount.path_prefix)
+  case remaining, http_request.method {
+    option.Some([provider]), http.Get ->
+      case canonical_route_segment(provider) {
+        True ->
+          option.Some(request_phase_for_client_with_options(
+            http_request,
+            registry: mount.registry,
+            provider: provider,
+            state_store: mount.state_store,
+            authorize_options: mount.authorize_options,
+            middleware_options: mount.middleware_options,
+            client_key: client_key,
+          ))
+        False -> option.None
+      }
+    option.Some([provider, "callback"]), http.Get
+    | option.Some([provider, "callback"]), http.Post
+    ->
+      case canonical_route_segment(provider) {
+        True -> option.Some(route_callback(http_request, mount, provider))
+        False -> option.None
+      }
+    _, _ -> option.None
+  }
+}
+
+fn route_callback(
+  http_request: Request,
+  mount: RouteMount(e),
+  provider: String,
+) -> Response {
+  let outcome =
+    callback_phase_auth_result_with_options(
+      http_request,
+      registry: mount.registry,
+      provider: provider,
+      state_store: mount.state_store,
+      options: mount.middleware_options,
+    )
+  let response = case outcome {
+    Ok(authentication) -> mount.on_success(authentication)
+    Error(callback_error) ->
+      mount.on_error(callback_error, callback_recovery(callback_error))
+  }
+  case
+    callback_cookie_is_terminal(
+      outcome,
+      http_request,
+      provider,
+      mount.state_store,
+      mount.middleware_options,
+    )
+  {
+    True ->
+      expire_session_cookie(response, http_request, mount.middleware_options)
+    False -> response
+  }
+}
+
+fn route_prefix_segments(
+  prefix: String,
+) -> Result(List(String), RouteMountError) {
+  use <- bool.guard(
+    when: !string.starts_with(prefix, "/"),
+    return: Error(AuthPathPrefixMustBeAbsolute),
+  )
+  let segments = prefix |> string.drop_start(1) |> string.split("/")
+  use <- bool.guard(
+    when: segments == [] || !list.all(segments, canonical_route_segment),
+    return: Error(AuthPathPrefixMustBeCanonical),
+  )
+  Ok(segments)
+}
+
+fn canonical_route_segment(segment: String) -> Bool {
+  segment != ""
+  && segment != "."
+  && segment != ".."
+  && !string.contains(segment, "/")
+  && !string.contains(segment, "%")
+  && !string.contains(segment, "\\")
+  && !string.contains(segment, "\r")
+  && !string.contains(segment, "\n")
+  && !string.contains(segment, "\u{0000}")
+  && !string.contains(segment, "?")
+  && !string.contains(segment, "#")
+}
+
+fn route_suffix(
+  path: List(String),
+  prefix: List(String),
+) -> option.Option(List(String)) {
+  let prefix_length = list.length(prefix)
+  case list.take(path, prefix_length) == prefix {
+    True -> option.Some(list.drop(path, prefix_length))
+    False -> option.None
+  }
 }
 
 /// Phase 1: Redirect user to the OAuth provider.
@@ -390,7 +574,7 @@ pub fn request_phase_for_client_with_options(
           ],
         ),
       )
-      generic_error_response()
+      request_error_response()
     }
     Error(transport_flow.StoreFailed(state_store.ClientLimitReached))
     | Error(transport_flow.StoreFailed(state_store.StoreFull)) -> {
@@ -423,7 +607,7 @@ pub fn request_phase_for_client_with_options(
           ],
         ),
       )
-      generic_error_response()
+      request_error_response()
     }
     Ok(#(url, session_id)) -> {
       logger.emit(
@@ -489,7 +673,7 @@ pub fn callback_phase_with_options(
     )
   let response = case outcome {
     Ok(auth) -> on_success(auth)
-    Error(callback_error) -> callback_error_response(callback_error)
+    Error(callback_error) -> callback_error_response(callback_error, options)
   }
   case
     callback_cookie_is_terminal(
@@ -548,7 +732,7 @@ pub fn callback_phase_result_with_options(
   case outcome {
     Ok(auth) -> Ok(auth)
     Error(callback_error) -> {
-      let response = callback_error_response(callback_error)
+      let response = callback_error_response(callback_error, options)
       case
         callback_cookie_is_terminal(
           outcome,
@@ -913,31 +1097,129 @@ fn secure_attribute(security: CookieSecurity) -> Bool {
   }
 }
 
-fn callback_error_response(callback_error: CallbackError(e)) -> Response {
+/// Return stable, non-sensitive recovery metadata for a callback error.
+pub fn callback_recovery(callback_error: CallbackError(e)) -> error.Recovery {
   case callback_error {
-    UnknownProvider(_) -> wisp.not_found()
-    MissingOrInvalidSessionCookie(_) -> generic_error_response()
-    SessionUnavailable -> generic_error_response()
-    SessionProviderMismatch -> generic_error_response()
-    InvalidCallbackParameters(_) -> generic_error_response()
-    AuthFailed(_) -> generic_error_response()
+    UnknownProvider(_) ->
+      error.new_recovery(
+        error.ContactApplication,
+        404,
+        "callback_unknown_provider",
+        "This sign-in provider is not available.",
+      )
+    MissingOrInvalidSessionCookie(CookieAbsent) ->
+      restart_recovery(
+        "callback_session_missing",
+        "Your sign-in session is missing or expired. Start sign-in again.",
+      )
+    MissingOrInvalidSessionCookie(CookieSignatureInvalid) ->
+      restart_recovery(
+        "callback_session_invalid",
+        "Your sign-in session could not be verified. Start sign-in again.",
+      )
+    SessionUnavailable ->
+      restart_recovery(
+        "callback_session_unavailable",
+        "Your sign-in session is expired or already used. Start sign-in again.",
+      )
+    SessionProviderMismatch ->
+      restart_recovery(
+        "callback_provider_mismatch",
+        "Your sign-in session does not match this provider. Start sign-in again.",
+      )
+    InvalidCallbackParameters(_) ->
+      restart_recovery(
+        "callback_parameters_invalid",
+        "The sign-in response was invalid. Start sign-in again.",
+      )
+    AuthFailed(authentication_error) ->
+      callback_auth_recovery(error.recovery(authentication_error))
   }
+}
+
+fn restart_recovery(code: String, summary: String) -> error.Recovery {
+  error.new_recovery(error.RestartAuthorization, 400, code, summary)
+}
+
+fn callback_auth_recovery(recovery: error.Recovery) -> error.Recovery {
+  case error.recovery_action(recovery) {
+    error.RetryOperation ->
+      error.new_recovery(
+        error.RestartAuthorization,
+        error.recovery_http_status(recovery),
+        error.recovery_code(recovery),
+        "The provider could not complete sign-in. Start sign-in again.",
+      )
+    error.RestartAuthorization | error.ContactApplication -> recovery
+  }
+}
+
+fn callback_error_response(
+  callback_error: CallbackError(e),
+  options: Options,
+) -> Response {
+  let recovery = callback_recovery(callback_error)
+  generic_error_response(recovery, options.recovery_path)
+}
+
+fn request_error_response() -> Response {
+  generic_error_response(
+    error.new_recovery(
+      error.ContactApplication,
+      400,
+      "authorization_request_failed",
+      "Sign-in could not be started. Contact the application owner.",
+    ),
+    option.None,
+  )
 }
 
 /// The user-facing failure page. Deliberately says nothing about the
 /// underlying error: provider-supplied error text must never be rendered back
 /// to the browser, and the structured `CallbackError` variants are how a
 /// caller gets the detail instead.
-fn generic_error_response() -> Response {
-  wisp.html_response(
-    "<html>
+fn generic_error_response(
+  recovery: error.Recovery,
+  recovery_path: option.Option(String),
+) -> Response {
+  let recovery_link = case error.recovery_action(recovery), recovery_path {
+    error.RetryOperation, option.Some(path) ->
+      "<a href=\"" <> escape_html(path) <> "\">Try again</a>"
+    error.RestartAuthorization, option.Some(path) ->
+      "<a href=\"" <> escape_html(path) <> "\">Start over</a>"
+    error.ContactApplication, _
+    | error.RetryOperation, option.None
+    | error.RestartAuthorization, option.None
+    -> ""
+  }
+  wisp.html_response("<html>
 <head><title>Authentication Error</title></head>
 <body style=\"font-family: system-ui, sans-serif; max-width: 600px; margin: 80px auto;\">
   <h1>Authentication Failed</h1>
-  <p style=\"color: #c0392b;\">Authentication failed. Please try again.</p>
-  <a href=\"/\">Try again</a>
+  <p style=\"color: #c0392b;\">" <> escape_html(error.recovery_summary(recovery)) <> "</p>
+  " <> recovery_link <> "
 </body>
-</html>",
-    400,
-  )
+</html>", error.recovery_http_status(recovery))
+}
+
+fn safe_recovery_path(path: String) -> Bool {
+  string.starts_with(path, "/")
+  && !string.starts_with(path, "//")
+  && !string.contains(path, "\\")
+  && !string.contains(path, "\r")
+  && !string.contains(path, "\n")
+  && !string.contains(path, "\u{0000}")
+  && !string.contains(path, "\"")
+  && !string.contains(path, "'")
+  && !string.contains(path, "<")
+  && !string.contains(path, ">")
+}
+
+fn escape_html(value: String) -> String {
+  value
+  |> string.replace("&", "&amp;")
+  |> string.replace("<", "&lt;")
+  |> string.replace(">", "&gt;")
+  |> string.replace("\"", "&quot;")
+  |> string.replace("'", "&#39;")
 }

@@ -1,0 +1,3 @@
+package = "vestibule_indieauth"
+kind = "Changed"
+body = "Validate IndieAuth public-client compatibility at startup."
