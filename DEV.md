@@ -99,6 +99,9 @@ in order with one environment setup and dependency restore. Tests compile all
 packages, so CI has no separate check or build job.
 `just pr` retains the separate local check and strict build commands.
 
+Workflow runners and templates use Ubuntu 24.04 to match the Linux Erlang build
+in `mise.lock`. Keep that runner version aligned with the lock when upgrading.
+
 ### Before Merging to Main
 
 ```bash
