@@ -1,0 +1,3 @@
+package = "vestibule_oidc"
+kind = "Fixed"
+body = "Preserve discovered authorization endpoint query parameters while rejecting reserved-key collisions with generated OAuth and OIDC bindings."

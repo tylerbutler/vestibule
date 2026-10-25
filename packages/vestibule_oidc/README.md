@@ -36,6 +36,21 @@ The redirect URI may use local HTTP as shown. The issuer and all discovered
 server endpoints must use public HTTPS and cannot resolve to local or private
 addresses.
 
+Discovery follows [OIDC Discovery 1.0, section 4.1](https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfigurationRequest):
+remove a terminating slash from the issuer path, then append
+`/.well-known/openid-configuration`. For example, `https://id.example/tenant/`
+uses `https://id.example/tenant/.well-known/openid-configuration`. The response
+`issuer` must still match the original issuer exactly, including its trailing
+slash and port.
+
+Authorization URLs retain the discovered endpoint's query parameters, including
+repeated keys and percent-encoded values, and append generated parameters and
+permitted request options. Endpoint queries must be valid URL-encoded pairs.
+They cannot contain reserved parameters: `response_type`, `client_id`,
+`redirect_uri`, `scope`, `state`, `code_challenge`, `code_challenge_method`,
+`nonce`, or `response_mode`. This uses the same rejection policy as
+`config.with_extra_parameters`, including percent-encoded endpoint keys.
+
 ## Provider behavior
 
 | Item | Behavior |
