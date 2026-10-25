@@ -1,0 +1,3 @@
+package = "vestibule_apple"
+kind = "Fixed"
+body = "Allow callback processes to persist Apple JWKS cache misses and refreshes, and return configuration errors when cache writes fail."

@@ -41,14 +41,18 @@ pub type JwksCacheError {
 }
 
 /// Initialize the JWKS cache. Call once per VM at application startup.
+/// The initializing process owns the table and must stay alive while it is used.
+/// Request processes can read and update the shared cache.
 pub fn initialize() -> Result(JwksCache, JwksCacheError) {
   initialize_named("vestibule_apple_jwks")
 }
 
 /// Initialize a named JWKS cache. Returns an error if the table already
-/// exists or cannot be created.
+/// exists or cannot be created. The initializing process must stay alive
+/// while the cache is used.
 pub fn initialize_named(name: String) -> Result(JwksCache, JwksCacheError) {
-  case uset.new(name: name, access: bravo.Protected) {
+  // Callback processes must persist fetched keys; application code in the VM is trusted.
+  case uset.new(name: name, access: bravo.Public) {
     Ok(table) -> Ok(JwksCache(table: table))
     Error(storage_error) ->
       Error(JwksTableCreationFailed(reason: string.inspect(storage_error)))
@@ -62,6 +66,7 @@ pub fn get_keys(cache: JwksCache) -> Result(List(VerifyKey), AuthError(e)) {
 }
 
 /// Get cached keys or fetch them with a custom HTTP sender.
+/// Returns a configuration error if fetched keys cannot be cached.
 pub fn get_keys_with_sender(
   cache: JwksCache,
   send: fn(request.Request(String)) ->
@@ -69,12 +74,7 @@ pub fn get_keys_with_sender(
 ) -> Result(List(VerifyKey), AuthError(e)) {
   case uset.lookup(from: cache.table, at: cache_key) {
     Ok(keys) -> Ok(keys)
-    Error(_) -> {
-      use keys <- result.try(fetch_keys(send))
-      let _inserted =
-        uset.insert(into: cache.table, key: cache_key, value: keys)
-      Ok(keys)
-    }
+    Error(_) -> refresh_keys_with_sender(cache, send)
   }
 }
 
@@ -84,14 +84,20 @@ pub fn refresh_keys(cache: JwksCache) -> Result(List(VerifyKey), AuthError(e)) {
 }
 
 /// Refresh cached keys with a custom HTTP sender.
+/// Returns a configuration error if fetched keys cannot be cached.
 pub fn refresh_keys_with_sender(
   cache: JwksCache,
   send: fn(request.Request(String)) ->
     Result(response.Response(String), send_error),
 ) -> Result(List(VerifyKey), AuthError(e)) {
   use keys <- result.try(fetch_keys(send))
-  let _inserted = uset.insert(into: cache.table, key: cache_key, value: keys)
-  Ok(keys)
+  case uset.insert(into: cache.table, key: cache_key, value: keys) {
+    Ok(Nil) -> Ok(keys)
+    Error(storage_error) ->
+      Error(error.config(
+        reason: "Failed to cache Apple JWKS: " <> string.inspect(storage_error),
+      ))
+  }
 }
 
 /// Build the request for Apple's JWKS endpoint without sending it.
