@@ -12,12 +12,14 @@ import gleam/option.{type Option, None}
 pub opaque type UserInfo {
   UserInfo(
     name: Option(String),
-    /// Email address accepted by the strategy for identity use.
+    /// Email address supplied by the strategy.
     ///
     /// Strategies should only populate this field when the provider has
     /// verified the address. If a provider reports an unverified email, or
     /// does not provide enough verification information for the strategy to
-    /// trust it, the strategy should leave it as `None`.
+    /// trust it, the strategy should leave it as `None`. IndieAuth is an
+    /// exception: its optional email is unverified profile data, not proof
+    /// of identity. See the provider's documentation before using email.
     email: Option(String),
     nickname: Option(String),
     image: Option(String),
@@ -43,10 +45,11 @@ pub fn with_name(info: UserInfo, name: Option(String)) -> UserInfo {
   UserInfo(..info, name: name)
 }
 
-/// Set the verified email address.
+/// Set the email address.
 ///
 /// Strategies should only set this when the provider has verified the
-/// address; otherwise leave it unset.
+/// address; otherwise leave it unset. IndieAuth supplies optional, unverified
+/// profile email instead; it must not be used as proof of identity.
 pub fn with_email(info: UserInfo, email: Option(String)) -> UserInfo {
   UserInfo(..info, email: email)
 }
@@ -79,7 +82,9 @@ pub fn name(info: UserInfo) -> Option(String) {
   info.name
 }
 
-/// Return the verified email address, when one is available.
+/// Return the email address, when one is available.
+///
+/// IndieAuth email is unverified profile data, not proof of identity.
 pub fn email(info: UserInfo) -> Option(String) {
   info.email
 }

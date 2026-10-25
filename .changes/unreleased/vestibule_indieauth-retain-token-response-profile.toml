@@ -1,0 +1,3 @@
+package = "vestibule_indieauth"
+kind = "Fixed"
+body = "Retain token-response profile name, optional unverified email, photo, and profile URL after identity confirmation when no userinfo endpoint is available. Add strategy_with_sender for secure transport wrappers and deterministic callback tests."

@@ -32,7 +32,7 @@ pub type IndieAuthProfile {
     url: Option(String),
     /// Optional profile photo URL.
     photo: Option(String),
-    /// Optional email address.
+    /// Optional, unverified email address; not proof of identity.
     email: Option(String),
   )
 }

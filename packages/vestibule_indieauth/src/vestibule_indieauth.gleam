@@ -28,6 +28,7 @@
 import gleam/dict
 import gleam/dynamic
 import gleam/dynamic/decode
+import gleam/http/response
 import gleam/json
 import gleam/option.{type Option, None, Some}
 import gleam/result
@@ -37,6 +38,7 @@ import gleam/uri
 import vestibule/config.{type AuthorizeOptions, type ClientConfig}
 import vestibule/credential.{type Credentials}
 import vestibule/error.{type AuthError}
+import vestibule/provider_support
 import vestibule/strategy.{type Strategy, type UserResult}
 import vestibule/user_info
 
@@ -187,6 +189,21 @@ pub fn parse_endpoints(
 /// Use this with `discover_endpoints` when you want to separate
 /// discovery from strategy creation.
 pub fn strategy(endpoints: DiscoveredEndpoints, me: String) -> Strategy(e) {
+  strategy_with_sender(endpoints, me, provider_support.send_public)
+}
+
+/// Create a strategy with a caller-supplied secure-request sender.
+///
+/// This supports deterministic callback tests and secure transport wrappers.
+/// The sender must preserve the security properties documented by
+/// `provider_support.SecureRequest`. Profile URL rediscovery still uses
+/// vestibule's secure discovery transport.
+pub fn strategy_with_sender(
+  endpoints: DiscoveredEndpoints,
+  me: String,
+  send: fn(provider_support.SecureRequest) ->
+    Result(response.Response(String), AuthError(e)),
+) -> Strategy(e) {
   let discovered_strategy =
     strategy.new(
       provider: "indieauth",
@@ -195,10 +212,10 @@ pub fn strategy(endpoints: DiscoveredEndpoints, me: String) -> Strategy(e) {
         do_authorize_url(endpoints, me, client_config, options, scopes, state)
       },
       exchange_code: fn(client_config, code, code_verifier) {
-        do_exchange_code(endpoints, client_config, code, code_verifier)
+        do_exchange_code(endpoints, client_config, code, code_verifier, send)
       },
       fetch_user: fn(_client_config, exchange) {
-        do_fetch_user(endpoints, me, exchange)
+        do_fetch_user(endpoints, me, exchange, send)
       },
     )
     |> strategy.with_config_validation(fn(client_config) {
@@ -209,7 +226,7 @@ pub fn strategy(endpoints: DiscoveredEndpoints, me: String) -> Strategy(e) {
       )
     })
     |> strategy.with_refresh(fn(client_config, refresh_token) {
-      do_refresh_token(endpoints, client_config, refresh_token)
+      do_refresh_token(endpoints, client_config, refresh_token, send)
     })
 
   case endpoints.issuer {
@@ -277,18 +294,37 @@ fn do_exchange_code(
   client_config: ClientConfig,
   code: String,
   code_verifier: Option(String),
+  send: fn(provider_support.SecureRequest) ->
+    Result(response.Response(String), AuthError(e)),
 ) -> Result(strategy.ExchangeResult, AuthError(e)) {
-  use #(oauth_credentials, asserted) <- result.try(token.exchange_code(
+  use http_request <- result.try(token.build_authorization_code_request(
     endpoints.token_endpoint,
     config.client_id(client_config),
     config.redirect_uri(client_config),
     code,
     code_verifier,
   ))
+  use http_response <- result.try(send(http_request))
+  use #(oauth_credentials, asserted) <- result.try(
+    token.parse_authorization_code_response(http_response),
+  )
   Ok(strategy.exchange_result_with_artifacts(
     oauth_credentials,
-    dict.from_list([#(me_artifact, dynamic.string(asserted.me))]),
+    dict.from_list([
+      #(me_artifact, dynamic.string(asserted.me)),
+      #("name", optional_string_artifact(asserted.name)),
+      #("email", optional_string_artifact(asserted.email)),
+      #("photo", optional_string_artifact(asserted.photo)),
+      #("url", optional_string_artifact(asserted.url)),
+    ]),
   ))
+}
+
+fn optional_string_artifact(value: Option(String)) -> dynamic.Dynamic {
+  case value {
+    Some(value) -> dynamic.string(value)
+    None -> dynamic.nil()
+  }
 }
 
 /// Artifact key under which the token response's `me` is carried from the
@@ -299,18 +335,24 @@ fn do_refresh_token(
   endpoints: DiscoveredEndpoints,
   client_config: ClientConfig,
   refresh_token: String,
+  send: fn(provider_support.SecureRequest) ->
+    Result(response.Response(String), AuthError(e)),
 ) -> Result(Credentials, AuthError(e)) {
-  token.refresh(
+  use http_request <- result.try(token.build_refresh_token_request(
     endpoints.token_endpoint,
     config.client_id(client_config),
     refresh_token,
-  )
+  ))
+  use http_response <- result.try(send(http_request))
+  token.parse_refresh_token_response(http_response)
 }
 
 fn do_fetch_user(
   endpoints: DiscoveredEndpoints,
   me: String,
   exchange: strategy.ExchangeResult,
+  send: fn(provider_support.SecureRequest) ->
+    Result(response.Response(String), AuthError(e)),
 ) -> Result(UserResult, AuthError(e)) {
   // The `me` the user typed is only a claim. The identity is the profile URL
   // the token endpoint returned, and only once it has been confirmed to be
@@ -328,10 +370,14 @@ fn do_fetch_user(
   case endpoints.userinfo_endpoint {
     Some(userinfo_url) -> {
       let oauth_credentials = strategy.exchange_credentials(exchange)
-      use #(userinfo_me, profile_info) <- result.try(token.fetch_userinfo(
+      use http_request <- result.try(token.build_user_info_request(
         userinfo_url,
         oauth_credentials,
       ))
+      use http_response <- result.try(send(http_request))
+      use #(userinfo_me, profile_info) <- result.try(
+        token.parse_user_info_response(http_response),
+      )
       // The userinfo endpoint may enrich the profile but may not change the
       // identity established by the token exchange.
       use _ <- result.try(profile.require_same_profile_url(
@@ -344,13 +390,40 @@ fn do_fetch_user(
         extra: dict.new(),
       ))
     }
-    None ->
+    None -> {
+      use name <- result.try(optional_profile_artifact(exchange, "name"))
+      use email <- result.try(optional_profile_artifact(exchange, "email"))
+      use photo <- result.try(optional_profile_artifact(exchange, "photo"))
+      use profile_url <- result.try(optional_profile_artifact(exchange, "url"))
       Ok(strategy.user_result(
         uid: verified_me,
         info: user_info.new()
-          |> user_info.with_urls(dict.from_list([#("url", verified_me)])),
+          |> user_info.with_name(name)
+          |> user_info.with_email(email)
+          |> user_info.with_image(photo)
+          |> user_info.with_urls(
+            dict.from_list([
+              #("url", option.unwrap(profile_url, verified_me)),
+            ]),
+          ),
         extra: dict.new(),
       ))
+    }
+  }
+}
+
+fn optional_profile_artifact(
+  exchange: strategy.ExchangeResult,
+  key: String,
+) -> Result(Option(String), AuthError(e)) {
+  case dict.get(strategy.exchange_artifacts(exchange), key) {
+    Ok(value) ->
+      decode.run(value, decode.optional(decode.string))
+      |> result.replace_error(error.user_info(
+        reason: "Token response profile artifact is not an optional string: "
+        <> key,
+      ))
+    Error(Nil) -> Ok(None)
   }
 }
 
