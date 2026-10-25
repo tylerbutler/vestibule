@@ -60,3 +60,16 @@ binding. They do not prove a real provider's server behavior. The nonce test
 isolates flow binding and does not test a signature. Signed-token evidence,
 HTTP response handling, and browser cookie behavior require their separate
 provider and transport coverage.
+
+## Bounded parser corpus
+
+The root, OIDC, and IndieAuth test suites run fixed malformed-input corpora
+through callback query, URL, OAuth JSON, JWKS, discovery, token, UserInfo, Link,
+and HTML parsers. Inputs include empty and truncated data, duplicate
+parameters, malformed percent encoding, wrong JSON types, incomplete HTML, and
+8 KiB repeated-token cases.
+
+The corpus is deterministic and bounded: each parser receives at most 21
+inputs, and no input exceeds 8,192 bytes. Any crash, hang, or validation bypass
+fails the normal CI test job. Add every minimized parser defect to the corpus
+before fixing it so the triggering input remains reproducible.
