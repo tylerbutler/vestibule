@@ -139,8 +139,8 @@ pub fn discover(String) -> Result(strategy.Strategy(a), error.AuthError(a))
 
 Build the OpenID Connect discovery URL for an issuer URL.
 
-Per OIDC Discovery, path-based issuers insert
-`/.well-known/openid-configuration` between the host and issuer path.
+Per OIDC Discovery 1.0 section 4.1, remove a terminating slash from the
+issuer path, then append `/.well-known/openid-configuration`.
 
 ```gleam
 pub fn discovery_url(String) -> Result(String, error.AuthError(a))
@@ -208,6 +208,9 @@ addresses are rejected: these endpoints come from a provider-controlled
 discovery document and are called server-side with an `Authorization`
 header, so permitting internal hosts would enable SSRF.
 
+Authorization endpoint query parameters are preserved, but must be valid
+URL-encoded pairs and must not contain reserved authorization parameters.
+
 ```gleam
 pub fn new_config(
   issuer: String,
@@ -224,6 +227,7 @@ Construct a validated OIDC configuration with explicit verification data.
 
 Only issuers that advertise RS256 are accepted. The generic strategy pins
 ID-token verification to that algorithm.
+Authorization endpoint queries follow the validation rules in `new_config`.
 
 ```gleam
 pub fn new_config_with_jwks(

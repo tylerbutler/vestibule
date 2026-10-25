@@ -69,6 +69,9 @@ pub opaque type OidcConfig {
 /// addresses are rejected: these endpoints come from a provider-controlled
 /// discovery document and are called server-side with an `Authorization`
 /// header, so permitting internal hosts would enable SSRF.
+///
+/// Authorization endpoint query parameters are preserved, but must be valid
+/// URL-encoded pairs and must not contain reserved authorization parameters.
 pub fn new_config(
   issuer issuer: String,
   authorization_endpoint authorization_endpoint: String,
@@ -91,6 +94,7 @@ pub fn new_config(
 ///
 /// Only issuers that advertise RS256 are accepted. The generic strategy pins
 /// ID-token verification to that algorithm.
+/// Authorization endpoint queries follow the validation rules in `new_config`.
 pub fn new_config_with_jwks(
   issuer issuer: String,
   authorization_endpoint authorization_endpoint: String,
@@ -103,6 +107,23 @@ pub fn new_config_with_jwks(
   use _ <- result.try(provider_support.require_public_https_format(issuer))
   use _ <- result.try(provider_support.require_public_https_format(
     authorization_endpoint,
+  ))
+  use authorization_uri <- result.try(
+    uri.parse(authorization_endpoint)
+    |> result.map_error(fn(_) {
+      error.config(reason: "Invalid authorization endpoint URL")
+    }),
+  )
+  use endpoint_parameters <- result.try(
+    uri.parse_query(option.unwrap(authorization_uri.query, ""))
+    |> result.map_error(fn(_) {
+      error.config(reason: "Invalid authorization endpoint query")
+    }),
+  )
+  // Apply the same reserved-key policy before preserving provider parameters.
+  use _ <- result.try(config.with_extra_parameters(
+    config.authorize_options(),
+    endpoint_parameters,
   ))
   use _ <- result.try(provider_support.require_public_https_format(
     token_endpoint,
@@ -238,8 +259,8 @@ pub fn parse_discovery_response(
 
 /// Build the OpenID Connect discovery URL for an issuer URL.
 ///
-/// Per OIDC Discovery, path-based issuers insert
-/// `/.well-known/openid-configuration` between the host and issuer path.
+/// Per OIDC Discovery 1.0 section 4.1, remove a terminating slash from the
+/// issuer path, then append `/.well-known/openid-configuration`.
 pub fn discovery_url(issuer_url: String) -> Result(String, AuthError(e)) {
   // Security: preserve issuer validation before constructing the fetch URL.
   // The issuer is provider-controlled, so reject loopback/internal hosts.
@@ -252,15 +273,10 @@ pub fn discovery_url(issuer_url: String) -> Result(String, AuthError(e)) {
     }),
   )
 
-  let path = strip_trailing_slash(issuer.path)
-  let issuer_path = case path {
-    "" | "/" -> ""
-    _ -> path
-  }
-
   uri.Uri(
     ..issuer,
-    path: "/.well-known/openid-configuration" <> issuer_path,
+    path: strip_trailing_slash(issuer.path)
+      <> "/.well-known/openid-configuration",
     query: None,
     fragment: None,
   )
@@ -670,31 +686,18 @@ fn build_authorize_url_fn(
     use redirect <- result.try(
       provider_support.parse_redirect_uri(config.redirect_uri(client_config)),
     )
-    case uri.parse(authorization_endpoint) {
-      Ok(base_uri) -> {
-        let parameters = [
-          #("response_type", "code"),
-          #("client_id", config.client_id(client_config)),
-          #("redirect_uri", uri.to_string(redirect)),
-          #("scope", string.join(scopes, " ")),
-          #("state", state),
-        ]
-        // Merge any extra parameters from options
-        let all_parameters =
-          list.append(
-            parameters,
-            dict.to_list(config.extra_parameters(options)),
-          )
-        let query = uri.query_to_string(all_parameters)
-        let full_uri = uri.Uri(..base_uri, query: Some(query))
-        Ok(uri.to_string(full_uri))
-      }
-      Error(_parse_error) ->
-        Error(error.config(
-          reason: "Invalid authorization endpoint URL: "
-          <> authorization_endpoint,
-        ))
-    }
+    let parameters = [
+      #("response_type", "code"),
+      #("client_id", config.client_id(client_config)),
+      #("redirect_uri", uri.to_string(redirect)),
+      #("scope", string.join(scopes, " ")),
+      #("state", state),
+      ..dict.to_list(config.extra_parameters(options))
+    ]
+    Ok(provider_support.append_query_parameters(
+      authorization_endpoint,
+      parameters,
+    ))
   }
 }
 

@@ -1,0 +1,3 @@
+package = "vestibule_oidc"
+kind = "Fixed"
+body = "Append the OIDC discovery suffix after the issuer path, removing a terminating slash and preserving exact response issuer validation."

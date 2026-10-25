@@ -2,8 +2,13 @@ import gleam/dict
 import gleam/dynamic/decode
 import gleam/http
 import gleam/http/response
+import gleam/json
+import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
+import gleam/uri
+import vestibule
+import vestibule/authorization_request
 import vestibule/config
 import vestibule/credential
 import vestibule/error
@@ -424,8 +429,25 @@ pub fn discovery_url_for_path_issuer_test() -> Nil {
   vestibule_oidc.discovery_url("https://example.com/tenant")
   |> fn(actual) {
     assert actual
-      == Ok("https://example.com/.well-known/openid-configuration/tenant")
+      == Ok("https://example.com/tenant/.well-known/openid-configuration")
   }
+}
+
+pub fn discovery_url_for_nested_path_issuer_test() -> Nil {
+  assert vestibule_oidc.discovery_url("https://example.com/realms/demo")
+    == Ok("https://example.com/realms/demo/.well-known/openid-configuration")
+}
+
+pub fn discovery_url_for_trailing_slash_issuers_test() -> Nil {
+  assert vestibule_oidc.discovery_url("https://example.com/")
+    == Ok("https://example.com/.well-known/openid-configuration")
+  assert vestibule_oidc.discovery_url("https://example.com/tenant/")
+    == Ok("https://example.com/tenant/.well-known/openid-configuration")
+}
+
+pub fn discovery_url_preserves_non_default_port_test() -> Nil {
+  assert vestibule_oidc.discovery_url("https://example.com:8443/tenant/")
+    == Ok("https://example.com:8443/tenant/.well-known/openid-configuration")
 }
 
 pub fn discovery_url_preserves_issuer_validation_test() -> Nil {
@@ -511,6 +533,35 @@ pub fn sans_io_discovery_response_rejects_trailing_slash_mismatch_test() -> Nil 
       http_response,
     )
   assert error.kind(auth_error) == error.ConfigKind
+}
+
+pub fn path_discovery_preserves_exact_response_issuer_validation_test() -> Nil {
+  let issuer = "https://accounts.example.com:8443/realms/demo/"
+  let assert Ok(http_request) = vestibule_oidc.build_discovery_request(issuer)
+  let request_uri = provider_support.secure_request_uri(http_request)
+  assert request_uri.path == "/realms/demo/.well-known/openid-configuration"
+  assert request_uri.port == Some(8443)
+  let http_response =
+    response.Response(
+      status: 200,
+      headers: [],
+      body: "{\"issuer\":\"https://accounts.example.com:8443/realms/demo/\",\"authorization_endpoint\":\"https://accounts.example.com/authorize\",\"token_endpoint\":\"https://accounts.example.com/token\",\"userinfo_endpoint\":\"https://accounts.example.com/userinfo\",\"jwks_uri\":\"https://accounts.example.com/keys\",\"id_token_signing_alg_values_supported\":[\"RS256\"]}",
+    )
+  let assert Ok(oidc_config) =
+    vestibule_oidc.parse_discovery_response(issuer, http_response)
+  assert vestibule_oidc.issuer(oidc_config) == issuer
+  list.each(
+    [
+      "https://accounts.example.com:8443/realms/demo",
+      "https://accounts.example.com/realms/demo/",
+      "https://accounts.example.com:8443/realms/other/",
+    ],
+    fn(other_issuer) {
+      let assert Error(auth_error) =
+        vestibule_oidc.parse_discovery_response(other_issuer, http_response)
+      assert error.kind(auth_error) == error.ConfigKind
+    },
+  )
 }
 
 // --- parse_token_response ---
@@ -891,6 +942,142 @@ pub fn strategy_from_config_authorize_url_with_extra_parameters_test() -> Nil {
   |> fn(actual) {
     assert actual
   }
+}
+
+pub fn authorization_request_preserves_discovered_endpoint_query_test() -> Nil {
+  assert_authorization_request_parameters(
+    "https://accounts.example.com/authorize?tenant=demo&route=a%2Fb%3Fc%3Dd%26e%3Df&label=hello%20world&tenant=second",
+    [
+      #("tenant", "demo"),
+      #("route", "a/b?c=d&e=f"),
+      #("label", "hello world"),
+      #("tenant", "second"),
+    ],
+  )
+}
+
+pub fn authorization_request_without_endpoint_query_test() -> Nil {
+  assert_authorization_request_parameters(
+    "https://accounts.example.com/authorize",
+    [],
+  )
+}
+
+fn assert_authorization_request_parameters(
+  endpoint: String,
+  endpoint_parameters: List(#(String, String)),
+) -> Nil {
+  let assert Ok(oidc_config) = discovered_config_with_endpoint(endpoint)
+  let oidc_strategy =
+    vestibule_oidc.strategy_from_config(oidc_config, "example")
+  let client_config =
+    config.new(
+      client_id: "my-client-id",
+      redirect_uri: "https://app.example.com/callback?app=demo",
+      auth: config.public_client(),
+    )
+  let assert Ok(options) =
+    config.authorize_options()
+    |> config.with_scopes(["openid", "email"])
+    |> config.with_extra_parameters([#("prompt", "select_account")])
+  let assert Ok(authorization) =
+    vestibule.create_authorization_request(
+      oidc_strategy,
+      config: client_config,
+      options: options,
+    )
+  let url = authorization_request.url(authorization)
+  assert string.starts_with(url, endpoint)
+  let assert Ok(parsed) = uri.parse(url)
+  let assert Some(query) = parsed.query
+  let assert Ok(parameters) = uri.parse_query(query)
+  assert list.take(parameters, list.length(endpoint_parameters))
+    == endpoint_parameters
+  let assert Some(nonce) = authorization_request.nonce(authorization)
+  list.each(
+    [
+      #("response_type", "code"),
+      #("client_id", "my-client-id"),
+      #("redirect_uri", "https://app.example.com/callback?app=demo"),
+      #("scope", "openid email"),
+      #("state", authorization_request.state(authorization)),
+      #("nonce", nonce),
+      #("code_challenge_method", "S256"),
+      #("prompt", "select_account"),
+    ],
+    fn(expected) {
+      assert list.filter(parameters, fn(pair) { pair.0 == expected.0 })
+        == [expected]
+    },
+  )
+  let assert [#("code_challenge", challenge)] =
+    list.filter(parameters, fn(pair) { pair.0 == "code_challenge" })
+  assert string.length(challenge) == 43
+  assert string.length(authorization_request.code_verifier(authorization)) == 43
+  assert authorization_request.state(authorization) != ""
+  assert nonce != ""
+}
+
+pub fn authorization_endpoint_and_request_options_reject_reserved_parameters_test() -> Nil {
+  list.each(
+    [
+      "response_type",
+      "client_id",
+      "redirect_uri",
+      "scope",
+      "state",
+      "code_challenge",
+      "code_challenge_method",
+      "nonce",
+      "response_mode",
+      "%73tate",
+      "code%5Fchallenge",
+    ],
+    fn(key) {
+      let assert Error(auth_error) =
+        discovered_config_with_endpoint(
+          "https://accounts.example.com/authorize?tenant=demo&"
+          <> key
+          <> "=attacker",
+        )
+      assert error.kind(auth_error) == error.ConfigKind
+      let assert Ok(decoded) = uri.percent_decode(key)
+      let assert Error(options_error) =
+        config.authorize_options()
+        |> config.with_extra_parameters([#(decoded, "attacker")])
+      assert error.kind(options_error) == error.ConfigKind
+    },
+  )
+}
+
+pub fn authorization_endpoint_rejects_malformed_query_test() -> Nil {
+  let assert Error(auth_error) =
+    discovered_config_with_endpoint(
+      "https://accounts.example.com/authorize?%ZZ=invalid",
+    )
+  assert error.kind(auth_error) == error.ConfigKind
+}
+
+fn discovered_config_with_endpoint(
+  endpoint: String,
+) -> Result(vestibule_oidc.OidcConfig, error.AuthError(e)) {
+  json.object([
+    #("issuer", json.string("https://accounts.example.com")),
+    #("authorization_endpoint", json.string(endpoint)),
+    #("token_endpoint", json.string("https://accounts.example.com/token")),
+    #("userinfo_endpoint", json.string("https://accounts.example.com/userinfo")),
+    #("jwks_uri", json.string("https://accounts.example.com/keys")),
+    #(
+      "id_token_signing_alg_values_supported",
+      json.array(["RS256"], json.string),
+    ),
+    #(
+      "scopes_supported",
+      json.array(["openid", "profile", "email"], json.string),
+    ),
+  ])
+  |> json.to_string
+  |> vestibule_oidc.parse_discovery_document
 }
 
 pub fn strategy_from_config_invalid_redirect_uri_returns_error_test() -> Nil {
