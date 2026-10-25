@@ -1,6 +1,6 @@
 # Public HTTP boundaries
 
-Vestibule's secure public HTTP path is for demo and prototype OAuth flows. It
+Vestibule's public HTTP path is for demo and prototype OAuth flows. It
 has not had a production security audit. Applications must still apply
 rate limits before authorization, callback, discovery, token, JWKS, and
 UserInfo work starts.
@@ -33,6 +33,20 @@ connector. The connector uses the original host for the `Host` header, TLS
 SNI, and certificate hostname checks. It uses the Erlang/OTP system CA set.
 HTTP proxy environment variables are ignored because this path opens its own
 TCP or TLS socket. Redirects are returned to the caller and are not followed.
+
+## Address fallback and ambiguous failures
+
+The sender tries the next validated address only if TCP connection setup or the
+TLS handshake fails before any HTTP request bytes are sent. Once sending starts,
+send and response-read failures are terminal for every method, including token
+POSTs. The sender does not replay authorization codes or rotating refresh tokens
+when the provider may already have consumed them.
+
+These failures keep the existing `NetworkFailure` result internally and
+`NetworkError` through `provider_support.send_public`. A network error does not
+prove that the provider did not receive the request. Applications must not
+blindly retry single-use credentials after this error. Address fallback remains
+within the same whole-request deadline and admission slot.
 
 ## Fixed limits
 
@@ -87,7 +101,11 @@ transport limit is not an outbound rate limit.
 
 Tests cover admission saturation and reuse, caller cancellation, deadlines,
 request and response limits, DNS answer rejection and connector pinning, proxy
-isolation, TLS option construction, and response framing. A local memory-only
+isolation, TLS option construction, and response framing. A two-address loopback
+fixture consumes a complete token POST and closes without response headers; it
+checks that exactly one POST was received. It also checks pre-send connection
+failure fallback, stalled POST socket closure, worker and coordinator termination,
+empty reply/monitor mailboxes, and admission-slot reuse. A local memory-only
 CA fixture also performs real loopback TLS handshakes for original-host SNI and
 hostname verification, and verifies rejection of untrusted, expired,
 wrong-DNS-name, and DNS-only certificates used with an IP host. These tests do

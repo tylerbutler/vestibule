@@ -23,8 +23,192 @@
     admission_timeout_is_cancelled/0,
     late_release_is_reclaimed/0,
     caller_death_cleans_up/0,
-    deadline_releases_admission/0
+    deadline_releases_admission/0,
+    ambiguous_post_is_not_replayed/0,
+    connection_failure_falls_back/0,
+    post_deadline_cleans_up/0,
+    transport_failure_contract/0
 ]).
+
+transport_failure_contract() ->
+    lists:all(
+        fun({Failure, ExpectedAttempts}) ->
+            Parent = self(),
+            Reference = make_ref(),
+            Resolver = fun(_) -> {ok, [{8, 8, 8, 8}, {1, 1, 1, 1}]} end,
+            Transport = fun(_, _, _, _, _, _, _, _, Address, _, _) ->
+                {monitored_by, [Coordinator]} = process_info(self(), monitored_by),
+                Parent ! {Reference, attempt, Address, self(), Coordinator},
+                {error, Failure}
+            end,
+            {error, {network_failure, Reason}} =
+                vestibule_public_http_ffi:send_with(
+                    request(<<"/token">>), 16, Resolver, Transport, 1000
+                ),
+            true = is_binary(Reason),
+            ExpectedAttempts = collect_token_attempts(Reference, []),
+            true
+        end,
+        [
+            {{transport, <<"send: timeout">>}, [{8, 8, 8, 8}]},
+            {{transport, closed}, [{8, 8, 8, 8}]},
+            {{transport, <<"receive_response: econnreset">>}, [{8, 8, 8, 8}]},
+            {{response_error, <<"Invalid HTTP response">>}, [{8, 8, 8, 8}]},
+            {{response_too_large, <<"Response exceeds limit">>}, [{8, 8, 8, 8}]},
+            {unknown_failure, [{8, 8, 8, 8}]},
+            {{connect, <<"connect: econnrefused">>}, [{8, 8, 8, 8}, {1, 1, 1, 1}]}
+        ]
+    ).
+
+ambiguous_post_is_not_replayed() ->
+    {Result, Attempts, Posts} = token_exchange(close_without_headers, false, 1000),
+    {error, {network_failure, _}} = Result,
+    1 = Posts,
+    [{8, 8, 8, 8}] = Attempts,
+    admission_is_bounded_and_reusable().
+
+connection_failure_falls_back() ->
+    {Result, Attempts, Posts} = token_exchange(reply, true, 1000),
+    {ok, {response, 200, [{<<"Content-Length">>, <<"0">>}], <<>>}} = Result,
+    1 = Posts,
+    [{8, 8, 8, 8}, {1, 1, 1, 1}] = Attempts,
+    admission_is_bounded_and_reusable().
+
+post_deadline_cleans_up() ->
+    {Result, Attempts, Posts} = token_exchange(stall, false, 100),
+    true = request_timeout(Result),
+    1 = Posts,
+    [{8, 8, 8, 8}] = Attempts,
+    admission_is_bounded_and_reusable().
+
+token_exchange(Action, FailFirstConnection, Timeout) ->
+    InitialMonitors = process_info(self(), monitors),
+    InitialMessages = process_info(self(), messages),
+    {ok, Listener} = gen_tcp:listen(
+        0, [binary, {active, false}, {ip, {127, 0, 0, 1}}]
+    ),
+    {ok, {_, Port}} = inet:sockname(Listener),
+    %% A bound, non-listening port cannot accept a POST or race port reuse.
+    {ok, RefusedSocket} = socket:open(inet, stream, tcp),
+    ok = socket:bind(
+        RefusedSocket, #{family => inet, addr => {127, 0, 0, 1}, port => 0}
+    ),
+    {ok, #{port := RefusedPort}} = socket:sockname(RefusedSocket),
+    Parent = self(),
+    Reference = make_ref(),
+    Body = <<"grant_type=authorization_code&code=single-use-code">>,
+    {Server, ServerMonitor} = spawn_monitor(fun() ->
+        token_server(Parent, Reference, Listener, Body, Action, 0)
+    end),
+    Resolver = fun(<<"provider.example">>) ->
+        {ok, [{8, 8, 8, 8}, {1, 1, 1, 1}]}
+    end,
+    Transport = fun(
+        Method, Headers, RequestBody, Scheme, Host, RequestPort, Path, Query,
+        Address, Limit, Remaining
+    ) ->
+        {monitored_by, [Coordinator]} = process_info(self(), monitored_by),
+        Parent ! {Reference, attempt, Address, self(), Coordinator},
+        %% Only the test connector maps validated public addresses to loopback.
+        {LocalPort, ConnectTimeout} = case {FailFirstConnection, Address} of
+            {true, {8, 8, 8, 8}} ->
+                %% Some kernels drop SYNs to bound ports instead of refusing.
+                {{some, RefusedPort}, erlang:min(25, Remaining)};
+            _ -> {RequestPort, Remaining}
+        end,
+        vestibule_public_http_transport:request(
+            Method, Headers, RequestBody, Scheme, Host, LocalPort, Path,
+            Query, {127, 0, 0, 1}, Limit, ConnectTimeout
+        )
+    end,
+    Request = {request, post, [], Body, http, <<"provider.example">>,
+        {some, Port}, <<"/token">>, none},
+    try
+        Result = vestibule_public_http_ffi:send_with(
+            Request, 16, Resolver, Transport, Timeout
+        ),
+        ok = gen_tcp:close(Listener),
+        Posts = receive
+            {Reference, posts, Server, Count} -> Count
+        after 2000 ->
+            error(token_server_did_not_finish)
+        end,
+        receive
+            {'DOWN', ServerMonitor, process, Server, normal} -> ok;
+            {'DOWN', ServerMonitor, process, Server, Reason} ->
+                error({token_server_failed, Reason})
+        after 1000 ->
+            error(token_server_did_not_stop)
+        end,
+        Attempts = collect_token_attempts(Reference, []),
+        InitialMonitors = process_info(self(), monitors),
+        InitialMessages = process_info(self(), messages),
+        {Result, Attempts, Posts}
+    after
+        socket:close(RefusedSocket),
+        gen_tcp:close(Listener),
+        exit(Server, kill),
+        erlang:demonitor(ServerMonitor, [flush])
+    end.
+
+token_server(Parent, Reference, Listener, Body, Action, Count) ->
+    case gen_tcp:accept(Listener, 2000) of
+        {ok, Socket} ->
+            try
+                ok = receive_token_post(Socket, Body, <<>>),
+                case Action of
+                    close_without_headers -> ok;
+                    reply ->
+                        ok = gen_tcp:send(
+                            Socket,
+                            <<"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n">>
+                        ),
+                        true = peer_closed(Socket);
+                    stall ->
+                        true = peer_closed(Socket)
+                end
+            after
+                gen_tcp:close(Socket)
+            end,
+            token_server(Parent, Reference, Listener, Body, Action, Count + 1);
+        {error, closed} ->
+            Parent ! {Reference, posts, self(), Count};
+        {error, Reason} ->
+            error({token_accept_failed, Reason})
+    end.
+
+receive_token_post(Socket, Body, Buffer) when byte_size(Buffer) < 8192 ->
+    case binary:split(Buffer, <<"\r\n\r\n">>) of
+        [Headers, Body] ->
+            <<"POST /token HTTP/1.1\r\n", _/binary>> = Headers,
+            true = binary:match(
+                Headers,
+                <<"content-length: ", (integer_to_binary(byte_size(Body)))/binary>>
+            ) =/= nomatch,
+            ok;
+        _ ->
+            {ok, Data} = gen_tcp:recv(Socket, 0, 1000),
+            receive_token_post(Socket, Body, <<Buffer/binary, Data/binary>>)
+    end.
+
+collect_token_attempts(Reference, Attempts) ->
+    receive
+        {Reference, attempt, Address, Worker, Coordinator} ->
+            ok = await_process_exit(Worker),
+            ok = await_process_exit(Coordinator),
+            collect_token_attempts(Reference, [Address | Attempts])
+    after 0 ->
+        lists:reverse(Attempts)
+    end.
+
+await_process_exit(Process) ->
+    Monitor = erlang:monitor(process, Process),
+    receive
+        {'DOWN', Monitor, process, Process, _} -> ok
+    after 1000 ->
+        erlang:demonitor(Monitor, [flush]),
+        error({request_process_did_not_stop, Process})
+    end.
 
 oversized_content_length() ->
     {Result, Closed} = exchange(
@@ -404,7 +588,7 @@ tls_success_with_original_sni(Host, Config) ->
 tls_rejected(Host, Config, TrustedCacerts, ExpectedReason) ->
     {Result, _ServerResult} = tls_exchange(Host, Config, TrustedCacerts),
     case Result of
-        {error, {transport, Reason}} ->
+        {error, {connect, Reason}} ->
             binary:match(Reason, <<"tls_connect">>) =/= nomatch
                 andalso binary:match(Reason, ExpectedReason) =/= nomatch;
         _ ->

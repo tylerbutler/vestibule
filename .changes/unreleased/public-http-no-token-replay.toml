@@ -1,0 +1,3 @@
+package = "vestibule"
+kind = "Security"
+body = "Retry public HTTP requests at another validated address only after pre-send connection failures. Do not replay token POSTs after ambiguous send or response-read failures; preserve network error results, request deadlines, and resource cleanup."
