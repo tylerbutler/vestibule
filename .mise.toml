@@ -1,8 +1,8 @@
 [tools]
 erlang = "27.2.1"
 "github:erlang/rebar3" = "3.24.0"
-gleam = "1.18.1"
-"github:tylerbutler/trellis" = "0.11.2"
+gleam = "1.19.2"
+"github:tylerbutler/trellis" = "1.0.0"
 "github:casey/just" = "1.38.0"
 
 [settings]

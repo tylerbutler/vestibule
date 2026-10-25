@@ -34,6 +34,9 @@ permissions:
 jobs:
   gate:
     name: Bind reviewed release commit
+    permissions:
+      contents: read
+      pull-requests: read
     runs-on: ubuntu-latest
     if: >-
       (github.event_name == 'workflow_run' &&
@@ -93,6 +96,8 @@ jobs:
 
   release:
     name: Tag and release
+    permissions:
+      contents: read
     needs: gate
     if: needs.gate.outputs.eligible == 'true'
     runs-on: ubuntu-latest

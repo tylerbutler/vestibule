@@ -64,6 +64,19 @@ Durable OAuth client configuration.
 pub type ClientConfig
 ```
 
+### `ValidationError`
+
+An actionable client-configuration validation error.
+
+```gleam
+pub type ValidationError {
+  ValidationError(
+    field: String,
+    reason: String
+  )
+}
+```
+
 ## Functions
 
 ### `authorize_options`
@@ -145,7 +158,11 @@ pub fn extra_parameters(AuthorizeOptions) -> dict.Dict(String, String)
 
 ### `new`
 
-Create durable client configuration.
+Create durable client configuration without validating it.
+
+This function remains infallible for compatibility. New applications should
+use `try_new`, and existing applications can validate all registrations at
+startup with `registry.validate`.
 
 ```gleam
 pub fn new(
@@ -171,12 +188,75 @@ Return the redirect URI registered with the provider.
 pub fn redirect_uri(ClientConfig) -> String
 ```
 
+### `require_auth_kind`
+
+Return a provider-specific authentication-method error when incompatible.
+
+```gleam
+pub fn require_auth_kind(
+  ClientConfig,
+  List(ClientAuthKind),
+  String
+) -> Result(Nil, List(ValidationError))
+```
+
 ### `scopes`
 
 Return configured per-request scopes.
 
 ```gleam
 pub fn scopes(AuthorizeOptions) -> List(String)
+```
+
+### `try_new`
+
+Create durable client configuration after validating local requirements.
+
+This performs no network requests. Provider-specific compatibility is
+checked by `strategy.validate_config` or, for all registrations at once,
+`registry.validate`.
+
+```gleam
+pub fn try_new(
+  client_id: String,
+  redirect_uri: String,
+  auth: ClientAuth
+) -> Result(ClientConfig, List(ValidationError))
+```
+
+### `validate`
+
+Validate provider-independent client configuration without network access.
+
+```gleam
+pub fn validate(ClientConfig) -> Result(Nil, List(ValidationError))
+```
+
+### `validate_redirect_uri`
+
+Validate a redirect URI without performing network access.
+
+HTTPS is required except for `http://localhost` and
+`http://127.0.0.1`, which remain supported for local demos.
+
+```gleam
+pub fn validate_redirect_uri(String) -> Result(Nil, ValidationError)
+```
+
+### `validation_error_field`
+
+Return the field associated with a validation error.
+
+```gleam
+pub fn validation_error_field(ValidationError) -> String
+```
+
+### `validation_error_reason`
+
+Return the actionable reason associated with a validation error.
+
+```gleam
+pub fn validation_error_reason(ValidationError) -> String
 ```
 
 ### `with_extra_parameters`

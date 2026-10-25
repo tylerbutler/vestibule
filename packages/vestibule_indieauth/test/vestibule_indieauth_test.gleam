@@ -18,6 +18,28 @@ pub fn main() -> Nil {
   gleeunit.main()
 }
 
+pub fn strategy_rejects_confidential_client_configuration_test() -> Nil {
+  let endpoints =
+    DiscoveredEndpoints(
+      authorization_endpoint: "https://auth.example.com/authorize",
+      token_endpoint: "https://auth.example.com/token",
+      issuer: None,
+      userinfo_endpoint: None,
+    )
+  let client_config =
+    config.new(
+      client_id: "https://client.example/",
+      redirect_uri: "https://client.example/callback",
+      auth: config.client_secret_auth("secret"),
+    )
+  let assert Error([validation_error]) =
+    vestibule_indieauth.strategy(endpoints, "https://me.example.com/")
+    |> strategy.validate_config(client_config)
+  assert config.validation_error_field(validation_error) == "auth"
+  assert config.validation_error_reason(validation_error)
+    == "IndieAuth uses public-client authentication"
+}
+
 pub fn authorize_url_includes_extra_parameters_test() -> Nil {
   let endpoints =
     DiscoveredEndpoints(

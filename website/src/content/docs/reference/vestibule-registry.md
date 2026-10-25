@@ -53,6 +53,20 @@ pub type RegistryError {
 A strategy with this provider name is already registered. Use
 `register_or_replace` if you intend to overwrite the existing entry.
 
+### `ValidationError`
+
+An invalid provider registration found during startup validation.
+
+```gleam
+pub type ValidationError {
+  ValidationError(
+    provider: String,
+    field: String,
+    reason: String
+  )
+}
+```
+
 ## Functions
 
 ### `get`
@@ -121,4 +135,39 @@ pub fn register_or_replace(
   strategy: strategy.Strategy(a),
   config: config.ClientConfig
 ) -> Registry(a)
+```
+
+### `validate`
+
+Validate every registered provider without making network requests.
+
+All errors are returned together so startup diagnostics can identify every
+invalid provider, field, and reason in one pass.
+
+```gleam
+pub fn validate(Registry(a)) -> Result(Nil, List(ValidationError))
+```
+
+### `validation_error_field`
+
+Return the field associated with a registry validation error.
+
+```gleam
+pub fn validation_error_field(ValidationError) -> String
+```
+
+### `validation_error_provider`
+
+Return the provider associated with a registry validation error.
+
+```gleam
+pub fn validation_error_provider(ValidationError) -> String
+```
+
+### `validation_error_reason`
+
+Return the actionable reason associated with a registry validation error.
+
+```gleam
+pub fn validation_error_reason(ValidationError) -> String
 ```

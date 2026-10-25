@@ -79,7 +79,7 @@ The APM manifest version is maintained separately from Gleam package releases.
 # Check every package compiles
 just check
 
-# Run all package tests
+# Run all package tests, including the example app
 just test
 
 # Format code (do this before committing)
