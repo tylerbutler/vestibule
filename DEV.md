@@ -19,9 +19,10 @@ Ensure you have the following installed:
 mise install --locked
 ```
 
-The Erlang configuration selects the Ubuntu 24.04 precompiled build on Linux.
-Keep `settings.erlang.precompiled_os` aligned with the Erlang options in
-`mise.lock`; otherwise locked CI setup can fail before dependencies are downloaded.
+CI jobs that install mise tools use Ubuntu 24.04 to match the precompiled
+Erlang build in `mise.lock`. Keep that runner version pinned: the pinned mise
+release does not recognize Ubuntu 26.04 as a precompiled Erlang target, so
+`ubuntu-latest` can fail during locked setup before dependencies are downloaded.
 
 ## Getting Started
 

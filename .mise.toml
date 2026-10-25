@@ -9,8 +9,5 @@ gleam = "1.19.2"
 legacy_version_file = false
 lockfile = true
 
-[settings.erlang]
-precompiled_os = "ubuntu-24.04"
-
 [env]
 LC_ALL = "en_US.UTF-8"
