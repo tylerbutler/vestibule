@@ -120,6 +120,18 @@ Existing releases do not become immutable retroactively. Their tags are now
 covered by the tag rules, but historical release assets retain their original
 mutability. No release was deleted or republished to change that history.
 
+Before a release window, verify the repository setting and published release
+state:
+
+```sh
+gh api repos/tylerbutler/vestibule/immutable-releases
+gh api repos/tylerbutler/vestibule/releases \
+  --jq '.[] | {tag_name, immutable}'
+```
+
+An immutable release cannot have its body or assets replaced. A failed release
+must use a new version instead of rewriting an existing exact tag or release.
+
 These settings change the contributor workflow: direct pushes to `main` are
 blocked, and an author cannot approve their own pull request. An emergency
 change requires an administrator to make an explicit, recorded ruleset change,
