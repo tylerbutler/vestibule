@@ -50,6 +50,14 @@ State and PKCE validation are part of the shared vestibule flow. The token
 response `me` URL establishes identity only after vestibule confirms it against
 the authorization server used by the flow.
 
+Without a userinfo endpoint, the token response's optional `profile` supplies
+the name, email, photo, and profile URL in the authentication result. Missing
+fields stay unset; the profile URL falls back to the confirmed `me`. When a
+userinfo endpoint exists, its response supplies these details instead. Profile
+URLs are display data, not identity: `Auth.uid` remains the confirmed `me`,
+and a userinfo response with a different `me` is rejected. Email is optional,
+unverified profile data and must not be used as proof of identity.
+
 ## Minimal core flow
 
 ```gleam
