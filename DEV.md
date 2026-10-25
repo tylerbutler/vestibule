@@ -19,6 +19,10 @@ Ensure you have the following installed:
 mise install --locked
 ```
 
+The Erlang configuration selects the Ubuntu 24.04 precompiled build on Linux.
+Keep `settings.erlang.precompiled_os` aligned with the Erlang options in
+`mise.lock`; otherwise locked CI setup can fail before dependencies are downloaded.
+
 ## Getting Started
 
 ```bash
