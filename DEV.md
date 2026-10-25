@@ -93,11 +93,11 @@ just format
 just pr
 ```
 
-CI runs security-policy, dependency, and combined format/lint/test/docs jobs.
-The combined job checks formatting, lints, runs tests, and builds documentation
-in order with one environment setup and dependency restore. Tests compile all
-packages, so CI has no separate check or build job.
-`just pr` retains the separate local check and strict build commands.
+CI runs security-policy and dependency jobs, followed by separate Format, Check,
+Lint, Build, Test, and Docs checks. Each check restores the downloaded
+dependencies and runs its task across workspace packages.
+Tool-installing CI jobs use Ubuntu 24.04 to match the locked Erlang binary.
+`just pr` retains the local check and strict build commands.
 
 ### Before Merging to Main
 

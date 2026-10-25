@@ -1,6 +1,6 @@
 name: CI
 
-# Format, lint, test, and docs share setup and build artifacts in one job.
+# Named quality checks share dependencies from the dependency job.
 # `trellis run` fans each task across workspace packages graph-parallel.
 on:
   push:
@@ -36,7 +36,8 @@ jobs:
     name: Dependencies
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    # The locked Erlang binary targets Ubuntu 24.04.
+    runs-on: ubuntu-24.04
     needs: policy
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
@@ -84,12 +85,16 @@ jobs:
             example/build/packages
             ~/.cache/gleam
           key: ${{ steps.setup.outputs.cache-key }}
-  test:
-    name: Format, Lint, Test, and Docs
+  quality:
+    name: ${{ matrix.task }}
     permissions:
       contents: read
     needs: dependencies
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        task: [Format, Check, Lint, Build, Test, Docs]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
         with:
@@ -100,11 +105,14 @@ jobs:
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # ratchet:actions/download-artifact@v7
         with:
           name: gleam-dependencies
-      - name: Check formatting
-        run: trellis run format --check
-      - name: Lint
-        run: trellis run lint
-      - name: Run tests
-        run: trellis run test
-      - name: Build documentation
-        run: trellis run docs
+      - name: Run task
+        shell: bash
+        run: |
+          case "${{ matrix.task }}" in
+          Format) trellis run format --check ;;
+          Check) trellis run check ;;
+          Lint) trellis run lint ;;
+          Build) trellis run build ;;
+          Test) trellis run test ;;
+          Docs) trellis run docs ;;
+          esac
