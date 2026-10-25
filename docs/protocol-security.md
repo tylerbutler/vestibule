@@ -60,3 +60,18 @@ binding. They do not prove a real provider's server behavior. The nonce test
 isolates flow binding and does not test a signature. Signed-token evidence,
 HTTP response handling, and browser cookie behavior require their separate
 provider and transport coverage.
+
+## Generated authentication invariants
+
+`generated_callback_parameter_invariants_test` creates a valid flow for each
+case, then changes one callback property: missing state, missing code, changed
+state, changed code, an added attacker parameter, duplicate sensitive
+parameters, or parameter order. The fixed case names are stable replay seeds
+and already reduce each failure to one changed property. The bounded matrix
+runs in the normal root test job.
+
+The generated cases confirm that only harmless parameter reordering succeeds,
+one success consumes one state entry, duplicate parameters fail before
+dictionary conversion, and added data cannot turn invalid state or code into
+an authenticated identity. Provider suites separately generate signed and
+tampered identity evidence for OIDC, Apple, Google, and Microsoft.
