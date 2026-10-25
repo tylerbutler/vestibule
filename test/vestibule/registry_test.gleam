@@ -1,4 +1,5 @@
 import gleam/list
+import gleam/string
 import vestibule/config
 import vestibule/error
 import vestibule/registry
@@ -151,4 +152,64 @@ pub fn register_or_replace_overwrites_existing_test() -> Nil {
     registry.get(provider_registry, provider: "github")
   assert config.client_id(client_config) == "second_id"
   assert list.length(registry.providers(provider_registry)) == 1
+}
+
+pub fn validate_aggregates_all_registration_errors_test() -> Nil {
+  let github =
+    test_strategy("github")
+    |> strategy.with_config_validation(fn(client_config) {
+      config.require_auth_kind(
+        client_config,
+        [config.ClientSecretAuth],
+        "GitHub requires client-secret authentication",
+      )
+    })
+  let assert Ok(provider_registry) =
+    registry.new()
+    |> registry.register(
+      strategy: github,
+      config: config.new(
+        client_id: "",
+        redirect_uri: "http://example.com/callback",
+        auth: config.public_client(),
+      ),
+    )
+  let assert Ok(provider_registry) =
+    provider_registry
+    |> registry.register(
+      strategy: test_strategy("other"),
+      config: config.new(
+        client_id: "id",
+        redirect_uri: "https://example.com/callback",
+        auth: config.client_secret_auth(""),
+      ),
+    )
+
+  let assert Error(errors) = registry.validate(provider_registry)
+  assert list.length(errors) == 4
+  assert list.any(errors, fn(validation_error) {
+    registry.validation_error_provider(validation_error) == "github"
+    && registry.validation_error_field(validation_error) == "client_id"
+    && registry.validation_error_reason(validation_error) == "must not be empty"
+  })
+  assert list.any(errors, fn(validation_error) {
+    registry.validation_error_provider(validation_error) == "github"
+    && registry.validation_error_field(validation_error) == "redirect_uri"
+    && string.contains(
+      registry.validation_error_reason(validation_error),
+      "must use HTTPS",
+    )
+  })
+  assert list.any(errors, fn(validation_error) {
+    registry.validation_error_provider(validation_error) == "github"
+    && registry.validation_error_field(validation_error) == "auth"
+    && registry.validation_error_reason(validation_error)
+    == "GitHub requires client-secret authentication"
+  })
+  assert list.any(errors, fn(validation_error) {
+    registry.validation_error_provider(validation_error) == "other"
+    && registry.validation_error_field(validation_error) == "auth"
+    && registry.validation_error_reason(validation_error)
+    == "client secret must not be empty"
+  })
 }

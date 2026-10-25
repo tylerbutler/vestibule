@@ -15,3 +15,4 @@ dependencies:
 devDependencies:
   apm:
     - tylerbutler/apm-base
+    - tylerbutler/agent-marketplace/plugins/gleam

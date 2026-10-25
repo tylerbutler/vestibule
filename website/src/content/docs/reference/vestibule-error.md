@@ -37,6 +37,8 @@ in this module:
   the few additional structured fields some errors carry.
 - [`custom_payload`](#custom_payload) returns the provider-defined payload
   for custom errors.
+- [`recovery`](#recovery) returns stable, non-sensitive recovery metadata
+  suitable for HTTP handlers and user-facing error pages.
 
 Construct errors with the constructor functions ([`config`](#config),
 [`network`](#network), [`provider`](#provider), and friends). The type
@@ -200,6 +202,43 @@ discarded so a provider cannot echo submitted secrets into public errors.
 pub type ProviderError
 ```
 
+### `Recovery`
+
+Stable, non-sensitive recovery metadata for an authentication error.
+
+The summary is safe to show to users. It never contains provider-controlled
+descriptions, raw response bodies, credentials, or internal error reasons.
+
+```gleam
+pub type Recovery
+```
+
+### `RecoveryAction`
+
+What an application should let the user do after an authentication error.
+
+```gleam
+pub type RecoveryAction {
+  RetryOperation
+  RestartAuthorization
+  ContactApplication
+}
+```
+
+#### Constructors
+
+##### `RetryOperation`
+
+Retry the same operation.
+
+##### `RestartAuthorization`
+
+Start a new authorization flow.
+
+##### `ContactApplication`
+
+The application or its configuration must be changed.
+
 ## Functions
 
 ### `code_exchange`
@@ -323,6 +362,19 @@ An HTTP request failed at the network level.
 pub fn network(reason: String) -> AuthError(a)
 ```
 
+### `new_recovery`
+
+Build recovery metadata for adapter-defined errors.
+
+```gleam
+pub fn new_recovery(
+  RecoveryAction,
+  Int,
+  String,
+  String
+) -> Recovery
+```
+
 ### `phase`
 
 The coarse [`Phase`](#Phase) this error occurred in.
@@ -375,6 +427,46 @@ discarded to avoid echoing secrets.
 
 ```gleam
 pub fn provider_uri(ProviderError) -> option.Option(String)
+```
+
+### `recovery`
+
+Return stable recovery metadata for an authentication error.
+
+```gleam
+pub fn recovery(AuthError(a)) -> Recovery
+```
+
+### `recovery_action`
+
+Return the recommended recovery action.
+
+```gleam
+pub fn recovery_action(Recovery) -> RecoveryAction
+```
+
+### `recovery_code`
+
+Return the stable public error code.
+
+```gleam
+pub fn recovery_code(Recovery) -> String
+```
+
+### `recovery_http_status`
+
+Return the recommended HTTP response status.
+
+```gleam
+pub fn recovery_http_status(Recovery) -> Int
+```
+
+### `recovery_summary`
+
+Return the safe default user-facing summary.
+
+```gleam
+pub fn recovery_summary(Recovery) -> String
 ```
 
 ### `refresh_unsupported`

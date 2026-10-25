@@ -1,4 +1,5 @@
 import gleam/dict
+import gleam/result
 import gleam/string
 import vestibule/config
 import vestibule/error
@@ -8,6 +9,98 @@ import vestibule/strategy
 const client_secret = "CLIENT-SECRET-7f3a"
 
 const client_assertion = "CLIENT-ASSERTION-9b21"
+
+pub fn try_new_accepts_secure_and_local_demo_redirects_test() -> Nil {
+  assert config.try_new(
+      client_id: "id",
+      redirect_uri: "https://example.com/callback",
+      auth: config.public_client(),
+    )
+    |> result.is_ok()
+  assert config.try_new(
+      client_id: "id",
+      redirect_uri: "http://localhost:8000/callback",
+      auth: config.public_client(),
+    )
+    |> result.is_ok()
+  assert config.try_new(
+      client_id: "id",
+      redirect_uri: "http://127.0.0.1:8000/callback",
+      auth: config.public_client(),
+    )
+    |> result.is_ok()
+}
+
+pub fn try_new_rejects_empty_client_id_test() -> Nil {
+  let assert Error([validation_error]) =
+    config.try_new(
+      client_id: " ",
+      redirect_uri: "https://example.com/callback",
+      auth: config.public_client(),
+    )
+  assert config.validation_error_field(validation_error) == "client_id"
+  assert config.validation_error_reason(validation_error) == "must not be empty"
+}
+
+pub fn try_new_rejects_malformed_redirect_uri_test() -> Nil {
+  let assert Error([validation_error]) =
+    config.try_new(
+      client_id: "id",
+      redirect_uri: "https://[invalid",
+      auth: config.public_client(),
+    )
+  assert config.validation_error_field(validation_error) == "redirect_uri"
+  assert config.validation_error_reason(validation_error)
+    == "must be a valid URL"
+}
+
+pub fn try_new_rejects_insecure_redirect_uri_test() -> Nil {
+  let assert Error([validation_error]) =
+    config.try_new(
+      client_id: "id",
+      redirect_uri: "http://example.com/callback",
+      auth: config.public_client(),
+    )
+  assert config.validation_error_field(validation_error) == "redirect_uri"
+  assert string.contains(
+    config.validation_error_reason(validation_error),
+    "must use HTTPS",
+  )
+}
+
+pub fn try_new_rejects_redirect_uri_fragment_test() -> Nil {
+  let assert Error([validation_error]) =
+    config.try_new(
+      client_id: "id",
+      redirect_uri: "https://example.com/callback#fragment",
+      auth: config.public_client(),
+    )
+  assert config.validation_error_field(validation_error) == "redirect_uri"
+  assert config.validation_error_reason(validation_error)
+    == "must not include a fragment"
+}
+
+pub fn try_new_rejects_missing_credentials_test() -> Nil {
+  let assert Error([secret_error]) =
+    config.try_new(
+      client_id: "id",
+      redirect_uri: "https://example.com/callback",
+      auth: config.client_secret_auth(" "),
+    )
+  assert config.validation_error_field(secret_error) == "auth"
+  assert config.validation_error_reason(secret_error)
+    == "client secret must not be empty"
+
+  let assert Error([assertion_error]) =
+    config.try_new(
+      client_id: "id",
+      redirect_uri: "https://example.com/callback",
+      auth: config.client_assertion_auth(""),
+    )
+  assert config.validation_error_field(assertion_error) == "auth"
+  assert config.validation_error_reason(assertion_error)
+    == "client assertion must not be empty"
+}
 
 pub fn new_creates_client_config_test() -> Nil {
   let client_config =

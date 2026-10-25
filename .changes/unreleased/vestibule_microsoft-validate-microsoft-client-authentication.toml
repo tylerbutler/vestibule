@@ -1,0 +1,3 @@
+package = "vestibule_microsoft"
+kind = "Changed"
+body = "Validate Microsoft client authentication compatibility at startup."

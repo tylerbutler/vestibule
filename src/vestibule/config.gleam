@@ -1,7 +1,11 @@
 //// OAuth client configuration and per-authorization request options.
 
+import gleam/bool
 import gleam/dict.{type Dict}
 import gleam/list
+import gleam/option
+import gleam/string
+import gleam/uri
 import vestibule/error.{type AuthError}
 import vestibule/internal/secret.{type Secret}
 
@@ -28,18 +32,44 @@ pub opaque type ClientConfig {
   ClientConfig(client_id: String, redirect_uri: String, auth: ClientAuth)
 }
 
+/// An actionable client-configuration validation error.
+pub type ValidationError {
+  ValidationError(field: String, reason: String)
+}
+
 /// Per-authorization request options.
 pub opaque type AuthorizeOptions {
   AuthorizeOptions(scopes: List(String), extra_parameters: Dict(String, String))
 }
 
-/// Create durable client configuration.
+/// Create durable client configuration without validating it.
+///
+/// This function remains infallible for compatibility. New applications should
+/// use `try_new`, and existing applications can validate all registrations at
+/// startup with `registry.validate`.
 pub fn new(
   client_id client_id: String,
   redirect_uri redirect_uri: String,
   auth auth: ClientAuth,
 ) -> ClientConfig {
   ClientConfig(client_id: client_id, redirect_uri: redirect_uri, auth: auth)
+}
+
+/// Create durable client configuration after validating local requirements.
+///
+/// This performs no network requests. Provider-specific compatibility is
+/// checked by `strategy.validate_config` or, for all registrations at once,
+/// `registry.validate`.
+pub fn try_new(
+  client_id client_id: String,
+  redirect_uri redirect_uri: String,
+  auth auth: ClientAuth,
+) -> Result(ClientConfig, List(ValidationError)) {
+  let client_config = new(client_id:, redirect_uri:, auth:)
+  case validate(client_config) {
+    Ok(Nil) -> Ok(client_config)
+    Error(errors) -> Error(errors)
+  }
 }
 
 /// Configure a public client that has no client credential.
@@ -80,6 +110,92 @@ pub fn client_auth_kind(auth: ClientAuth) -> ClientAuthKind {
     ClientSecret(_) -> ClientSecretAuth
     ClientAssertion(_) -> ClientAssertionAuth
   }
+}
+
+/// Validate provider-independent client configuration without network access.
+pub fn validate(config: ClientConfig) -> Result(Nil, List(ValidationError)) {
+  let errors =
+    list.flatten([
+      case string.trim(config.client_id) {
+        "" -> [ValidationError("client_id", "must not be empty")]
+        _ -> []
+      },
+      case validate_redirect_uri(config.redirect_uri) {
+        Ok(Nil) -> []
+        Error(validation_error) -> [validation_error]
+      },
+      case config.auth {
+        ClientSecret(value) ->
+          case string.trim(secret.expose(value)) {
+            "" -> [ValidationError("auth", "client secret must not be empty")]
+            _ -> []
+          }
+        ClientAssertion(value) ->
+          case string.trim(secret.expose(value)) {
+            "" -> [
+              ValidationError("auth", "client assertion must not be empty"),
+            ]
+            _ -> []
+          }
+        PublicClient -> []
+      },
+    ])
+  case errors {
+    [] -> Ok(Nil)
+    errors -> Error(errors)
+  }
+}
+
+/// Validate a redirect URI without performing network access.
+///
+/// HTTPS is required except for `http://localhost` and
+/// `http://127.0.0.1`, which remain supported for local demos.
+pub fn validate_redirect_uri(
+  redirect_uri: String,
+) -> Result(Nil, ValidationError) {
+  case uri.parse(redirect_uri) {
+    Error(_) -> Error(ValidationError("redirect_uri", "must be a valid URL"))
+    Ok(parsed) ->
+      case parsed.scheme, parsed.host, parsed.fragment {
+        _, _, option.Some(_) ->
+          Error(ValidationError("redirect_uri", "must not include a fragment"))
+        option.Some("https"), option.Some(host), option.None if host != "" ->
+          Ok(Nil)
+        option.Some("https"), _, option.None ->
+          Error(ValidationError("redirect_uri", "must include a host"))
+        option.Some("http"), option.Some("localhost"), option.None
+        | option.Some("http"), option.Some("127.0.0.1"), option.None
+        -> Ok(Nil)
+        option.Some("http"), _, option.None | _, _, option.None ->
+          Error(ValidationError(
+            "redirect_uri",
+            "must use HTTPS except for localhost or 127.0.0.1",
+          ))
+      }
+  }
+}
+
+/// Return a provider-specific authentication-method error when incompatible.
+pub fn require_auth_kind(
+  config: ClientConfig,
+  allowed: List(ClientAuthKind),
+  reason: String,
+) -> Result(Nil, List(ValidationError)) {
+  use <- bool.guard(
+    when: !list.contains(allowed, client_auth_kind(config.auth)),
+    return: Error([ValidationError("auth", reason)]),
+  )
+  Ok(Nil)
+}
+
+/// Return the field associated with a validation error.
+pub fn validation_error_field(validation_error: ValidationError) -> String {
+  validation_error.field
+}
+
+/// Return the actionable reason associated with a validation error.
+pub fn validation_error_reason(validation_error: ValidationError) -> String {
+  validation_error.reason
 }
 
 /// Return a client secret value when the authentication method provides one.

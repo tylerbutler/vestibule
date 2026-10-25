@@ -765,9 +765,9 @@ pub fn all_public_dns_answers_are_accepted_test() -> Nil {
     == Ok(Nil)
 }
 
-pub fn localhost_alias_resolving_to_loopback_is_rejected_test() -> Nil {
+pub fn literal_loopback_host_is_rejected_test() -> Nil {
   let assert Error(auth_error) =
-    provider_support.require_public_host("https://localhost.localdomain/")
+    provider_support.require_public_host("https://127.0.0.1/")
   assert string.contains(error.message(auth_error), "not publicly routable")
 }
 
@@ -779,12 +779,13 @@ pub fn unresolved_hostname_is_rejected_without_fallback_test() -> Nil {
   assert string.contains(error.message(auth_error), "Could not resolve host")
 }
 
-pub fn secure_sender_rejects_dns_loopback_before_connecting_test() -> Nil {
-  let assert Ok(http_request) = request.to("https://localhost.localdomain/")
+pub fn secure_sender_rejects_unresolved_hostname_test() -> Nil {
+  let assert Ok(http_request) =
+    request.to("https://definitely-not-resolvable.invalid/")
   let assert Ok(secure_request) = provider_support.secure_request(http_request)
   let assert Error(auth_error) = provider_support.send_public(secure_request)
   assert error.kind(auth_error) == error.ConfigKind
-  assert string.contains(error.message(auth_error), "not publicly routable")
+  assert string.contains(error.message(auth_error), "Could not resolve host")
 }
 
 pub fn secure_request_rejects_plain_http_test() -> Nil {

@@ -4,7 +4,8 @@ import gleam/result
 import vestibule/config
 import vestibule/error.{type AuthError}
 
-const client_assertion_type = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+const client_assertion_type =
+  "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
 
 pub fn authorization_code(
   client_config: config.ClientConfig,

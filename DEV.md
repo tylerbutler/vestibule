@@ -79,7 +79,7 @@ The APM manifest version is maintained separately from Gleam package releases.
 # Check every package compiles
 just check
 
-# Run all package tests
+# Run all package tests, including the example app
 just test
 
 # Format code (do this before committing)
@@ -93,11 +93,10 @@ just format
 just pr
 ```
 
-CI runs security-policy, dependency, and combined format/lint/test/docs jobs.
-The combined job checks formatting, lints, runs tests, and builds documentation
-in order with one environment setup and dependency restore. Tests compile all
-packages, so CI has no separate check or build job.
-`just pr` retains the separate local check and strict build commands.
+CI runs security-policy and dependency jobs, followed by separate Format, Check,
+Lint, Build, Test, and Docs checks. Each check restores the downloaded
+dependencies and runs its task across workspace packages.
+`just pr` retains the local check and strict build commands.
 
 ### Before Merging to Main
 

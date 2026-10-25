@@ -178,8 +178,9 @@ Middleware configuration options.
 
 Construct with `new_options` — the HMAC `secret_key_base` is mandatory and
 has no safe default — then customize with `with_cookie_name`,
-`with_session_ttl`, `with_cookie_security`, and `with_same_site`. The type is opaque
-so the effective cookie name always matches the cookie security: host-bound
+`with_session_ttl`, `with_cookie_security`, `with_same_site`, and
+`with_recovery_path`. The type is opaque so the effective cookie name always
+matches the cookie security: host-bound
 (`__Host-` prefixed) under `SecureOnly`, unprefixed under `AllowInsecure`
 (browsers reject `__Host-` cookies that are not `Secure`). A host-bound
 name prevents a sibling subdomain from overwriting the session cookie with
@@ -211,6 +212,51 @@ pub type OptionsError {
 )`
 
 `secret_key_base` is shorter than `minimum_secret_key_base_bytes`.
+
+### `RecoveryPathError`
+
+Why a callback recovery path was rejected.
+
+```gleam
+pub type RecoveryPathError {
+  RecoveryPathMustBeLocal
+}
+```
+
+#### Constructors
+
+##### `RecoveryPathMustBeLocal`
+
+The value was not a safe same-origin path.
+
+### `RouteMount`
+
+Configuration for the optional request and callback route helper.
+
+```gleam
+pub type RouteMount(a)
+```
+
+### `RouteMountError`
+
+Why an auth route prefix was rejected.
+
+```gleam
+pub type RouteMountError {
+  AuthPathPrefixMustBeAbsolute
+  AuthPathPrefixMustBeCanonical
+}
+```
+
+#### Constructors
+
+##### `AuthPathPrefixMustBeAbsolute`
+
+The prefix must be an absolute path such as `/auth`.
+
+##### `AuthPathPrefixMustBeCanonical`
+
+The prefix must contain only canonical, non-empty path segments.
 
 ### `SessionCookieError`
 
@@ -353,6 +399,14 @@ pub fn callback_phase_result(
 ) -> Result(auth.Auth, response.Response(mist.ResponseData))
 ```
 
+### `callback_recovery`
+
+Return stable, non-sensitive recovery metadata for a callback error.
+
+```gleam
+pub fn callback_recovery(CallbackError(a)) -> error.Recovery
+```
+
 ### `cookie_name`
 
 The effective session cookie name: host-bound (`__Host-` prefixed) under
@@ -404,11 +458,30 @@ be at least `minimum_secret_key_base_bytes` (32) bytes of unpredictable data.
 
 Defaults: host-bound cookie name `__Host-vestibule_session`, session TTL
 600 seconds, `SecureOnly` cookies, `SameSite=Lax`. Customize with
-`with_cookie_name`, `with_session_ttl`, `with_cookie_security`, and
-`with_same_site`.
+`with_cookie_name`, `with_session_ttl`, `with_cookie_security`,
+`with_same_site`, and `with_recovery_path`.
 
 ```gleam
 pub fn new_options(BitArray) -> Result(Options, OptionsError)
+```
+
+### `new_route_mount`
+
+Configure request and callback routes below one auth path prefix.
+
+The mount handles `GET <prefix>/<provider>` and `GET` or `POST`
+`<prefix>/<provider>/callback`. Other paths and methods fall through.
+
+```gleam
+pub fn new_route_mount(
+  auth_path_prefix: String,
+  registry: registry.Registry(a),
+  state_store: state_store.StateStore,
+  authorize_options: config.AuthorizeOptions,
+  middleware_options: Options,
+  on_success: fn(auth.Auth) -> response.Response(mist.ResponseData),
+  on_error: fn(CallbackError(a), error.Recovery) -> response.Response(mist.ResponseData)
+) -> Result(RouteMount(a), RouteMountError)
 ```
 
 ### `parse_callback_query`
@@ -417,6 +490,14 @@ Parse a callback query without silently replacing malformed input.
 
 ```gleam
 pub fn parse_callback_query(option.Option(String)) -> Result(List(#(String, String)), CallbackError(a))
+```
+
+### `recovery_path`
+
+Return the configured same-origin recovery path.
+
+```gleam
+pub fn recovery_path(Options) -> option.Option(String)
 ```
 
 ### `request_phase`
@@ -501,6 +582,33 @@ pub fn request_phase_with_shared_bucket(
 ) -> response.Response(mist.ResponseData)
 ```
 
+### `route`
+
+Handle a mounted auth route using Mist's direct socket peer.
+
+`None` means that the host router must continue routing the request.
+
+```gleam
+pub fn route(
+  request.Request(http.Connection),
+  mount: RouteMount(a)
+) -> option.Option(response.Response(mist.ResponseData))
+```
+
+### `route_for_client`
+
+Handle a mounted auth route using a trusted client admission key.
+
+Use this behind a trusted edge that supplies and rate-limits the identity.
+
+```gleam
+pub fn route_for_client(
+  request.Request(http.Connection),
+  mount: RouteMount(a),
+  client_key: String
+) -> option.Option(response.Response(mist.ResponseData))
+```
+
 ### `same_site`
 
 The session cookie's `SameSite` setting for these options.
@@ -541,6 +649,20 @@ pub fn with_cookie_security(
   Options,
   CookieSecurity
 ) -> Options
+```
+
+### `with_recovery_path`
+
+Set a same-origin path for the default callback error page.
+
+Absolute URLs, network-path references, backslashes, control characters,
+and HTML delimiters return `Error(RecoveryPathMustBeLocal)`.
+
+```gleam
+pub fn with_recovery_path(
+  Options,
+  String
+) -> Result(Options, RecoveryPathError)
 ```
 
 ### `with_same_site`
