@@ -77,6 +77,13 @@ independent CI change in PR #183 does not add those runtime dependencies.
 - `pnpm audit` initially reported 12 advisories: seven high, four moderate, and
   one low. The website lock was updated within its declared dependency ranges.
   A second audit reported zero known advisories.
+- A later review found `devalue` 5.9.2 through Astro. A workspace override now
+  selects patched `devalue` 5.9.3.
+- `pnpm audit` also reports GHSA-ch52-4w7c-c8xp in the development-only
+  `http-cache-semantics` 4.2.0 dependency. The advisory names 4.2.1 as patched,
+  but npm publishes no 4.2.1 release. This remains an explicit exception until
+  Astro can select a published fix; the website is statically built and does
+  not run a shared HTTP response cache in production.
 - Dependabot can continue to show the old npm alerts until this lock reaches the
   default branch and GitHub refreshes the dependency graph.
 
@@ -85,6 +92,11 @@ metadata is not proof that a package is maintained or safe. This review did not
 run a universal multi-ecosystem advisory scanner because none is installed.
 These are unresolved coverage limits, not a claim that the Gleam graph has no
 vulnerabilities.
+
+The audit opened separate repository-setting follow-ups for default workflow
+permissions, protected `main`, immutable exact tags, controlled moving tags,
+and immutable GitHub Releases. No confirmed dependency or executable-build
+input defect remains untracked.
 
 ## Repository protections
 
