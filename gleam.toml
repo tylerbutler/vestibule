@@ -62,6 +62,11 @@ stringly_typed_error = "off"
 # configured here too: https://trellis.tylerbutler.com/docs/configuration/
 [tools.trellis]
 
+[tools.trellis.release]
+resume = true
+auto_pre = true
+skip_unchanged = true
+
 # The example app remains a full workspace member, so normal tasks still build
 # and test it. It is not versioned, tagged, released, or published by trellis.
 [tools.trellis.exclude]

@@ -88,9 +88,22 @@ def check_tools(failures: list[str]) -> None:
             fail(f".mise.toml: {tool} must use an exact version", failures)
 
     lock = tomllib.loads((ROOT / "mise.lock").read_text())
+    trellis = "github:tylerbutler/trellis"
+    version = config["tools"][trellis]
+    if [entry["version"] for entry in lock["tools"].get(trellis, [])] != [version]:
+        fail(f"mise.lock: {trellis} must match its configured version {version}", failures)
     for tool, entries in lock["tools"].items():
         for entry in entries:
-            for platform, metadata in entry.get("platforms", {}).items():
+            platforms = entry.get("platforms", {})
+            if tool == trellis:
+                platforms = platforms | {
+                    key.removeprefix("platforms."): value
+                    for key, value in entry.items()
+                    if key.startswith("platforms.")
+                }
+                if not {"linux-x64", "macos-arm64", "macos-x64"}.issubset(platforms):
+                    fail("mise.lock: Trellis must retain Linux x64 and both macOS platforms", failures)
+            for platform, metadata in platforms.items():
                 checksum = metadata.get("checksum", "")
                 if not re.fullmatch(r"sha256:[0-9a-f]{64}", checksum):
                     fail(f"mise.lock: {tool} {platform} lacks a SHA-256 checksum", failures)
@@ -111,10 +124,42 @@ def check_release_binding(failures: list[str]) -> None:
         "scripts/release_gate.py ci",
         "ref: ${{ needs.gate.outputs.release-sha }}",
         'environment: release',
+        "Recheck trusted CI after approval",
     )
     for marker in required:
         if marker not in publish:
             fail(f".github/workflows/publish.yml: missing release binding marker {marker!r}", failures)
+
+    if "-f status=completed" in publish:
+        fail(".github/workflows/publish.yml: CI lookup must include incomplete newer attempts", failures)
+    if 'group: trellis-release-tagging' not in publish:
+        fail(".github/workflows/publish.yml: tagging must be serialized", failures)
+    if 'actions: read' not in publish:
+        fail(".github/workflows/publish.yml: trusted CI lookup needs Actions read permission", failures)
+    release_job = publish.split("\n  release:\n", 1)[1]
+    if "actions: read" not in release_job.split("    steps:", 1)[0]:
+        fail(".github/workflows/publish.yml: post-approval CI lookup needs Actions read permission", failures)
+    if release_job.index("Recheck trusted CI after approval") > release_job.index("Generate app token"):
+        fail(".github/workflows/publish.yml: CI recheck must precede write credentials", failures)
+
+    prepare = (WORKFLOWS / "release.yml").read_text()
+    for marker in (
+        "if: github.ref == 'refs/heads/main'",
+        "group: trellis-release-preparation",
+        "scripts/release_request.py",
+        "scripts/release_ready.py",
+        "--github-output",
+        '"${arguments[@]}"',
+    ):
+        if marker not in prepare:
+            fail(f".github/workflows/release.yml: missing preparation marker {marker!r}", failures)
+    if prepare.index("scripts/release_ready.py") > prepare.index("Generate app token"):
+        fail(".github/workflows/release.yml: release completeness must precede write credentials", failures)
+    config = tomllib.loads((ROOT / "gleam.toml").read_text())["tools"]["trellis"]
+    if config["release"] != {"resume": True, "auto_pre": True, "skip_unchanged": True}:
+        fail("gleam.toml: native release continuation controls must be enabled", failures)
+    if config["publish"]["lifecycle"] != {"default": "git_only"}:
+        fail("gleam.toml: releases must remain git-only", failures)
 
     gate = (ROOT / "scripts" / "release_gate.py").read_text()
     for marker in ("merge_commit_sha", "release/pending", "full_name", "event"):

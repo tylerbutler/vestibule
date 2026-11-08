@@ -301,15 +301,85 @@ Edit fragments, not changelogs.
 1. Make changes following the commit message convention
 2. Add a changelog entry for each affected package (`just change ...`), except for CI-only changes
 3. Push to a feature branch and create a PR
-4. After merge to main, the **Release** workflow runs `trellis release pr`,
-   batching every package with pending fragments into a single release PR
+4. After merge to main, **Prepare release** runs `trellis release pr` with native
+   intent resumption, candidate continuation, and unchanged-content checks.
+   It creates or updates one `release/pending` PR for the affected packages
 5. The release PR bumps versions in each package's `gleam.toml`, regenerates the
    per-package `CHANGELOG.md` files, and patches the locked workspace versions in
    every `manifest.toml`. Packages that path-depend on a bumped package are
    bumped too, with a generated `Dependencies` entry
-6. Merge the release PR → the **Release** workflow records the release with
-   `trellis tag create --github-release`. Nothing is uploaded to Hex; see
-   [Publishing](#publishing)
+6. Merge the release PR. After trusted push CI passes for that exact merge,
+   approve the `release` environment in **Tag and release**. Trellis records
+   the package tags and GitHub Releases with `trellis tag create --github-release`.
+   Nothing is uploaded to Hex; see [Publishing](#publishing)
+
+### Candidates and promotion
+
+The locked toolchain uses Trellis 1.3.0. Release preparation uses
+`[tools.trellis.release]` settings `resume`, `auto_pre`, and `skip_unchanged`.
+Automatic runs preserve a pending PR's mode and package targets. After a
+candidate merges, new release content continues its candidate label. An
+automatic run does not promote a candidate to stable.
+
+Run **Prepare release** manually on `main` to change the request:
+
+| Input | Meaning |
+| --- | --- |
+| `pre` empty | Retain pending intent or the committed candidate label; use stable preparation outside a candidate cycle |
+| `pre` = `rc` | Start or continue a candidate cycle |
+| `pre` = `none` | Promote candidates to their stable target versions |
+| `targets` | Optional space-separated `package=X.Y.Z` targets, for example `vestibule=0.2.0 vestibule_github=0.3.0` |
+
+Packages retain separate version bases. Explicit inputs override the supplied
+part of a pending request; empty inputs do not reset that request. Trellis
+rejects unknown packages, invalid versions, conflicting labels, and inconsistent
+release state. No-change outcomes skip preparation; errors fail the workflow.
+
+Preview local version plans without creating a PR or tags:
+
+```bash
+just changelog-preview
+just changelog-preview rc "vestibule=0.2.0 vestibule_github=0.3.0"
+just changelog-preview none
+# The native CLI also accepts repeated per-package overrides.
+trellis version plan --pre rc --set vestibule=0.2.0 --set vestibule_github=0.3.0
+```
+
+These previews use local versions and fragments, not a pending PR's stored
+intent. Review the prepared release PR before merging.
+
+Trellis commits `.changes/release.toml` to record native release intent.
+Each candidate moves its fragments into `.changes/<package>/v<prerelease>.toml`
+archives beside its Markdown notes. Include those archives in the release PR.
+Later candidates include new changes only; `--pre none` combines candidate
+archives and remaining fragments for the stable release notes.
+
+### Recovery and prerequisites
+
+Preparation and tagging each run in a serialized workflow. Preparation requires
+the current package versions to have their tags and published GitHub Releases
+with the correct prerelease flags. If tagging fails or awaits approval,
+preparation stops before obtaining write credentials. Retry **Tag and release**
+on `main` with `release_sha` set to the full reviewed release merge SHA, then
+rerun **Prepare release**. The retry requires a merged same-repository
+`release/pending` PR, the latest successful trusted CI push attempt for that SHA,
+and environment approval. Do not tag the current `main` tip as a substitute.
+
+Set repository secrets `RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY` for an App
+installed on this repository. Preparation requests Contents write and Pull
+requests write; tagging requests Contents write. The gate uses Actions read
+and Pull requests read. Keep the default token read-only, the `release`
+environment's reviewer and `main` restriction, and the package-tag and moving-tag
+rules described in [CI security](docs/ci-security.md). Git-only releases do not
+need a Hex publication key. The existing Hex read key serves dependency downloads.
+
+During migration, a legacy pending PR without `.changes/release.toml` cannot
+resume. Replace it through an explicit native request with `--no-resume`,
+`--no-skip-unchanged`, and the intended mode and targets; review that replacement
+before merging. Legacy candidate continuation needs full, consistent manifest
+and changelog history. If verification fails, fetch complete history or make
+an explicit candidate preparation to establish native state. Do not rewrite
+historical releases or edit release intent by hand.
 
 ### Tags
 

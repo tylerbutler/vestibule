@@ -126,6 +126,7 @@ Managed via `.mise.toml` and `mise.lock` (source of truth for CI):
 - Rebar3 3.24.0 (required by vestibule_wisp's transitive deps)
 - Gleam 1.18.1
 - just 1.38.0
+- Trellis 1.3.0
 
 Use `mise install --locked` to install the pinned local toolchain.
 
@@ -134,15 +135,23 @@ Use `mise install --locked` to install the pinned local toolchain.
 ### Workflows
 - **ci.yml**: One job per task (format, check, lint, build, test, docs), each `trellis run <task>` fanning across all packages graph-parallel
 - **pr.yml**: PR title validation (commitlint) and changelog entry check
-- **release.yml**: `trellis release pr` — batches all packages with pending fragments into a single release PR
-- **publish.yml** (workflow name: Release): On the release PR merging — records per-package tags and GitHub Releases. **Releases are git-only**; nothing is uploaded to Hex
+- **release.yml** (Prepare release): Native Trellis intent resumption, RC continuation, per-package manual targets, and explicit promotion. Requires the preceding release to be tagged and released before preparation
+- **publish.yml** (Tag and release): After trusted CI passes for the exact merged release PR SHA and the `release` environment approves, records per-package tags and GitHub Releases. **Releases are git-only**; nothing is uploaded to Hex
 
 ### Release Flow
 1. Push commits with conventional commit messages
 2. Add changelog entries with `just change <package> <kind> "What changed"`; skip CI-only changes
-3. `trellis release pr` batches all packages with pending fragments into a single release PR
+3. `trellis release pr` prepares one release PR using `[tools.trellis.release]` settings `resume`, `auto_pre`, and `skip_unchanged`. Automatic runs retain candidate mode and pending targets; use explicit `--pre none` to promote
 4. Release PR bumps each package's `gleam.toml` version, regenerates per-package `CHANGELOG.md`, and patches the locked workspace versions in every `manifest.toml`
-5. Merge PR → `trellis tag create --github-release` records the release as tags and GitHub Releases; nothing goes to Hex
+5. Merge PR, pass trusted CI for that exact SHA, and approve the release environment. `trellis tag create --github-release` records tags and GitHub Releases; nothing goes to Hex
+
+Manual preparation accepts `pre` (`rc`, `none`, or empty) and space-separated
+`targets` (`package=X.Y.Z`). `just changelog-preview [pre] [targets]` previews
+local plans without release writes. Candidate PRs include native
+`.changes/release.toml` intent and `.changes/<package>/v<prerelease>.toml` fragment
+archives; stable promotion combines candidate changes. Retry tagging with the
+full reviewed merge SHA, not the current `main` tip. See `DEV.md` for migration
+of legacy pending PRs without native intent.
 
 ### Tags
 A release writes three kinds of tag:

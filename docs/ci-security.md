@@ -11,9 +11,24 @@ This document records the CI trust model and the dependency review performed on
 | `ci.yml` | `push` to `main` | Repository content on `main`. The token has `contents: read`, and the dependency download receives the read-only Hex API key. This is the only trigger that can save the Gleam dependency cache. |
 | `ci.yml` | `workflow_call` | Trust is set by the caller. The called workflow requests only `contents: read`; its dependency download receives the optional read-only Hex API key from its caller, and it cannot save the dependency cache. |
 | `pr.yml` | `pull_request` | Untrusted content. The token has `contents: read`; the workflow does not comment on the PR or persist checkout credentials. Event text is passed through environment variables, not inserted into shell source. |
-| `release.yml` | `push` to `main` | Intended for reviewed `main` content. Tools and the release plan run before the GitHub App token is created. The token is passed only to `trellis release pr`. |
+| `release.yml` (Prepare release) | `push` to `main` or manual dispatch on `main` | Validate release inputs and require current versions to have tags and published GitHub Releases before creating the App token. Pass the token only to native `trellis release pr`. Automatic preparation retains candidate mode and pending targets; promotion requires an explicit request. |
 | `publish.yml` | successful `workflow_run` for CI on `main` | The gate uses the successful CI commit SHA and requires it to belong to a merged `release/pending` PR. The release job checks out that SHA, verifies `HEAD`, and only then creates the GitHub App token. |
-| `publish.yml` | `workflow_dispatch` | A retry path. It requires a full commit SHA, the same merged release-PR association, all seven CI checks on that SHA, and the `release` environment. |
+| `publish.yml` | `workflow_dispatch` | A retry path. It requires a full commit SHA, the same merged release-PR association, the latest successful trusted CI push attempt on that SHA, and the `release` environment. |
+
+Preparation and tagging each have a concurrency group with cancellation
+disabled. Both tagging paths check the latest CI push attempt, including newer
+incomplete or failed attempts. They check the workflow path, repository, branch,
+and exact SHA. After environment approval, tagging verifies `HEAD` and checks
+the latest CI attempt again before obtaining write credentials. Release jobs
+install tools without restoring dependency
+caches or downloading Hex packages.
+
+Trellis 1.3.0 supplies release intent resumption, automatic candidate
+continuation, unchanged-content checks, and structured preparation outcomes.
+The input helper validates arguments; it does not infer release mode. The
+readiness helper checks native package and tag plans against published GitHub
+Releases. Neither helper performs release writes. See
+[candidate controls and recovery](../DEV.md#candidates-and-promotion).
 
 No workflow uses `pull_request_target`, downloads another workflow's artifact,
 or passes a secret to pull-request code. The dependency cache contains
@@ -106,10 +121,11 @@ Repository Actions policy allows all actions and does not require SHA pins.
 The committed policy check supplies that enforcement for this repository's
 workflows and templates.
 
-The `main` ruleset still requires legacy per-task check names that the current
-combined CI job does not emit. This can leave pull requests blocked after all
-current checks pass. Issue #180 owns that external settings alignment; this PR
-does not change the ruleset.
+A read-only check on 2026-11-07 found `CI Security Policy` and `Dependencies` in
+the `main` ruleset's required checks; the legacy per-task names were absent.
+Issue #180 tracks that external settings alignment. The release CI update does
+not change the ruleset. Confirm the required checks still match the intended
+merge policy before rollout.
 
 The `release` environment permits its designated reviewer to approve their own
 dispatch. Approval is still an explicit human step, not an automatic or admin

@@ -31,6 +31,7 @@ jobs:
       - run: |
           python3 scripts/check_ci_security.py
           python3 scripts/test_release_gate.py
+          python3 -B scripts/test_release_preparation.py
 
   dependencies:
     name: Dependencies

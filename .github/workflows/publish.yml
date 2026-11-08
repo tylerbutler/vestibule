@@ -1,4 +1,4 @@
-name: Release
+name: Tag and release
 
 # RELEASES ARE GIT-ONLY. `[tools.trellis.publish.lifecycle] default = "git_only"`
 # in the root gleam.toml puts every package on the git lifecycle, so a release is
@@ -30,6 +30,11 @@ on:
 permissions:
   contents: read
   pull-requests: read
+  actions: read
+
+concurrency:
+  group: trellis-release-tagging
+  cancel-in-progress: false
 
 jobs:
   gate:
@@ -37,6 +42,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+      actions: read
     runs-on: ubuntu-latest
     if: >-
       (github.event_name == 'workflow_run' &&
@@ -78,18 +84,20 @@ jobs:
           eligible=$(gh api "repos/$REPOSITORY/commits/$sha/pulls" |
             python3 scripts/release_gate.py pr --sha "$sha" --repository "$REPOSITORY")
           if [ "$eligible" != "true" ]; then
+            if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+              echo "::error::release_sha is not a merged same-repository release/pending PR"
+              exit 1
+            fi
             echo "eligible=false" >> "$GITHUB_OUTPUT"
             echo "sha=$sha" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            ci_valid=$(gh api --method GET "repos/$REPOSITORY/actions/workflows/ci.yml/runs" \
-              -f head_sha="$sha" -f branch=main -f event=push -f status=completed -f per_page=100 |
-              python3 scripts/release_gate.py ci --sha "$sha" --repository "$REPOSITORY")
-            if [ "$ci_valid" != "true" ]; then
-              echo "::error::latest trusted CI push run did not pass for $sha"
-              exit 1
-            fi
+          ci_valid=$(gh api --method GET "repos/$REPOSITORY/actions/workflows/ci.yml/runs" \
+            -f head_sha="$sha" -f branch=main -f event=push -f per_page=100 |
+            python3 -B scripts/release_gate.py ci --sha "$sha" --repository "$REPOSITORY")
+          if [ "$ci_valid" != "true" ]; then
+            echo "::error::latest trusted CI push run did not pass for $sha"
+            exit 1
           fi
           echo "eligible=true" >> "$GITHUB_OUTPUT"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
@@ -98,6 +106,7 @@ jobs:
     name: Tag and release
     permissions:
       contents: read
+      actions: read
     needs: gate
     if: needs.gate.outputs.eligible == 'true'
     runs-on: ubuntu-latest
@@ -109,13 +118,27 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Setup environment
-        uses: ./.github/actions/setup
+      - name: Setup tools
+        uses: ./.github/actions/mise
 
       - name: Verify checked out commit
         env:
           RELEASE_SHA: ${{ needs.gate.outputs.release-sha }}
         run: test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+
+      - name: Recheck trusted CI after approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ needs.gate.outputs.release-sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          ci_valid=$(gh api --method GET "repos/$REPOSITORY/actions/workflows/ci.yml/runs" \
+            -f head_sha="$RELEASE_SHA" -f branch=main -f event=push -f per_page=100 |
+            python3 -B scripts/release_gate.py ci --sha "$RELEASE_SHA" --repository "$REPOSITORY")
+          if [ "$ci_valid" != "true" ]; then
+            echo "::error::latest trusted CI push run did not pass for $RELEASE_SHA"
+            exit 1
+          fi
 
       - name: Generate app token
         id: app-token

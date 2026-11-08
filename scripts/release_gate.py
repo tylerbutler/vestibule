@@ -25,6 +25,7 @@ def latest_ci_run_succeeded(payload: dict, sha: str, repository: str) -> bool:
         if run.get("head_sha") == sha
         and run.get("head_branch") == "main"
         and run.get("event") == "push"
+        and run.get("path") == ".github/workflows/ci.yml"
         and run.get("head_repository", {}).get("full_name") == repository
     ]
     if not matching:
