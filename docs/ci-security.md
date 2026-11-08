@@ -39,15 +39,17 @@ restore.
 ## Executable inputs
 
 All active third-party actions and committed workflow templates use full,
-verified upstream commit SHAs. `scripts/check_ci_security.py` enforces full SHA
-pins, explicit least-privilege permissions on every job, non-persisted checkout credentials,
-safe expression handling, locked tools, secret-free pull-request CI, scoped Hex
-credentials, trusted cache saves, and release-SHA binding.
+verified upstream commit SHAs. The workflows declare read-only job permissions,
+disable persisted checkout credentials, pass event data through environment
+variables, and restrict credentials and cache saves to trusted jobs. CI does
+not run a custom policy script to enforce these conventions.
 
 The repository installs mise `2026.8.3` with the SHA-256 published in its signed
 checksum list. `.mise.toml` pins Erlang, Rebar3, Gleam, Just, and Trellis.
-`mise.lock` records platform URLs and SHA-256 values. Mise installs from this
-lock in CI. The Erlang checksums were computed directly from the exact upstream
+`mise.lock` records platform URLs and available SHA-256 values. The Rebar3
+records do not include checksums, so locked installation does not provide a
+committed checksum for that download. Mise installs from this lock in CI.
+The Erlang checksums were computed directly from the exact upstream
 archives because the backend did not supply checksums. Gleam and Trellis expose
 GitHub artifact attestations; the lock records verification where mise verified
 it on the review host. A checksum mismatch fails installation.
@@ -118,8 +120,8 @@ read-only GitHub API check on 2026-10-03 confirmed that they are active:
 | Immutable GitHub Releases | Enabled for future published releases |
 
 Repository Actions policy allows all actions and does not require SHA pins.
-The committed policy check supplies that enforcement for this repository's
-workflows and templates.
+Contributors must review action pins in workflow changes; CI does not enforce
+them through a custom policy check.
 
 A read-only check on 2026-11-07 found `CI Security Policy` and `Dependencies` in
 the `main` ruleset's required checks; the legacy per-task names were absent.
@@ -156,7 +158,10 @@ and release artifact source. Pull-request code has read-only credentials and
 cannot save a cache or reach release credentials. Release writes occur only
 after the reviewed merge commit passes the trusted CI gate.
 
-`scripts/check_ci_security.py` enforces the critical workflow invariants, and
-`scripts/test_release_gate.py` covers accepted and rejected release commits.
+`scripts/release_gate.py` checks the merged release-PR association and latest
+trusted CI attempt before release writes. The local tests
+`scripts/test_release_gate.py` and `scripts/test_release_preparation.py` cover
+release authorization, input validation, and readiness. CI does not run these
+Python tests.
 The repository settings listed above address the remaining default-token,
 protected-branch, tag, and immutable-release controls.
