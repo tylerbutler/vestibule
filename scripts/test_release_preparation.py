@@ -103,7 +103,7 @@ class ReleaseToolLockTest(unittest.TestCase):
     def test_checks_quoted_platform_checksums_and_pin_consistency(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / ".mise.toml").write_text('[tools]\n"github:tylerbutler/trellis" = "1.3.0"\n')
+            (root / ".mise.toml").write_text('[tools]\nerlang = "27.2.1"\n"github:tylerbutler/trellis" = "1.3.0"\n')
             action = root / ".github/actions/mise/action.yml"
             action.parent.mkdir(parents=True)
             action.write_text(f'version: "2026.8.3"\nsha256: "{"a" * 64}"\n')
@@ -119,6 +119,19 @@ checksum = "invalid"
             self.assertTrue(any("configured version 1.3.0" in error for error in failures))
             self.assertTrue(any("lacks a SHA-256 checksum" in error for error in failures))
             self.assertTrue(any("both macOS platforms" in error for error in failures))
+
+    def test_erlang_requires_one_matching_entry_with_all_platforms(self):
+        import tomllib
+        root = Path(__file__).resolve().parent.parent
+        config = tomllib.loads((root / ".mise.toml").read_text())
+        lock = tomllib.loads((root / "mise.lock").read_text())
+        entries = lock["tools"]["erlang"]
+        self.assertEqual(len(entries), 1)
+        self.assertFalse(entries[0].get("options"))
+        self.assertEqual(entries[0]["version"], config["tools"]["erlang"])
+        for platform in ("linux-x64", "macos-arm64", "macos-x64"):
+            self.assertTrue(entries[0][f"platforms.{platform}"]["url"].startswith("https://"))
+            self.assertRegex(entries[0][f"platforms.{platform}"]["checksum"], r"^sha256:[0-9a-f]{64}$")
 
 
 if __name__ == "__main__":

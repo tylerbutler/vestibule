@@ -88,6 +88,19 @@ def check_tools(failures: list[str]) -> None:
             fail(f".mise.toml: {tool} must use an exact version", failures)
 
     lock = tomllib.loads((ROOT / "mise.lock").read_text())
+    erlang_entries = lock["tools"].get("erlang", [])
+    if len(erlang_entries) != 1 or erlang_entries[0].get("options"):
+        fail("mise.lock: Erlang must have one lock entry matching the configured tool options", failures)
+    else:
+        erlang = erlang_entries[0]
+        if erlang["version"] != config["tools"]["erlang"]:
+            fail("mise.lock: Erlang must match its configured version", failures)
+        for platform in ("linux-x64", "macos-arm64", "macos-x64"):
+            metadata = erlang.get(f"platforms.{platform}", erlang.get("platforms", {}).get(platform, {}))
+            if not metadata.get("url") or not re.fullmatch(
+                r"sha256:[0-9a-f]{64}", metadata.get("checksum", "")
+            ):
+                fail(f"mise.lock: Erlang {platform} needs a locked URL and SHA-256 checksum", failures)
     trellis = "github:tylerbutler/trellis"
     version = config["tools"][trellis]
     if [entry["version"] for entry in lock["tools"].get(trellis, [])] != [version]:

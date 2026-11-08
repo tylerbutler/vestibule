@@ -14,13 +14,6 @@ checksum = "sha256:13151d5f3f07efa4b30c9bd824b34d7d85f289bf28baf633e504d5eb4f817
 url = "https://github.com/erlef/otp_builds/releases/download/OTP-27.2.1/otp-x86_64-apple-darwin.tar.gz"
 url_api = "https://api.github.com/repos/erlef/otp_builds/releases/assets/222844918"
 
-[[tools.erlang]]
-version = "27.2.1"
-backend = "core:erlang"
-
-[tools.erlang.options]
-precompiled_os = "ubuntu-24.04"
-
 [tools.erlang."platforms.linux-x64"]
 checksum = "sha256:3f6ff93cfbdd6799161880d8e76d73813e7e3dc7dd619e296b8dacfb415d0c01"
 url = "https://builds.hex.pm/builds/otp/amd64/ubuntu-24.04/OTP-27.2.1.tar.gz"
