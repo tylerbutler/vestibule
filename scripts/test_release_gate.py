@@ -25,6 +25,7 @@ def ci_run(**changes):
         "head_sha": SHA,
         "head_branch": "main",
         "event": "push",
+        "path": ".github/workflows/ci.yml",
         "head_repository": {"full_name": REPOSITORY},
         "run_number": 10,
         "run_attempt": 1,
@@ -70,6 +71,34 @@ class ReleaseGateTest(unittest.TestCase):
     def test_rejects_pull_request_ci(self):
         payload = {"workflow_runs": [ci_run(event="pull_request")]}
         self.assertFalse(latest_ci_run_succeeded(payload, SHA, REPOSITORY))
+
+    def test_rejects_wrong_sha_or_repository_or_workflow(self):
+        for change in (
+            {"head_sha": "b" * 40},
+            {"head_repository": {"full_name": "fork/repo"}},
+            {"path": ".github/workflows/other.yml"},
+        ):
+            with self.subTest(change=change):
+                self.assertFalse(
+                    latest_ci_run_succeeded({"workflow_runs": [ci_run(**change)]}, SHA, REPOSITORY)
+                )
+
+    def test_rejects_latest_incomplete_attempt(self):
+        payload = {"workflow_runs": [
+            ci_run(run_attempt=2, status="in_progress", conclusion=None),
+            ci_run(run_attempt=1),
+        ]}
+        self.assertFalse(latest_ci_run_succeeded(payload, SHA, REPOSITORY))
+
+    def test_rejects_unmerged_or_wrong_base_release_pr(self):
+        for change in (
+            {"merged_at": None},
+            {"base": {"ref": "feature", "repo": {"full_name": REPOSITORY}}},
+            {"base": {"ref": "main", "repo": {"full_name": "fork/repo"}}},
+            {"head": {"ref": "feature", "repo": {"full_name": REPOSITORY}}},
+        ):
+            with self.subTest(change=change):
+                self.assertFalse(matching_release_pr([release_pr(**change)], SHA, REPOSITORY))
 
 
 if __name__ == "__main__":

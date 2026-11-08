@@ -187,8 +187,8 @@ change pkg kind body:
     trellis changelog new --package {{ pkg }} --kind {{ kind }} --body {{ quote(body) }}
 
 # Show the version bumps the unreleased fragments imply
-changelog-preview:
-    trellis version plan
+changelog-preview pre="" targets="":
+    python3 -B scripts/release_request.py --plan --pre {{ quote(pre) }} --targets {{ quote(targets) }}
 
 # Apply the release locally: bump versions, render changelogs, patch lockfiles
 changelog-apply:

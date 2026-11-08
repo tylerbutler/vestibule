@@ -58,7 +58,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          trellis changelog check --base "$BASE_SHA" --head "$HEAD_SHA" --json > check.json || true
+          trellis changelog check --base "$BASE_SHA" --head "$HEAD_SHA" --format json > check.json || true
           {
             echo "has-entries=$(jq -r '.has_entries' check.json)"
             echo "needs-entry=$(jq -r '.needs_entry' check.json)"

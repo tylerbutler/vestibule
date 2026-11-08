@@ -1,8 +1,22 @@
-name: Release
+name: Prepare release
 
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      pre:
+        description: "Candidate mode: rc, none to promote, or empty to retain the current mode"
+        type: string
+        default: ""
+      targets:
+        description: "Optional space-separated targets, for example vestibule=0.2.0 vestibule_github=0.2.0"
+        type: string
+        default: ""
+
+concurrency:
+  group: trellis-release-preparation
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -10,29 +24,42 @@ permissions:
 
 jobs:
   release:
+    if: github.ref == 'refs/heads/main'
     permissions:
       contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
         with:
-          ref: ${{ github.sha }}
+          ref: main
           fetch-depth: 0
           persist-credentials: false
 
       - name: Setup tools
         uses: ./.github/actions/mise
 
-      # No pending fragments means nothing to release; skip rather than fail.
-      - name: Plan release
-        id: plan
+      - name: Validate release inputs
+        env:
+          INPUT_PRE: ${{ inputs.pre }}
+          INPUT_TARGETS: ${{ inputs.targets }}
         run: |
-          plan=$(trellis version plan --json)
-          echo "count=$(echo "$plan" | jq '.bumped | length')" >> "$GITHUB_OUTPUT"
-          echo "versions=$(echo "$plan" | jq -r '[.bumped[] | "\(.name) \(.current) -> \(.next)"] | join(", ")')" >> "$GITHUB_OUTPUT"
+          python3 -B scripts/release_request.py \
+            --pre "$INPUT_PRE" --targets "$INPUT_TARGETS" > "$RUNNER_TEMP/release-args.json"
+
+      - name: Verify previous release is complete
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          trellis list --json > "$RUNNER_TEMP/packages.json"
+          trellis tag plan --json > "$RUNNER_TEMP/tags.json"
+          gh api "repos/$REPOSITORY/releases?per_page=100" --paginate --slurp > "$RUNNER_TEMP/releases.json"
+          python3 -B scripts/release_ready.py \
+            --packages "$RUNNER_TEMP/packages.json" \
+            --tags "$RUNNER_TEMP/tags.json" \
+            --releases "$RUNNER_TEMP/releases.json"
 
       - name: Generate app token
-        if: steps.plan.outputs.count != '0'
         id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # ratchet:actions/create-github-app-token@v3
         with:
@@ -41,29 +68,24 @@ jobs:
           permission-contents: write
           permission-pull-requests: write
 
-      # `release pr` runs `version apply` on a branch and opens (or updates) the
-      # PR. Version bumps, per-package CHANGELOG.md files, and the locked
-      # workspace versions in every manifest.toml are handled natively — no Gleam
-      # toolchain and no Hex network calls, so this workflow no longer needs a
-      # post-batch lockfile refresh pass of its own.
       - name: Create release PR
-        if: steps.plan.outputs.count != '0'
+        id: release
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: trellis release pr --base main
+        shell: bash
+        run: |
+          mapfile -t arguments < <(jq -r '.[]' "$RUNNER_TEMP/release-args.json")
+          trellis release pr --base main --branch release/pending \
+            "${arguments[@]}" --github-output >> "$GITHUB_OUTPUT"
 
       - name: Summary
-        if: steps.plan.outputs.count != '0'
         env:
-          VERSIONS: ${{ steps.plan.outputs.versions }}
+          OUTCOME: ${{ steps.release.outputs.outcome }}
         run: |
-          echo "### Release PR" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Versions:** $VERSIONS" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Skipped
-        if: steps.plan.outputs.count == '0'
-        run: |
-          echo "### Release Skipped" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "No unreleased change fragments found." >> "$GITHUB_STEP_SUMMARY"
+          case "$OUTCOME" in
+            prepared) message="Release PR created or updated." ;;
+            unchanged) message="Release content and intent are unchanged." ;;
+            no_changes) message="No eligible release changes." ;;
+            *) echo "::error::Unexpected release outcome: $OUTCOME"; exit 1 ;;
+          esac
+          printf '### Release preparation\n\n%s\n' "$message" >> "$GITHUB_STEP_SUMMARY"
