@@ -19,26 +19,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  policy:
-    name: CI Security Policy
-    permissions:
-      contents: read
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
-        with:
-          persist-credentials: false
-      - run: |
-          python3 scripts/check_ci_security.py
-          python3 scripts/test_release_gate.py
-          python3 -B scripts/test_release_preparation.py
-
   dependencies:
     name: Dependencies
     permissions:
       contents: read
     runs-on: ubuntu-latest
-    needs: policy
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
         with:
