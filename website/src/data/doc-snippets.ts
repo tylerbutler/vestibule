@@ -7,21 +7,69 @@ export const coreInstallCode = `[dependencies]
 vestibule = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0" }
 vestibule_github = { git = "https://github.com/tylerbutler/vestibule.git", ref = "v0", path = "packages/vestibule_github" }`;
 
+export const providerSetups = [
+  {
+    id: "github",
+    label: "GitHub",
+    strategy: "let strategy = vestibule_github.strategy()",
+    clientId: "github-client-id",
+    redirectUri: "http://localhost:8000/auth/github/callback",
+    clientSecret: '"github-client-secret"'
+  },
+  {
+    id: "google",
+    label: "Google",
+    strategy: "let strategy = vestibule_google.strategy()",
+    clientId: "google-client-id",
+    redirectUri: "http://localhost:8000/auth/google/callback",
+    clientSecret: '"google-client-secret"'
+  },
+  {
+    id: "microsoft",
+    label: "Microsoft",
+    strategy: "let strategy = vestibule_microsoft.strategy()",
+    clientId: "microsoft-client-id",
+    redirectUri: "http://localhost:8000/auth/microsoft/callback",
+    clientSecret: '"microsoft-client-secret"'
+  },
+  {
+    id: "apple",
+    label: "Apple",
+    strategy: `let assert Ok(apple) = vestibule_apple.initialize()
+let strategy = vestibule_apple.strategy(apple)
+
+// Load p8_pem from configuration, not source code.
+let assert Ok(client_secret) =
+  vestibule_apple.build_client_secret(
+    team_id: "your-team-id",
+    client_id: "com.example.demo",
+    key_id: "your-key-id",
+    p8_pem: p8_pem,
+    ttl: 3600,
+  )`,
+    clientId: "com.example.demo",
+    redirectUri: "https://demo.example/auth/apple/callback",
+    clientSecret: "client_secret"
+  }
+].map((provider) => ({
+  ...provider,
+  code: `import vestibule/config
+import vestibule_${provider.id}
+
+${provider.strategy}
+let client_config =
+  config.new(
+    client_id: "${provider.clientId}",
+    redirect_uri: "${provider.redirectUri}",
+    auth: config.client_secret_auth(${provider.clientSecret}),
+  )`
+}));
+
 export const coreCode = `import gleam/dict
-import gleam/option
 import vestibule
 import vestibule/authorization_request
 import vestibule/config
 import vestibule/error
-import vestibule_github
-
-let strategy = vestibule_github.strategy()
-let client_config =
-  config.new(
-    client_id: "client_id",
-    redirect_uri: "http://localhost:8000/auth/github/callback",
-    auth: config.client_secret_auth("client_secret"),
-  )
 
 let options = config.authorize_options()
 let assert Ok(auth_request) =
@@ -30,11 +78,13 @@ let assert Ok(auth_request) =
     config: client_config,
     options: options,
   )
-// Store authorization_request.state(auth_request) and
-// authorization_request.code_verifier(auth_request) server-side,
+// Store authorization_request.state(auth_request),
+// authorization_request.code_verifier(auth_request), and
+// authorization_request.nonce(auth_request) server-side,
 // bound to this user's session, with an expiration time.
 // Redirect user to authorization_request.url(auth_request).
 
+// Read the callback query or form-encoded POST body (Apple uses POST).
 let params =
   dict.from_list([
     #("state", "state from callback"),
@@ -42,7 +92,7 @@ let params =
   ])
 
 // Validate and atomically consume the stored session before this call.
-// Pass the consumed state and verifier; do not restore them after failure.
+// Pass the consumed state, verifier, and nonce. Do not restore after failure.
 // Never assert the callback result.
 case
   vestibule.handle_callback(
@@ -51,7 +101,7 @@ case
     params,
     "expected state from session",
     "code verifier from session",
-    expected_nonce: option.None,
+    expected_nonce: stored_nonce,
   )
 {
   Ok(auth) -> {
@@ -67,24 +117,19 @@ case
     }
 }`;
 
-export const wispCode = `import gleam/http
-import wisp
-import vestibule/config
-import vestibule/registry
-import vestibule/state_store
-import vestibule_wisp
-import vestibule_github
+export const registryCode = `import vestibule/registry
 
 let assert Ok(registry) =
   registry.new()
-  |> registry.register(
-    vestibule_github.strategy(),
-    config.new(
-      client_id: "client_id",
-      redirect_uri: "http://localhost:8000/auth/github/callback",
-      auth: config.client_secret_auth("client_secret"),
-    ),
-  )
+  |> registry.register(strategy, client_config)`;
+
+export const wispCode = `import gleam/http
+import wisp
+import vestibule/config
+import vestibule/state_store
+import vestibule_wisp
+
+${registryCode}
 
 let assert Ok(store) = state_store.create()
 
@@ -113,8 +158,7 @@ case wisp.path_segments(req), req.method {
     wisp.not_found()
 }`;
 
-export const callbackFailureCode = `import gleam/option
-import vestibule
+export const callbackFailureCode = `import vestibule
 import vestibule/error
 
 // Validate and atomically consume the stored flow before this call.
@@ -125,7 +169,7 @@ case
     params,
     expected_state,
     verifier,
-    expected_nonce: option.None,
+    expected_nonce: stored_nonce,
   )
 {
   Ok(auth) -> sign_in(auth)

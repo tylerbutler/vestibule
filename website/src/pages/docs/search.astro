@@ -1,5 +1,6 @@
 ---
 import DocsLayout from "../../layouts/DocsLayout.astro";
+import PageToc from "../../components/PageToc.astro";
 import { getSearchEntries } from "../../data/content";
 
 const entries = await getSearchEntries();
@@ -9,10 +10,6 @@ const entries = await getSearchEntries();
   title="Search docs"
   description="Search Vestibule documentation, package guides, and API references."
   section="Search"
-  toc={[
-    { href: "#docs-search", label: "Search field" },
-    { href: "#search-results", label: "Results" }
-  ]}
 >
   <article class="doc-page search-page" data-search-page>
     <header class="doc-hero">
@@ -22,6 +19,10 @@ const entries = await getSearchEntries();
         without JavaScript; typing narrows them in place.
       </p>
     </header>
+    <PageToc items={[
+      { href: "#docs-search", label: "Search field" },
+      { href: "#search-results", label: "Results" }
+    ]} />
 
     <form class="search-form" role="search">
       <label for="docs-search">Search documentation</label>

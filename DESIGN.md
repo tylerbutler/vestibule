@@ -147,7 +147,7 @@ The palette is restrained product purple with yellow used as a deliberate signal
 - **Hero Display** (700, 2.75rem; 3.25rem at wide viewports, 1.06 line-height): Overview-page only. Use a fixed breakpoint step, not fluid `clamp()`, so the product documentation remains spatially predictable.
 - **Headline** (650, 1.5rem, 1.2 line-height): Section headings in docs, demo pages, and settings-like surfaces.
 - **Title** (650, 1.125rem, 1.3 line-height): Cards, form groups, and table section titles.
-- **Body** (400, 1rem, 1.6 line-height): Documentation prose, helper text, and explanatory UI copy. Cap long prose at 65-75ch.
+- **Body** (400, 1rem, 1.6 line-height): Documentation prose, helper text, and explanatory UI copy. Aim for 65-75 visible characters per full line. Documentation paragraphs use a 50ch cap because Figtree's digit width exceeds its average prose character width. Keep code blocks and tables wider.
 - **Label** (650, 0.875rem, 1.25 line-height): Buttons, field labels, status chips, and compact navigation. Avoid tiny all-caps tracked labels as repeated section scaffolding.
 
 ### Named Rules
@@ -199,8 +199,10 @@ Vestibule should be flat by default. Depth comes from tonal layering, soft borde
 ### Navigation
 - **Style, typography, default/hover/active states, mobile treatment.** Navigation should be text-first and compact. Active states use `brand-purple`; hover states use `brand-purple-soft`. On narrow screens, collapse into a simple stacked list or native disclosure pattern rather than a custom animated menu.
 - **Homepage entry:** Use one compact header row on narrow screens. Put search, quick start, packages, and reference links in its disclosure; reserve the separate documentation menu for documentation pages. Keep the demo-only warning above the header at its normal reading size.
+- **Documentation entry:** Show the current page in the mobile Docs menu and hide redundant breadcrumbs below the sidebar breakpoint. Put the contents disclosure after the page introduction. Start it closed on narrow screens and open on wide screens; without JavaScript, keep its links available.
 - **Safe areas:** Layout chrome and page gutters account for `viewport-fit=cover` safe-area insets so phone notches and rounded corners never cover navigation or content.
 - **Theme persistence:** Theme controls must work when browser storage is blocked. Persist the choice when possible; otherwise keep the selected theme for the current page without breaking navigation or reading.
+- **Search entry:** An empty command palette offers the quick start, installation guide, package overview, and API reference. Typing searches the full index. Visible results, counts, empty states, and keyboard selection must agree.
 
 ### Authentication Result Panel
 
@@ -210,17 +212,21 @@ Use a two-column key/value layout for provider, UID, name, email, and nickname. 
 
 Use a restrained row/list treatment for supported OAuth providers. Brand marks may appear as compact identifiers beside GitHub, Google, Microsoft, Apple, or future providers, but they should not turn the surface into a rainbow OAuth button grid. The provider name, package name, and behavior note carry the meaning; icons are supplemental.
 
-The homepage dependency builder groups GitHub, Google, Microsoft, and Apple as hosted providers. At the provider decision, show separate IndieAuth and OIDC discovery paths with links to their setup guides. Do not present the four hosted providers as the complete support list.
+The homepage dependency builder groups GitHub, Google, Microsoft, and Apple as hosted providers. Put the IndieAuth and OIDC discovery links directly below the provider question, before the hosted choices and build action. Do not present the four hosted providers as the complete support list.
 
 ### Selected Quick Start
 
-Keep the chosen server and provider visible on the quick-start page. Put repeated dependencies in a native disclosure. Number the next tasks: wire the matching routes on the current page, then configure the provider. Show the selected Wisp or Mist example and open the core disclosure for a custom router.
+Keep the chosen server and provider visible on the quick-start page. Put repeated dependencies in a native disclosure. Number the next tasks: configure the chosen provider, then wire the matching routes. Show the provider's imports, strategy, credentials, and callback URI once; all route examples reuse that configuration. Show the selected Wisp or Mist example. For a custom router, hide the middleware path and open the core disclosure. Label the GitHub default when no valid selection is available.
 
 ### Callback Diagram
 
 Show the callback diagram beside the homepage introduction at wide widths. At narrow widths, use a native disclosure below the primary action. Keep the diagram open without JavaScript so its explanation remains available.
 
 Homepage copy names the completed outcome: generating a dependency block. Do not imply that this alone finishes provider setup or promise a fixed time to working sign-in.
+
+Keep the chosen server visible during provider selection. Name custom routing
+consistently, and show the Gleam 1.18+ Git path dependency requirement before the
+generated dependency block.
 
 ## 6. Do's and Don'ts
 

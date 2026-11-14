@@ -1,5 +1,6 @@
 ---
 import { render, type CollectionEntry } from "astro:content";
+import PageToc from "../../components/PageToc.astro";
 import DocsLayout from "../../layouts/DocsLayout.astro";
 import { docsSlug, getDocsEntries } from "../../data/content";
 
@@ -29,12 +30,13 @@ const toc = Array.isArray(tocSetting)
     : [];
 ---
 
-<DocsLayout title={entry.data.title} description={entry.data.description} toc={toc}>
+<DocsLayout title={entry.data.title} description={entry.data.description}>
   <article class="doc-page">
     <header class="doc-hero">
       <h1>{entry.data.title}</h1>
       <p>{entry.data.description}</p>
     </header>
+    <PageToc items={toc} />
     <Content />
   </article>
 </DocsLayout>

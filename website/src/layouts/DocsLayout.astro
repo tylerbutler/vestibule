@@ -9,15 +9,17 @@ type Props = {
   title: string;
   description: string;
   section?: string;
-  toc?: Array<{
-    href: string;
-    label: string;
-  }>;
 };
 
-const { title, description, section = "Docs", toc = [] } = Astro.props;
+const { title, description, section = "Docs" } = Astro.props;
 const navGroups = await getNavigation();
 const searchEntries = await getSearchEntries();
+const suggestedSearchHrefs = new Set([
+  "/docs/quick-start",
+  "/docs/installation",
+  "/docs/packages",
+  "/docs/reference"
+]);
 const pageTitle = title === "Vestibule" ? "Vestibule" : `${title} - Vestibule`;
 const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
 
@@ -35,7 +37,6 @@ const currentGroup = navGroups.find((group) =>
 );
 const showBreadcrumbs = currentPath !== "/";
 const breadcrumbLabel = currentLink?.label || title;
-const hasToc = toc.length > 0;
 
 type NavLink = (typeof navGroups)[number]["links"][number];
 type NavEntry =
@@ -205,7 +206,7 @@ const moduleLabel = (subTitle: string, label: string) =>
 
       <main id="main-content" class="content-shell">
         {currentPath !== "/" && (<details class="mobile-nav">
-          <summary>Docs menu{currentLink ? `: ${currentLink.label}` : ""}</summary>
+          <summary>Docs menu: {breadcrumbLabel}</summary>
           <nav aria-label="Mobile documentation navigation">
             {navGroups.map((group) => (
               <details
@@ -257,16 +258,6 @@ const moduleLabel = (subTitle: string, label: string) =>
             <span aria-current="page">{breadcrumbLabel}</span>
           </nav>
         )}
-        {hasToc && (
-          <nav class="page-toc" aria-label="On this page">
-            <span>On this page</span>
-            <ol>
-              {toc.map((item) => (
-                <li><a href={item.href}>{item.label}</a></li>
-              ))}
-            </ol>
-          </nav>
-        )}
         <slot />
       </main>
     </div>
@@ -310,6 +301,7 @@ const moduleLabel = (subTitle: string, label: string) =>
               data-cmd-item
               data-cmd-href={entry.href}
               data-cmd-external={entry.external ? "true" : undefined}
+              data-cmd-suggested={suggestedSearchHrefs.has(entry.href) ? "true" : undefined}
               data-cmd-text={`${entry.title} ${entry.category} ${entry.description} ${entry.terms}`.toLocaleLowerCase()}
             >
               <span class="chip">{entry.category}</span>
@@ -483,12 +475,17 @@ const moduleLabel = (subTitle: string, label: string) =>
           visible = [];
           for (const item of items) {
             const text = normalized(item.dataset.cmdText || "");
-            const match = terms.every((term) => text.includes(term));
+            const match = terms.length > 0
+              ? terms.every((term) => text.includes(term))
+              : item.dataset.cmdSuggested === "true";
             item.hidden = !match;
             if (match) visible.push(item);
           }
           const n = visible.length;
-          count.textContent = `${n} result${n === 1 ? "" : "s"}`;
+          count.textContent = terms.length > 0
+            ? `${n} result${n === 1 ? "" : "s"}`
+            : `${n} suggested page${n === 1 ? "" : "s"}`;
+          list.setAttribute("aria-label", terms.length > 0 ? "Search results" : "Suggested pages");
           empty.hidden = n > 0;
           list.hidden = n === 0;
           setActive(n > 0 ? 0 : -1);

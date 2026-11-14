@@ -1,7 +1,7 @@
 ---
 import CodeBlock from "./CodeBlock.astro";
 import { getPackageEntry } from "../data/content";
-import { wispCode } from "../data/doc-snippets";
+import { registryCode, wispCode } from "../data/doc-snippets";
 
 const mistPackage = await getPackageEntry("mist");
 if (!mistPackage) throw new Error("The quick start requires the Mist package guide.");
@@ -9,6 +9,7 @@ if (!mistPackage) throw new Error("The quick start requires the Mist package gui
 
 <section id="wisp-route" data-middleware-example="wisp">
   <h3>Wisp route setup</h3>
+  <p>Register the strategy and client configuration from the provider setup above.</p>
   <CodeBlock code={wispCode} lang="gleam" />
 </section>
 
@@ -19,8 +20,14 @@ if (!mistPackage) throw new Error("The quick start requires the Mist package gui
     <CodeBlock code={mistPackage.data.install.join("\n")} lang="toml" />
   </div>
   <p>
+    Register the strategy and client configuration from the provider setup above.
+  </p>
+  <CodeBlock code={registryCode} lang="gleam" />
+  <p>
     Load a high-entropy secret key base from configuration. Create the options
-    and state store once, then use them in your Mist handler.
+    and state store once, then use them in your Mist handler. For local HTTP
+    development only, use <code>with_cookie_security(AllowInsecure)</code>.
+    Keep secure cookies for HTTPS, including Apple.
   </p>
   <CodeBlock code={mistPackage.data.code} lang="gleam" />
 </details>

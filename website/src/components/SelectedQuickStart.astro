@@ -37,29 +37,25 @@ const providers = [
     value: "github",
     label: "GitHub",
     packageName: "vestibule_github",
-    path: "packages/vestibule_github",
-    href: "/docs/packages/github"
+    path: "packages/vestibule_github"
   },
   {
     value: "google",
     label: "Google",
     packageName: "vestibule_google",
-    path: "packages/vestibule_google",
-    href: "/docs/packages/google"
+    path: "packages/vestibule_google"
   },
   {
     value: "microsoft",
     label: "Microsoft",
     packageName: "vestibule_microsoft",
-    path: "packages/vestibule_microsoft",
-    href: "/docs/packages/microsoft"
+    path: "packages/vestibule_microsoft"
   },
   {
     value: "apple",
     label: "Apple",
     packageName: "vestibule_apple",
-    path: "packages/vestibule_apple",
-    href: "/docs/packages/apple"
+    path: "packages/vestibule_apple"
   }
 ];
 
@@ -99,12 +95,12 @@ const selections = routes.flatMap((route) =>
         </details>
         <ol class="selected-path-steps">
           <li>
-            <strong>Wire the request and callback routes.</strong>
-            <a class="button primary" href={route.href} data-route-start>{route.action}</a>
+            <strong>Configure {provider.label}.</strong>
+            <a class="button primary" href="#provider-setup">Start {provider.label} setup</a>
           </li>
           <li>
-            <strong>Configure {provider.label} before you test sign-in.</strong>
-            <a class="text-link" href={provider.href}>Set up {provider.label}</a>
+            <strong>Wire the request and callback routes.</strong>
+            <a class="text-link" href={route.href} data-route-start>{route.action}</a>
           </li>
         </ol>
         <a
@@ -136,6 +132,12 @@ const selections = routes.flatMap((route) =>
 
     selected.hidden = false;
     container.hidden = false;
+
+    for (const example of document.querySelectorAll("[data-provider-example]")) {
+      example.hidden = example.dataset.providerExample !== provider;
+    }
+    document.querySelector("[data-default-provider]").hidden = true;
+    document.querySelector("[data-middleware-path]").hidden = server === "core";
 
     for (const dependencies of document.querySelectorAll("[data-quick-start-dependencies]")) {
       dependencies.hidden = true;
